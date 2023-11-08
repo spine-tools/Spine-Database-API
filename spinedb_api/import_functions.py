@@ -12,6 +12,7 @@
 """
 Functions for importing data into a Spine database in a standard format.
 """
+from collections import defaultdict
 
 from .parameter_value import to_database, fix_conflict
 from .helpers import _parse_metadata
@@ -631,24 +632,37 @@ def _get_scenarios_for_import(db_map, data):
 
 
 def _get_scenario_alternatives_for_import(db_map, data):
-    alt_name_list_by_scen_name, errors = {}, []
+    alt_name_list_by_scen_name = {}
+    errors = []
+    successors_by_scen_name = defaultdict(dict)
     for scen_name, alt_name, *optionals in data:
+        successors_by_scen_name[scen_name][alt_name] = optionals[0] if optionals else None
+    for scen_name, successors in successors_by_scen_name.items():
         scen = db_map.mapped_table("scenario").find_item({"name": scen_name})
         if not scen:
             errors.append(f"no scenario with name {scen_name} to set alternatives for")
             continue
-        alternative_name_list = alt_name_list_by_scen_name.setdefault(scen_name, scen["alternative_name_list"])
-        if alt_name in alternative_name_list:
-            alternative_name_list.remove(alt_name)
-        before_alt_name = optionals[0] if optionals else None
-        if before_alt_name is None:
-            alternative_name_list.append(alt_name)
+        alt_names = set(successors)
+        alternative_name_list = alt_name_list_by_scen_name[scen_name] = [
+            a for a in scen["alternative_name_list"] if a not in alt_names
+        ]
+        for predecessor, successor in list(successors.items()):
+            if successor is None:
+                alternative_name_list.append(predecessor)
+                del successors[predecessor]
+        predecessors = {successor: predecessor for predecessor, successor in successors.items()}
+        predecessor_errors = []
+        for predecessor in predecessors:
+            if predecessor not in successors and predecessor not in alternative_name_list:
+                predecessor_errors.append(f"{predecessor} is not in {scen_name}")
+        if predecessor_errors:
+            errors += predecessor_errors
             continue
-        if before_alt_name in alternative_name_list:
-            pos = alternative_name_list.index(before_alt_name)
-            alternative_name_list.insert(pos, alt_name)
-        else:
-            errors.append(f"{before_alt_name} is not in {scen_name}")
+        while predecessors:
+            for i, alt_name in enumerate(alternative_name_list):
+                if (predecessor := predecessors.pop(alt_name, None)) is not None:
+                    alternative_name_list.insert(i, predecessor)
+                    break
 
     def _data_iterator():
         for scen_name, alternative_name_list in alt_name_list_by_scen_name.items():

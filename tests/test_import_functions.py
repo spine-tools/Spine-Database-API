@@ -70,7 +70,7 @@ def _assert_same_elements(test, obs_vals, exp_vals):
     test.assertEqual(obs_vals, exp_vals)
 
 
-def create_diff_db_map():
+def create_db_map():
     db_url = "sqlite://"
     return DatabaseMapping(db_url, username="UnitTest", create=True)
 
@@ -113,7 +113,7 @@ class TestIntegrationImportData(unittest.TestCase):
 
 class TestImportObjectClass(unittest.TestCase):
     def test_import_object_class(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         _, errors = import_object_classes(db_map, ["new_class"])
         self.assertFalse(errors)
         db_map.commit_session("test")
@@ -123,7 +123,7 @@ class TestImportObjectClass(unittest.TestCase):
 
 class TestImportObject(unittest.TestCase):
     def test_import_valid_objects(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class"])
         _, errors = import_objects(db_map, [["object_class", "new_object"]])
         self.assertFalse(errors)
@@ -132,13 +132,13 @@ class TestImportObject(unittest.TestCase):
         db_map.close()
 
     def test_import_object_with_invalid_object_class_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         _, errors = import_objects(db_map, [["nonexistent_class", "new_object"]])
         self.assertTrue(errors)
         db_map.close()
 
     def test_import_two_objects_with_same_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class1", "object_class2"])
         _, errors = import_objects(db_map, [["object_class1", "object"], ["object_class2", "object"]])
         self.assertFalse(errors)
@@ -154,7 +154,7 @@ class TestImportObject(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_object(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class"])
         import_objects(db_map, [["object_class", "object"]])
         db_map.commit_session("test")
@@ -167,7 +167,7 @@ class TestImportObject(unittest.TestCase):
 
 class TestImportRelationshipClass(unittest.TestCase):
     def test_import_valid_relationship_class(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class1", "object_class2"])
         _, errors = import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         self.assertFalse(errors)
@@ -180,7 +180,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_class_with_invalid_object_class_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class"])
         _, errors = import_relationship_classes(db_map, [["relationship_class", ["object_class", "nonexistent"]]])
         self.assertTrue(errors)
@@ -189,7 +189,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_class_name_twice(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class1", "object_class2"])
         _, errors = import_relationship_classes(
             db_map, [["new_rc", ["object_class1", "object_class2"]], ["new_rc", ["object_class1", "object_class2"]]]
@@ -204,7 +204,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_relationship_class(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class1", "object_class2"])
         import_relationship_classes(db_map, [["rc", ["object_class1", "object_class2"]]])
         _, errors = import_relationship_classes(db_map, [["rc", ["object_class1", "object_class2"]]])
@@ -212,7 +212,7 @@ class TestImportRelationshipClass(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_class_with_one_object_class_as_None(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class1"])
         _, errors = import_relationship_classes(db_map, [["new_rc", ["object_class", None]]])
         self.assertTrue(errors)
@@ -223,7 +223,7 @@ class TestImportRelationshipClass(unittest.TestCase):
 
 class TestImportObjectClassParameter(unittest.TestCase):
     def test_import_valid_object_class_parameter(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class"])
         _, errors = import_object_parameters(db_map, [["object_class", "new_parameter"]])
         self.assertFalse(errors)
@@ -232,13 +232,13 @@ class TestImportObjectClassParameter(unittest.TestCase):
         db_map.close()
 
     def test_import_parameter_with_invalid_object_class_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         _, errors = import_object_parameters(db_map, [["nonexistent_object_class", "new_parameter"]])
         self.assertTrue(errors)
         db_map.close()
 
     def test_import_object_class_parameter_name_twice(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class1", "object_class2"])
         _, errors = import_object_parameters(
             db_map, [["object_class1", "new_parameter"], ["object_class2", "new_parameter"]]
@@ -254,7 +254,7 @@ class TestImportObjectClassParameter(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_object_class_parameter(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class"])
         import_object_parameters(db_map, [["object_class", "parameter"]])
         db_map.commit_session("test")
@@ -281,7 +281,7 @@ class TestImportObjectClassParameter(unittest.TestCase):
 
 class TestImportRelationshipClassParameter(unittest.TestCase):
     def test_import_valid_relationship_class_parameter(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class1", "object_class2"])
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         _, errors = import_relationship_parameters(db_map, [["relationship_class", "new_parameter"]])
@@ -299,13 +299,13 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
         db_map.close()
 
     def test_import_parameter_with_invalid_relationship_class_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         _, errors = import_relationship_parameters(db_map, [["nonexistent_relationship_class", "new_parameter"]])
         self.assertTrue(errors)
         db_map.close()
 
     def test_import_relationship_class_parameter_name_twice(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class1", "object_class2"])
         import_relationship_classes(
             db_map,
@@ -331,7 +331,7 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_relationship_class_parameter(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class1", "object_class2"])
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         import_relationship_parameters(db_map, [["relationship_class", "new_parameter"]])
@@ -358,7 +358,7 @@ class TestImportRelationship(unittest.TestCase):
         db_map.close()
 
     def test_import_valid_relationship(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         _, errors = import_relationships(db_map, [["relationship_class", ["object1", "object2"]]])
@@ -368,7 +368,7 @@ class TestImportRelationship(unittest.TestCase):
         db_map.close()
 
     def test_import_valid_relationship_with_object_name_in_multiple_classes(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         import_objects(db_map, [["object_class1", "duplicate"], ["object_class2", "duplicate"]])
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
@@ -379,7 +379,7 @@ class TestImportRelationship(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_with_invalid_class_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         _, errors = import_relationships(db_map, [["nonexistent_relationship_class", ["object1", "object2"]]])
         self.assertTrue(errors)
@@ -388,7 +388,7 @@ class TestImportRelationship(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_with_invalid_object_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         _, errors = import_relationships(db_map, [["relationship_class", ["nonexistent_object", "object2"]]])
@@ -398,7 +398,7 @@ class TestImportRelationship(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_relationship(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         import_relationships(db_map, [["relationship_class", ["object1", "object2"]]])
@@ -410,7 +410,7 @@ class TestImportRelationship(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_with_one_None_object(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
         _, errors = import_relationships(db_map, [["relationship_class", [None, "object2"]]])
@@ -420,7 +420,7 @@ class TestImportRelationship(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_of_relationships(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         import_data(
             db_map,
@@ -561,7 +561,7 @@ class TestImportParameterValue(unittest.TestCase):
         import_relationships(db_map, [["relationship_class", ["object1", "object2"]]])
 
     def test_import_valid_object_parameter_value(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", 1]])
         self.assertFalse(errors)
@@ -572,7 +572,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_valid_object_parameter_value_string(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "value_string"]])
         self.assertFalse(errors)
@@ -583,7 +583,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_valid_object_parameter_value_with_duplicate_object_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         import_objects(db_map, [["object_class1", "duplicate_object"], ["object_class2", "duplicate_object"]])
         _, errors = import_object_parameter_values(db_map, [["object_class1", "duplicate_object", "parameter", 1]])
@@ -595,7 +595,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_valid_object_parameter_value_with_duplicate_parameter_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         import_object_parameters(db_map, [["object_class2", "parameter"]])
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", 1]])
@@ -607,7 +607,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_object_parameter_value_with_invalid_object(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class"])
         import_object_parameters(db_map, [["object_class", "parameter"]])
         _, errors = import_object_parameter_values(db_map, [["object_class", "nonexistent_object", "parameter", 1]])
@@ -617,7 +617,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_object_parameter_value_with_invalid_parameter(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_object_classes(db_map, ["object_class"])
         import_objects(db_map, ["object_class", "object"])
         _, errors = import_object_parameter_values(db_map, [["object_class", "object", "nonexistent_parameter", 1]])
@@ -627,7 +627,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_object_parameter_value_update_the_value(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "initial_value"]])
         _, errors = import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "new_value"]])
@@ -639,7 +639,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_object_parameter_value_on_conflict_keep(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         initial_value = {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}
         new_value = {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}
@@ -656,7 +656,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_object_parameter_value_on_conflict_replace(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         initial_value = {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}
         new_value = {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}
@@ -673,7 +673,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_object_parameter_value_on_conflict_merge(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         initial_value = {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}
         new_value = {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}
@@ -692,7 +692,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_object_parameter_value_on_conflict_merge_map(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         initial_value = {
             "type": "map",
@@ -721,7 +721,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_duplicate_object_parameter_value(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         _, errors = import_object_parameter_values(
             db_map,
@@ -735,7 +735,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_object_parameter_value_with_alternative(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         import_alternatives(db_map, ["alternative"])
         count, errors = import_object_parameter_values(
@@ -752,7 +752,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_object_parameter_value_fails_with_nonexistent_alternative(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         count, errors = import_object_parameter_values(
             db_map, [["object_class1", "object1", "parameter", 1, "nonexistent_alternative"]]
@@ -762,7 +762,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_parameter_values_from_committed_value_list(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_data(db_map, parameter_value_lists=(("values_1", 5.0),))
         db_map.commit_session("test")
         count, errors = import_data(
@@ -781,7 +781,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_valid_object_parameter_value_from_value_list(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_parameter_value_lists(db_map, (("values_1", 5.0),))
         import_object_classes(db_map, ("object_class",))
         import_object_parameters(db_map, (("object_class", "parameter", None, "values_1"),))
@@ -797,7 +797,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_non_existent_object_parameter_value_from_value_list_fails_gracefully(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_parameter_value_lists(db_map, (("values_1", 5.0),))
         import_object_classes(db_map, ("object_class",))
         import_object_parameters(db_map, (("object_class", "parameter", None, "values_1"),))
@@ -808,7 +808,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_valid_relationship_parameter_value(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate_with_relationship(db_map)
         _, errors = import_relationship_parameter_values(
             db_map, [["relationship_class", ["object1", "object2"], "parameter", 1]]
@@ -821,7 +821,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_valid_relationship_parameter_value_with_duplicate_parameter_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate_with_relationship(db_map)
         import_relationship_classes(db_map, [["relationship_class2", ["object_class2", "object_class1"]]])
         import_relationship_parameters(db_map, [["relationship_class2", "parameter"]])
@@ -836,7 +836,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_valid_relationship_parameter_value_with_duplicate_object_name(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate_with_relationship(db_map)
         import_objects(db_map, [["object_class1", "duplicate_object"], ["object_class2", "duplicate_object"]])
         import_relationships(db_map, [["relationship_class", ["duplicate_object", "duplicate_object"]]])
@@ -851,7 +851,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_parameter_value_with_invalid_object(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate_with_relationship(db_map)
         _, errors = import_relationship_parameter_values(
             db_map, [["relationship_class", ["nonexistent_object", "object2"], "parameter", 1]]
@@ -862,7 +862,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_parameter_value_with_invalid_relationship_class(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate_with_relationship(db_map)
         _, errors = import_relationship_parameter_values(
             db_map, [["nonexistent_class", ["object1", "object2"], "parameter", 1]]
@@ -873,7 +873,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_parameter_value_with_invalid_parameter(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate_with_relationship(db_map)
         _, errors = import_relationship_parameter_values(
             db_map, [["relationship_class", ["object1", "object2"], "nonexistent_parameter", 1]]
@@ -884,7 +884,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_existing_relationship_parameter_value(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate_with_relationship(db_map)
         import_relationship_parameter_values(
             db_map, [["relationship_class", ["object1", "object2"], "parameter", "initial_value"]]
@@ -900,7 +900,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_duplicate_relationship_parameter_value(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate_with_relationship(db_map)
         _, errors = import_relationship_parameter_values(
             db_map,
@@ -917,7 +917,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_parameter_value_with_alternative(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate_with_relationship(db_map)
         import_alternatives(db_map, ["alternative"])
         count, errors = import_relationship_parameter_values(
@@ -935,7 +935,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_parameter_value_fails_with_nonexistent_alternative(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         count, errors = import_relationship_parameter_values(
             db_map, [["relationship_class", ["object1", "object2"], "parameter", 1, "alternative"]]
@@ -945,7 +945,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_valid_relationship_parameter_value_from_value_list(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_parameter_value_lists(db_map, (("values_1", 5.0),))
         import_object_classes(db_map, ("object_class",))
         import_objects(db_map, (("object_class", "my_object"),))
@@ -965,7 +965,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.close()
 
     def test_non_existent_relationship_parameter_value_from_value_list_fails_gracefully(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_parameter_value_lists(db_map, (("values_1", 5.0),))
         import_object_classes(db_map, ("object_class",))
         import_objects(db_map, (("object_class", "my_object"),))
@@ -1023,7 +1023,7 @@ class TestImportParameterValueList(unittest.TestCase):
 
 class TestImportAlternative(unittest.TestCase):
     def test_single_alternative(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         count, errors = import_alternatives(db_map, ["alternative"])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
@@ -1035,7 +1035,7 @@ class TestImportAlternative(unittest.TestCase):
         db_map.close()
 
     def test_alternative_description(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         count, errors = import_alternatives(db_map, [["alternative", "description"]])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
@@ -1046,7 +1046,7 @@ class TestImportAlternative(unittest.TestCase):
         db_map.close()
 
     def test_update_alternative_description(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         count, errors = import_alternatives(db_map, [["Base", "new description"]])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
@@ -1059,7 +1059,7 @@ class TestImportAlternative(unittest.TestCase):
 
 class TestImportScenario(unittest.TestCase):
     def test_single_scenario(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         count, errors = import_scenarios(db_map, ["scenario"])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
@@ -1069,7 +1069,7 @@ class TestImportScenario(unittest.TestCase):
         db_map.close()
 
     def test_scenario_with_description(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         count, errors = import_scenarios(db_map, [["scenario", False, "description"]])
         self.assertEqual(count, 1)
         self.assertFalse(errors)
@@ -1079,7 +1079,7 @@ class TestImportScenario(unittest.TestCase):
         db_map.close()
 
     def test_update_scenario_description(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         import_scenarios(db_map, [["scenario", False, "initial description"]])
         count, errors = import_scenarios(db_map, [["scenario", False, "new description"]])
         self.assertEqual(count, 1)
@@ -1092,7 +1092,7 @@ class TestImportScenario(unittest.TestCase):
 
 class TestImportScenarioAlternative(unittest.TestCase):
     def setUp(self):
-        self._db_map = create_diff_db_map()
+        self._db_map = create_db_map()
 
     def tearDown(self):
         self._db_map.close()
@@ -1134,8 +1134,61 @@ class TestImportScenarioAlternative(unittest.TestCase):
         count, errors = import_scenario_alternatives(
             self._db_map, [["scenario", "alternative", "nonexistent_alternative"]]
         )
-        self.assertTrue(errors)
+        self.assertEqual(errors, ["nonexistent_alternative is not in scenario"])
         self.assertEqual(count, 2)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {})
+
+    def test_importing_existing_scenario_alternative_does_not_alter_scenario_alternatives(self):
+        count, errors = import_scenario_alternatives(
+            self._db_map,
+            [["scenario", "alternative2", "alternative1"], ["scenario", "alternative1"]],
+        )
+        self.assertFalse(errors)
+        self.assertEqual(count, 5)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative2": 1}})
+        count, errors = import_scenario_alternatives(
+            self._db_map,
+            [["scenario", "alternative1"]],
+        )
+        self.assertFalse(errors)
+        self.assertEqual(count, 0)
+
+    def test_import_scenario_alternatives_in_arbitrary_order(self):
+        count, errors = import_scenarios(self._db_map, [('A (1)', False, '')])
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 1)
+        count, errors = import_alternatives(
+            self._db_map, [('Base', 'Base alternative'), ('b', ''), ('c', ''), ('d', '')]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 3)
+        count, errors = import_scenario_alternatives(
+            self._db_map, [('A (1)', 'c', 'd'), ('A (1)', 'd', None), ('A (1)', 'Base', 'b'), ('A (1)', 'b', 'c')]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 4)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {"A (1)": {"Base": 1, "b": 2, "c": 3, "d": 4}})
+
+    def test_insert_scenario_alternative_in_the_middle_of_other_alternatives(self):
+        count, errors = import_scenario_alternatives(
+            self._db_map,
+            [["scenario", "alternative2", "alternative1"], ["scenario", "alternative1"]],
+        )
+        self.assertFalse(errors)
+        self.assertEqual(count, 5)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative2": 1}})
+        count, errors = import_scenario_alternatives(
+            self._db_map,
+            [["scenario", "alternative3", "alternative1"]],
+        )
+        self.assertFalse(errors)
+        self.assertEqual(count, 3)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 3, "alternative2": 1, "alternative3": 2}})
 
     def scenario_alternatives(self):
         self._db_map.commit_session("test")
@@ -1157,7 +1210,7 @@ class TestImportScenarioAlternative(unittest.TestCase):
 
 class TestImportMetadata(unittest.TestCase):
     def test_import_metadata(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         count, errors = import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 90}'])
         self.assertEqual(count, 4)
         self.assertFalse(errors)
@@ -1171,7 +1224,7 @@ class TestImportMetadata(unittest.TestCase):
         db_map.close()
 
     def test_import_metadata_with_duplicate_entry(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         count, errors = import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 17}'])
         self.assertEqual(count, 3)
         self.assertFalse(errors)
@@ -1184,7 +1237,7 @@ class TestImportMetadata(unittest.TestCase):
         db_map.close()
 
     def test_import_metadata_with_nested_dict(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         count, errors = import_metadata(db_map, ['{"name": "John", "info": {"age": 17, "city": "LA"}}'])
         db_map.commit_session("test")
         metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
@@ -1196,7 +1249,7 @@ class TestImportMetadata(unittest.TestCase):
         db_map.close()
 
     def test_import_metadata_with_nested_list(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         count, errors = import_metadata(db_map, ['{"contributors": [{"name": "John"}, {"name": "Charly"}]}'])
         db_map.commit_session("test")
         metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
@@ -1208,7 +1261,7 @@ class TestImportMetadata(unittest.TestCase):
         db_map.close()
 
     def test_import_unformatted_metadata(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         count, errors = import_metadata(db_map, ['not a JSON object'])
         db_map.commit_session("test")
         metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
@@ -1233,7 +1286,7 @@ class TestImportEntityMetadata(unittest.TestCase):
         import_metadata(db_map, ['{"co-author": "John", "age": 17}', '{"co-author": "Charly", "age": 90}'])
 
     def test_import_object_metadata(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         count, errors = import_object_metadata(
             db_map,
@@ -1256,7 +1309,7 @@ class TestImportEntityMetadata(unittest.TestCase):
         db_map.close()
 
     def test_import_relationship_metadata(self):
-        db_map = create_diff_db_map()
+        db_map = create_db_map()
         self.populate(db_map)
         count, errors = import_relationship_metadata(
             db_map,
@@ -1279,7 +1332,7 @@ class TestImportEntityMetadata(unittest.TestCase):
 
 class TestImportParameterValueMetadata(unittest.TestCase):
     def setUp(self):
-        self._db_map = create_diff_db_map()
+        self._db_map = create_db_map()
         import_metadata(self._db_map, ['{"co-author": "John", "age": 17}'])
 
     def tearDown(self):
