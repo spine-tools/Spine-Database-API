@@ -248,7 +248,7 @@ class TestScenarioFilter(unittest.TestCase):
         import_object_parameter_values(self._out_map, [("object_class", "object", "parameter", 300.0, "alternative3")])
         import_scenarios(self._out_map, [("scenario", True)])
         import_scenarios(self._out_map, [("non_active_scenario", False)])
-        import_scenario_alternatives(
+        result = import_scenario_alternatives(
             self._out_map,
             [
                 ("scenario", "alternative2"),
@@ -256,7 +256,8 @@ class TestScenarioFilter(unittest.TestCase):
                 ("scenario", "alternative1", "alternative3"),
             ],
         )
-        import_scenario_alternatives(
+        self.assertEqual(result, (7, []))
+        result = import_scenario_alternatives(
             self._out_map,
             [
                 ("non_active_scenario", "non_active_alternative"),
@@ -265,6 +266,7 @@ class TestScenarioFilter(unittest.TestCase):
                 ("scenario", "alternative1", "alternative3"),
             ],
         )
+        self.assertEqual(result, (11, []))
         self._out_map.commit_session("Add test data")
         for db_map in [self._db_map, self._diff_db_map]:
             apply_scenario_filter_to_subqueries(db_map, "scenario")
@@ -278,6 +280,7 @@ class TestScenarioFilter(unittest.TestCase):
                     {"name": "alternative3", "description": None, "id": 2, "commit_id": 2},
                     {"name": "alternative1", "description": None, "id": 3, "commit_id": 2},
                     {"name": "alternative2", "description": None, "id": 4, "commit_id": 2},
+                    {"name": "non_active_alternative", "description": None, "id": 5, "commit_id": 2},
                 ],
             )
             scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq).all()]
@@ -288,8 +291,8 @@ class TestScenarioFilter(unittest.TestCase):
                         "name": "scenario",
                         "description": None,
                         "active": True,
-                        "alternative_name_list": "alternative1,alternative3,alternative2",
-                        "alternative_id_list": "3,2,4",
+                        "alternative_name_list": "alternative1,alternative3,alternative2,non_active_alternative",
+                        "alternative_id_list": "3,2,4,5",
                         "id": 1,
                         "commit_id": 2,
                     }

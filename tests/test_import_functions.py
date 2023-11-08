@@ -1061,6 +1061,41 @@ class TestImportScenarioAlternative(unittest.TestCase):
         self.assertTrue(errors)
         self.assertEqual(count, 2)
 
+    def test_importing_existing_scenario_alternative_does_not_alter_scenario_alternatives(self):
+        count, errors = import_scenario_alternatives(
+            self._db_map,
+            [["scenario", "alternative2", "alternative1"], ["scenario", "alternative1"]],
+        )
+        self.assertFalse(errors)
+        self.assertEqual(count, 5)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative2": 1}})
+        count, errors = import_scenario_alternatives(
+            self._db_map,
+            [["scenario", "alternative1"]],
+        )
+        self.assertFalse(errors)
+        self.assertEqual(count, 3)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative2": 1}})
+
+    def test_import_scenario_alternatives_in_arbitrary_order(self):
+        count, errors = import_scenarios(self._db_map, [('A (1)', False, '')])
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 1)
+        count, errors = import_alternatives(
+            self._db_map, [('Base', 'Base alternative'), ('b', ''), ('c', ''), ('d', '')]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 4)
+        count, errors = import_scenario_alternatives(
+            self._db_map, [('A (1)', 'c', 'd'), ('A (1)', 'd', None), ('A (1)', 'Base', 'b'), ('A (1)', 'b', 'c')]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(count, 9)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {"A (1)": {"Base": 1, "b": 2, "c": 3, "d": 4}})
+
     def scenario_alternatives(self):
         scenario_alternative_qry = (
             self._db_map.query(

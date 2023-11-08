@@ -15,6 +15,9 @@ Functions for importing data into a Spine database using entity names as referen
 """
 
 import uuid
+from collections import defaultdict
+from contextlib import suppress
+
 from .exception import SpineIntegrityError, SpineDBAPIError
 from .check_functions import (
     check_tool,
@@ -742,44 +745,76 @@ def _get_scenario_alternatives_for_import(data, make_cache):
     }
     scenario_ids = {scenario.name: scenario.id for scenario in cache.get("scenario", {}).values()}
     alternative_ids = {alternative.name: alternative.id for alternative in cache.get("alternative", {}).values()}
-    checked = set()
     to_add = []
     to_update = []
     error_log = []
+    successors_ids_per_scenario = defaultdict(dict)
     for scenario_name, alternative_name, *optionals in data:
-        scenario_id = scenario_ids.get(scenario_name)
-        if not scenario_id:
-            error_log.append(
-                ImportErrorLogItem(msg=f"Scenario '{scenario_name}' not found.", db_type="scenario alternative")
-            )
-            continue
-        alternative_id = alternative_ids.get(alternative_name)
-        if not alternative_id:
+        try:
+            predecessor_id = alternative_ids[alternative_name]
+        except KeyError:
             error_log.append(
                 ImportErrorLogItem(msg=f"Alternative '{alternative_name}' not found.", db_type="scenario alternative")
             )
             continue
-        if (scenario_name, alternative_name) in checked:
-            continue
-        checked.add((scenario_name, alternative_name))
-        if optionals and optionals[0]:
-            before_alt_name = optionals[0]
+        successor = optionals[0] if optionals else None
+        if successor is not None:
             try:
-                before_alt_id = alternative_ids[before_alt_name]
+                successor_id = alternative_ids[successor]
             except KeyError:
                 error_log.append(
-                    ImportErrorLogItem(msg=f"Before alternative '{before_alt_name}' not found for '{alternative_name}'")
+                    ImportErrorLogItem(msg=f"Alternative '{successor}' not found.", db_type="scenario alternative")
                 )
                 continue
         else:
-            before_alt_id = None
-        orig_alt_id_list = scenario_alternative_id_lists.get(scenario_id, [])
-        new_alt_id_list = [id_ for id_ in orig_alt_id_list if id_ != alternative_id]
+            successor_id = None
+        successors_ids_per_scenario[scenario_name][predecessor_id] = successor_id
+    predecessor_ids_per_scenario = {
+        scenario_name: {successor: predecessor for predecessor, successor in successor_ids.items()}
+        for scenario_name, successor_ids in successors_ids_per_scenario.items()
+    }
+    for scenario_name, predecessor_ids in predecessor_ids_per_scenario.items():
         try:
-            pos = new_alt_id_list.index(before_alt_id)
-        except ValueError:
-            pos = len(new_alt_id_list)
-        new_alt_id_list.insert(pos, alternative_id)
+            scenario_id = scenario_ids[scenario_name]
+        except KeyError:
+            error_log.append(
+                ImportErrorLogItem(msg=f"Scenario '{scenario_name}' not found.", db_type="scenario alternative")
+            )
+            continue
+        orig_alt_id_list = scenario_alternative_id_lists.get(scenario_id, [])
+        successor_ids = successors_ids_per_scenario[scenario_name]
+        new_alt_id_list = [id_ for id_ in orig_alt_id_list if id_ not in successor_ids]
+        last_alternative_ids = []
+        for predecessor_id, successor_id in list(successor_ids.items()):
+            if successor_id is None:
+                if predecessor_id not in orig_alt_id_list:
+                    last_alternative_ids.append(predecessor_id)
+                del successor_ids[predecessor_id]
+        with suppress(KeyError):
+            del predecessor_ids[None]
+        new_alt_id_list += last_alternative_ids
+        for predecessor_id in predecessor_ids:
+            if predecessor_id not in successor_ids and predecessor_id not in new_alt_id_list:
+                new_alt_id_list.insert(0, predecessor_id)
+                break
+        while predecessor_ids:
+            for i, alternative_id in enumerate(new_alt_id_list):
+                if (predecessor := predecessor_ids.pop(alternative_id, None)) is not None:
+                    new_alt_id_list.insert(i, predecessor)
+                    break
+            else:
+                alternative_names = {name: id_ for id_, name in alternative_ids.items()}
+                for successor, predecessor in predecessor_ids.items():
+                    if predecessor not in new_alt_id_list:
+                        error_log.append(
+                            ImportErrorLogItem(
+                                msg=f"Before alternative '{alternative_names[successor]}' not found for '{alternative_names[predecessor]}'"
+                            )
+                        )
+                        break
+                else:
+                    raise RuntimeError("This should be unreachable.")
+                break
         scenario_alternative_id_lists[scenario_id] = new_alt_id_list
     for scenario_id, new_alt_id_list in scenario_alternative_id_lists.items():
         for k, alt_id in enumerate(new_alt_id_list):
