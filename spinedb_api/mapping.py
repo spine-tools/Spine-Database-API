@@ -9,7 +9,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-# Base class for import and export mappings.
+"""Base class for import and export mappings."""
 
 from enum import Enum, unique
 from itertools import takewhile

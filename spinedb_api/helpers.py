@@ -11,9 +11,7 @@
 
 """
 General helper functions.
-
 """
-
 import os
 import json
 import warnings
@@ -98,13 +96,13 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 @compiles(TINYINT, "sqlite")
 def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
-    # Handles mysql TINYINT datatype as INTEGER in sqlite.
+    """Handles mysql TINYINT datatype as INTEGER in sqlite."""
     return compiler.visit_INTEGER(element, **kw)
 
 
 @compiles(DOUBLE, "sqlite")
 def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
-    # Handles mysql DOUBLE datatype as REAL in sqlite.
+    """Handles mysql DOUBLE datatype as REAL in sqlite."""
     return compiler.visit_REAL(element, **kw)
 
 
@@ -256,7 +254,7 @@ def copy_database_bind(dest_bind, source_bind, overwrite=True, upgrade=False, on
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
-    # Make all relationships view only to avoid warnings.
+    """Make all relationships view only to avoid warnings."""
     kw["viewonly"] = True
     kw["cascade"] = ""
     kw["passive_deletes"] = False
@@ -763,8 +761,8 @@ def _create_first_spine_database(db_url):
 
 
 def forward_sweep(root, fn, *args):
-    # Recursively visit, using `get_children()`, the given sqlalchemy object.
-    # Apply `fn` on every visited node."""
+    """Recursively visit, using `get_children()`, the given sqlalchemy object.
+    Apply `fn` on every visited node."""
     current = root
     parent = {}
     children = {current: iter(current.get_children(column_collections=False))}
@@ -804,7 +802,7 @@ Asterisk = AsteriskType()
 
 
 def fix_name_ambiguity(input_list, offset=0, prefix=""):
-    # Modify repeated entries in name list by appending an increasing integer.
+    """Modify repeated entries in name list by appending an increasing integer."""
     result = []
     ocurrences = {}
     for item in input_list:

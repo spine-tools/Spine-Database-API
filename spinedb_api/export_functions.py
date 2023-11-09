@@ -11,7 +11,6 @@
 
 """
 Functions for exporting data from a Spine database in a standard format.
-
 """
 from operator import itemgetter
 

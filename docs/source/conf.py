@@ -96,15 +96,17 @@ autoapi_ignore = [
     '*/spinedb_api/export_mapping/*',
     '*/spinedb_api/import_mapping/*',
     '*/spinedb_api/spine_io/*',
+    '*/spinedb_api/compatibility*',
+    '*/spinedb_api/exception*',
+    '*/spinedb_api/export_functions*',
+    '*/spinedb_api/helpers*',
+    '*/spinedb_api/mapping*',
+    '*/spinedb_api/perfect_split*',
+    '*/spinedb_api/purge*',
+    '*/spinedb_api/query*',
+    '*/spinedb_api/spine_db_client*',
+    '*/spinedb_api/spine_db_server*',
 ]  # ignored modules
-
-
-def _skip_member(app, what, name, obj, skip, options):
-    if what == "class" and any(
-        x in name for x in ("SpineDBServer", "group_concat", "DBRequestHandler", "ReceiveAllMixing")
-    ):
-        skip = True
-    return skip
 
 
 def _spine_item_types():
@@ -112,6 +114,8 @@ def _spine_item_types():
 
 
 def _process_docstring(app, what, name, obj, options, lines):
+    if any(":meta private:" in line for line in lines):
+        lines.clear()
     # Expand <spine_item_types>
     for k, line in enumerate(lines):
         if "<spine_item_types>" in line:
@@ -151,13 +155,7 @@ def _db_mapping_schema_lines():
         for f_name, (f_type, f_value) in factory.fields.items():
             lines.extend([f"   * - {f_name}", f"     - {f_type}", f"     - {f_value}"])
         lines.append("")
-        lines.extend(
-            [
-                ".. list-table:: Unique keys",
-                "   :header-rows: 0",
-                "",
-            ]
-        )
+        lines.extend([".. list-table:: Unique keys", "   :header-rows: 0", ""])
         for f_names in factory._unique_keys:
             f_names = ", ".join(f_names)
             lines.extend([f"   * - {f_names}"])
@@ -165,7 +163,6 @@ def _db_mapping_schema_lines():
 
 
 def setup(sphinx):
-    sphinx.connect("autoapi-skip-member", _skip_member)
     sphinx.connect("autodoc-process-docstring", _process_docstring)
     with open(os.path.join(os.path.dirname(__file__), "db_mapping_schema.rst"), "w") as f:
         for line in _db_mapping_schema_lines():

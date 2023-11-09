@@ -11,9 +11,7 @@
 
 """
 Functions to purge DBs.
-
 """
-
 from .db_mapping import DatabaseMapping
 from .exception import SpineDBAPIError, SpineDBVersionError
 from .filters.tools import clear_filter_configs

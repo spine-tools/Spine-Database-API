@@ -9,7 +9,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-# Dirty hacks needed to maintain compatibility in cases where migration alone doesn't do it
+"""Dirty hacks needed to maintain compatibility in cases where migration alone doesn't do it."""
 
 import sqlalchemy as sa
 

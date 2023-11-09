@@ -11,7 +11,6 @@
 
 """
 This module provides the :func:`perfect_split` function.
-
 """
 from .db_mapping import DatabaseMapping
 from .export_functions import export_data

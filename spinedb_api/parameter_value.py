@@ -52,6 +52,8 @@ def duration_to_relativedelta(duration):
     """
     Converts a duration to a relativedelta object.
 
+    :meta private:
+
     Args:
         duration (str): a duration string.
 
@@ -82,6 +84,8 @@ def duration_to_relativedelta(duration):
 def relativedelta_to_duration(delta):
     """
     Converts a relativedelta to duration.
+
+    :meta private:
 
     Args:
         delta (:class:`~dateutil.relativedelta.relativedelta`): the relativedelta to convert.
@@ -122,6 +126,8 @@ def load_db_value(db_value, value_type=None):
     Parses a database representation of a parameter value (value and type) into a Python object, using JSON.
     If the result is a dict, adds the "type" property to it.
 
+    :meta private:
+
     Args:
         db_value (bytes, optional): the database value.
         value_type (str, optional): the value type.
@@ -144,6 +150,8 @@ def dump_db_value(parsed_value):
     """
     Unparses a Python object into a database representation of a parameter value (value and type), using JSON.
     If the given object is a dict, extracts the "type" property from it.
+
+    :meta private:
 
     Args:
         parsed_value (any): a Python object, typically obtained by calling :func:`load_db_value`.
@@ -183,6 +191,8 @@ def from_database_to_single_value(database_value, value_type):
     """
     Same as :func:`from_database`, but in the case of indexed types it returns just the type as a string.
 
+    :meta private:
+
     Args:
         database_value (bytes): the database value
         value_type (str, optional): the value type
@@ -198,6 +208,8 @@ def from_database_to_single_value(database_value, value_type):
 def from_database_to_dimension_count(database_value, value_type):
     """
     Counts the dimensions in a database representation of a parameter value (value and type).
+
+    :meta private:
 
     Args:
         database_value (bytes): the database value
@@ -235,6 +247,8 @@ def from_dict(value):
     """
     Converts a dictionary representation of a parameter value into an encoded parameter value.
 
+    :meta private:
+
     Args:
         value (dict): the value dictionary including the "type" key.
 
@@ -263,6 +277,8 @@ def from_dict(value):
 def fix_conflict(new, old, on_conflict="merge"):
     """Resolves conflicts between parameter values:
 
+    :meta private:
+
     Args:
         new (:class:`ParameterValue`, float, str, bool or None): new parameter value to be written.
         old (:class:`ParameterValue`, float, str, bool or None): an existing parameter value in the db.
@@ -285,6 +301,8 @@ def fix_conflict(new, old, on_conflict="merge"):
 
 def merge(value, other):
     """Merges the DB representation of two parameter values.
+
+    :meta private:
 
     Args:
         value (tuple(bytes,str)): recipient value and type.
@@ -616,7 +634,10 @@ def _array_from_database(value_dict):
 
 
 class ParameterValue:
-    """Base class for all encoded parameter values."""
+    """Base class for all encoded parameter values.
+
+    :meta private:
+    """
 
     def to_dict(self):
         """Returns the dictionary representation of this object.
@@ -776,6 +797,8 @@ class _Indexes(np.ndarray):
         position = indexes.index(element)
 
     which might be too slow compared to dictionary lookup.
+
+    :meta private:
     """
 
     def __new__(cls, other, dtype=None):
@@ -804,6 +827,8 @@ class _Indexes(np.ndarray):
 class IndexedValue(ParameterValue):
     """
     Base class for all values that have indexes.
+
+    :meta private:
 
     Attributes:
         index_name (str): index name
@@ -988,6 +1013,8 @@ class IndexedNumberArray(IndexedValue):
     Abstract base class for all values mapping indexes to floats.
 
     The indexes and numbers are stored in :class:`~numpy.ndarray`s.
+
+    :meta private:
     """
 
     def __init__(self, index_name, values):
@@ -1014,7 +1041,10 @@ class IndexedNumberArray(IndexedValue):
 
 
 class TimeSeries(IndexedNumberArray):
-    """Abstract base class for time-series."""
+    """Abstract base class for time-series.
+
+    :meta private:
+    """
 
     VALUE_TYPE = "time series"
     DEFAULT_INDEX_NAME = "t"
@@ -1453,6 +1483,8 @@ class Map(IndexedValue):
 def map_dimensions(map_):
     """Counts the dimensions in a map.
 
+    :meta private:
+
     Args:
         map_ (:class:`Map`): the map to process.
 
@@ -1476,6 +1508,8 @@ def convert_leaf_maps_to_specialized_containers(map_):
 
     - If the ``index_type`` is a :class:`DateTime` and all ``values`` are float,
       then the leaf is converted to a :class:`TimeSeries`.
+
+    :meta private:
 
     Args:
         map_ (:class:`Map`): a map to process.
@@ -1501,6 +1535,8 @@ def convert_containers_to_maps(value):
     Converts indexed values into maps.
 
     If ``value`` is a :class:`Map` then converts leaf values into maps recursively.
+
+    :meta private:
 
     Args:
         value (:class:`IndexedValue`): an indexed value to convert.
@@ -1530,6 +1566,8 @@ def convert_containers_to_maps(value):
 def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
     """
     Converts :class:`Map` into list of rows recursively.
+
+    :meta private:
 
     Args:
         map_ (:class:`Map`): map to convert.
@@ -1563,6 +1601,8 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
 def convert_map_to_dict(map_):
     """
     Converts a :class:`Map` to a nested dictionary.
+
+    :meta private:
 
     Args:
         map_ (:class:`Map`): map to convert
@@ -1610,6 +1650,8 @@ def join_value_and_type(db_value, db_type):
     In case of complex types (duration, date_time, time_series, time_pattern, array, map),
     the type is just added as top-level key.
 
+    :meta private:
+
     Args:
         db_value (bytes): database value
         db_type (str, optional): value type
@@ -1626,6 +1668,8 @@ def join_value_and_type(db_value, db_type):
 
 def split_value_and_type(value_and_type):
     """Splits the given string into value and type.
+
+    :meta private:
 
     Args:
         value_and_type (str): a string joining value and type, as obtained by calling :func:`join_value_and_type`.
