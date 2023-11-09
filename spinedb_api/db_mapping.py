@@ -78,7 +78,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     otherwise it is fetched from the DB, stored in memory, and then returned.
     In other words, the data is fetched from the DB exactly once.
 
-    For convenience, we also provide specialized 'get' methods for each item type, e.g., :meth:`get_entity_item`.
+    For convenience, we also provide specialized 'get' methods for each item type, e.g., :meth:`get_entity_item`
+    and :meth:`get_entity_items`.
 
     Data is added via :meth:`add_item`;
     updated via :meth:`update_item`;
@@ -774,6 +775,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 # Define convenience methods
 for it in DatabaseMapping.item_types():
     setattr(DatabaseMapping, "get_" + it + "_item", partialmethod(DatabaseMapping.get_item, it))
+    setattr(DatabaseMapping, "get_" + it + "_items", partialmethod(DatabaseMapping.get_items, it))
     setattr(DatabaseMapping, "add_" + it + "_item", partialmethod(DatabaseMapping.add_item, it))
     setattr(DatabaseMapping, "update_" + it + "_item", partialmethod(DatabaseMapping.update_item, it))
     setattr(DatabaseMapping, "remove_" + it + "_item", partialmethod(DatabaseMapping.remove_item, it))
@@ -783,22 +785,25 @@ for it in DatabaseMapping.item_types():
 def _add_convenience_methods(node):
     if node.name != "DatabaseMapping":
         return node
-    for item_type in DatabaseMapping.item_types():
-        factory = DatabaseMapping.item_factory(item_type)
-        uq_fields = {
+
+    def _a(item_type):
+        return "an" if any(item_type.lower().startswith(x) for x in "aeiou") else "a"
+
+    def _uq_fields(factory):
+        return {
             f_name: factory.fields[f_name]
             for f_names in factory._unique_keys
             for f_name in set(f_names) & set(factory.fields.keys())
         }
-        a = "an" if any(item_type.lower().startswith(x) for x in "aeiou") else "a"
-        padding = 20 * " "
-        get_kwargs = f"\n{padding}".join(
-            [f"{f_name} ({f_type}): {f_value}" for f_name, (f_type, f_value) in uq_fields.items()]
-        )
-        add_kwargs = f"\n{padding}".join(
-            [f"{f_name} ({f_type}): {f_value}" for f_name, (f_type, f_value) in factory.fields.items()]
-        )
-        update_kwargs = f"id (int): The id of the item to update.\n{padding}" + add_kwargs
+
+    def _kwargs(fields):
+        return f"\n{padding}".join([f"{f_name} ({f_type}): {f_value}" for f_name, (f_type, f_value) in fields.items()])
+
+    padding = 20 * " "
+    for item_type in DatabaseMapping.item_types():
+        factory = DatabaseMapping.item_factory(item_type)
+        a = _a(item_type)
+        get_kwargs = _kwargs(_uq_fields(factory))
         child = astroid.extract_node(
             f'''
             def get_{item_type}_item(self, fetch=True, skip_removed=True, **kwargs):
@@ -816,6 +821,31 @@ def _add_convenience_methods(node):
         )
         child.parent = node
         node.body.append(child)
+    for item_type in DatabaseMapping.item_types():
+        factory = DatabaseMapping.item_factory(item_type)
+        a = _a(item_type)
+        get_kwargs = _kwargs(_uq_fields(factory))
+        child = astroid.extract_node(
+            f'''
+            def get_{item_type}_items(self, fetch=True, skip_removed=True, **kwargs):
+                """Finds and returns all {item_type} items.
+
+                Args:
+                    fetch (bool, optional): Whether to fetch the DB before returning the items.
+                    skip_removed (bool, optional): Whether to ignore removed items.
+                    {get_kwargs}
+
+                Returns:
+                    list(:class:`PublicItem`): The items.
+                """
+            '''
+        )
+        child.parent = node
+        node.body.append(child)
+    for item_type in DatabaseMapping.item_types():
+        factory = DatabaseMapping.item_factory(item_type)
+        a = _a(item_type)
+        add_kwargs = _kwargs(factory.fields)
         child = astroid.extract_node(
             f'''
             def add_{item_type}_item(self, check=True, **kwargs):
@@ -832,6 +862,10 @@ def _add_convenience_methods(node):
         )
         child.parent = node
         node.body.append(child)
+    for item_type in DatabaseMapping.item_types():
+        factory = DatabaseMapping.item_factory(item_type)
+        a = _a(item_type)
+        update_kwargs = f"id (int): The id of the item to update.\n{padding}" + _kwargs(factory.fields)
         child = astroid.extract_node(
             f'''
             def update_{item_type}_item(self, check=True, **kwargs):
@@ -848,6 +882,7 @@ def _add_convenience_methods(node):
         )
         child.parent = node
         node.body.append(child)
+    for item_type in DatabaseMapping.item_types():
         child = astroid.extract_node(
             f'''
             def remove_{item_type}_item(self, id):
@@ -863,6 +898,7 @@ def _add_convenience_methods(node):
         )
         child.parent = node
         node.body.append(child)
+    for item_type in DatabaseMapping.item_types():
         child = astroid.extract_node(
             f'''
             def restore_{item_type}_item(self, id):
