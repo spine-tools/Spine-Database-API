@@ -785,7 +785,11 @@ def _add_convenience_methods(node):
         return node
     for item_type in DatabaseMapping.item_types():
         factory = DatabaseMapping.item_factory(item_type)
-        uq_fields = {f_name: factory.fields[f_name] for f_names in factory._unique_keys for f_name in f_names}
+        uq_fields = {
+            f_name: factory.fields[f_name]
+            for f_names in factory._unique_keys
+            for f_name in set(f_names) & set(factory.fields.keys())
+        }
         a = "an" if any(item_type.lower().startswith(x) for x in "aeiou") else "a"
         padding = 20 * " "
         get_kwargs = f"\n{padding}".join(

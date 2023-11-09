@@ -65,18 +65,18 @@ that we want the DB to be created at the given URL.
 Adding data
 -----------
 
-To insert data, we use :meth:`~.DatabaseMapping.add_item`.
+To insert data, we use e.g. :meth:`~.DatabaseMapping.add_entity_class_item`, :meth:`~.DatabaseMapping.add_entity_item`,
+and so on.
 
 Let's begin the party by adding a couple of entity classes::
 
-    db_map.add_item("entity_class", name="fish", description="It swims.")
-    db_map.add_item("entity_class", name="cat", description="Eats fish.")
+    db_map.add_entity_class_item(name="fish", description="It swims.")
+    db_map.add_entity_class_item(name="cat", description="Eats fish.")
 
 Now let's add a multi-dimensional entity class between the two above. For this we need to specify the class names
 as `dimension_name_list`::
 
-    db_map.add_item(
-        "entity_class",
+    db_map.add_entity_class_item(
         name="fish__cat",
         dimension_name_list=("fish", "cat"),
         description="A fish getting eaten by a cat?",
@@ -84,28 +84,28 @@ as `dimension_name_list`::
 
 Let's add entities to our zero-dimensional classes::
 
-    db_map.add_item("entity", class_name="fish", name="Nemo", description="Lost (for now).")
-    db_map.add_item(
-        "entity",
+    db_map.add_entity_item(class_name="fish", name="Nemo", description="Lost (for now).")
+    db_map.add_entity_item(
         class_name="cat", name="Felix", description="The wonderful wonderful cat."
     )
 
 Let's add a multi-dimensional entity to our multi-dimensional class. For this we need to specify the entity names
 as `element_name_list`::
 
-    db_map.add_item("entity", class_name="fish__cat", element_name_list=("Nemo", "Felix"))
+    db_map.add_entity_item(class_name="fish__cat", element_name_list=("Nemo", "Felix"))
 
 Let's add a parameter definition for one of our entity classes::
 
-    db_map.add_item("parameter_definition", entity_class_name="fish", name="color")
+    db_map.add_parameter_definition_item(entity_class_name="fish", name="color")
 
 Finally, let's specify a parameter value for one of our entities.
-We use :func:`.to_database` to convert our value
-into a tuple of value and type to specify for our parameter value item::
+First, we use :func:`.to_database` to convert the value we want to give into a tuple of ``value`` and ``type``::
 
     value, type_ = api.to_database("mainly orange")
-    db_map.add_item(
-        "parameter_value",
+
+Now we create our parameter value::
+
+    db_map.add_parameter_value_item(
         entity_class_name="fish",
         entity_byname=("Nemo",),
         parameter_definition_name="color",
@@ -114,7 +114,7 @@ into a tuple of value and type to specify for our parameter value item::
         type=type_
     )
 
-Note that in the above, we refer to the entity by its *byname* which is a tuple of its elements.
+Note that in the above, we refer to the entity by its *byname*.
 We also set the value to belong to an *alternative* called ``Base``
 which is readily available in new databases.
 
@@ -126,30 +126,32 @@ which is readily available in new databases.
 Retrieving data
 ---------------
 
-To retrieve data, we use :meth:`~.DatabaseMapping.get_item`. This implicitly fetches data from the DB
+To retrieve data, we use e.g. :meth:`~.DatabaseMapping.get_entity_class_item`,
+:meth:`~.DatabaseMapping.get_entity_item`, etc.
+This implicitly fetches data from the DB
 into the in-memory mapping, if not already there.
 For example, let's find one of the entities we inserted above::
 
     felix_item = db_map.get_entity_item(class_name="cat", name="Felix")
     assert felix_item["description"] == "The wonderful wonderful cat."
 
-Above, ``felix_item`` is a :class:`~.PublicItem` object, representing an item (or row) in a Spine DB.
+Above, ``felix_item`` is a :class:`~.PublicItem` object, representing an item.
 
 Let's find our multi-dimensional entity::
 
-    nemo_felix_item = db_map.get_item("entity", class_name="fish__cat", element_name_list=("Nemo", "Felix"))
+    nemo_felix_item = db_map.get_entity_item("entity", class_name="fish__cat", element_name_list=("Nemo", "Felix"))
     assert nemo_felix_item["dimension_name_list"] == ('fish', 'cat')
 
-Now let's retrieve our parameter value.
-We use :func:`.from_database` to convert the value and type from the parameter value item into our original value:: 
+Now let's retrieve our parameter value::
 
-    nemo_color_item = db_map.get_item(
-        "parameter_value",
+    nemo_color_item = db_map.get_parameter_value_item(
         entity_class_name="fish",
         entity_byname=("Nemo",),
         parameter_definition_name="color",
         alternative_name="Base"
     )
+
+We use :func:`.from_database` to convert the value and type from the parameter value into our original value:: 
     nemo_color = api.from_database(nemo_color_item["value"], nemo_color_item["type"])
     assert nemo_color == "mainly orange"
 
@@ -169,13 +171,12 @@ To update data, we use the :meth:`~.PublicItem.update` method of :class:`~.Publi
 
 Let's rename our fish entity to avoid any copyright infringements::
 
-    db_map.get_item("entity", class_name="fish", name="Nemo").update(name="NotNemo")
+    db_map.get_entity_item(class_name="fish", name="Nemo").update(name="NotNemo")
 
 To be safe, let's also change the color::
 
     new_value, new_type = api.to_database("not that orange")
-    db_map.get_item(
-        "parameter_value",
+    db_map.get_parameter_value_item(
         entity_class_name="fish",
         entity_byname=("NotNemo",),
         parameter_definition_name="color",
@@ -190,13 +191,17 @@ Removing data
 You know what, let's just remove the entity entirely.
 To do this we use the :meth:`~.PublicItem.remove` method of :class:`~.PublicItem`::
 
-    db_map.get_item("entity", class_name="fish", name="NotNemo").remove()
+    db_map.get_entity_item(class_name="fish", name="NotNemo").remove()
 
 Note that the above call removes items in *cascade*,
 meaning that items that depend on ``"NotNemo"`` will get removed as well.
 We have one such item in the database, namely the ``"color"`` parameter value
 which also gets dropped when the above method is called.
 
+Restoring data
+--------------
+
+TODO
 
 Committing data
 ---------------
