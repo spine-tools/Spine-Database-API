@@ -409,6 +409,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             fetch (bool, optional): Whether to fetch the DB before returning the items.
             skip_removed (bool, optional): Whether to ignore removed items.
+            **kwargs: Fields and values for one the unique keys as specified for the item type in `DB mapping schema`_.
 
         Returns:
             list(:class:`PublicItem`): The items.
@@ -628,19 +629,20 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         return bool(self.remove_items(item_type, Asterisk))
 
-    def fetch_more(self, item_type, offset=0, limit=None):
+    def fetch_more(self, item_type, offset=0, limit=None, **kwargs):
         """Fetches items from the DB into the in-memory mapping, incrementally.
 
         Args:
             item_type (str): One of <spine_item_types>.
             offset (int): The initial row.
             limit (int): The maximum number of rows to fetch.
+            **kwargs: Fields and values for one the unique keys as specified for the item type in `DB mapping schema`_.
 
         Returns:
             list(:class:`PublicItem`): The items fetched.
         """
         item_type = self.real_item_type(item_type)
-        return [x.public_item for x in self.do_fetch_more(item_type, offset=offset, limit=limit)]
+        return [x.public_item for x in self.do_fetch_more(item_type, offset=offset, limit=limit, **kwargs)]
 
     def fetch_all(self, *item_types):
         """Fetches items from the DB into the in-memory mapping.
