@@ -19,6 +19,7 @@ Welcome to Spine Database API's documentation!
    parameter_value_format
    metadata_description
    results_metadata_description
+   db_mapping_schema
    autoapi/index
 
 Indices and tables

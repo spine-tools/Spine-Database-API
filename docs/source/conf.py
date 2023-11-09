@@ -93,6 +93,9 @@ autoapi_root = "autoapi"
 autoapi_dirs = ['../../spinedb_api']  # package to be documented
 autoapi_ignore = [
     '*/spinedb_api/alembic/*',
+    '*/spinedb_api/export_mapping/*',
+    '*/spinedb_api/import_mapping/*',
+    '*/spinedb_api/spine_io/*',
 ]  # ignored modules
 
 
@@ -104,51 +107,67 @@ def _skip_member(app, what, name, obj, skip, options):
     return skip
 
 
+def _spine_item_types():
+    return ", ".join([f"``{x}``" for x in DatabaseMapping.item_types()])
+
+
 def _process_docstring(app, what, name, obj, options, lines):
-    # Expand <db_mapping_schema>
-    try:
-        i = lines.index("<db_mapping_schema>")
-    except ValueError:
-        pass
-    else:
-        new_lines = []
-        for item_type in DatabaseMapping.item_types():
-            factory = DatabaseMapping.item_factory(item_type)
-            new_lines.extend([item_type, len(item_type) * "-", ""])
-            new_lines.extend(
-                [
-                    ".. list-table:: Fields and values",
-                    "   :header-rows: 1",
-                    "",
-                    "   * - field",
-                    "     - type",
-                    "     - value",
-                ]
-            )
-            for f_name, (f_type, f_value) in factory.fields.items():
-                new_lines.extend([f"   * - {f_name}", f"     - {f_type}", f"     - {f_value}"])
-            new_lines.append("")
-            new_lines.extend(
-                [
-                    ".. list-table:: Unique keys",
-                    "   :header-rows: 0",
-                    "",
-                ]
-            )
-            for f_names in factory._unique_keys:
-                f_names = ", ".join(f_names)
-                new_lines.extend([f"   * - {f_names}"])
-        lines[i : i + 1] = new_lines
     # Expand <spine_item_types>
-    spine_item_types = ", ".join([f"``{x}``" for x in DatabaseMapping.item_types()])
     for k, line in enumerate(lines):
         if "<spine_item_types>" in line:
-            lines[k] = line.replace("<spine_item_types>", spine_item_types)
+            lines[k] = line.replace("<spine_item_types>", _spine_item_types())
+
+
+def _db_mapping_schema_lines():
+    lines = [
+        "DB mapping schema",
+        "=================",
+        "",
+        "The DB mapping schema is a close cousin of the Spine DB schema with some extra flexibility, "
+        "like the ability to specify references by name rather than by numerical id.",
+        "",
+        f"The schema defines the following item types: {_spine_item_types()}. "
+        "As you can see, these follow the names of some of the tables in the Spine DB schema.",
+        "",
+        "The following subsections provide all the details you need to know about the different item types, namely, "
+        "their fields, values, and unique keys.",
+        "",
+    ]
+    for item_type in DatabaseMapping.item_types():
+        factory = DatabaseMapping.item_factory(item_type)
+        lines.extend([item_type, len(item_type) * "-", ""])
+        lines.extend(
+            [
+                ".. list-table:: Fields and values",
+                "   :header-rows: 1",
+                "",
+                "   * - field",
+                "     - type",
+                "     - value",
+            ]
+        )
+        for f_name, (f_type, f_value) in factory.fields.items():
+            lines.extend([f"   * - {f_name}", f"     - {f_type}", f"     - {f_value}"])
+        lines.append("")
+        lines.extend(
+            [
+                ".. list-table:: Unique keys",
+                "   :header-rows: 0",
+                "",
+            ]
+        )
+        for f_names in factory._unique_keys:
+            f_names = ", ".join(f_names)
+            lines.extend([f"   * - {f_names}"])
+    return lines
 
 
 def setup(sphinx):
     sphinx.connect("autoapi-skip-member", _skip_member)
     sphinx.connect("autodoc-process-docstring", _process_docstring)
+    with open(os.path.join(os.path.dirname(__file__), "db_mapping_schema.rst"), "w") as f:
+        for line in _db_mapping_schema_lines():
+            f.write(line + "\n")
 
 
 # -- Options for HTML output -------------------------------------------------

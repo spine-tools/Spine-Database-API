@@ -13,20 +13,6 @@
 This module defines the :class:`.DatabaseMapping` class, the main mean to communicate with a Spine DB.
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
 DB mapping schema below.
-
-
-DB mapping schema
-=================
-
-The DB mapping schema is a close cousin of the Spine DB schema with some extra flexibility,
-like the ability to specify references by name rather than by numerical id.
-The schema defines the following item types: <spine_item_types>. As you can see, these follow the names
-of some of the tables in the Spine DB schema.
-
-The following subsections provide all the details you need to know about the different item types, namely,
-their fields, values, and unique keys.
-
-<db_mapping_schema>
 """
 
 import hashlib
