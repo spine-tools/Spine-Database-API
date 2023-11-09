@@ -578,6 +578,11 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 removed.append(item)
         return removed, errors
 
+    def cascade_remove_items(self, cache=None, **kwargs):
+        # Legacy
+        for item_type, ids in kwargs.items():
+            self.remove_items(item_type, *ids)
+
     def restore_item(self, item_type, id_):
         """Restores a previously removed item into the in-memory mapping.
 
