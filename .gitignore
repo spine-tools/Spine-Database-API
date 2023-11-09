@@ -3,6 +3,7 @@
 /.idea/
 /docs/build/
 /docs/source/autoapi/
+/docs/source/db_mapping_schema.rst
 
 # Setuptools distribution folder.
 /build/

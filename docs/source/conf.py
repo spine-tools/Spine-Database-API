@@ -120,6 +120,8 @@ def _process_docstring(app, what, name, obj, options, lines):
 
 def _db_mapping_schema_lines():
     lines = [
+        ".. _db_mapping_schema:",
+        "",
         "DB mapping schema",
         "=================",
         "",

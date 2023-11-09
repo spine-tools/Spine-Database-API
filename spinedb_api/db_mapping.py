@@ -12,7 +12,7 @@
 """
 This module defines the :class:`.DatabaseMapping` class, the main mean to communicate with a Spine DB.
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
-DB mapping schema below.
+:ref:`db_mapping_schema`.
 """
 
 import hashlib
@@ -57,7 +57,7 @@ logging.getLogger("alembic").setLevel(logging.CRITICAL)
 class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, DatabaseMappingBase):
     """Enables communication with a Spine DB.
 
-    The DB is incrementally mapped into memory as data is requested/modified, following the `DB mapping schema`_.
+    The DB is incrementally mapped into memory as data is requested/modified, following the :ref:`db_mapping_schema`.
 
     Data is typically retrieved using :meth:`get_item` or :meth:`get_items`.
     If the requested data is already in memory, it is returned from there;
@@ -375,7 +375,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             fetch (bool, optional): Whether to fetch the DB in case the item is not found in memory.
             skip_removed (bool, optional): Whether to ignore removed items.
-            **kwargs: Fields and values for one the unique keys as specified for the item type in `DB mapping schema`_.
+            **kwargs: Fields and values for one the unique keys as specified for the item type
+                in :ref:`db_mapping_schema`.
 
         Returns:
             :class:`PublicItem` or None
@@ -395,7 +396,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             fetch (bool, optional): Whether to fetch the DB before returning the items.
             skip_removed (bool, optional): Whether to ignore removed items.
-            **kwargs: Fields and values for one the unique keys as specified for the item type in `DB mapping schema`_.
+            **kwargs: Fields and values for one the unique keys as specified for the item type
+                in :ref:`db_mapping_schema`.
 
         Returns:
             list(:class:`PublicItem`): The items.
@@ -419,7 +421,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Args:
             item_type (str): One of <spine_item_types>.
             check (bool, optional): Whether to carry out integrity checks.
-            **kwargs: Fields and values as specified for the item type in `DB mapping schema`_.
+            **kwargs: Fields and values as specified for the item type in :ref:`db_mapping_schema`.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The added item and any errors.
@@ -438,7 +440,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Args:
             item_type (str): One of <spine_item_types>.
             *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
-                as specified in `DB mapping schema`_.
+                as specified in :ref:`db_mapping_schema`.
             check (bool): Whether or not to run integrity checks.
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
@@ -472,7 +474,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             check (bool, optional): Whether to carry out integrity checks.
             id (int): The id of the item to update.
-            **kwargs: Fields to update and their new values as specified for the item type in `DB mapping schema`_.
+            **kwargs: Fields to update and their new values as specified for the item type in :ref:`db_mapping_schema`.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The updated item and any errors.
@@ -491,7 +493,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Args:
             item_type (str): One of <spine_item_types>.
             *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
-                as specified in `DB mapping schema`_ and including the `id`.
+                as specified in :ref:`db_mapping_schema` and including the `id`.
             check (bool): Whether or not to run integrity checks.
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the update of one of the items violates an integrity constraint.
@@ -622,7 +624,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             offset (int): The initial row.
             limit (int): The maximum number of rows to fetch.
-            **kwargs: Fields and values for one the unique keys as specified for the item type in `DB mapping schema`_.
+            **kwargs: Fields and values for one the unique keys as specified for the item type
+                in :ref:`db_mapping_schema`.
 
         Returns:
             list(:class:`PublicItem`): The items fetched.
