@@ -39,7 +39,6 @@ class DatabaseMappingBase:
 
     def __init__(self):
         self._mapped_tables = {}
-        self._completed_tickets = {}
         item_types = self.item_types()
         self._sorted_item_types = []
         while item_types:
@@ -200,7 +199,6 @@ class DatabaseMappingBase:
 
     def _refresh(self):
         """Clears fetch progress, so the DB is queried again."""
-        self._completed_tickets.clear()
 
     def _check_item_type(self, item_type):
         if item_type not in self.all_item_types():
@@ -221,7 +219,6 @@ class DatabaseMappingBase:
         self._add_descendants(item_types)
         for item_type in item_types:
             self._mapped_tables.pop(item_type, None)
-            self._completed_tickets.pop(item_type, None)
 
     def _add_descendants(self, item_types):
         while True:
@@ -241,17 +238,16 @@ class DatabaseMappingBase:
         """Gets chunk of items from the DB.
 
         Returns:
-            tuple(list(dict),bool): list of dictionary items and whether this is the last chunk.
+            list(dict): list of dictionary items.
         """
         qry = self._make_query(item_type, **kwargs)
         if not qry:
-            return [], True
+            return []
         if not limit:
-            return [dict(x) for x in qry], True
-        chunk = [dict(x) for x in qry.limit(limit).offset(offset)]
-        return chunk, len(chunk) < limit
+            return [dict(x) for x in qry]
+        return [dict(x) for x in qry.limit(limit).offset(offset)]
 
-    def do_fetch_more(self, item_type, offset=0, limit=None, ticket=None, **kwargs):
+    def do_fetch_more(self, item_type, offset=0, limit=None, **kwargs):
         """Fetches items from the DB and adds them to the mapping.
 
         Args:
@@ -260,12 +256,7 @@ class DatabaseMappingBase:
         Returns:
             list(MappedItem): items fetched from the DB.
         """
-        completed_tickets = self._completed_tickets.setdefault(item_type, set())
-        if ticket in completed_tickets:
-            return []
-        chunk, completed = self._get_next_chunk(item_type, offset, limit, **kwargs)
-        if ticket is not None and completed:
-            completed_tickets.add(ticket)
+        chunk = self._get_next_chunk(item_type, offset, limit, **kwargs)
         if not chunk:
             return []
         mapped_table = self.mapped_table(item_type)
