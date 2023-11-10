@@ -52,6 +52,8 @@ class DatabaseMappingBase:
     def item_types():
         """Returns a list of public item types from the DB mapping schema (equivalent to the table names).
 
+        :meta private:
+
         Returns:
             list(str)
         """
@@ -61,6 +63,8 @@ class DatabaseMappingBase:
     def all_item_types():
         """Returns a list of all item types from the DB mapping schema (equivalent to the table names).
 
+        :meta private:
+
         Returns:
             list(str)
         """
@@ -69,6 +73,8 @@ class DatabaseMappingBase:
     @staticmethod
     def item_factory(item_type):
         """Returns a subclass of :class:`.MappedItemBase` to make items of given type.
+
+        :meta private:
 
         Args:
             item_type (str)

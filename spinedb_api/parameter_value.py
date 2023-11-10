@@ -10,19 +10,70 @@
 ######################################################################################################################
 
 """
-Support utilities and classes to deal with Spine parameter values.
+Parameter values in a Spine DB can be of different types (see :ref:`parameter_value_format`).
+For each of these types, this module provides a Python class to represent values of that type.
 
-The :func:`from_database` function receives a DB representation of a parameter value (value and type) and returns
-a float, str, bool, :class:`DateTime`, :class:`Duration`, :class:`Array`, :class:`TimePattern`,
-:class:`TimeSeriesFixedResolution`, :class:`TimeSeriesVariableResolution` or :class:`Map` object.
+.. list-table:: Parameter value type and Python class
+   :header-rows: 1
 
-The above objects can be converted back to the database format by the :func:`to_database` free function
-or by their :meth:`~ParameterValue.to_database` member function.
+   * - type
+     - Python class
+   * - ``date_time``
+     - :class:`DateTime`
+   * - ``duration``
+     - :class:`Duration`
+   * - ``array``
+     - :class:`Array`
+   * - ``time_pattern``
+     - :class:`TimePattern`
+   * - ``time_series``
+     - :class:`TimeSeriesFixedResolution` and :class:`TimeSeriesVariableResolution`
+   * - ``map``
+     - :class:`Map`
 
-Individual datetimes are represented as datetime objects from the standard Python library.
-Individual time steps are represented as relativedelta objects from the dateutil package.
-Datetime indexes (as returned by TimeSeries.indexes()) are represented as
-numpy.ndarray arrays holding numpy.datetime64 objects.
+The module also provides the functions :func:`to_database` and :func:`from_database`
+to translate between instances of the above classes and their DB representation (namely, the `value` and `type` fields
+that would go in the ``parameter_value`` table).
+
+For example, to write a Python object into a parameter value in the DB::
+
+    # Create the Python object
+    parsed_value = TimeSeriesFixedResolution(
+        datetime("2023-01-01T00:00"),   # start
+        "1D",                           # resolution
+        [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], # values
+        ignore_year=False,
+        repeat=False,
+    )
+    # Translate it to value and type
+    value, type_ = to_database(parsed_value)
+    # Add a parameter_value to the DB with that value and type
+    with DatabaseMapping(url) as db_map:
+        db_map.add_parameter_value_item(
+            entity_class_name="cat",
+            entity_byname=("Tom",),
+            parameter_definition_name="number_of_lives",
+            alternative_name="Base",
+            value=value,
+            type=type_,
+        )
+        db_map.commit_session("Tom is living one day at a time")
+
+Similarly, to read a parameter value from the DB into a Python object::
+
+    # Get the parameter_value from the DB
+    with DatabaseMapping(url) as db_map:
+        pval_item = db_map.get_parameter_value_item(
+            entity_class_name="cat",
+            entity_byname=("Tom",),
+            parameter_definition_name="number_of_lives",
+            alternative_name="Base",
+        )
+    # Obtain value and type
+    value, type_ = pval_item["value"], pval_item["type"]
+    # Translate value and type to a Python object
+    parsed_value = from_database(value, type_)
+
 """
 
 from collections.abc import Sequence
@@ -46,6 +97,43 @@ _TIME_SERIES_DEFAULT_START = "0001-01-01T00:00:00"
 _TIME_SERIES_DEFAULT_RESOLUTION = "1h"
 # Default unit if resolution is given as a number instead of a string.
 _TIME_SERIES_PLAIN_INDEX_UNIT = "m"
+
+
+def from_database(value, type_=None):
+    """
+    Converts a parameter value from the DB into a Python object.
+
+    Args:
+        value (bytes or None): the `value` field from the ``parameter_value`` table.
+        type_ (str, optional): the `type` field from the ``parameter_value`` table.
+
+    Returns:
+        :class:`ParameterValue`, float, str, bool or None: a Python object representing the parameter value.
+    """
+    parsed = load_db_value(value, type_)
+    if isinstance(parsed, dict):
+        return from_dict(parsed)
+    if isinstance(parsed, bool):
+        return parsed
+    if isinstance(parsed, Number):
+        return float(parsed)
+    return parsed
+
+
+def to_database(parsed_value):
+    """
+    Converts a Python object representing a parameter value into their DB representation.
+
+    Args:
+        parsed_value (any): the Python object.
+
+    Returns:
+        tuple(bytes,str): the `value` and `type` fields that would go in the ``parameter_value`` table.
+    """
+    if hasattr(parsed_value, "to_database"):
+        return parsed_value.to_database()
+    db_value = json.dumps(parsed_value).encode("UTF8")
+    return db_value, None
 
 
 def duration_to_relativedelta(duration):
@@ -121,7 +209,7 @@ def relativedelta_to_duration(delta):
     return "0h"
 
 
-def load_db_value(db_value, value_type=None):
+def load_db_value(db_value, type_=None):
     """
     Parses a database representation of a parameter value (value and type) into a Python object, using JSON.
     If the result is a dict, adds the "type" property to it.
@@ -130,7 +218,7 @@ def load_db_value(db_value, value_type=None):
 
     Args:
         db_value (bytes, optional): the database value.
-        value_type (str, optional): the value type.
+        type_ (str, optional): the value type.
 
     Returns:
         any: the parsed parameter value
@@ -142,7 +230,7 @@ def load_db_value(db_value, value_type=None):
     except JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}") from err
     if isinstance(parsed, dict):
-        return {"type": value_type, **parsed}
+        return {"type": type_, **parsed}
     return parsed
 
 
@@ -164,27 +252,6 @@ def dump_db_value(parsed_value):
     if isinstance(parsed_value, dict) and value_type is not None:
         parsed_value["type"] = value_type
     return db_value, value_type
-
-
-def from_database(database_value, value_type=None):
-    """
-    Converts a database representation of a parameter value (value and type) into an encoded parameter value.
-
-    Args:
-        database_value (bytes, optional): the database value
-        value_type (str, optional): the value type
-
-    Returns:
-        :class:`ParameterValue`, float, str, bool or None: the encoded parameter value.
-    """
-    parsed = load_db_value(database_value, value_type)
-    if isinstance(parsed, dict):
-        return from_dict(parsed)
-    if isinstance(parsed, bool):
-        return parsed
-    if isinstance(parsed, Number):
-        return float(parsed)
-    return parsed
 
 
 def from_database_to_single_value(database_value, value_type):
@@ -225,22 +292,6 @@ def from_database_to_dimension_count(database_value, value_type):
         map_value = from_database(database_value, value_type)
         return map_dimensions(map_value)
     return 0
-
-
-def to_database(parsed_value):
-    """
-    Converts an encoded parameter value into its database representation (value and type).
-
-    Args:
-        value(any): a Python object, typically obtained by calling :func:`load_db_value` or :func:`from_database`.
-
-    Returns:
-        tuple(bytes,str): database representation (value and type).
-    """
-    if hasattr(parsed_value, "to_database"):
-        return parsed_value.to_database()
-    db_value = json.dumps(parsed_value).encode("UTF8")
-    return db_value, None
 
 
 def from_dict(value):
@@ -634,13 +685,14 @@ def _array_from_database(value_dict):
 
 
 class ParameterValue:
-    """Base class for all encoded parameter values.
+    """Base for all classes representing parameter values."""
 
-    :meta private:
-    """
+    VALUE_TYPE = NotImplemented
 
     def to_dict(self):
-        """Returns the dictionary representation of this object.
+        """Returns a dictionary representation of this parameter value.
+
+        :meta private:
 
         Returns:
             dict: a dictionary including the "type" key.
@@ -649,18 +701,18 @@ class ParameterValue:
 
     @staticmethod
     def type_():
-        """Returns the value type for this object.
+        """Returns the type of the parameter value represented by this object.
 
         Returns:
-            str: the value type.
+            str
         """
         raise NotImplementedError()
 
     def to_database(self):
-        """Returns the database representation of this object (value and type).
+        """Returns the DB representation of this object. Equivalent to calling :func:`to_database` with it.
 
         Returns:
-            tuple(bytes,str): the DB value and type.
+            tuple(bytes,str): the `value` and `type` fields that would go in the ``parameter_value`` table.
         """
         return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
 
@@ -678,14 +730,14 @@ class ListValueRef:
 
 
 class DateTime(ParameterValue):
-    """A moment in time."""
+    """A parameter value of type 'date_time'. A point in time."""
 
     VALUE_TYPE = "single value"
 
     def __init__(self, value=None):
         """
         Args:
-            value (:class:`DateTime` or str or datetime.datetime): a timestamp
+            value (:class:`DateTime` or str or :class:`~datetime.datetime`): the `date_time` value.
         """
         if value is None:
             value = datetime(year=2000, month=1, day=1)
@@ -717,7 +769,10 @@ class DateTime(ParameterValue):
         return self._value.isoformat()
 
     def value_to_database_data(self):
-        """Returns the database representation of the datetime."""
+        """Returns the database representation of the datetime.
+
+        :meta private:
+        """
         return self._value.isoformat()
 
     def to_dict(self):
@@ -725,6 +780,10 @@ class DateTime(ParameterValue):
 
     @staticmethod
     def type_():
+        """See base class
+
+        :meta private:
+        """
         return "date_time"
 
     @property
@@ -732,16 +791,14 @@ class DateTime(ParameterValue):
         """The value.
 
         Returns:
-            :class:`~datetime.datetime`:
+            :class:`~datetime.datetime`
         """
         return self._value
 
 
 class Duration(ParameterValue):
     """
-    A duration in time.
-
-    Durations are always handled as :class:`~dateutil.dateutil.relativedelta`s.
+    A parameter value of type 'duration'. An extension of time.
     """
 
     VALUE_TYPE = "single value"
@@ -749,7 +806,7 @@ class Duration(ParameterValue):
     def __init__(self, value=None):
         """
         Args:
-            value (str or :class:`~dateutil.dateutil.relativedelta`): the duration
+            value (str or :class:`Duration` or :class:`~dateutil.dateutil.relativedelta`): the `duration` value.
         """
         if value is None:
             value = relativedelta(hours=1)
@@ -773,7 +830,10 @@ class Duration(ParameterValue):
         return str(relativedelta_to_duration(self._value))
 
     def value_to_database_data(self):
-        """Returns the 'data' property of this object's database representation."""
+        """Returns the 'data' property of this object's database representation.
+
+        :meta private:
+        """
         return relativedelta_to_duration(self._value)
 
     def to_dict(self):
@@ -781,11 +841,19 @@ class Duration(ParameterValue):
 
     @staticmethod
     def type_():
+        """See base class
+
+        :meta private:
+        """
         return "duration"
 
     @property
     def value(self):
-        """Returns the duration as a :class:`relativedelta`."""
+        """The value.
+
+        Returns
+            :class:`~dateutil.dateutil.relativedelta`
+        """
         return self._value
 
 
@@ -797,8 +865,6 @@ class _Indexes(np.ndarray):
         position = indexes.index(element)
 
     which might be too slow compared to dictionary lookup.
-
-    :meta private:
     """
 
     def __new__(cls, other, dtype=None):
@@ -826,24 +892,23 @@ class _Indexes(np.ndarray):
 
 class IndexedValue(ParameterValue):
     """
-    Base class for all values that have indexes.
-
-    :meta private:
-
-    Attributes:
-        index_name (str): index name
+    Base for all classes representing indexed parameter values.
     """
 
-    VALUE_TYPE = NotImplemented
+    DEFAULT_INDEX_NAME = NotImplemented
 
-    def __init__(self, index_name):
+    def __init__(self, values, value_type=None, index_name=""):
         """
+        :meta private:
+
         Args:
-            index_name (str): index name.
+            index_name (str): a label for the index.
         """
+        self._value_type = value_type
         self._indexes = None
         self._values = None
-        self.index_name = index_name
+        self.values = values
+        self.index_name = index_name if index_name else self.DEFAULT_INDEX_NAME
 
     def __bool__(self):
         # NOTE: Use self.indexes rather than self._indexes, otherwise TimeSeriesFixedResolution gives wrong result
@@ -854,6 +919,10 @@ class IndexedValue(ParameterValue):
 
     @staticmethod
     def type_():
+        """See base class
+
+        :meta private:
+        """
         raise NotImplementedError()
 
     @property
@@ -892,12 +961,29 @@ class IndexedValue(ParameterValue):
         """
         self._values = values
 
+    @property
+    def value_type(self):
+        """The type of the values.
+
+        Returns:
+            type:
+        """
+        return self._value_type
+
     def get_nearest(self, index):
+        """Returns the value at the nearest index to the given one.
+
+        Args:
+            index (any): The index.
+
+        Returns:
+            any: The value.
+        """
         pos = np.searchsorted(self.indexes, index)
         return self.values[pos]
 
     def get_value(self, index):
-        """Returns the value at a given index.
+        """Returns the value at the given index.
 
         Args:
             index (any): The index.
@@ -911,7 +997,7 @@ class IndexedValue(ParameterValue):
         return self.values[pos]
 
     def set_value(self, index, value):
-        """Sets the value at a given index.
+        """Sets the value at the given index.
 
         Args:
             index (any): The index.
@@ -937,7 +1023,7 @@ class IndexedValue(ParameterValue):
 
 
 class Array(IndexedValue):
-    """A one dimensional array with zero based indexing."""
+    """A parameter value of type 'array'. A one dimensional array with zero based indexing."""
 
     VALUE_TYPE = "array"
     DEFAULT_INDEX_NAME = "i"
@@ -945,28 +1031,26 @@ class Array(IndexedValue):
     def __init__(self, values, value_type=None, index_name=""):
         """
         Args:
-            values (Sequence): the values in the array.
-            value_type (Type, optional): array element type; will be deduced from ``values`` if not given
-                and defaults to float if ``values`` is empty.
-            index_name (str): index name.
+            values (Sequence): the array values.
+            value_type (type, optional): the type of the values; if not given, it will be deduced from `values`.
+                Defaults to float if `values` is empty.
+            index_name (str): the name you would give to the array index in your application.
         """
-        super().__init__(index_name if index_name else Array.DEFAULT_INDEX_NAME)
         if value_type is None:
             value_type = type(values[0]) if values else float
-            if value_type == int:
-                try:
-                    values = [float(x) for x in values]
-                except ValueError:
-                    raise ParameterValueFormatError("Cannot convert array's values to float.")
-                value_type = float
-        if any(not isinstance(x, value_type) for x in values):
+        if value_type == int:
+            value_type = float
+            try:
+                values = [value_type(x) for x in values]
+            except ValueError:
+                raise ParameterValueFormatError("Cannot convert array's values to float.")
+        if not all(isinstance(x, value_type) for x in values):
             try:
                 values = [value_type(x) for x in values]
             except ValueError:
                 raise ParameterValueFormatError("Not all array's values are of the same type.")
+        super().__init__(values, value_type=value_type, index_name=index_name)
         self.indexes = range(len(values))
-        self.values = list(values)
-        self._value_type = value_type
 
     def __eq__(self, other):
         if not isinstance(other, Array):
@@ -998,59 +1082,125 @@ class Array(IndexedValue):
             value_dict["index_name"] = self.index_name
         return value_dict
 
-    @property
-    def value_type(self):
-        """Returns the type of the values.
 
-        Returns:
-            str:
+class _TimePatternIndexes(_Indexes):
+    """An array of *checked* time pattern indexes."""
+
+    @staticmethod
+    def _check_index(union_str):
         """
-        return self._value_type
+        Checks if a time pattern index has the right format.
+
+        Args:
+            union_str (str): The time pattern index to check. Generally assumed to be a union of interval intersections.
+
+        Raises:
+            ParameterValueFormatError: If the given string doesn't comply with time pattern spec.
+        """
+        if not union_str:
+            # We accept empty strings so we can add empty rows in the parameter value editor UI
+            return
+        union_dlm = ","
+        intersection_dlm = ";"
+        range_dlm = "-"
+        regexp = r"(Y|M|D|WD|h|m|s)"
+        for intersection_str in union_str.split(union_dlm):
+            for interval_str in intersection_str.split(intersection_dlm):
+                m = re.match(regexp, interval_str)
+                if m is None:
+                    raise ParameterValueFormatError(
+                        f"Invalid interval {interval_str}, it should start with either Y, M, D, WD, h, m, or s."
+                    )
+                key = m.group(0)
+                lower_upper_str = interval_str[len(key) :]
+                lower_upper = lower_upper_str.split(range_dlm)
+                if len(lower_upper) != 2:
+                    raise ParameterValueFormatError(
+                        f"Invalid interval bounds {lower_upper_str}, it should be two integers separated by dash (-)."
+                    )
+                lower_str, upper_str = lower_upper
+                try:
+                    lower = int(lower_str)
+                except:
+                    raise ParameterValueFormatError(f"Invalid lower bound {lower_str}, must be an integer.")
+                try:
+                    upper = int(upper_str)
+                except:
+                    raise ParameterValueFormatError(f"Invalid upper bound {upper_str}, must be an integer.")
+                if lower > upper:
+                    raise ParameterValueFormatError(f"Lower bound {lower} can't be higher than upper bound {upper}.")
+
+    def __array_finalize__(self, obj):
+        """Checks indexes when building the array."""
+        for x in obj:
+            self._check_index(x)
+        super().__array_finalize__(obj)
+
+    def __eq__(self, other):
+        return list(self) == list(other)
+
+    def __setitem__(self, position, index):
+        """Checks indexes when setting and item."""
+        self._check_index(index)
+        super().__setitem__(position, index)
 
 
-class IndexedNumberArray(IndexedValue):
+class TimePattern(IndexedValue):
+    """A parameter value of type 'time_pattern'.
+    A mapping from time patterns strings to numerical values.
     """
-    Abstract base class for all values mapping indexes to floats.
 
-    The indexes and numbers are stored in :class:`~numpy.ndarray`s.
+    VALUE_TYPE = "time pattern"
+    DEFAULT_INDEX_NAME = "p"
 
-    :meta private:
-    """
-
-    def __init__(self, index_name, values):
+    def __init__(self, indexes, values, index_name=""):
         """
         Args:
-            index_name (str): index name.
-            values (Sequence): the values in the array; index handling should be implemented by subclasses.
+            indexes (list): the time pattern strings.
+            values (Sequence): the values associated to different patterns.
+            index_name (str): index name
         """
-        super().__init__(index_name)
-        self.values = values
+        if len(indexes) != len(values):
+            raise ParameterValueFormatError("Length of values does not match length of indexes")
+        if not indexes:
+            raise ParameterValueFormatError("Empty time pattern not allowed")
+        super().__init__(values, value_type=float, index_name=index_name)
+        self.indexes = indexes
 
-    @IndexedValue.values.setter
-    def values(self, values):
-        if not isinstance(values, np.ndarray) or not values.dtype == np.dtype(float):
-            values = np.array(values, dtype=float)
-        self._values = values
+    def __eq__(self, other):
+        if not isinstance(other, TimePattern):
+            return NotImplemented
+        return (
+            self._indexes == other._indexes
+            and np.all(self._values == other._values)
+            and self.index_name == other.index_name
+        )
+
+    @IndexedValue.indexes.setter
+    def indexes(self, indexes):
+        self._indexes = _TimePatternIndexes(indexes, dtype=np.object_)
 
     @staticmethod
     def type_():
-        raise NotImplementedError()
+        return "time_pattern"
 
     def to_dict(self):
-        raise NotImplementedError()
+        value_dict = {"data": dict(zip(self._indexes, self._values))}
+        if self.index_name != "p":
+            value_dict["index_name"] = self.index_name
+        return value_dict
 
 
-class TimeSeries(IndexedNumberArray):
-    """Abstract base class for time-series.
-
-    :meta private:
-    """
+class TimeSeries(IndexedValue):
+    """Base for all classes representing 'time_series' parameter values."""
 
     VALUE_TYPE = "time series"
     DEFAULT_INDEX_NAME = "t"
 
     def __init__(self, values, ignore_year, repeat, index_name=""):
         """
+        :meta private:
+
         Args:
             values (Sequence): the values in the time-series.
             ignore_year (bool): True if the year should be ignored.
@@ -1059,7 +1209,7 @@ class TimeSeries(IndexedNumberArray):
         """
         if len(values) < 1:
             raise ParameterValueFormatError("Time series too short. Must have one or more values")
-        super().__init__(index_name if index_name else TimeSeries.DEFAULT_INDEX_NAME, values)
+        super().__init__(values, value_type=float, index_name=index_name)
         self._ignore_year = ignore_year
         self._repeat = repeat
 
@@ -1102,6 +1252,17 @@ class TimeSeries(IndexedNumberArray):
         """
         self._repeat = bool(repeat)
 
+    @IndexedValue.values.setter
+    def values(self, values):
+        """Sets the values.
+
+        Args:
+            values (:class:`~numpy.ndarray`)
+        """
+        if not isinstance(values, np.ndarray) or not values.dtype == np.dtype(float):
+            values = np.array(values, dtype=float)
+        self._values = values
+
     @staticmethod
     def type_():
         return "time_series"
@@ -1110,115 +1271,10 @@ class TimeSeries(IndexedNumberArray):
         raise NotImplementedError()
 
 
-def _check_time_pattern_index(union_str):
-    """
-    Checks if a time pattern index has the right format.
-
-    Args:
-        union_str (str): The time pattern index to check. Generally assumed to be a union of interval intersections.
-
-    Raises:
-        ParameterValueFormatError: If the given string doesn't comply with time pattern spec.
-    """
-    if not union_str:
-        # We accept empty strings so we can add empty rows in the parameter value editor UI
-        return
-    union_dlm = ","
-    intersection_dlm = ";"
-    range_dlm = "-"
-    regexp = r"(Y|M|D|WD|h|m|s)"
-    for intersection_str in union_str.split(union_dlm):
-        for interval_str in intersection_str.split(intersection_dlm):
-            m = re.match(regexp, interval_str)
-            if m is None:
-                raise ParameterValueFormatError(
-                    f"Invalid interval {interval_str}, it should start with either Y, M, D, WD, h, m, or s."
-                )
-            key = m.group(0)
-            lower_upper_str = interval_str[len(key) :]
-            lower_upper = lower_upper_str.split(range_dlm)
-            if len(lower_upper) != 2:
-                raise ParameterValueFormatError(
-                    f"Invalid interval bounds {lower_upper_str}, it should be two integers separated by dash (-)."
-                )
-            lower_str, upper_str = lower_upper
-            try:
-                lower = int(lower_str)
-            except:
-                raise ParameterValueFormatError(f"Invalid lower bound {lower_str}, must be an integer.")
-            try:
-                upper = int(upper_str)
-            except:
-                raise ParameterValueFormatError(f"Invalid upper bound {upper_str}, must be an integer.")
-            if lower > upper:
-                raise ParameterValueFormatError(f"Lower bound {lower} can't be higher than upper bound {upper}.")
-
-
-class _TimePatternIndexes(_Indexes):
-    """An array of *checked* time pattern indexes."""
-
-    def __array_finalize__(self, obj):
-        """Checks indexes when building the array."""
-        for x in obj:
-            _check_time_pattern_index(x)
-        super().__array_finalize__(obj)
-
-    def __eq__(self, other):
-        return list(self) == list(other)
-
-    def __setitem__(self, position, index):
-        """Checks indexes when setting and item."""
-        _check_time_pattern_index(index)
-        super().__setitem__(position, index)
-
-
-class TimePattern(IndexedNumberArray):
-    """A time-pattern parameter value."""
-
-    VALUE_TYPE = "time pattern"
-    DEFAULT_INDEX_NAME = "p"
-
-    def __init__(self, indexes, values, index_name=""):
-        """
-        Args:
-            indexes (list): a list of time pattern strings
-            values (Sequence): the value for each time pattern.
-            index_name (str): index name
-        """
-        if len(indexes) != len(values):
-            raise ParameterValueFormatError("Length of values does not match length of indexes")
-        if not indexes:
-            raise ParameterValueFormatError("Empty time pattern not allowed")
-        super().__init__(index_name if index_name else TimePattern.DEFAULT_INDEX_NAME, values)
-        self.indexes = indexes
-
-    def __eq__(self, other):
-        if not isinstance(other, TimePattern):
-            return NotImplemented
-        return (
-            self._indexes == other._indexes
-            and np.all(self._values == other._values)
-            and self.index_name == other.index_name
-        )
-
-    @IndexedNumberArray.indexes.setter
-    def indexes(self, indexes):
-        self._indexes = _TimePatternIndexes(indexes, dtype=np.object_)
-
-    @staticmethod
-    def type_():
-        return "time_pattern"
-
-    def to_dict(self):
-        value_dict = {"data": dict(zip(self._indexes, self._values))}
-        if self.index_name != "p":
-            value_dict["index_name"] = self.index_name
-        return value_dict
-
-
 class TimeSeriesFixedResolution(TimeSeries):
     """
-    A time-series with fixed durations between the time stamps.
+    A parameter value of type 'time_series'.
+    A mapping from time stamps to numerical values, with fixed durations between the time stamps.
 
     When getting the indexes the durations are applied cyclically.
 
@@ -1231,8 +1287,8 @@ class TimeSeriesFixedResolution(TimeSeries):
     def __init__(self, start, resolution, values, ignore_year, repeat, index_name=""):
         """
         Args:
-            start (str or :class:`~datetime.datetime` or :class:`numpy.datetime64`): the first time stamp
-            resolution (str, :class:`dateutil.relativedelta.relativedelta`, list): duration(s) between the time stamps.
+            start (str or :class:`~datetime.datetime` or :class:`~numpy.datetime64`): the first time stamp
+            resolution (str, :class:`~dateutil.relativedelta.relativedelta`, list): duration(s) between the time stamps.
             values (Sequence): the values in the time-series.
             ignore_year (bool): True if the year should be ignored.
             repeat (bool): True if the series is repeating.
@@ -1366,7 +1422,9 @@ class TimeSeriesFixedResolution(TimeSeries):
 
 
 class TimeSeriesVariableResolution(TimeSeries):
-    """A time-series with variable time steps."""
+    """A parameter value of type 'time_series'.
+    A mapping from time stamps to numerical values with arbitrary time steps.
+    """
 
     def __init__(self, indexes, values, ignore_year, repeat, index_name=""):
         """
@@ -1420,7 +1478,9 @@ class TimeSeriesVariableResolution(TimeSeries):
 
 
 class Map(IndexedValue):
-    """A nested general purpose indexed value."""
+    """A parameter value of type 'map'. A mapping from key to value, where the values can be other instances
+    of :class:`ParameterValue`.
+    """
 
     VALUE_TYPE = "map"
     DEFAULT_INDEX_NAME = "x"
@@ -1439,7 +1499,7 @@ class Map(IndexedValue):
             raise ParameterValueFormatError('Type of index does not match "index_type" argument.')
         if len(indexes) != len(values):
             raise ParameterValueFormatError("Length of values does not match length of indexes")
-        super().__init__(index_name if index_name else Map.DEFAULT_INDEX_NAME)
+        super().__init__(values, index_name=index_name)
         self.indexes = indexes
         self._index_type = index_type if index_type is not None else type(indexes[0])
         self._values = values

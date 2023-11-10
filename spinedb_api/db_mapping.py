@@ -202,28 +202,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         sq_name = self._sq_name_by_item_type[item_type]
         return getattr(self, sq_name)
 
-    def close(self):
-        """Closes this DB mapping. This is only needed if you're keeping a long-lived session.
-        For instance::
-
-            class MyDBMappingWrapper:
-                def __init__(self, url):
-                    self._db_map = DatabaseMapping(url)
-
-                # More methods that do stuff with self._db_map
-
-                def __del__(self):
-                    self._db_map.close()
-
-        Otherwise, the usage as context manager is recommended::
-
-            with DatabaseMapping(url) as db_map:
-                # Do stuff with db_map
-                ...
-                # db_map.close() is automatically called when leaving this block
-        """
-        self.closed = True
-
     def _make_codename(self, codename):
         if codename:
             return str(codename)
@@ -337,14 +315,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             entity_id = item.pop("object_id", None) or item.pop("relationship_id", None)
             if entity_id:
                 item["entity_id"] = entity_id
-
-    def has_external_commits(self):
-        """Test whether the database has had commits from other sources than this mapping.
-
-        Returns:
-            bool: True if database has external commits, False otherwise
-        """
-        return self._commit_count != self.query(self.commit_sq).count()
 
     def get_import_alternative_name(self):
         if self._import_alternative_name is None:
@@ -724,6 +694,36 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """Resets the fetch status so new items from the DB can be retrieved."""
         self._refresh()
 
+    def has_external_commits(self):
+        """Tests whether the database has had commits from other sources than this mapping.
+
+        Returns:
+            bool: True if database has external commits, False otherwise
+        """
+        return self._commit_count != self.query(self.commit_sq).count()
+
+    def close(self):
+        """Closes this DB mapping. This is only needed if you're keeping a long-lived session.
+        For instance::
+
+            class MyDBMappingWrapper:
+                def __init__(self, url):
+                    self._db_map = DatabaseMapping(url)
+
+                # More methods that do stuff with self._db_map
+
+                def __del__(self):
+                    self._db_map.close()
+
+        Otherwise, the usage as context manager is recommended::
+
+            with DatabaseMapping(url) as db_map:
+                # Do stuff with db_map
+                ...
+                # db_map.close() is automatically called when leaving this block
+        """
+        self.closed = True
+
     def add_ext_entity_metadata(self, *items, **kwargs):
         metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
         self.add_items("metadata", *metadata_items, **kwargs)
@@ -760,7 +760,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self.remove_items("metadata", *unused_metadata_ids)
 
     def get_filter_configs(self):
-        """Returns the filters used to build this DB mapping.
+        """Returns the filters from this mapping's URL.
 
         Returns:
             list(dict):

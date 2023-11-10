@@ -127,8 +127,8 @@ def get_current_server_version():
     return _current_server_version
 
 
-def _parse_value(v, value_type=None):
-    return (v, value_type)
+def _parse_value(v, type_=None):
+    return (v, type_)
 
 
 def _unparse_value(value_and_type):

@@ -83,7 +83,6 @@ from .parameter_value import (
     Array,
     DateTime,
     Duration,
-    IndexedNumberArray,
     IndexedValue,
     Map,
     TimePattern,
