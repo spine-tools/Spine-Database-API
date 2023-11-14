@@ -839,10 +839,11 @@ def remove_credentials_from_url(url):
     Returns:
         str: sanitized URL
     """
-    parsed = urlparse(url)
-    if parsed.username is None:
+    if "@" not in url:
         return url
-    return urlunparse(parsed._replace(netloc=parsed.netloc.partition("@")[-1]))
+    head, tail = url.rsplit("@", maxsplit=1)
+    scheme, credentials = head.split("://", maxsplit=1)
+    return scheme + "://" + tail
 
 
 def group_consecutive(list_of_numbers):
