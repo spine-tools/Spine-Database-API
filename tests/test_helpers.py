@@ -8,36 +8,41 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Unit tests for helpers.py.
-
-"""
+"""Unit tests for helpers.py."""
 
 
 import unittest
-from spinedb_api.helpers import compare_schemas, create_new_spine_database
+from spinedb_api.helpers import compare_schemas, create_new_spine_database, remove_credentials_from_url
 
 
-class TestHelpers(unittest.TestCase):
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
+class TestCreateNewSpineEngine(unittest.TestCase):
     def test_same_schema(self):
-        """Test that importing object class works"""
         engine1 = create_new_spine_database('sqlite://')
         engine2 = create_new_spine_database('sqlite://')
         self.assertTrue(compare_schemas(engine1, engine2))
 
     def test_different_schema(self):
-        """Test that importing object class works"""
         engine1 = create_new_spine_database('sqlite://')
         engine2 = create_new_spine_database('sqlite://')
         engine2.execute("drop table entity")
         self.assertFalse(compare_schemas(engine1, engine2))
+
+
+class TestRemoveCredentialsFromUrl(unittest.TestCase):
+    def test_url_without_credentials_is_returned_as_is(self):
+        url = "mysql://example.com/db"
+        sanitized = remove_credentials_from_url(url)
+        self.assertEqual(url, sanitized)
+
+    def test_username_and_password_are_removed(self):
+        url = "mysql://user:secret@example.com/db"
+        sanitized = remove_credentials_from_url(url)
+        self.assertEqual(sanitized, "mysql://example.com/db")
+
+    def test_password_with_special_characters(self):
+        url = "mysql://user:p@ass://word@example.com/db"
+        sanitized = remove_credentials_from_url(url)
+        self.assertEqual(sanitized, "mysql://example.com/db")
 
 
 if __name__ == "__main__":
