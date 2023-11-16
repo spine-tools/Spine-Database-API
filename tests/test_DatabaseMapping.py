@@ -8,11 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Unit tests for DatabaseMapping class.
-
-"""
+""" Unit tests for DatabaseMapping class. """
 import os.path
 from tempfile import TemporaryDirectory
 import unittest
@@ -286,6 +282,40 @@ class TestDatabaseMapping(unittest.TestCase):
                 # What happens?
                 entities = db_map.get_items("entity")
                 self.assertEqual(len(entities), 3)
+
+    def test_committing_scenario_alternatives(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                item, error = db_map.add_alternative_item(name="alt1")
+                self.assertIsNone(error)
+                self.assertIsNotNone(item)
+                item, error = db_map.add_alternative_item(name="alt2")
+                self.assertIsNone(error)
+                self.assertIsNotNone(item)
+                item, error = db_map.add_scenario_item(name="my_scenario")
+                self.assertIsNone(error)
+                self.assertIsNotNone(item)
+                item, error = db_map.add_scenario_alternative_item(
+                    scenario_name="my_scenario", alternative_name="alt1", rank=0
+                )
+                self.assertIsNone(error)
+                self.assertIsNotNone(item)
+                item, error = db_map.add_scenario_alternative_item(
+                    scenario_name="my_scenario", alternative_name="alt2", rank=1
+                )
+                self.assertIsNone(error)
+                self.assertIsNotNone(item)
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                scenario_alternatives = db_map.get_items("scenario_alternative")
+                self.assertEqual(len(scenario_alternatives), 2)
+                self.assertEqual(scenario_alternatives[0]["scenario_name"], "my_scenario")
+                self.assertEqual(scenario_alternatives[0]["alternative_name"], "alt1")
+                self.assertEqual(scenario_alternatives[0]["rank"], 0)
+                self.assertEqual(scenario_alternatives[1]["scenario_name"], "my_scenario")
+                self.assertEqual(scenario_alternatives[1]["alternative_name"], "alt2")
+                self.assertEqual(scenario_alternatives[1]["rank"], 1)
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
