@@ -7,9 +7,9 @@ description = "An API to talk to Spine databases."
 keywords = ["energy system modelling", "workflow", "optimisation", "database"]
 readme = {file = "README.md", content-type = "text/markdown"}
 classifiers = [
-	    "Programming Language :: Python :: 3",
-	    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
-	    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Operating System :: OS Independent",
 ]
 requires-python = ">=3.8.1, <3.12"
 dependencies = [
@@ -51,10 +51,10 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 exclude = [
-	"bin*",
-	"docs*",
-	"fig*",
-	"tests*",
+    "bin*",
+    "docs*",
+    "fig*",
+    "tests*",
 ]
 
 [tool.coverage.run]
