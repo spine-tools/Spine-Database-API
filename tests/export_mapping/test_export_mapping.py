@@ -821,7 +821,7 @@ class TestExportMapping(unittest.TestCase):
         element1_mapping = relationship_mapping.child = ElementMapping(4)
         element1_mapping.child = ElementMapping(5)
         expected = [
-            ['rc1', 'oc1', '', 'o11', 'o11', ''],
+            ['rc1', 'oc1', '', 'o11__', 'o11', ''],
             ['rc2', 'oc2', 'oc1', 'o21__o11', 'o21', 'o11'],
             ['rc2', 'oc2', 'oc1', 'o21__o12', 'o21', 'o12'],
         ]
@@ -1486,28 +1486,27 @@ class TestExportMapping(unittest.TestCase):
         db_map.close()
 
     def test_export_object_parameters_while_exporting_relationships(self):
-        db_map = DatabaseMapping("sqlite://", create=True)
-        import_object_classes(db_map, ("oc",))
-        import_object_parameters(db_map, (("oc", "p"),))
-        import_objects(db_map, (("oc", "o"),))
-        import_object_parameter_values(db_map, (("oc", "o", "p", 23.0),))
-        import_relationship_classes(db_map, (("rc", ("oc",)),))
-        import_relationships(db_map, (("rc", ("o",)),))
-        db_map.commit_session("Add test data")
-        root_mapping = unflatten(
-            [
-                EntityClassMapping(0, highlight_position=0),
-                DimensionMapping(1),
-                EntityMapping(2),
-                ElementMapping(3),
-                ParameterDefinitionMapping(4),
-                AlternativeMapping(5),
-                ParameterValueMapping(6),
-            ]
-        )
-        expected = [["rc", "oc", "o", "o", "p", "Base", 23.0]]
-        self.assertEqual(list(rows(root_mapping, db_map)), expected)
-        db_map.close()
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            import_object_classes(db_map, ("oc",))
+            import_object_parameters(db_map, (("oc", "p"),))
+            import_objects(db_map, (("oc", "o"),))
+            import_object_parameter_values(db_map, (("oc", "o", "p", 23.0),))
+            import_relationship_classes(db_map, (("rc", ("oc",)),))
+            import_relationships(db_map, (("rc", ("o",)),))
+            db_map.commit_session("Add test data")
+            root_mapping = unflatten(
+                [
+                    EntityClassMapping(0, highlight_position=0),
+                    DimensionMapping(1),
+                    EntityMapping(2),
+                    ElementMapping(3),
+                    ParameterDefinitionMapping(4),
+                    AlternativeMapping(5),
+                    ParameterValueMapping(6),
+                ]
+            )
+            expected = [["rc", "oc", "o__", "o", "p", "Base", 23.0]]
+            self.assertEqual(list(rows(root_mapping, db_map)), expected)
 
     def test_export_default_values_of_object_parameters_while_exporting_relationships(self):
         db_map = DatabaseMapping("sqlite://", create=True)

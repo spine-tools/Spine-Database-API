@@ -354,7 +354,7 @@ class TestImportRelationship(unittest.TestCase):
         _, errors = import_relationships(db_map, (("relationship_class", ("object",)),))
         self.assertFalse(errors)
         db_map.commit_session("test")
-        self.assertIn("object", [r.name for r in db_map.query(db_map.relationship_sq)])
+        self.assertIn("object__", [r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.close()
 
     def test_import_valid_relationship(self):
@@ -1399,7 +1399,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
             dict(metadata[0]),
             {
                 "alternative_name": "Base",
-                "entity_name": "object",
+                "entity_name": "object__",
                 "id": 1,
                 "metadata_id": 1,
                 "metadata_name": "co-author",
@@ -1413,7 +1413,7 @@ class TestImportParameterValueMetadata(unittest.TestCase):
             dict(metadata[1]),
             {
                 "alternative_name": "Base",
-                "entity_name": "object",
+                "entity_name": "object__",
                 "id": 2,
                 "metadata_id": 2,
                 "metadata_name": "age",

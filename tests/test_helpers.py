@@ -12,7 +12,29 @@
 
 
 import unittest
-from spinedb_api.helpers import compare_schemas, create_new_spine_database, remove_credentials_from_url
+from spinedb_api.helpers import (
+    compare_schemas,
+    create_new_spine_database,
+    name_from_dimensions,
+    name_from_elements,
+    remove_credentials_from_url,
+)
+
+
+class TestNameFromElements(unittest.TestCase):
+    def test_single_element(self):
+        self.assertEqual(name_from_elements(("a",)), "a__")
+
+    def test_multiple_elements(self):
+        self.assertEqual(name_from_elements(("a", "b")), "a__b")
+
+
+class TestNameFromDimensions(unittest.TestCase):
+    def test_single_dimension(self):
+        self.assertEqual(name_from_dimensions(("a",)), "a__")
+
+    def test_multiple_dimension(self):
+        self.assertEqual(name_from_dimensions(("a", "b")), "a__b")
 
 
 class TestCreateNewSpineEngine(unittest.TestCase):
