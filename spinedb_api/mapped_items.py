@@ -10,6 +10,8 @@
 ######################################################################################################################
 
 from operator import itemgetter
+
+from .helpers import name_from_elements
 from .parameter_value import to_database, from_database, ParameterValueFormatError
 from .db_mapping_base import MappedItemBase
 
@@ -168,7 +170,7 @@ class EntityItem(MappedItemBase):
                     return f"element '{el_name}' is not an instance of class '{dim_name}'"
         if self.get("name") is not None:
             return
-        base_name = "__".join(self["element_name_list"])
+        base_name = name_from_elements(self["element_name_list"])
         name = base_name
         index = 1
         while any(

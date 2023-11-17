@@ -24,6 +24,7 @@ from spinedb_api import (
     SpineDBAPIError,
     SpineIntegrityError,
 )
+from spinedb_api.helpers import name_from_elements
 from .custom_db_mapping import CustomDatabaseMapping
 
 
@@ -676,7 +677,7 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         entity_rows = self._db_map.query(self._db_map.entity_sq).all()
         self.assertEqual(len(entity_rows), len(objects) + len(relationships))
         object_names = [o[1] for o in objects]
-        relationship_names = ["__".join(r[1]) for r in relationships]
+        relationship_names = [name_from_elements(r[1]) for r in relationships]
         for row, expected_name in zip(entity_rows, object_names + relationship_names):
             self.assertEqual(row.name, expected_name)
 
@@ -720,7 +721,7 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         relationship_rows = self._db_map.query(self._db_map.wide_relationship_sq).all()
         self.assertEqual(len(relationship_rows), 2)
         for row, relationship in zip(relationship_rows, relationships):
-            self.assertEqual(row.name, "__".join(relationship[1]))
+            self.assertEqual(row.name, name_from_elements(relationship[1]))
             self.assertEqual(row.class_name, relationship[0])
             self.assertEqual(row.object_class_name_list, ",".join(object_classes[relationship[0]]))
             self.assertEqual(row.object_name_list, ",".join(relationship[1]))
@@ -1453,7 +1454,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             dict(entity_metadata[0]),
             {
                 "entity_id": 2,
-                "entity_name": "my_object",
+                "entity_name": "my_object__",
                 "metadata_name": "title",
                 "metadata_value": "My metadata.",
                 "metadata_id": 1,

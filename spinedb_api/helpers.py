@@ -17,7 +17,6 @@ import json
 import warnings
 from operator import itemgetter
 from itertools import groupby
-from urllib.parse import urlparse, urlunparse
 from sqlalchemy import (
     Boolean,
     BigInteger,
@@ -79,6 +78,32 @@ naming_convention = {
 model_meta = MetaData(naming_convention=naming_convention)
 
 LONGTEXT_LENGTH = 2 ** 32 - 1
+
+
+def name_from_elements(elements):
+    """Creates an entity name by combining element names.
+
+    Args:
+        elements (Sequence of str): element names
+
+    Returns:
+        str: entity name
+    """
+    if len(elements) == 1:
+        return elements[0] + "__"
+    return "__".join(elements)
+
+
+def name_from_dimensions(dimensions):
+    """Creates an entity class name by combining dimension names.
+
+    Args:
+        dimensions (Sequence of str): dimension names
+
+    Returns:
+        str: entity class name
+    """
+    return name_from_elements(dimensions)
 
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
