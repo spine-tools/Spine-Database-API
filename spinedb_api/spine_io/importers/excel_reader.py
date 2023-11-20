@@ -42,11 +42,12 @@ class ExcelConnector(SourceConnection):
         self._filename = None
         self._wb = None
 
-    def connect_to_source(self, source):
-        """saves filepath
+    def connect_to_source(self, source, **extras):
+        """Connects to Excel file.
 
-        Arguments:
-            source {str} -- filepath
+        Args:
+            source (str): path to file
+            **extras: ignored
         """
         if source:
             self._filename = source
