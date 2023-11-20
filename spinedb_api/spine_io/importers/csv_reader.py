@@ -46,11 +46,12 @@ class CSVConnector(SourceConnection):
         super().__init__(settings)
         self._filename = None
 
-    def connect_to_source(self, source):
+    def connect_to_source(self, source, **extras):
         """saves filepath
 
-        Arguments:
+        Args:
             source (str): filepath
+            **extras: ignored
         """
         self._filename = source
 

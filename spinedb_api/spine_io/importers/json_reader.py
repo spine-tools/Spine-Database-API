@@ -37,11 +37,12 @@ class JSONConnector(SourceConnection):
         self._filename = None
         self._root_prefix = None
 
-    def connect_to_source(self, source):
+    def connect_to_source(self, source, **extras):
         """saves filepath
 
         Args:
             source (str): filepath
+            **extras: ignored
         """
         self._filename = source
         self._root_prefix = os.path.splitext(os.path.basename(source))[0]
