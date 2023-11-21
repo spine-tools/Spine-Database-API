@@ -105,7 +105,12 @@ class DatabaseMappingBase:
                 src_key, key = self.item_factory(item_type)._external_fields[key]
                 ref_type, ref_key = self.item_factory(item_type)._references[src_key]
                 ref_sq = self._make_sq(ref_type)
-                qry = qry.filter(getattr(sq.c, src_key) == getattr(ref_sq.c, ref_key), getattr(ref_sq.c, key) == value)
+                try:
+                    qry = qry.filter(
+                        getattr(sq.c, src_key) == getattr(ref_sq.c, ref_key), getattr(ref_sq.c, key) == value
+                    )
+                except AttributeError:
+                    pass
         return qry
 
     def _make_sq(self, item_type):

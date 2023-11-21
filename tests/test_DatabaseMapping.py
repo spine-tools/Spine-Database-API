@@ -857,6 +857,31 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         self.assertEqual(entity.class_id, real_class_id)
 
 
+class TestDatabaseMappingGet(unittest.TestCase):
+    def setUp(self):
+        self._db_map = CustomDatabaseMapping(IN_MEMORY_DB_URL, create=True)
+
+    def tearDown(self):
+        self._db_map.close()
+
+    def test_get_entity_alternative_items(self):
+        import_functions.import_data(
+            self._db_map,
+            entity_classes=(("fish",),),
+            entities=(("fish", "Nemo"),),
+            entity_alternatives=(("fish", "Nemo", "Base", True),),
+        )
+        ea_item = self._db_map.get_entity_alternative_item(
+            alternative_name="Base", entity_class_name="fish", entity_byname=("Nemo",)
+        )
+        self.assertIsNotNone(ea_item)
+        ea_items = self._db_map.get_entity_alternative_items(
+            alternative_name="Base", entity_class_name="fish", entity_byname=("Nemo",)
+        )
+        self.assertEqual(len(ea_items), 1)
+        self.assertEqual(ea_items[0], ea_item)
+
+
 class TestDatabaseMappingAdd(unittest.TestCase):
     def setUp(self):
         self._db_map = CustomDatabaseMapping(IN_MEMORY_DB_URL, create=True)
