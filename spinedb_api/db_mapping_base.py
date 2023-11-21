@@ -574,7 +574,8 @@ class MappedItemBase(dict):
     """A dictionary that represents a db item."""
 
     fields = {}
-    """A dictionary mapping keys to a tuple of (type, value description)"""
+    """A dictionary mapping keys to a another dict mapping "type" to a Python type,
+    "value" to a description of the value for the key, and "optional" to a bool."""
     _defaults = {}
     """A dictionary mapping keys to their default values"""
     _unique_keys = ()
@@ -597,6 +598,7 @@ class MappedItemBase(dict):
     source key.
     """
     _private_fields = set()
+    """A set with fields that should be ignored in validations."""
 
     def __init__(self, db_map, item_type, **kwargs):
         """
@@ -741,7 +743,12 @@ class MappedItemBase(dict):
         def _convert(x):
             return tuple(x) if isinstance(x, list) else x
 
-        return not all(_convert(self.get(key)) == _convert(value) for key, value in other.items())
+        return not all(
+            _convert(self.get(key)) == _convert(value)
+            for key, value in other.items()
+            if value is not None
+            or self.fields.get(key, {}).get("optional", False)  # Ignore mandatory fields that are None
+        )
 
     def first_invalid_key(self):
         """Goes through the ``_references`` class attribute and returns the key of the first reference

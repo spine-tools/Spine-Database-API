@@ -340,6 +340,27 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
         db_map.close()
 
 
+class TestImportEntity(unittest.TestCase):
+    def test_import_multi_d_entity_twice(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_data(
+            db_map,
+            entity_classes=(
+                ("object_class1",),
+                ("object_class2",),
+                ("relationship_class", ("object_class1", "object_class2")),
+            ),
+            entities=(
+                ("object_class1", "object1"),
+                ("object_class2", "object2"),
+                ("relationship_class", ("object1", "object2")),
+            ),
+        )
+        count, errors = import_data(db_map, entities=(("relationship_class", ("object1", "object2")),))
+        self.assertEqual(count, 0)
+        self.assertEqual(errors, [])
+
+
 class TestImportRelationship(unittest.TestCase):
     @staticmethod
     def populate(db_map):
