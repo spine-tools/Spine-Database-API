@@ -390,7 +390,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
-            check (bool, optional): Whether to carry out integrity checks.
             **kwargs: Fields and values as specified for the item type in :ref:`db_mapping_schema`.
 
         Returns:
@@ -411,7 +410,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
                 as specified in :ref:`db_mapping_schema`.
-            check (bool): Whether or not to run integrity checks.
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
 
@@ -442,7 +440,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
-            check (bool, optional): Whether to carry out integrity checks.
             id (int): The id of the item to update.
             **kwargs: Fields to update and their new values as specified for the item type in :ref:`db_mapping_schema`.
 
@@ -464,7 +461,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
                 as specified in :ref:`db_mapping_schema` and including the `id`.
-            check (bool): Whether or not to run integrity checks.
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the update of one of the items violates an integrity constraint.
 
@@ -494,7 +490,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Args:
             item_type (str): One of <spine_item_types>.
             id_ (int): The id of the item to remove.
-            check (bool, optional): Whether to carry out integrity checks.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The removed item and any errors.
@@ -512,7 +507,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Args:
             item_type (str): One of <spine_item_types>.
             *ids (Iterable(int)): Ids of items to be removed.
-            check (bool): Whether or not to run integrity checks.
             strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the update of one of the items violates an integrity constraint.
 
@@ -848,7 +842,6 @@ def _add_convenience_methods(node):
                 """Adds {a} `{item_type}` item to the in-memory mapping.
 
                 Args:
-                    check (bool, optional): Whether to carry out integrity checks.
                     {add_kwargs}
 
                 Returns:
@@ -868,7 +861,6 @@ def _add_convenience_methods(node):
                 """Updates {a} `{item_type}` item in the in-memory mapping.
 
                 Args:
-                    check (bool, optional): Whether to carry out integrity checks.
                     {update_kwargs}
 
                 Returns:
