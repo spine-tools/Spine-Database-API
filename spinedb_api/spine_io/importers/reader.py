@@ -54,11 +54,12 @@ class SourceConnection:
             settings (dict, optional): connector specific settings or None
         """
 
-    def connect_to_source(self, source):
+    def connect_to_source(self, source, **extras):
         """Connects to source, ex: connecting to a database where source is a connection string.
 
-        Arguments:
-            source {} -- object with information on source to be connected to, ex: filepath string for a csv connection
+        Args:
+            source (str): file path or URL to connect to
+            **extras: additional source specific connection data
         """
         raise NotImplementedError()
 

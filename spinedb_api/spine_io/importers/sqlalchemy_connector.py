@@ -8,11 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Contains SqlAlchemyConnector class.
-
-"""
+""" Contains SqlAlchemyConnector class. """
 
 
 from sqlalchemy import create_engine, MetaData
@@ -37,23 +33,28 @@ class SqlAlchemyConnector(SourceConnection):
         self._engine = None
         self._connection = None
         self._session = None
-        self._metadata = MetaData()
+        self._schema = None
+        self._metadata = None
 
-    def connect_to_source(self, source):
+    def connect_to_source(self, source, **extras):
         """Saves source.
 
         Args:
             source (str): url
+            **extras: optional database schema
         """
         self._connection_string = source
         self._engine = create_engine(source)
         self._connection = self._engine.connect()
         self._session = Session(self._engine)
+        self._schema = extras.get("schema")
+        self._metadata = MetaData(schema=self._schema)
         self._metadata.reflect(bind=self._engine)
 
     def disconnect(self):
         """Disconnect from connected source."""
         self._metadata = None
+        self._schema = None
         self._session.close()
         self._session = None
         self._connection.close()
@@ -67,7 +68,7 @@ class SqlAlchemyConnector(SourceConnection):
         Returns:
             list of str: Table names in list
         """
-        tables = list(self._engine.table_names())
+        tables = list(self._engine.table_names(schema=self._schema))
         return tables
 
     def get_data_iterator(self, table, options, max_rows=-1):
@@ -81,6 +82,8 @@ class SqlAlchemyConnector(SourceConnection):
         Returns:
             tuple: iterator, header, column count
         """
+        if self._schema is not None:
+            table = self._schema + "." + table
         db_table = self._metadata.tables[table]
         header = [str(name) for name in db_table.columns.keys()]
 

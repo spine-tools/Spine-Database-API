@@ -58,11 +58,12 @@ class DataPackageConnector(SourceConnection):
         self.__dict__.update(state)
         self._resource_name_lock = threading.Lock()
 
-    def connect_to_source(self, source):
+    def connect_to_source(self, source, **extras):
         """Creates datapackage.
 
         Args:
             source (str): filepath of a datapackage.json file
+            **extras: ignored
         """
         if source:
             self._datapackage = Package(source)
