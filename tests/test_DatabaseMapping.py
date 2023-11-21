@@ -864,6 +864,14 @@ class TestDatabaseMappingGet(unittest.TestCase):
     def tearDown(self):
         self._db_map.close()
 
+    def test_get_entity_class_items_check_fields(self):
+        import_functions.import_data(self._db_map, entity_classes=(("fish",),))
+        with self.assertRaises(SpineDBAPIError):
+            self._db_map.get_entity_class_item(class_name="fish")
+        with self.assertRaises(SpineDBAPIError):
+            self._db_map.get_entity_class_item(name=("fish",))
+        self._db_map.get_entity_class_item(name="fish")
+
     def test_get_entity_alternative_items(self):
         import_functions.import_data(
             self._db_map,
@@ -1555,7 +1563,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         self._db_map.commit_session("Add test data.")
         items, errors = self._db_map.add_parameter_value_metadata(
-            {"parameter_value_id": 1, "metadata_id": 1, "alternative_id": 1}, strict=False
+            {"parameter_value_id": 1, "metadata_id": 1}, strict=False
         )
         self.assertEqual(errors, [])
         self.assertEqual(len(items), 1)
@@ -1591,13 +1599,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_object_parameter_values(self._db_map, (("fish", "leviathan", "paranormality", 3.9),))
         self._db_map.commit_session("Add test data.")
         items, errors = self._db_map.add_ext_parameter_value_metadata(
-            {
-                "parameter_value_id": 1,
-                "metadata_name": "key",
-                "metadata_value": "parameter metadata",
-                "alternative_id": 1,
-            },
-            strict=False,
+            {"parameter_value_id": 1, "metadata_name": "key", "metadata_value": "parameter metadata"}, strict=False
         )
         self.assertEqual(errors, [])
         self.assertEqual(len(items), 1)
@@ -1627,8 +1629,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         self._db_map.commit_session("Add test data.")
         items, errors = self._db_map.add_ext_parameter_value_metadata(
-            {"parameter_value_id": 1, "metadata_name": "title", "metadata_value": "My metadata.", "alternative_id": 1},
-            strict=False,
+            {"parameter_value_id": 1, "metadata_name": "title", "metadata_value": "My metadata."}, strict=False
         )
         self.assertEqual(errors, [])
         self.assertEqual(len(items), 1)

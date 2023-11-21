@@ -352,7 +352,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             :class:`PublicItem` or None
         """
         item_type = self.real_item_type(item_type)
-        item = self.mapped_table(item_type).find_item(kwargs, fetch=fetch)
+        mapped_table = self.mapped_table(item_type)
+        mapped_table.check_fields(kwargs)
+        item = mapped_table.find_item(kwargs, fetch=fetch)
         if not item:
             return {}
         if skip_removed and not item.is_valid():
@@ -373,9 +375,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             list(:class:`PublicItem`): The items.
         """
         item_type = self.real_item_type(item_type)
+        mapped_table = self.mapped_table(item_type)
+        mapped_table.check_fields(kwargs)
         if fetch:
             self.do_fetch_all(item_type, **kwargs)
-        mapped_table = self.mapped_table(item_type)
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
         return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
 
@@ -787,7 +790,12 @@ def _add_convenience_methods(node):
         }
 
     def _kwargs(fields):
-        return f"\n{padding}".join([f"{f_name} ({f_type}): {f_value}" for f_name, (f_type, f_value) in fields.items()])
+        def type_(f_dict):
+            return f_dict['type'].__name__ + (', optional' if f_dict.get('optional', False) else '')
+
+        return f"\n{padding}".join(
+            [f"{f_name} ({type_(f_dict)}): {f_dict['value']}" for f_name, f_dict in fields.items()]
+        )
 
     padding = 20 * " "
     for item_type in DatabaseMapping.item_types():

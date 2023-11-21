@@ -417,6 +417,7 @@ class _MappedTable(dict):
         error = self._prepare_item(candidate_item, current_item, item, skip_keys)
         if error:
             return None, error
+        self.check_fields(candidate_item._asdict())
         return candidate_item, merge_error
 
     def _prepare_item(self, candidate_item, current_item, original_item, skip_keys):
@@ -503,6 +504,31 @@ class _MappedTable(dict):
             item.cascade_remove(source=self.wildcard_item)
         return item, True
 
+    def check_fields(self, item):
+        factory = self._db_map.item_factory(self._item_type)
+
+        def _error(key, value):
+            if key in set(factory._internal_fields) | set(factory._external_fields) | factory._private_fields | {
+                "id",
+                "commit_id",
+            }:
+                # The user seems to know what they're doing
+                return
+            f_dict = factory.fields.get(key)
+            if f_dict is None:
+                valid_args = ", ".join(factory.fields)
+                return f"invalid keyword argument '{key}' for '{self._item_type}' - valid arguments are {valid_args}."
+            valid_types = (f_dict["type"],) if not f_dict.get("optional", False) else (f_dict["type"], type(None))
+            if not isinstance(value, valid_types):
+                return (
+                    f"invalid type for '{key}' of '{self._item_type}' - "
+                    f"got {type(value).__name__}, expected {f_dict['type'].__name__}."
+                )
+
+        errors = list(filter(lambda x: x is not None, (_error(key, value) for key, value in item.items())))
+        if errors:
+            raise SpineDBAPIError("\n".join(errors))
+
     def add_item(self, item):
         item = self._make_and_add_item(item)
         self.add_unique(item)
@@ -570,6 +596,7 @@ class MappedItemBase(dict):
     Keys in _internal_fields are resolved to the reference key of the alternative reference pointed at by the
     source key.
     """
+    _private_fields = set()
 
     def __init__(self, db_map, item_type, **kwargs):
         """

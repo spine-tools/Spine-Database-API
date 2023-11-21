@@ -123,6 +123,9 @@ def _process_docstring(app, what, name, obj, options, lines):
 
 
 def _db_mapping_schema_lines():
+    def type_(f_dict):
+        return f_dict['type'].__name__ + (', optional' if f_dict.get('optional', False) else '')
+
     lines = [
         ".. _db_mapping_schema:",
         "",
@@ -152,8 +155,8 @@ def _db_mapping_schema_lines():
                 "     - value",
             ]
         )
-        for f_name, (f_type, f_value) in factory.fields.items():
-            lines.extend([f"   * - {f_name}", f"     - {f_type}", f"     - {f_value}"])
+        for f_name, f_dict in factory.fields.items():
+            lines.extend([f"   * - {f_name}", f"     - {type_(f_dict)}", f"     - {f_dict['value']}"])
         lines.append("")
         lines.extend([".. list-table:: Unique keys", "   :header-rows: 0", ""])
         for f_names in factory._unique_keys:
