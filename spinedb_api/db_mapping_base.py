@@ -507,7 +507,7 @@ class _MappedTable(dict):
     def check_fields(self, item, valid_types=()):
         factory = self._db_map.item_factory(self._item_type)
 
-        def _error(key, value):
+        def _error(key, value, valid_types):
             if key in set(factory._internal_fields) | set(factory._external_fields) | factory._private_fields | {
                 "id",
                 "commit_id",
@@ -527,7 +527,7 @@ class _MappedTable(dict):
                     f"got {type(value).__name__}, expected {f_dict['type'].__name__}."
                 )
 
-        errors = list(filter(lambda x: x is not None, (_error(key, value) for key, value in item.items())))
+        errors = list(filter(lambda x: x is not None, (_error(key, value, valid_types) for key, value in item.items())))
         if errors:
             raise SpineDBAPIError("\n".join(errors))
 
