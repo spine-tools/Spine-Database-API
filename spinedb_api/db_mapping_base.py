@@ -504,7 +504,7 @@ class _MappedTable(dict):
             item.cascade_remove(source=self.wildcard_item)
         return item, True
 
-    def check_fields(self, item):
+    def check_fields(self, item, valid_types=()):
         factory = self._db_map.item_factory(self._item_type)
 
         def _error(key, value):
@@ -518,7 +518,9 @@ class _MappedTable(dict):
             if f_dict is None:
                 valid_args = ", ".join(factory.fields)
                 return f"invalid keyword argument '{key}' for '{self._item_type}' - valid arguments are {valid_args}."
-            valid_types = (f_dict["type"],) if not f_dict.get("optional", False) else (f_dict["type"], type(None))
+            valid_types = valid_types + (f_dict["type"],)
+            if f_dict.get("optional", False):
+                valid_types = valid_types + (type(None),)
             if not isinstance(value, valid_types):
                 return (
                     f"invalid type for '{key}' of '{self._item_type}' - "

@@ -353,7 +353,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
-        mapped_table.check_fields(kwargs)
+        mapped_table.check_fields(kwargs, valid_types=(type(None),))
         item = mapped_table.find_item(kwargs, fetch=fetch)
         if not item:
             return {}
@@ -376,7 +376,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
-        mapped_table.check_fields(kwargs)
+        mapped_table.check_fields(kwargs, valid_types=(type(None),))
         if fetch:
             self.do_fetch_all(item_type, **kwargs)
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
