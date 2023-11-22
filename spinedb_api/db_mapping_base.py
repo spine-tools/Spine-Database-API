@@ -811,14 +811,15 @@ class MappedItemBase(dict):
         Returns:
             str or None: error description if any.
         """
-        for key, (src_key, target_key) in self._internal_fields.items():
+        for key in self._internal_fields:
             if key in skip_keys:
                 continue
-            error = self._do_resolve_internal_field(key, src_key, target_key)
+            error = self._do_resolve_internal_field(key)
             if error:
                 return error
 
-    def _do_resolve_internal_field(self, key, src_key, target_key):
+    def _do_resolve_internal_field(self, key):
+        src_key, target_key = self._internal_fields[key]
         src_val = tuple(dict.pop(self, k, None) or self.get(k) for k in src_key)
         if None in src_val:
             return
