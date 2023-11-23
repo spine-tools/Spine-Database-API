@@ -147,12 +147,12 @@ class EntityItem(MappedItemBase):
 
     @classmethod
     def unique_values_for_item(cls, item, skip_keys=()):
-        yield from super().unique_values_for_item(item, skip_keys=skip_keys)
-        key = ("class_name", "name")
-        if key not in skip_keys:
-            value = tuple(item.get(k) for k in ("superclass_name", "name"))
-            if None not in value:
-                yield key, value
+        """Overriden to also yield unique values for the superclass."""
+        for key, value in super().unique_values_for_item(item, skip_keys=skip_keys):
+            yield key, value
+            sc_value = tuple(item.get("superclass_name" if k == "class_name" else k) for k in key)
+            if None not in sc_value:
+                yield (key, sc_value)
 
     def _byname_iter(self, entity):
         element_id_list = entity["element_id_list"]
