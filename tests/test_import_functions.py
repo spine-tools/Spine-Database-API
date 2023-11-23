@@ -440,7 +440,7 @@ class TestImportRelationship(unittest.TestCase):
         self.assertFalse([r.name for r in db_map.query(db_map.relationship_sq)])
         db_map.close()
 
-    def test_import_relationship_of_relationships(self):
+    def test_import_multi_d_entity_with_multi_d_elements(self):
         db_map = create_db_map()
         self.populate(db_map)
         import_data(
@@ -450,13 +450,10 @@ class TestImportRelationship(unittest.TestCase):
                 ["relationship_class2", ["object_class2", "object_class1"]],
                 ["meta_relationship_class", ["relationship_class1", "relationship_class2"]],
             ],
-            entities=[
-                ["relationship_class1", "object1__object2", ["object1", "object2"]],
-                ["relationship_class2", "object2__object1", ["object2", "object1"]],
-            ],
+            entities=[["relationship_class1", ["object1", "object2"]], ["relationship_class2", ["object2", "object1"]]],
         )
         _, errors = import_data(
-            db_map, entities=[["meta_relationship_class", ["object1__object2", "object2__object1"]]]
+            db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2", "object1"]]]
         )
         self.assertFalse(errors)
         db_map.commit_session("test")
@@ -470,6 +467,45 @@ class TestImportRelationship(unittest.TestCase):
         self.assertTrue(("object2", "object1") in entities)
         self.assertTrue((entities["object1", "object2"], entities["object2", "object1"]) in entities)
         self.assertEqual(len(entities), 5)
+
+    def test_import_multi_d_entity_with_multi_d_elements_from_superclass(self):
+        db_map = create_db_map()
+        self.populate(db_map)
+        import_data(
+            db_map,
+            entity_classes=[
+                ["relationship_class1", ["object_class1", "object_class2"]],
+                ["relationship_class2", ["object_class2", "object_class1"]],
+                ["superclass", []],
+            ],
+            superclass_subclasses=[["superclass", "relationship_class1"], ["superclass", "relationship_class2"]],
+        )
+        import_data(
+            db_map,
+            entity_classes=[["meta_relationship_class", ["superclass", "superclass"]]],
+            entities=[["relationship_class1", ["object1", "object2"]], ["relationship_class2", ["object2", "object1"]]],
+        )
+        print("NOE")
+        _, errors = import_data(
+            db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2", "object1"]]]
+        )
+        self.assertFalse(errors)
+        db_map.commit_session("test")
+        entities = {
+            tuple(r.element_name_list.split(",")) if r.element_name_list else r.name: r.name
+            for r in db_map.query(db_map.wide_entity_sq)
+        }
+        self.assertTrue("object1" in entities)
+        self.assertTrue("object2" in entities)
+        self.assertTrue(("object1", "object2") in entities)
+        self.assertTrue(("object2", "object1") in entities)
+        self.assertTrue((entities["object1", "object2"], entities["object2", "object1"]) in entities)
+        self.assertEqual(len(entities), 5)
+        # _, errors = import_data(db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2"]]])
+        # _, errors = import_data(
+        #    db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2", "object1", "object2"]]]
+        # )
+        # print(errors)
 
 
 class TestImportParameterDefinition(unittest.TestCase):

@@ -177,11 +177,11 @@ def get_data_for_import(
             alternatives = list({item[1]: None for item in scenario_alternatives})
             yield ("alternative", _get_alternatives_for_import(db_map, alternatives))
         yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives))
-    if superclass_subclasses:
-        yield ("superclass_subclass", _get_parameter_superclass_subclasses_for_import(db_map, superclass_subclasses))
     if entity_classes:
         for bucket in _get_entity_classes_for_import(db_map, entity_classes):
             yield ("entity_class", bucket)
+    if superclass_subclasses:
+        yield ("superclass_subclass", _get_parameter_superclass_subclasses_for_import(db_map, superclass_subclasses))
     if entities:
         for bucket in _get_entities_for_import(db_map, entities):
             yield ("entity", bucket)
@@ -544,19 +544,15 @@ def _get_entity_classes_for_import(db_map, data):
 
 def _get_entities_for_import(db_map, data):
     items_by_el_count = {}
-    key = ("class_name", "name", "element_name_list", "description")
+    key = ("class_name", "byname", "description")
     for class_name, name_or_el_name_list, *optionals in data:
         if isinstance(name_or_el_name_list, (list, tuple)):
-            name = None
-            el_name_list = name_or_el_name_list
+            el_count = len(name_or_el_name_list)
+            byname = name_or_el_name_list
         else:
-            name = name_or_el_name_list
-            if optionals and isinstance(optionals[0], (list, tuple)):
-                el_name_list = tuple(optionals.pop(0))
-            else:
-                el_name_list = ()
-        item = dict(zip(key, (class_name, name, el_name_list, *optionals)))
-        el_count = len(el_name_list)
+            el_count = 0
+            byname = (name_or_el_name_list,)
+        item = dict(zip(key, (class_name, byname, *optionals)))
         items_by_el_count.setdefault(el_count, []).append(item)
     return (
         _get_items_for_import(db_map, "entity", items_by_el_count[el_count]) for el_count in sorted(items_by_el_count)

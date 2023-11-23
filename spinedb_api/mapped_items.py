@@ -73,6 +73,7 @@ class EntityClassItem(MappedItemBase):
     _external_fields = {"dimension_name_list": ("dimension_id_list", "name")}
     _alt_references = {("dimension_name_list",): ("entity_class", ("name",))}
     _internal_fields = {"dimension_id_list": (("dimension_name_list",), "id")}
+    _private_fields = {"superclass_id", "superclass_name"}
 
     def __init__(self, *args, **kwargs):
         dimension_id_list = kwargs.get("dimension_id_list")
@@ -153,21 +154,57 @@ class EntityItem(MappedItemBase):
             if None not in value:
                 yield key, value
 
-    def _element_name_list_iter(self, entity):
+    def _byname_iter(self, entity):
         element_id_list = entity["element_id_list"]
         if not element_id_list:
             yield entity["name"]
         else:
             for el_id in element_id_list:
-                element = self._get_ref("entity", {"id", el_id})
-                yield from self._element_name_list_iter(element)
+                element = self._get_ref("entity", {"id": el_id})
+                yield from self._byname_iter(element)
 
     def __getitem__(self, key):
-        if key == "root_element_name_list":
-            return tuple(self._element_name_list_iter(self))
         if key == "byname":
-            return self["element_name_list"] or (self["name"],)
+            return tuple(self._byname_iter(self))
         return super().__getitem__(key)
+
+    def resolve_internal_fields(self, skip_keys=()):
+        error = super().resolve_internal_fields(skip_keys=skip_keys)
+        if error:
+            return error
+        byname = dict.pop(self, "byname", None)
+        if byname is None:
+            return
+        if not self["dimension_id_list"]:
+            self["name"] = byname[0]
+            return
+        byname_remainder = list(byname)
+        _, self["element_name_list"] = self._element_name_list_recursive(self["class_name"], byname_remainder)
+        return self._do_resolve_internal_field("element_id_list")
+
+    def _element_name_list_recursive(self, class_name, byname_remainder):
+        class_names = [class_name] + [
+            x["subclass_name"] for x in self._db_map.get_items("superclass_subclass", superclass_name=class_name)
+        ]
+        for class_name_ in class_names:
+            dimension_name_list = self._db_map.get_item("entity_class", name=class_name_).get("dimension_name_list")
+            if not dimension_name_list:
+                continue
+            byname_remainder_backup = list(byname_remainder)
+            element_name_list = tuple(
+                self._db_map.get_item(
+                    "entity",
+                    **dict(
+                        zip(("class_name", "byname"), self._element_name_list_recursive(dim_name, byname_remainder))
+                    ),
+                ).get("name")
+                for dim_name in dimension_name_list
+            )
+            if None not in element_name_list:
+                return class_name_, element_name_list
+            byname_remainder = byname_remainder_backup
+        name = byname_remainder.pop(0)
+        return class_name, (name,)
 
     def polish(self):
         error = super().polish()
