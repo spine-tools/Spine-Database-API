@@ -73,7 +73,6 @@ class EntityClassItem(MappedItemBase):
     _external_fields = {"dimension_name_list": ("dimension_id_list", "name")}
     _alt_references = {("dimension_name_list",): ("entity_class", ("name",))}
     _internal_fields = {"dimension_id_list": (("dimension_name_list",), "id")}
-    _private_fields = {"superclass_id", "superclass_name"}
 
     def __init__(self, *args, **kwargs):
         dimension_id_list = kwargs.get("dimension_id_list")
@@ -175,17 +174,23 @@ class EntityItem(MappedItemBase):
         byname = dict.pop(self, "byname", None)
         if byname is None:
             return
-        if not self["dimension_id_list"]:
+        dim_count = len(self["dimension_id_list"])
+        if not dim_count:
             self["name"] = byname[0]
             return
         byname_remainder = list(byname)
-        _, self["element_name_list"] = self._element_name_list_recursive(self["class_name"], byname_remainder)
+        element_name_list, _ = self._element_name_list_recursive(self["class_name"], byname_remainder)
+        if len(element_name_list) < dim_count:
+            return f"too few elements given for entity ({byname})"
+        if byname_remainder:
+            return f"too many elements given for entity ({byname})"
+        self["element_name_list"] = element_name_list
         return self._do_resolve_internal_field("element_id_list")
 
     def _element_name_list_recursive(self, class_name, byname_remainder):
-        class_names = [class_name] + [
+        class_names = [
             x["subclass_name"] for x in self._db_map.get_items("superclass_subclass", superclass_name=class_name)
-        ]
+        ] or [class_name]
         for class_name_ in class_names:
             dimension_name_list = self._db_map.get_item("entity_class", name=class_name_).get("dimension_name_list")
             if not dimension_name_list:
@@ -195,16 +200,16 @@ class EntityItem(MappedItemBase):
                 self._db_map.get_item(
                     "entity",
                     **dict(
-                        zip(("class_name", "byname"), self._element_name_list_recursive(dim_name, byname_remainder))
+                        zip(("byname", "class_name"), self._element_name_list_recursive(dim_name, byname_remainder))
                     ),
                 ).get("name")
                 for dim_name in dimension_name_list
             )
             if None not in element_name_list:
-                return class_name_, element_name_list
+                return element_name_list, class_name_
             byname_remainder = byname_remainder_backup
-        name = byname_remainder.pop(0)
-        return class_name, (name,)
+        name = byname_remainder.pop(0) if byname_remainder else None
+        return (name,), class_name
 
     def polish(self):
         error = super().polish()
