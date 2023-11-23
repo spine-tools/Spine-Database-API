@@ -65,7 +65,7 @@ class EntityClassItem(MappedItemBase):
             'optional': True,
         },
         'display_order': {'type': int, 'value': 'Not in use at the moment.', 'optional': True},
-        'hidden': {'type': bool, 'value': 'Not in use at the moment.', 'optional': True},
+        'hidden': {'type': int, 'value': 'Not in use at the moment.', 'optional': True},
     }
     _defaults = {"description": None, "display_icon": None, "display_order": 99, "hidden": False}
     _unique_keys = (("name",),)
@@ -73,6 +73,7 @@ class EntityClassItem(MappedItemBase):
     _external_fields = {"dimension_name_list": ("dimension_id_list", "name")}
     _alt_references = {("dimension_name_list",): ("entity_class", ("name",))}
     _internal_fields = {"dimension_id_list": (("dimension_name_list",), "id")}
+    _private_fields = {"dimension_count"}
 
     def __init__(self, *args, **kwargs):
         dimension_id_list = kwargs.get("dimension_id_list")
