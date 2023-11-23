@@ -125,6 +125,7 @@ class EntityItem(MappedItemBase):
         "superclass_id": ("class_id", "superclass_id"),
         "superclass_name": ("class_id", "superclass_name"),
         "element_name_list": ("element_id_list", "name"),
+        "element_byname_list": ("element_id_list", "byname"),
     }
     _alt_references = {
         ("class_name",): ("entity_class", ("name",)),
@@ -168,6 +169,7 @@ class EntityItem(MappedItemBase):
         return super().__getitem__(key)
 
     def resolve_internal_fields(self, skip_keys=()):
+        """Overriden to translate byname into element name list."""
         error = super().resolve_internal_fields(skip_keys=skip_keys)
         if error:
             return error
@@ -187,7 +189,11 @@ class EntityItem(MappedItemBase):
         self["element_name_list"] = element_name_list
         return self._do_resolve_internal_field("element_id_list")
 
-    def _element_name_list_recursive(self, class_name, byname_remainder):
+    def _element_name_list_recursive(self, class_name, byname):
+        """Returns the element name list corresponding to given class and byname.
+        If the class is multi-dimensional then recurses for each dimension.
+        If the class is a superclass then it tries for each subclass until finding something useful.
+        """
         class_names = [
             x["subclass_name"] for x in self._db_map.get_items("superclass_subclass", superclass_name=class_name)
         ] or [class_name]
@@ -195,20 +201,18 @@ class EntityItem(MappedItemBase):
             dimension_name_list = self._db_map.get_item("entity_class", name=class_name_).get("dimension_name_list")
             if not dimension_name_list:
                 continue
-            byname_remainder_backup = list(byname_remainder)
+            byname_backup = list(byname)
             element_name_list = tuple(
                 self._db_map.get_item(
                     "entity",
-                    **dict(
-                        zip(("byname", "class_name"), self._element_name_list_recursive(dim_name, byname_remainder))
-                    ),
+                    **dict(zip(("byname", "class_name"), self._element_name_list_recursive(dim_name, byname))),
                 ).get("name")
                 for dim_name in dimension_name_list
             )
             if None not in element_name_list:
                 return element_name_list, class_name_
-            byname_remainder = byname_remainder_backup
-        name = byname_remainder.pop(0) if byname_remainder else None
+            byname = byname_backup
+        name = byname.pop(0) if byname else None
         return (name,), class_name
 
     def polish(self):
