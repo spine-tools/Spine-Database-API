@@ -104,8 +104,7 @@ class TestExportFunctions(unittest.TestCase):
         )
         self.assertIn("entities", exported)
         self.assertEqual(
-            exported["entities"],
-            [("object_class", "object", (), None), ("relationship_class", "object__", ("object",), None)],
+            exported["entities"], [("object_class", "object", None), ("relationship_class", ("object",), None)]
         )
         self.assertIn("parameter_values", exported)
         self.assertEqual(
