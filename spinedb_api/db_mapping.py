@@ -382,6 +382,19 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
         return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
 
+    @staticmethod
+    def _modify_items(function, *items, strict=False):
+        modified, errors = [], []
+        for item in items:
+            item, error = function(item)
+            if error:
+                if strict:
+                    raise SpineIntegrityError(error)
+                errors.append(error)
+            if item:
+                modified.append(item)
+        return modified, errors
+
     def add_item(self, item_type, check=True, **kwargs):
         """Adds an item to the in-memory mapping.
 
@@ -419,16 +432,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             tuple(list(:class:`PublicItem`),list(str)): items successfully added and found violations.
         """
-        added, errors = [], []
-        for item in items:
-            item, error = self.add_item(item_type, check, **item)
-            if error:
-                if strict:
-                    raise SpineIntegrityError(error)
-                errors.append(error)
-                continue
-            added.append(item)
-        return added, errors
+        return self._modify_items(lambda x: self.add_item(item_type, check=check, **x), *items, strict=strict)
 
     def update_item(self, item_type, check=True, **kwargs):
         """Updates an item in the in-memory mapping.
@@ -470,16 +474,25 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             tuple(list(:class:`PublicItem`),list(str)): items successfully updated and found violations.
         """
-        updated, errors = [], []
-        for item in items:
-            item, error = self.update_item(item_type, check=check, **item)
-            if error:
-                if strict:
-                    raise SpineIntegrityError(error)
-                errors.append(error)
-            if item:
-                updated.append(item)
-        return updated, errors
+        return self._modify_items(lambda x: self.update_item(item_type, check=check, **x), *items, strict=strict)
+
+    def add_update_item(self, item_type, check=True, **kwargs):
+        added, add_error = self.add_item(item_type, check=check, **kwargs)
+        if not add_error:
+            return (added, None), add_error
+        updated, update_error = self.update_item(item_type, check=check, **kwargs)
+        if not update_error:
+            return (None, updated), update_error
+        return (None, None), add_error or update_error
+
+    def add_update_items(self, item_type, *items, check=True, strict=False):
+        added_updated, errors = self._modify_items(
+            lambda x: self.add_update_item(item_type, check=check, **x), *items, strict=strict
+        )
+        added, updated = zip(*added_updated) if added_updated else ([], [])
+        added = [x for x in added if x]
+        updated = [x for x in updated if x]
+        return added, updated, errors
 
     def remove_item(self, item_type, id_, check=True):
         """Removes an item from the in-memory mapping.
@@ -523,16 +536,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             ids.discard(1)
         if not ids:
             return [], []
-        removed, errors = [], []
-        for id_ in ids:
-            item, error = self.remove_item(item_type, id_, check=check)
-            if error:
-                if strict:
-                    raise SpineIntegrityError(error)
-                errors.append(error)
-            if item:
-                removed.append(item)
-        return removed, errors
+        return self._modify_items(lambda x: self.remove_item(item_type, x, check=check), *ids, strict=strict)
 
     def cascade_remove_items(self, cache=None, **kwargs):
         # Legacy

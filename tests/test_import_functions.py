@@ -1220,54 +1220,58 @@ class TestImportScenarioAlternative(unittest.TestCase):
         self._db_map.close()
 
     def test_single_scenario_alternative_import(self):
+        import_data(self._db_map, scenarios=["scenario"], alternatives=["alternative"])
         count, errors = import_scenario_alternatives(self._db_map, [["scenario", "alternative"]])
         self.assertFalse(errors)
-        self.assertEqual(count, 3)
-        scenario_alternatives = self.scenario_alternatives()
-        self.assertEqual(scenario_alternatives, {"scenario": {"alternative": 1}})
-
-    def test_scenario_alternative_import_imports_missing_scenarios_and_alternatives(self):
-        count, errors = import_scenario_alternatives(self._db_map, [["scenario", "alternative"]])
-        self.assertFalse(errors)
-        self.assertEqual(count, 3)
+        self.assertEqual(count, 1)
         scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative": 1}})
 
     def test_scenario_alternative_import_multiple_without_before_alternatives(self):
+        import_data(self._db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2"])
         count, errors = import_scenario_alternatives(
             self._db_map, [["scenario", "alternative1"], ["scenario", "alternative2"]]
         )
         self.assertFalse(errors)
-        self.assertEqual(count, 5)
+        self.assertEqual(count, 2)
         scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 1, "alternative2": 2}})
 
     def test_scenario_alternative_import_multiple_with_before_alternatives(self):
+        import_data(self._db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2", "alternative3"])
         count, errors = import_scenario_alternatives(
             self._db_map,
             [["scenario", "alternative1"], ["scenario", "alternative3"], ["scenario", "alternative2", "alternative3"]],
         )
         self.assertFalse(errors)
-        self.assertEqual(count, 7)
+        self.assertEqual(count, 3)
         scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 1, "alternative2": 2, "alternative3": 3}})
 
     def test_fails_with_nonexistent_before_alternative(self):
+        import_data(self._db_map, scenarios=["scenario"], alternatives=["alternative"])
         count, errors = import_scenario_alternatives(
             self._db_map, [["scenario", "alternative", "nonexistent_alternative"]]
         )
-        self.assertEqual(errors, ["nonexistent_alternative is not in scenario"])
-        self.assertEqual(count, 2)
+        self.assertEqual(
+            errors,
+            [
+                "can't insert alternative 'alternative' before 'nonexistent_alternative' "
+                "because the latter is not in scenario 'scenario'"
+            ],
+        )
+        self.assertEqual(count, 0)
         scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {})
 
     def test_importing_existing_scenario_alternative_does_not_alter_scenario_alternatives(self):
+        import_data(self._db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2"])
         count, errors = import_scenario_alternatives(
             self._db_map,
             [["scenario", "alternative2", "alternative1"], ["scenario", "alternative1"]],
         )
         self.assertFalse(errors)
-        self.assertEqual(count, 5)
+        self.assertEqual(count, 2)
         scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative2": 1}})
         count, errors = import_scenario_alternatives(
@@ -1295,12 +1299,13 @@ class TestImportScenarioAlternative(unittest.TestCase):
         self.assertEqual(scenario_alternatives, {"A (1)": {"Base": 1, "b": 2, "c": 3, "d": 4}})
 
     def test_insert_scenario_alternative_in_the_middle_of_other_alternatives(self):
+        import_data(self._db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2", "alternative3"])
         count, errors = import_scenario_alternatives(
             self._db_map,
             [["scenario", "alternative2", "alternative1"], ["scenario", "alternative1"]],
         )
         self.assertFalse(errors)
-        self.assertEqual(count, 5)
+        self.assertEqual(count, 2)
         scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative2": 1}})
         count, errors = import_scenario_alternatives(
@@ -1308,7 +1313,7 @@ class TestImportScenarioAlternative(unittest.TestCase):
             [["scenario", "alternative3", "alternative1"]],
         )
         self.assertFalse(errors)
-        self.assertEqual(count, 3)
+        self.assertEqual(count, 2)
         scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 3, "alternative2": 1, "alternative3": 2}})
 
@@ -1323,9 +1328,9 @@ class TestImportScenarioAlternative(unittest.TestCase):
             .filter(self._db_map.scenario_alternative_sq.c.scenario_id == self._db_map.scenario_sq.c.id)
             .filter(self._db_map.scenario_alternative_sq.c.alternative_id == self._db_map.alternative_sq.c.id)
         )
-        scenario_alternatives = dict()
+        scenario_alternatives = {}
         for scenario_alternative in scenario_alternative_qry:
-            alternative_rank = scenario_alternatives.setdefault(scenario_alternative.scenario_name, dict())
+            alternative_rank = scenario_alternatives.setdefault(scenario_alternative.scenario_name, {})
             alternative_rank[scenario_alternative.alternative_name] = scenario_alternative.rank
         return scenario_alternatives
 

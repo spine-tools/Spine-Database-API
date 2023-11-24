@@ -400,11 +400,9 @@ class _MappedTable(dict):
                     return current_item
         return {}
 
-    def checked_item_and_error(self, item, for_update=False, skip_keys=()):
-        # FIXME: The only use-case for skip_keys at the moment is that of importing scenario alternatives,
-        # where we only want to match by (scen_name, alt_name) and not by (scen_name, rank)
+    def checked_item_and_error(self, item, for_update=False):
         if for_update:
-            current_item = self.find_item(item, skip_keys=skip_keys)
+            current_item = self.find_item(item)
             if not current_item:
                 return None, f"no {self._item_type} matching {item} to update"
             full_item, merge_error = current_item.merge(item)
@@ -414,20 +412,19 @@ class _MappedTable(dict):
             current_item = None
             full_item, merge_error = item, None
         candidate_item = self._make_item(full_item)
-        error = self._prepare_item(candidate_item, current_item, item, skip_keys)
+        error = self._prepare_item(candidate_item, current_item, item)
         if error:
             return None, error
         self.check_fields(candidate_item._asdict())
         return candidate_item, merge_error
 
-    def _prepare_item(self, candidate_item, current_item, original_item, skip_keys):
+    def _prepare_item(self, candidate_item, current_item, original_item):
         """Prepares item for insertion or update, returns any errors.
 
         Args:
             candidate_item (MappedItem)
             current_item (MappedItem)
             original_item (dict)
-            skip_keys (optional, tuple)
 
         Returns:
             str or None: errors if any.
@@ -445,7 +442,7 @@ class _MappedTable(dict):
         if first_invalid_key:
             return f"invalid {first_invalid_key} for {self._item_type}"
         try:
-            for key, value in candidate_item.unique_key_values(skip_keys=skip_keys):
+            for key, value in candidate_item.unique_key_values():
                 empty = {k for k, v in zip(key, value) if v == ""}
                 if empty:
                     return f"invalid empty keys {empty} for {self._item_type}"
