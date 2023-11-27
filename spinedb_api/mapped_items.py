@@ -398,6 +398,7 @@ class ParameterItemBase(ParsedValueBase):
         return d
 
     def polish(self):
+        self["list_value_id"] = None
         error = super().polish()
         if error:
             return error

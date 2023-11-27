@@ -1018,6 +1018,8 @@ class MappedItemBase(dict):
         """Updates this item and all its referrers in cascade.
         Also, calls items' update callbacks.
         """
+        if self._removed:
+            return
         self.call_update_callbacks()
         for referrer in self._referrers.values():
             referrer.cascade_update()
