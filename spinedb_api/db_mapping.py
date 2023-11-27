@@ -479,16 +479,18 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def add_update_item(self, item_type, check=True, **kwargs):
         added, add_error = self.add_item(item_type, check=check, **kwargs)
         if not add_error:
-            return (added, None), add_error
+            return added, None, add_error
         updated, update_error = self.update_item(item_type, check=check, **kwargs)
         if not update_error:
-            return (None, updated), update_error
-        return (None, None), add_error or update_error
+            return None, updated, update_error
+        return None, None, add_error or update_error
 
     def add_update_items(self, item_type, *items, check=True, strict=False):
-        added_updated, errors = self._modify_items(
-            lambda x: self.add_update_item(item_type, check=check, **x), *items, strict=strict
-        )
+        def _function(item):
+            added, updated, error = self.add_update_item(item_type, check=check, **item)
+            return (added, updated), error
+
+        added_updated, errors = self._modify_items(_function, *items, strict=strict)
         added, updated = zip(*added_updated) if added_updated else ([], [])
         added = [x for x in added if x]
         updated = [x for x in updated if x]
