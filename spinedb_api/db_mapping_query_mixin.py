@@ -103,10 +103,10 @@ class DatabaseMappingQueryMixin:
         """Set to `None` subquery attributes involving the affected tables.
         This forces the subqueries to be refreshed when the corresponding property is accessed.
         """
-        self.reset(*tablenames)
         attr_names = set(attr for tablename in tablenames for attr in self._get_table_to_sq_attr().get(tablename, []))
         for attr_name in attr_names:
             setattr(self, attr_name, None)
+        self.reset(*tablenames)
 
     def _subquery(self, tablename):
         """A subquery of the form:
