@@ -382,6 +382,19 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
         return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
 
+    @staticmethod
+    def _modify_items(function, *items, strict=False):
+        modified, errors = [], []
+        for item in items:
+            item, error = function(item)
+            if error:
+                if strict:
+                    raise SpineIntegrityError(error)
+                errors.append(error)
+            if item:
+                modified.append(item)
+        return modified, errors
+
     def add_item(self, item_type, check=True, **kwargs):
         """Adds an item to the in-memory mapping.
 
@@ -407,7 +420,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return (mapped_table.add_item(checked_item).public_item if checked_item else None, error)
 
     def add_items(self, item_type, *items, check=True, strict=False):
-        """Add many items to the in-memory mapping.
+        """Adds many items to the in-memory mapping.
 
         Args:
             item_type (str): One of <spine_item_types>.
@@ -419,16 +432,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             tuple(list(:class:`PublicItem`),list(str)): items successfully added and found violations.
         """
-        added, errors = [], []
-        for item in items:
-            item, error = self.add_item(item_type, check, **item)
-            if error:
-                if strict:
-                    raise SpineIntegrityError(error)
-                errors.append(error)
-                continue
-            added.append(item)
-        return added, errors
+        return self._modify_items(lambda x: self.add_item(item_type, check=check, **x), *items, strict=strict)
 
     def update_item(self, item_type, check=True, **kwargs):
         """Updates an item in the in-memory mapping.
@@ -470,16 +474,51 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             tuple(list(:class:`PublicItem`),list(str)): items successfully updated and found violations.
         """
-        updated, errors = [], []
-        for item in items:
-            item, error = self.update_item(item_type, check=check, **item)
-            if error:
-                if strict:
-                    raise SpineIntegrityError(error)
-                errors.append(error)
-            if item:
-                updated.append(item)
-        return updated, errors
+        return self._modify_items(lambda x: self.update_item(item_type, check=check, **x), *items, strict=strict)
+
+    def add_update_item(self, item_type, check=True, **kwargs):
+        """Adds an item to the in-memory mapping if it doesn't exist; otherwise updates the current one.
+
+        Args:
+            item_type (str): One of <spine_item_types>.
+            **kwargs: Fields and values as specified for the item type in :ref:`db_mapping_schema`.
+
+        Returns:
+            tuple(:class:`PublicItem` or None, :class:`PublicItem` or None, str): The added item if any,
+                the updated item if any, and any errors.
+        """
+        added, add_error = self.add_item(item_type, check=check, **kwargs)
+        if not add_error:
+            return added, None, add_error
+        updated, update_error = self.update_item(item_type, check=check, **kwargs)
+        if not update_error:
+            return None, updated, update_error
+        return None, None, add_error or update_error
+
+    def add_update_items(self, item_type, *items, check=True, strict=False):
+        """Adds or updates many items into the in-memory mapping.
+
+        Args:
+            item_type (str): One of <spine_item_types>.
+            *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
+                as specified in :ref:`db_mapping_schema`.
+            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+                if the insertion of one of the items violates an integrity constraint.
+
+        Returns:
+            tuple(list(:class:`PublicItem`),list(:class:`PublicItem`),list(str)): items successfully added,
+                items successfully updated, and found violations.
+        """
+
+        def _function(item):
+            added, updated, error = self.add_update_item(item_type, check=check, **item)
+            return (added, updated), error
+
+        added_updated, errors = self._modify_items(_function, *items, strict=strict)
+        added, updated = zip(*added_updated) if added_updated else ([], [])
+        added = [x for x in added if x]
+        updated = [x for x in updated if x]
+        return added, updated, errors
 
     def remove_item(self, item_type, id_, check=True):
         """Removes an item from the in-memory mapping.
@@ -523,16 +562,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             ids.discard(1)
         if not ids:
             return [], []
-        removed, errors = [], []
-        for id_ in ids:
-            item, error = self.remove_item(item_type, id_, check=check)
-            if error:
-                if strict:
-                    raise SpineIntegrityError(error)
-                errors.append(error)
-            if item:
-                removed.append(item)
-        return removed, errors
+        return self._modify_items(lambda x: self.remove_item(item_type, x, check=check), *ids, strict=strict)
 
     def cascade_remove_items(self, cache=None, **kwargs):
         # Legacy
@@ -771,6 +801,7 @@ for it in DatabaseMapping.item_types():
     setattr(DatabaseMapping, "get_" + it + "_items", partialmethod(DatabaseMapping.get_items, it))
     setattr(DatabaseMapping, "add_" + it + "_item", partialmethod(DatabaseMapping.add_item, it))
     setattr(DatabaseMapping, "update_" + it + "_item", partialmethod(DatabaseMapping.update_item, it))
+    setattr(DatabaseMapping, "add_update_" + it + "_item", partialmethod(DatabaseMapping.add_update_item, it))
     setattr(DatabaseMapping, "remove_" + it + "_item", partialmethod(DatabaseMapping.remove_item, it))
     setattr(DatabaseMapping, "restore_" + it + "_item", partialmethod(DatabaseMapping.restore_item, it))
 
@@ -873,6 +904,27 @@ def _add_convenience_methods(node):
 
                 Returns:
                     tuple(:class:`PublicItem` or None, str): The updated item and any errors.
+                """
+            '''
+        )
+        child.parent = node
+        node.body.append(child)
+    for item_type in DatabaseMapping.item_types():
+        factory = DatabaseMapping.item_factory(item_type)
+        a = _a(item_type)
+        add_kwargs = _kwargs(factory.fields)
+        child = astroid.extract_node(
+            f'''
+            def add_update_{item_type}_item(self, check=True, **kwargs):
+                """Adds {a} `{item_type}` item to the in-memory mapping if it doesn't exist;
+                otherwise updates the current one.
+
+                Args:
+                    {add_kwargs}
+
+                Returns:
+                    tuple(:class:`PublicItem` or None, :class:`PublicItem` or None, str): The added item if any,
+                        the updated item if any, and any errors.
                 """
             '''
         )

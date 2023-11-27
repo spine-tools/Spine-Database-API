@@ -91,12 +91,12 @@ def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs
     """
     all_errors = []
     num_imports = 0
-    for tablename, (to_add, to_update, errors) in get_data_for_import(
-        db_map, unparse_value=unparse_value, on_conflict=on_conflict, **kwargs
-    ):
-        updated, _ = db_map.update_items(tablename, *to_update, check=False)
-        added, _ = db_map.add_items(tablename, *to_add, check=False)
-        num_imports += len(added) + len(updated)
+    for item_type, items in get_data_for_import(db_map, unparse_value=unparse_value, on_conflict=on_conflict, **kwargs):
+        if isinstance(items, tuple):
+            items, input_errors = items
+            all_errors.extend(input_errors)
+        added, updated, errors = db_map.add_update_items(item_type, *items, strict=False)
+        num_imports += len(added + updated)
         all_errors.extend(errors)
     return num_imports, all_errors
 
@@ -170,18 +170,12 @@ def get_data_for_import(
     if scenarios:
         yield ("scenario", _get_scenarios_for_import(db_map, scenarios))
     if scenario_alternatives:
-        if not scenarios:
-            scenarios = list({item[0]: None for item in scenario_alternatives})
-            yield ("scenario", _get_scenarios_for_import(db_map, scenarios))
-        if not alternatives:
-            alternatives = list({item[1]: None for item in scenario_alternatives})
-            yield ("alternative", _get_alternatives_for_import(db_map, alternatives))
         yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives))
     if entity_classes:
         for bucket in _get_entity_classes_for_import(db_map, entity_classes):
             yield ("entity_class", bucket)
     if superclass_subclasses:
-        yield ("superclass_subclass", _get_parameter_superclass_subclasses_for_import(db_map, superclass_subclasses))
+        yield ("superclass_subclass", _get_superclass_subclasses_for_import(db_map, superclass_subclasses))
     if entities:
         for bucket in _get_entities_for_import(db_map, entities):
             yield ("entity", bucket)
@@ -205,9 +199,13 @@ def get_data_for_import(
     if metadata:
         yield ("metadata", _get_metadata_for_import(db_map, metadata))
     if entity_metadata:
-        yield ("metadata", _get_metadata_for_import(db_map, (metadata for _, _, metadata in entity_metadata)))
+        yield ("metadata", _get_metadata_for_import(db_map, (ent_metadata[2] for ent_metadata in entity_metadata)))
         yield ("entity_metadata", _get_entity_metadata_for_import(db_map, entity_metadata))
     if parameter_value_metadata:
+        yield (
+            "metadata",
+            _get_metadata_for_import(db_map, (pval_metadata[3] for pval_metadata in parameter_value_metadata)),
+        )
         yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     # Legacy
     if object_classes:
@@ -469,53 +467,6 @@ def import_relationship_parameter_value_metadata(db_map, data):
     return import_data(db_map, relationship_parameter_value_metadata=data)
 
 
-def _get_items_for_import(db_map, item_type, data, check_skip_keys=()):
-    mapped_table = db_map.mapped_table(item_type)
-    errors = []
-    to_add = []
-    to_update = []
-    seen = {}
-    for item in data:
-        checked_item, add_error = mapped_table.checked_item_and_error(item, skip_keys=check_skip_keys)
-        if not add_error:
-            if not _check_unique(item_type, checked_item, seen, errors):
-                continue
-            to_add.append(checked_item)
-            continue
-        checked_item, update_error = mapped_table.checked_item_and_error(
-            item, for_update=True, skip_keys=check_skip_keys
-        )
-        if not update_error:
-            if checked_item:
-                if not _check_unique(item_type, checked_item, seen, errors):
-                    continue
-                to_update.append(checked_item)
-            continue
-        errors.append(add_error)
-    return to_add, to_update, errors
-
-
-def _check_unique(item_type, checked_item, seen, errors):
-    dupe_key = _add_to_seen(checked_item, seen)
-    if not dupe_key:
-        return True
-    if item_type in ("parameter_value",):
-        errors.append(f"attempting to import more than one {item_type} with {dupe_key} - only first will be considered")
-    return False
-
-
-def _add_to_seen(checked_item, seen):
-    for key, value in checked_item.unique_key_values():
-        if value in seen.get(key, set()):
-            return dict(zip(key, value))
-        seen.setdefault(key, set()).add(value)
-
-
-def _get_parameter_superclass_subclasses_for_import(db_map, data):
-    key = ("superclass_name", "subclass_name")
-    return _get_items_for_import(db_map, "superclass_subclass", (dict(zip(key, x)) for x in data))
-
-
 def _get_entity_classes_for_import(db_map, data):
     dim_name_list_by_name = {}
     items = []
@@ -536,10 +487,12 @@ def _get_entity_classes_for_import(db_map, data):
     items_by_ref_count = {}
     for item in items:
         items_by_ref_count.setdefault(_ref_count(item["name"]), []).append(item)
-    return (
-        _get_items_for_import(db_map, "entity_class", items_by_ref_count[ref_count])
-        for ref_count in sorted(items_by_ref_count)
-    )
+    return (items_by_ref_count[ref_count] for ref_count in sorted(items_by_ref_count))
+
+
+def _get_superclass_subclasses_for_import(db_map, data):
+    key = ("superclass_name", "subclass_name")
+    return (dict(zip(key, x)) for x in data)
 
 
 def _get_entities_for_import(db_map, data):
@@ -554,180 +507,149 @@ def _get_entities_for_import(db_map, data):
             byname = (name_or_el_name_list,)
         item = dict(zip(key, (class_name, byname, *optionals)))
         items_by_el_count.setdefault(el_count, []).append(item)
-    return (
-        _get_items_for_import(db_map, "entity", items_by_el_count[el_count]) for el_count in sorted(items_by_el_count)
-    )
+    return (items_by_el_count[el_count] for el_count in sorted(items_by_el_count))
 
 
 def _get_entity_alternatives_for_import(db_map, data):
-    def _data_iterator():
-        for class_name, entity_name_or_element_name_list, alternative, active in data:
-            is_zero_dim = isinstance(entity_name_or_element_name_list, str)
-            entity_byname = (entity_name_or_element_name_list,) if is_zero_dim else entity_name_or_element_name_list
-            key = ("entity_class_name", "entity_byname", "alternative_name", "active")
-            yield dict(zip(key, (class_name, entity_byname, alternative, active)))
-
-    return _get_items_for_import(db_map, "entity_alternative", _data_iterator())
+    for class_name, entity_name_or_element_name_list, alternative, active in data:
+        is_zero_dim = isinstance(entity_name_or_element_name_list, str)
+        entity_byname = (entity_name_or_element_name_list,) if is_zero_dim else entity_name_or_element_name_list
+        key = ("entity_class_name", "entity_byname", "alternative_name", "active")
+        yield dict(zip(key, (class_name, entity_byname, alternative, active)))
 
 
 def _get_entity_groups_for_import(db_map, data):
     key = ("class_name", "group_name", "member_name")
-    return _get_items_for_import(db_map, "entity_group", (dict(zip(key, x)) for x in data))
+    return (dict(zip(key, x)) for x in data)
 
 
 def _get_parameter_definitions_for_import(db_map, data, unparse_value):
-    def _data_iterator():
-        for class_name, parameter_name, *optionals in data:
-            if not optionals:
-                yield class_name, parameter_name
-                continue
-            value = optionals.pop(0)
-            value, type_ = unparse_value(value)
-            yield class_name, parameter_name, value, type_, *optionals
-
     key = ("entity_class_name", "name", "default_value", "default_type", "parameter_value_list_name", "description")
-    return _get_items_for_import(db_map, "parameter_definition", (dict(zip(key, x)) for x in _data_iterator()))
+    for class_name, parameter_name, *optionals in data:
+        if not optionals:
+            yield dict(zip(key, (class_name, parameter_name)))
+            continue
+        value = optionals.pop(0)
+        value, type_ = unparse_value(value)
+        yield dict(zip(key, (class_name, parameter_name, value, type_, *optionals)))
 
 
 def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
-    def _data_iterator():
-        for class_name, entity_byname, parameter_name, value, *optionals in data:
-            if isinstance(entity_byname, str):
-                entity_byname = (entity_byname,)
-            alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
-            value, type_ = unparse_value(value)
-            item = {
-                "entity_class_name": class_name,
-                "entity_byname": entity_byname,
-                "parameter_definition_name": parameter_name,
-                "alternative_name": alternative_name,
-                "value": None,
-                "type": None,
-            }
-            pv = db_map.mapped_table("parameter_value").find_item(item)
-            if pv:
-                value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]), on_conflict)
-            item.update({"value": value, "type": type_})
-            yield item
-
-    return _get_items_for_import(db_map, "parameter_value", _data_iterator())
+    seen = set()
+    errors = []
+    items = []
+    key = ("entity_class_name", "entity_byname", "parameter_definition_name", "alternative_name", "value", "type")
+    for class_name, entity_byname, parameter_name, value, *optionals in data:
+        if isinstance(entity_byname, str):
+            entity_byname = (entity_byname,)
+        else:
+            entity_byname = tuple(entity_byname)
+        alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
+        unique_values = (class_name, entity_byname, parameter_name, alternative_name)
+        if unique_values in seen:
+            dupe = dict(zip(key, unique_values))
+            errors.append(
+                f"attempting to import more than one parameter_value with {dupe} - only first will be considered"
+            )
+            continue
+        seen.add(unique_values)
+        value, type_ = unparse_value(value)
+        item = dict(zip(key, unique_values + (None, None)))
+        pv = db_map.mapped_table("parameter_value").find_item(item)
+        if pv:
+            value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]), on_conflict)
+        item.update({"value": value, "type": type_})
+        items.append(item)
+    return items, errors
 
 
 def _get_alternatives_for_import(db_map, data):
     key = ("name", "description")
-    return _get_items_for_import(
-        db_map, "alternative", ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
-    )
+    return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
 
 
 def _get_scenarios_for_import(db_map, data):
     key = ("name", "active", "description")
-    return _get_items_for_import(
-        db_map, "scenario", ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
-    )
+    return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
 
 
 def _get_scenario_alternatives_for_import(db_map, data):
+    # FIXME: maybe when updating, we only want to match by (scen_name, alt_name) and not by (scen_name, rank)
     alt_name_list_by_scen_name = {}
-    errors = []
-    successors_by_scen_name = defaultdict(dict)
-    for scen_name, alt_name, *optionals in data:
-        successors_by_scen_name[scen_name][alt_name] = optionals[0] if optionals else None
-    for scen_name, successors in successors_by_scen_name.items():
+    succ_by_pred_by_scen_name = defaultdict(dict)
+    for scen_name, predecessor, *optionals in data:
+        successor = optionals[0] if optionals else None
+        succ_by_pred_by_scen_name[scen_name][predecessor] = successor
+    for scen_name, succ_by_pred in succ_by_pred_by_scen_name.items():
         scen = db_map.mapped_table("scenario").find_item({"name": scen_name})
-        if not scen:
-            errors.append(f"no scenario with name {scen_name} to set alternatives for")
-            continue
-        alt_names = set(successors)
-        alternative_name_list = alt_name_list_by_scen_name[scen_name] = [
-            a for a in scen["alternative_name_list"] if a not in alt_names
-        ]
-        for predecessor, successor in list(successors.items()):
-            if successor is None:
-                alternative_name_list.append(predecessor)
-                del successors[predecessor]
-        predecessors = {successor: predecessor for predecessor, successor in successors.items()}
-        predecessor_errors = []
-        for predecessor in predecessors:
-            if predecessor not in successors and predecessor not in alternative_name_list:
-                predecessor_errors.append(f"{predecessor} is not in {scen_name}")
-        if predecessor_errors:
-            errors += predecessor_errors
-            continue
-        while predecessors:
-            for i, alt_name in enumerate(alternative_name_list):
-                if (predecessor := predecessors.pop(alt_name, None)) is not None:
-                    alternative_name_list.insert(i, predecessor)
-                    break
-
-    def _data_iterator():
-        for scen_name, alternative_name_list in alt_name_list_by_scen_name.items():
-            for k, alt_name in enumerate(alternative_name_list):
-                yield {"scenario_name": scen_name, "alternative_name": alt_name, "rank": k + 1}
-
-    to_add, to_update, more_errors = _get_items_for_import(
-        db_map, "scenario_alternative", _data_iterator(), check_skip_keys=(("scenario_name", "rank"),)
+        alternative_name_list = alt_name_list_by_scen_name[scen_name] = scen.get("alternative_name_list", [])
+        alternative_name_list.append(None)  # So alternatives where successor is None find their place at the tail
+        while succ_by_pred:
+            some_added = False
+            for pred, succ in list(succ_by_pred.items()):
+                if succ in alternative_name_list:
+                    i = alternative_name_list.index(succ)
+                    if pred in alternative_name_list:
+                        alternative_name_list.remove(pred)
+                    alternative_name_list.insert(i, pred)
+                    del succ_by_pred[pred]
+                    some_added = True
+            if not some_added:
+                break
+        alternative_name_list.pop(-1)  # Remove the None
+    items = (
+        {"scenario_name": scen_name, "alternative_name": alt_name, "rank": k + 1}
+        for scen_name, alternative_name_list in alt_name_list_by_scen_name.items()
+        for k, alt_name in enumerate(alternative_name_list)
     )
-    return to_add, to_update, errors + more_errors
+    errors = (
+        f"can't insert alternative '{pred}' before '{succ}' because the latter is not in scenario '{scen_name}'"
+        for scen, succ_by_pred in succ_by_pred_by_scen_name.items()
+        for pred, succ in succ_by_pred.items()
+    )
+    return items, errors
 
 
 def _get_parameter_value_lists_for_import(db_map, data):
-    return _get_items_for_import(db_map, "parameter_value_list", ({"name": x} for x in {x[0]: None for x in data}))
+    return ({"name": x} for x in {x[0]: None for x in data})
 
 
 def _get_list_values_for_import(db_map, data, unparse_value):
-    def _data_iterator():
-        index_by_list_name = {}
-        for list_name, value in data:
-            value, type_ = unparse_value(value)
-            index = index_by_list_name.get(list_name)
-            if index is None:
-                current_list = db_map.mapped_table("parameter_value_list").find_item({"name": list_name})
-                index = max(
-                    (
-                        x["index"]
-                        for x in db_map.mapped_table("list_value").valid_values()
-                        if x["parameter_value_list_id"] == current_list["id"]
-                    ),
-                    default=-1,
-                )
-            index += 1
-            index_by_list_name[list_name] = index
-            yield {"parameter_value_list_name": list_name, "value": value, "type": type_, "index": index}
-
-    return _get_items_for_import(db_map, "list_value", _data_iterator())
+    index_by_list_name = {}
+    for list_name, value in data:
+        value, type_ = unparse_value(value)
+        index = index_by_list_name.get(list_name)
+        if index is None:
+            current_list = db_map.mapped_table("parameter_value_list").find_item({"name": list_name})
+            index = max(
+                (
+                    x["index"]
+                    for x in db_map.mapped_table("list_value").valid_values()
+                    if x["parameter_value_list_id"] == current_list["id"]
+                ),
+                default=-1,
+            )
+        index += 1
+        index_by_list_name[list_name] = index
+        yield {"parameter_value_list_name": list_name, "value": value, "type": type_, "index": index}
 
 
 def _get_metadata_for_import(db_map, data):
-    def _data_iterator():
-        for metadata in data:
-            for name, value in _parse_metadata(metadata):
-                yield {"name": name, "value": value}
-
-    return _get_items_for_import(db_map, "metadata", _data_iterator())
+    for metadata in data:
+        for name, value in _parse_metadata(metadata):
+            yield {"name": name, "value": value}
 
 
 def _get_entity_metadata_for_import(db_map, data):
-    def _data_iterator():
-        for class_name, entity_byname, metadata in data:
-            if isinstance(entity_byname, str):
-                entity_byname = (entity_byname,)
-            for name, value in _parse_metadata(metadata):
-                yield (class_name, entity_byname, name, value)
-
     key = ("entity_class_name", "entity_byname", "metadata_name", "metadata_value")
-    return _get_items_for_import(db_map, "entity_metadata", (dict(zip(key, x)) for x in _data_iterator()))
+    for class_name, entity_byname, metadata in data:
+        if isinstance(entity_byname, str):
+            entity_byname = (entity_byname,)
+        for name, value in _parse_metadata(metadata):
+            yield dict(zip(key, (class_name, entity_byname, name, value)))
 
 
 def _get_parameter_value_metadata_for_import(db_map, data):
-    def _data_iterator():
-        for class_name, entity_byname, parameter_name, metadata, *optionals in data:
-            if isinstance(entity_byname, str):
-                entity_byname = (entity_byname,)
-            alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
-            for name, value in _parse_metadata(metadata):
-                yield (class_name, entity_byname, parameter_name, name, value, alternative_name)
-
     key = (
         "entity_class_name",
         "entity_byname",
@@ -736,7 +658,12 @@ def _get_parameter_value_metadata_for_import(db_map, data):
         "metadata_value",
         "alternative_name",
     )
-    return _get_items_for_import(db_map, "parameter_value_metadata", (dict(zip(key, x)) for x in _data_iterator()))
+    for class_name, entity_byname, parameter_name, metadata, *optionals in data:
+        if isinstance(entity_byname, str):
+            entity_byname = (entity_byname,)
+        alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
+        for name, value in _parse_metadata(metadata):
+            yield dict(zip(key, (class_name, entity_byname, parameter_name, name, value, alternative_name)))
 
 
 # Legacy

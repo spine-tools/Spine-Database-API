@@ -268,25 +268,22 @@ class TestScenarioFilter(unittest.TestCase):
         )
 
     def test_scenario_filter_selects_highest_ranked_alternative_of_active_scenario(self):
-        import_alternatives(self._out_db_map, ["alternative3"])
-        import_alternatives(self._out_db_map, ["alternative1"])
-        import_alternatives(self._out_db_map, ["alternative2"])
-        import_alternatives(self._out_db_map, ["non_active_alternative"])
+        import_alternatives(
+            self._out_db_map, ["alternative3", "alternative1", "alternative2", "non_active_alternative"]
+        )
         import_object_classes(self._out_db_map, ["object_class"])
         import_objects(self._out_db_map, [("object_class", "object")])
         import_object_parameters(self._out_db_map, [("object_class", "parameter")])
-        import_object_parameter_values(self._out_db_map, [("object_class", "object", "parameter", -1.0)])
         import_object_parameter_values(
-            self._out_db_map, [("object_class", "object", "parameter", 10.0, "alternative1")]
+            self._out_db_map,
+            [
+                ("object_class", "object", "parameter", -1.0),
+                ("object_class", "object", "parameter", 10.0, "alternative1"),
+                ("object_class", "object", "parameter", 2000.0, "alternative2"),
+                ("object_class", "object", "parameter", 300.0, "alternative3"),
+            ],
         )
-        import_object_parameter_values(
-            self._out_db_map, [("object_class", "object", "parameter", 2000.0, "alternative2")]
-        )
-        import_object_parameter_values(
-            self._out_db_map, [("object_class", "object", "parameter", 300.0, "alternative3")]
-        )
-        import_scenarios(self._out_db_map, [("scenario", True)])
-        import_scenarios(self._out_db_map, [("non_active_scenario", False)])
+        import_scenarios(self._out_db_map, [("scenario", True), "non_active_scenario"])
         import_scenario_alternatives(
             self._out_db_map,
             [
