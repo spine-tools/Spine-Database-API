@@ -495,13 +495,13 @@ class DatabaseMappingBase:
         """Set to `None` subquery attributes involving the affected tables.
         This forces the subqueries to be refreshed when the corresponding property is accessed.
         """
+        attr_names = set(attr for tablename in tablenames for attr in self._get_table_to_sq_attr().get(tablename, []))
+        for attr_name in attr_names:
+            setattr(self, attr_name, None)
         tablenames = list(tablenames)
         for tablename in tablenames:
             if self.cache.pop(tablename, None):
                 self._do_advance_cache_query(tablename)
-        attr_names = set(attr for tablename in tablenames for attr in self._get_table_to_sq_attr().get(tablename, []))
-        for attr_name in attr_names:
-            setattr(self, attr_name, None)
 
     def query(self, *args, **kwargs):
         """Return a sqlalchemy :class:`~sqlalchemy.orm.query.Query` object applied
