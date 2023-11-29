@@ -176,15 +176,25 @@ def get_data_for_import(
     if entity_classes:
         for bucket in _get_entity_classes_for_import(db_map, entity_classes):
             yield ("entity_class", bucket)
+    if object_classes:  # Legacy
+        yield from get_data_for_import(db_map, entity_classes=_object_classes_to_entity_classes(object_classes))
+    if relationship_classes:  # Legacy
+        yield from get_data_for_import(db_map, entity_classes=relationship_classes)
     if superclass_subclasses:
         yield ("superclass_subclass", _get_superclass_subclasses_for_import(db_map, superclass_subclasses))
     if entities:
         for bucket in _get_entities_for_import(db_map, entities):
             yield ("entity", bucket)
+    if objects:  # Legacy
+        yield from get_data_for_import(db_map, entities=objects)
+    if relationships:  # Legacy
+        yield from get_data_for_import(db_map, entities=relationships)
     if entity_alternatives:
         yield ("entity_alternative", _get_entity_alternatives_for_import(db_map, entity_alternatives))
     if entity_groups:
         yield ("entity_group", _get_entity_groups_for_import(db_map, entity_groups))
+    if object_groups:  # Legacy
+        yield from get_data_for_import(db_map, entity_groups=object_groups)
     if parameter_value_lists:
         yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists))
         yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, unparse_value))
@@ -193,10 +203,24 @@ def get_data_for_import(
             "parameter_definition",
             _get_parameter_definitions_for_import(db_map, parameter_definitions, unparse_value),
         )
+    if object_parameters:  # Legacy
+        yield from get_data_for_import(db_map, unparse_value=unparse_value, parameter_definitions=object_parameters)
+    if relationship_parameters:  # Legacy
+        yield from get_data_for_import(
+            db_map, unparse_value=unparse_value, parameter_definitions=relationship_parameters
+        )
     if parameter_values:
         yield (
             "parameter_value",
             _get_parameter_values_for_import(db_map, parameter_values, unparse_value, on_conflict),
+        )
+    if object_parameter_values:  # Legacy
+        yield from get_data_for_import(
+            db_map, unparse_value=unparse_value, on_conflict=on_conflict, parameter_values=object_parameter_values
+        )
+    if relationship_parameter_values:  # Legacy
+        yield from get_data_for_import(
+            db_map, unparse_value=unparse_value, on_conflict=on_conflict, parameter_values=relationship_parameter_values
         )
     if metadata:
         yield ("metadata", _get_metadata_for_import(db_map, metadata))
@@ -209,38 +233,13 @@ def get_data_for_import(
             _get_metadata_for_import(db_map, (pval_metadata[3] for pval_metadata in parameter_value_metadata)),
         )
         yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
-    # Legacy
-    if object_classes:
-        yield from get_data_for_import(db_map, entity_classes=_object_classes_to_entity_classes(object_classes))
-    if relationship_classes:
-        yield from get_data_for_import(db_map, entity_classes=relationship_classes)
-    if object_parameters:
-        yield from get_data_for_import(db_map, unparse_value=unparse_value, parameter_definitions=object_parameters)
-    if relationship_parameters:
-        yield from get_data_for_import(
-            db_map, unparse_value=unparse_value, parameter_definitions=relationship_parameters
-        )
-    if objects:
-        yield from get_data_for_import(db_map, entities=objects)
-    if relationships:
-        yield from get_data_for_import(db_map, entities=relationships)
-    if object_groups:
-        yield from get_data_for_import(db_map, entity_groups=object_groups)
-    if object_parameter_values:
-        yield from get_data_for_import(
-            db_map, unparse_value=unparse_value, on_conflict=on_conflict, parameter_values=object_parameter_values
-        )
-    if relationship_parameter_values:
-        yield from get_data_for_import(
-            db_map, unparse_value=unparse_value, on_conflict=on_conflict, parameter_values=relationship_parameter_values
-        )
-    if object_metadata:
+    if object_metadata:  # Legacy
         yield from get_data_for_import(db_map, entity_metadata=object_metadata)
-    if relationship_metadata:
+    if relationship_metadata:  # Legacy
         yield from get_data_for_import(db_map, entity_metadata=relationship_metadata)
-    if object_parameter_value_metadata:
+    if object_parameter_value_metadata:  # Legacy
         yield from get_data_for_import(db_map, parameter_value_metadata=object_parameter_value_metadata)
-    if relationship_parameter_value_metadata:
+    if relationship_parameter_value_metadata:  # Legacy
         yield from get_data_for_import(db_map, parameter_value_metadata=relationship_parameter_value_metadata)
 
 
