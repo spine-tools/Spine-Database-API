@@ -561,7 +561,7 @@ def _time_pattern_from_database(value_dict):
         TimePattern: restored time pattern
     """
     patterns, values = _break_dictionary(value_dict["data"])
-    return TimePattern(patterns, values, value_dict.get("index_name", "p"))
+    return TimePattern(patterns, values, value_dict.get("index_name", TimePattern.DEFAULT_INDEX_NAME))
 
 
 def _map_from_database(value_dict):
@@ -574,7 +574,7 @@ def _map_from_database(value_dict):
         Map: restored Map
     """
     index_type = _map_index_type_from_database(value_dict["index_type"])
-    index_name = value_dict.get("index_name", "x")
+    index_name = value_dict.get("index_name", Map.DEFAULT_INDEX_NAME)
     data = value_dict["data"]
     if isinstance(data, dict):
         indexes = _map_indexes_from_database(data.keys(), index_type)
@@ -680,7 +680,7 @@ def _array_from_database(value_dict):
     except (TypeError, ParameterValueFormatError) as error:
         raise ParameterValueFormatError(f'Failed to read values for Array: {error}')
     else:
-        index_name = value_dict.get("index_name", "i")
+        index_name = value_dict.get("index_name", Array.DEFAULT_INDEX_NAME)
         return Array(data, value_type, index_name)
 
 
@@ -959,6 +959,10 @@ class IndexedValue(ParameterValue):
         Args:
             values (:class:`~numpy.ndarray`)
         """
+        if isinstance(self._value_type, np.dtype) and (
+            not isinstance(values, np.ndarray) or not values.dtype == self._value_type
+        ):
+            values = np.array(values, dtype=self._value_type)
         self._values = values
 
     @property
@@ -1078,7 +1082,7 @@ class Array(IndexedValue):
         else:
             data = [x.value_to_database_data() for x in self._values]
         value_dict = {"value_type": value_type_id, "data": data}
-        if self.index_name != "i":
+        if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
         return value_dict
 
@@ -1164,7 +1168,7 @@ class TimePattern(IndexedValue):
             raise ParameterValueFormatError("Length of values does not match length of indexes")
         if not indexes:
             raise ParameterValueFormatError("Empty time pattern not allowed")
-        super().__init__(values, value_type=float, index_name=index_name)
+        super().__init__(values, value_type=np.dtype(float), index_name=index_name)
         self.indexes = indexes
 
     def __eq__(self, other):
@@ -1186,7 +1190,7 @@ class TimePattern(IndexedValue):
 
     def to_dict(self):
         value_dict = {"data": dict(zip(self._indexes, self._values))}
-        if self.index_name != "p":
+        if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
         return value_dict
 
@@ -1209,7 +1213,7 @@ class TimeSeries(IndexedValue):
         """
         if len(values) < 1:
             raise ParameterValueFormatError("Time series too short. Must have one or more values")
-        super().__init__(values, value_type=float, index_name=index_name)
+        super().__init__(values, value_type=np.dtype(float), index_name=index_name)
         self._ignore_year = ignore_year
         self._repeat = repeat
 
@@ -1251,17 +1255,6 @@ class TimeSeries(IndexedValue):
             bool: new value.
         """
         self._repeat = bool(repeat)
-
-    @IndexedValue.values.setter
-    def values(self, values):
-        """Sets the values.
-
-        Args:
-            values (:class:`~numpy.ndarray`)
-        """
-        if not isinstance(values, np.ndarray) or not values.dtype == np.dtype(float):
-            values = np.array(values, dtype=float)
-        self._values = values
 
     @staticmethod
     def type_():
@@ -1385,9 +1378,9 @@ class TimeSeriesFixedResolution(TimeSeries):
         elif not isinstance(resolution, Sequence):
             resolution = [resolution]
         else:
-            for i in range(len(resolution)):
-                if isinstance(resolution[i], str):
-                    resolution[i] = duration_to_relativedelta(resolution[i])
+            for i, r in enumerate(resolution):
+                if isinstance(r, str):
+                    resolution[i] = duration_to_relativedelta(r)
         if not resolution:
             raise ParameterValueFormatError("Resolution cannot be zero.")
         self._resolution = resolution
@@ -1407,7 +1400,7 @@ class TimeSeriesFixedResolution(TimeSeries):
             },
             "data": self._values.tolist(),
         }
-        if self.index_name != "t":
+        if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
         return value_dict
 
@@ -1463,7 +1456,7 @@ class TimeSeriesVariableResolution(TimeSeries):
             value_dict.setdefault("index", dict())["ignore_year"] = self._ignore_year
         if self._repeat:
             value_dict.setdefault("index", dict())["repeat"] = self._repeat
-        if self.index_name != "t":
+        if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
         return value_dict
 
@@ -1526,7 +1519,7 @@ class Map(IndexedValue):
             "index_type": _map_index_type_to_database(self._index_type),
             "data": self.value_to_database_data(),
         }
-        if self.index_name != "x":
+        if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
         return value_dict
 
