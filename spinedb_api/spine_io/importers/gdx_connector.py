@@ -54,12 +54,13 @@ class GdxConnector(SourceConnection):
     def __del__(self):
         self.disconnect()
 
-    def connect_to_source(self, source):
+    def connect_to_source(self, source, **extras):
         """
         Connects to given .gdx file.
 
         Args:
             source (str): path to .gdx file.
+            **extras: ignored
         """
         if self._gams_dir is None:
             raise IOError(f"Could not find GAMS directory. Make sure you have GAMS installed.")
