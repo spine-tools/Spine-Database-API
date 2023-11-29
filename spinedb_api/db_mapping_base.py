@@ -415,7 +415,8 @@ class _MappedTable(dict):
         error = self._prepare_item(candidate_item, current_item, item)
         if error:
             return None, error
-        self.check_fields(candidate_item._asdict())
+        valid_types = (type(None),) if for_update else ()
+        self.check_fields(candidate_item._asdict(), valid_types=valid_types)
         return candidate_item, merge_error
 
     def _prepare_item(self, candidate_item, current_item, original_item):
