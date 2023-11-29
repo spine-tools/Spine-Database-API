@@ -1317,20 +1317,11 @@ class TimeSeriesFixedResolution(TimeSeries):
         memoized_indexes = self._memoized_indexes.get(key)
         if memoized_indexes is not None:
             return memoized_indexes
-        step_index = 0
-        step_cycle_index = 0
-        full_cycle_duration = sum(self._resolution, relativedelta())
-        stamps = np.empty(len(self), dtype=_NUMPY_DATETIME_DTYPE)
-        stamps[0] = self._start
-        for stamp_index in range(1, len(self._values)):
-            if step_index >= len(self._resolution):
-                step_index = 0
-                step_cycle_index += 1
-            current_cycle_duration = sum(self._resolution[: step_index + 1], relativedelta())
-            duration_from_start = step_cycle_index * full_cycle_duration + current_cycle_duration
-            stamps[stamp_index] = self._start + duration_from_start
-            step_index += 1
-        memoized_indexes = self._memoized_indexes[key] = np.array(stamps, dtype=_NUMPY_DATETIME_DTYPE)
+        cycle_count = -(-len(self) // len(self.resolution))
+        resolution = (cycle_count * self.resolution)[: len(self) - 1]
+        resolution.insert(0, self._start)
+        resolution_arr = np.array(resolution)
+        memoized_indexes = self._memoized_indexes[key] = resolution_arr.cumsum().astype(_NUMPY_DATETIME_DTYPE)
         return memoized_indexes
 
     @property
