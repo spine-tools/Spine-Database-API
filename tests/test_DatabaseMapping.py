@@ -25,7 +25,7 @@ from spinedb_api import (
     SpineIntegrityError,
 )
 from spinedb_api.helpers import name_from_elements
-from .custom_db_mapping import CustomDatabaseMapping
+from tests.custom_db_mapping import CustomDatabaseMapping
 
 
 def create_query_wrapper(db_map):

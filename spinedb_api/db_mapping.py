@@ -25,7 +25,7 @@ from types import MethodType
 from sqlalchemy import create_engine, MetaData, inspect
 from sqlalchemy.pool import NullPool
 from sqlalchemy.event import listen
-from sqlalchemy.exc import DatabaseError, DBAPIError
+from sqlalchemy.exc import DatabaseError, DBAPIError, ArgumentError
 from sqlalchemy.engine.url import make_url, URL
 from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
@@ -155,7 +155,13 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         else:
             filter_configs = []
         self._filter_configs = filter_configs if apply_filters else None
-        self.sa_url = make_url(db_url)
+        try:
+            self.sa_url = make_url(db_url)
+        except ArgumentError as err:
+            raise SpineDBAPIError(
+                f"Could not parse the given URL. "
+                f"Please check that it is valid."
+            )
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
         self._memory = memory
