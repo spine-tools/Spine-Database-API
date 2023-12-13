@@ -9,24 +9,21 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-from enum import Enum, unique, auto
 from difflib import SequenceMatcher
+
+from .conflict_resolution import (
+    Conflict,
+    KeepInMemoryAction,
+    resolved_conflict_actions,
+    select_in_memory_item_always,
+    UpdateInMemoryAction,
+)
+from .item_status import Status
 from .temp_id import TempId, resolve
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
 
 # TODO: Implement MappedItem.pop() to do lookup?
-
-
-@unique
-class Status(Enum):
-    """Mapped item status."""
-
-    committed = auto()
-    to_add = auto()
-    to_update = auto()
-    to_remove = auto()
-    added_and_removed = auto()
 
 
 class DatabaseMappingBase:
@@ -208,9 +205,6 @@ class DatabaseMappingBase:
                     item.invalidate_id()
         return True
 
-    def _refresh(self):
-        """Clears fetch progress, so the DB is queried again."""
-
     def _check_item_type(self, item_type):
         if item_type not in self.all_item_types():
             candidate = max(self.all_item_types(), key=lambda x: SequenceMatcher(None, item_type, x).ratio())
@@ -258,7 +252,7 @@ class DatabaseMappingBase:
             return [dict(x) for x in qry]
         return [dict(x) for x in qry.limit(limit).offset(offset)]
 
-    def do_fetch_more(self, item_type, offset=0, limit=None, **kwargs):
+    def do_fetch_more(self, item_type, offset=0, limit=None, resolve_conflicts=select_in_memory_item_always, **kwargs):
         """Fetches items from the DB and adds them to the mapping.
 
         Args:
@@ -274,19 +268,49 @@ class DatabaseMappingBase:
         items = []
         new_items = []
         # Add items first
+        conflicts = []
         for x in chunk:
             item, new = mapped_table.add_item_from_db(x)
-            if new:
+            if not new:
+                fetched_item = self.make_item(item_type, **x)
+                fetched_item.polish()
+                conflicts.append(Conflict(item, fetched_item))
+            else:
                 new_items.append(item)
-            items.append(item)
+                items.append(item)
+        if conflicts:
+            resolved = resolve_conflicts(conflicts)
+            items += self._apply_conflict_resolutions(resolved)
         # Once all items are added, add the unique key values
         # Otherwise items that refer to other items that come later in the query will be seen as corrupted
         for item in new_items:
             mapped_table.add_unique(item)
         return items
 
-    def do_fetch_all(self, item_type, **kwargs):
-        self.do_fetch_more(item_type, offset=0, limit=None, **kwargs)
+    def do_fetch_all(self, item_type, resolve_conflicts=select_in_memory_item_always, **kwargs):
+        self.do_fetch_more(item_type, offset=0, limit=None, resolve_conflicts=resolve_conflicts, **kwargs)
+
+    @staticmethod
+    def _apply_conflict_resolutions(resolved_conflicts):
+        items = []
+        for action in resolved_conflict_actions(resolved_conflicts):
+            if isinstance(action, KeepInMemoryAction):
+                item = action.in_memory
+                items.append(item)
+                if action.set_uncommitted and item.is_committed():
+                    if item.removed:
+                        item.status = Status.to_remove
+                    else:
+                        item.status = Status.to_update
+            elif isinstance(action, UpdateInMemoryAction):
+                item = action.in_memory
+                if item.removed:
+                    item.resurrect()
+                item.update(action.in_db)
+                items.append(item)
+            else:
+                raise RuntimeError("unknown conflict resolution action")
+        return items
 
 
 class _MappedTable(dict):
@@ -669,6 +693,11 @@ class MappedItemBase(dict):
         """
         return self._removed
 
+    def resurrect(self):
+        """Sets item as not-removed but does not resurrect referrers."""
+        self._removed = False
+        self._removal_source = None
+
     @property
     def item_type(self):
         """Returns this item's type
@@ -699,7 +728,7 @@ class MappedItemBase(dict):
         """Sets id as invalid."""
         self._is_id_valid = False
 
-    def _extended(self):
+    def extended(self):
         """Returns a dict from this item's original fields plus all the references resolved statically.
 
         Returns:
@@ -734,7 +763,7 @@ class MappedItemBase(dict):
         if not self._something_to_update(other):
             # Nothing to update, that's fine
             return None, ""
-        merged = {**self._extended(), **other}
+        merged = {**self.extended(), **other}
         if not isinstance(merged["id"], int):
             merged["id"] = self["id"]
         return merged, ""
@@ -1060,7 +1089,7 @@ class MappedItemBase(dict):
 
     def __repr__(self):
         """Overridden to return a more verbose representation."""
-        return f"{self._item_type}{self._extended()}"
+        return f"{self._item_type}{self.extended()}"
 
     def __getattr__(self, name):
         """Overridden to return the dictionary key named after the attribute, or None if it doesn't exist."""
@@ -1148,8 +1177,8 @@ class PublicItem:
     def _asdict(self):
         return self._mapped_item._asdict()
 
-    def _extended(self):
-        return self._mapped_item._extended()
+    def extended(self):
+        return self._mapped_item.extended()
 
     def update(self, **kwargs):
         self._db_map.update_item(self.item_type, id=self["id"], **kwargs)

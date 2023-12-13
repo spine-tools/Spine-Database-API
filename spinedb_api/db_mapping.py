@@ -33,6 +33,7 @@ from alembic.script import ScriptDirectory
 from alembic.config import Config
 from alembic.util.exc import CommandError
 
+from .conflict_resolution import select_in_memory_item_always
 from .filters.tools import pop_filter_configs, apply_filter_stack, load_filters
 from .spine_db_client import get_db_url_from_server
 from .mapped_items import item_factory
@@ -364,13 +365,16 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             return {}
         return item.public_item
 
-    def get_items(self, item_type, fetch=True, skip_removed=True, **kwargs):
+    def get_items(
+        self, item_type, fetch=True, skip_removed=True, resolve_conflicts=select_in_memory_item_always, **kwargs
+    ):
         """Finds and returns all the items of one type.
 
         Args:
             item_type (str): One of <spine_item_types>.
             fetch (bool, optional): Whether to fetch the DB before returning the items.
             skip_removed (bool, optional): Whether to ignore removed items.
+            resolve_conflicts (Callable): function that resolves fetch conflicts
             **kwargs: Fields and values for one the unique keys as specified for the item type
                 in :ref:`db_mapping_schema`.
 
@@ -381,7 +385,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         mapped_table = self.mapped_table(item_type)
         mapped_table.check_fields(kwargs, valid_types=(type(None),))
         if fetch:
-            self.do_fetch_all(item_type, **kwargs)
+            self.do_fetch_all(item_type, resolve_conflicts=resolve_conflicts, **kwargs)
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
         return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
 
@@ -617,7 +621,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         return bool(self.remove_items(item_type, Asterisk))
 
-    def fetch_more(self, item_type, offset=0, limit=None, **kwargs):
+    def fetch_more(self, item_type, offset=0, limit=None, resolve_conflicts=select_in_memory_item_always, **kwargs):
         """Fetches items from the DB into the in-memory mapping, incrementally.
 
         Args:
@@ -631,7 +635,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             list(:class:`PublicItem`): The items fetched.
         """
         item_type = self.real_item_type(item_type)
-        return [x.public_item for x in self.do_fetch_more(item_type, offset=offset, limit=limit, **kwargs)]
+        return [
+            x.public_item
+            for x in self.do_fetch_more(
+                item_type, offset=offset, limit=limit, resolve_conflicts=resolve_conflicts, **kwargs
+            )
+        ]
 
     def fetch_all(self, *item_types):
         """Fetches items from the DB into the in-memory mapping.
@@ -719,10 +728,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             raise SpineDBAPIError("Nothing to rollback.")
         if self._memory:
             self._memory_dirty = False
-
-    def refresh_session(self):
-        """Resets the fetch status so new items from the DB can be retrieved."""
-        self._refresh()
 
     def has_external_commits(self):
         """Tests whether the database has had commits from other sources than this mapping.
