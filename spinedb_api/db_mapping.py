@@ -705,13 +705,18 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         date = datetime.now(timezone.utc)
         ins = self._metadata.tables["commit"].insert()
         with self.engine.begin() as connection:
+            commit_item = {"user": user, "date": date, "comment": comment}
             try:
-                commit_id = connection.execute(ins, dict(user=user, date=date, comment=comment)).inserted_primary_key[0]
+                commit_id = connection.execute(ins, commit_item).inserted_primary_key[0]
             except DBAPIError as e:
                 raise SpineDBAPIError(f"Fail to commit: {e.orig.args}") from e
+            commit_item["id"] = commit_id
+            commit_table = self.mapped_table("commit")
+            commit_table.add_item_from_db(commit_item)
+            commit_item_id = commit_table.id_map.item_id(commit_id)
             for tablename, (to_add, to_update, to_remove) in dirty_items:
                 for item in to_add + to_update + to_remove:
-                    item.commit(commit_id)
+                    item.commit(commit_item_id)
                 # Remove before add, to help with keeping integrity constraints
                 self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
                 self._do_update_items(connection, tablename, *to_update)

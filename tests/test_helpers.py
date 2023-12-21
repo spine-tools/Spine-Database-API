@@ -10,15 +10,16 @@
 ######################################################################################################################
 """Unit tests for helpers.py."""
 
-
 import unittest
 from spinedb_api.helpers import (
     compare_schemas,
     create_new_spine_database,
     name_from_dimensions,
     name_from_elements,
+    query_byname,
     remove_credentials_from_url,
 )
+from spinedb_api.db_mapping import DatabaseMapping
 
 
 class TestNameFromElements(unittest.TestCase):
@@ -65,6 +66,77 @@ class TestRemoveCredentialsFromUrl(unittest.TestCase):
         url = "mysql://user:p@ass://word@example.com/db"
         sanitized = remove_credentials_from_url(url)
         self.assertEqual(sanitized, "mysql://example.com/db")
+
+
+class TestQueryByname(unittest.TestCase):
+    def _assert_success(self, result):
+        item, error = result
+        self.assertIsNone(error)
+        return item
+
+    def test_zero_dimension_entity(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="my_class"))
+            self._assert_success(db_map.add_entity_item(name="my_entity", class_name="my_class"))
+            db_map.commit_session("Add entity.")
+            entity_row = db_map.query(db_map.wide_entity_sq).one()
+            self.assertEqual(query_byname(entity_row, db_map), ("my_entity",))
+
+    def test_dimensioned_entity(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="class_1"))
+            self._assert_success(db_map.add_entity_class_item(name="class_2"))
+            self._assert_success(db_map.add_entity_item(name="entity_1", class_name="class_1"))
+            self._assert_success(db_map.add_entity_item(name="entity_2", class_name="class_2"))
+            self._assert_success(
+                db_map.add_entity_class_item(name="relationship", dimension_name_list=("class_1", "class_2"))
+            )
+            relationship = self._assert_success(
+                db_map.add_entity_item(class_name="relationship", element_name_list=("entity_1", "entity_2"))
+            )
+            db_map.commit_session("Add entities")
+            entity_row = (
+                db_map.query(db_map.wide_entity_sq)
+                .filter(db_map.wide_entity_sq.c.id == db_map.find_db_id("entity", relationship["id"]))
+                .one()
+            )
+            self.assertEqual(query_byname(entity_row, db_map), ("entity_1", "entity_2"))
+
+    def test_deep_dimensioned_entity(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="class_1"))
+            self._assert_success(db_map.add_entity_class_item(name="class_2"))
+            self._assert_success(db_map.add_entity_item(name="entity_1", class_name="class_1"))
+            self._assert_success(db_map.add_entity_item(name="entity_2", class_name="class_2"))
+            self._assert_success(
+                db_map.add_entity_class_item(name="relationship_1", dimension_name_list=("class_1", "class_2"))
+            )
+            relationship_1 = self._assert_success(
+                db_map.add_entity_item(class_name="relationship_1", element_name_list=("entity_1", "entity_2"))
+            )
+            self._assert_success(
+                db_map.add_entity_class_item(name="relationship_2", dimension_name_list=("class_2", "class_1"))
+            )
+            relationship_2 = self._assert_success(
+                db_map.add_entity_item(class_name="relationship_2", element_name_list=("entity_2", "entity_1"))
+            )
+            self._assert_success(
+                db_map.add_entity_class_item(
+                    name="super_relationship", dimension_name_list=("relationship_1", "relationship_2")
+                )
+            )
+            superrelationship = self._assert_success(
+                db_map.add_entity_item(
+                    class_name="super_relationship", element_name_list=(relationship_1["name"], relationship_2["name"])
+                )
+            )
+            db_map.commit_session("Add entities")
+            entity_row = (
+                db_map.query(db_map.wide_entity_sq)
+                .filter(db_map.wide_entity_sq.c.id == db_map.find_db_id("entity", superrelationship["id"]))
+                .one()
+            )
+            self.assertEqual(query_byname(entity_row, db_map), ("entity_1", "entity_2", "entity_2", "entity_1"))
 
 
 if __name__ == "__main__":

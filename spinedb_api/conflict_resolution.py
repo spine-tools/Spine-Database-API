@@ -52,7 +52,7 @@ class KeepInMemoryAction:
 
     def __init__(self, conflict):
         self.in_memory = conflict.in_memory
-        self.set_uncommitted = conflict.in_memory.extended() != conflict.in_db.extended()
+        self.set_uncommitted = not conflict.in_memory.equal_ignoring_ids(conflict.in_db)
 
 
 @dataclass

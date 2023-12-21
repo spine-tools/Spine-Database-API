@@ -21,3 +21,4 @@ class Status(Enum):
     to_update = auto()
     to_remove = auto()
     added_and_removed = auto()
+    overwritten = auto()

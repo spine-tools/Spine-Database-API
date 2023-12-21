@@ -8,10 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-General helper functions.
-"""
+""" General helper functions. """
 import os
 import json
 import warnings
@@ -875,3 +872,15 @@ def group_consecutive(list_of_numbers):
     for _k, g in groupby(enumerate(sorted(list_of_numbers)), lambda x: x[0] - x[1]):
         group = list(map(itemgetter(1), g))
         yield group[0], group[-1]
+
+
+def query_byname(entity_row, db_map):
+    element_ids = entity_row["element_id_list"]
+    if element_ids is None:
+        return (entity_row["name"],)
+    sq = db_map.wide_entity_sq
+    byname = []
+    for element_id in element_ids.split(","):
+        element_row = db_map.query(sq).filter(sq.c.id == element_id).one()
+        byname += list(query_byname(element_row, db_map))
+    return tuple(byname)
