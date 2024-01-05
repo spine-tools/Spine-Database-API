@@ -37,6 +37,9 @@ def item_factory(item_type):
     }.get(item_type, MappedItemBase)
 
 
+_ENTITY_BYNAME_VALUE = 'A tuple with the entity name as single element if the entity is zero-dimensional, or the element names if the entity is multi-dimensional.'
+
+
 class CommitItem(MappedItemBase):
     fields = {
         'comment': {'type': str, 'value': 'A comment describing the commit.'},
@@ -282,8 +285,7 @@ class EntityAlternativeItem(MappedItemBase):
         'entity_class_name': {'type': str, 'value': 'The entity class name.'},
         'entity_byname': {
             'type': tuple,
-            'value': 'A tuple with the entity name as single element if the entity is zero-dimensional, '
-            'or the element names if it is multi-dimensional.',
+            'value': _ENTITY_BYNAME_VALUE,
         },
         'alternative_name': {'type': str, 'value': 'The alternative name.'},
         'active': {
@@ -504,8 +506,7 @@ class ParameterValueItem(ParameterItemBase):
         'parameter_definition_name': {'type': str, 'value': 'The parameter name.'},
         'entity_byname': {
             'type': tuple,
-            'value': 'A tuple with the entity name as single element if the entity is zero-dimensional, '
-            'or the element names if the entity is multi-dimensional.',
+            'value': _ENTITY_BYNAME_VALUE,
         },
         'value': {'type': bytes, 'value': 'The value.'},
         'type': {'type': str, 'value': 'The value type.', 'optional': True},
@@ -676,44 +677,60 @@ class MetadataItem(MappedItemBase):
 
 class EntityMetadataItem(MappedItemBase):
     fields = {
-        'entity_name': {'type': str, 'value': 'The entity name.'},
+        'class_name': {'type': str, 'value': 'The entity class name.'},
+        'entity_byname': {'type': tuple, 'value': _ENTITY_BYNAME_VALUE},
         'metadata_name': {'type': str, 'value': 'The metadata entry name.'},
         'metadata_value': {'type': str, 'value': 'The metadata entry value.'},
     }
-    _unique_keys = (("entity_name", "metadata_name", "metadata_value"),)
-    _references = {"entity_id": ("entity", "id"), "metadata_id": ("metadata", "id")}
+    _unique_keys = (("class_name", "entity_byname", "metadata_name", "metadata_value"),)
+    _references = {
+        "entity_id": ("entity", "id"),
+        "metadata_id": ("metadata", "id"),
+    }
     _external_fields = {
-        "entity_name": ("entity_id", "name"),
+        "class_name": ("entity_id", "class_name"),
+        "entity_byname": ("entity_id", "byname"),
         "metadata_name": ("metadata_id", "name"),
         "metadata_value": ("metadata_id", "value"),
     }
     _alt_references = {
-        ("entity_class_name", "entity_byname"): ("entity", ("class_name", "byname")),
+        (
+            "class_name",
+            "entity_byname",
+        ): ("entity", ("class_name", "byname")),
         ("metadata_name", "metadata_value"): ("metadata", ("name", "value")),
     }
     _internal_fields = {
-        "entity_id": (("entity_class_name", "entity_byname"), "id"),
+        "entity_id": (("class_name", "entity_byname"), "id"),
         "metadata_id": (("metadata_name", "metadata_value"), "id"),
     }
 
 
 class ParameterValueMetadataItem(MappedItemBase):
     fields = {
+        'class_name': {'type': str, 'value': 'The entity class name.'},
         'parameter_definition_name': {'type': str, 'value': 'The parameter name.'},
         'entity_byname': {
             'type': tuple,
-            'value': 'A tuple with the entity name as single element if the entity is zero-dimensional, '
-            'or the element names if it is multi-dimensional.',
+            'value': _ENTITY_BYNAME_VALUE,
         },
         'alternative_name': {'type': str, 'value': 'The alternative name.'},
         'metadata_name': {'type': str, 'value': 'The metadata entry name.'},
         'metadata_value': {'type': str, 'value': 'The metadata entry value.'},
     }
     _unique_keys = (
-        ("parameter_definition_name", "entity_byname", "alternative_name", "metadata_name", "metadata_value"),
+        (
+            "class_name",
+            "parameter_definition_name",
+            "entity_byname",
+            "alternative_name",
+            "metadata_name",
+            "metadata_value",
+        ),
     )
     _references = {"parameter_value_id": ("parameter_value", "id"), "metadata_id": ("metadata", "id")}
     _external_fields = {
+        "class_name": ("parameter_value_id", "entity_class_name"),
         "parameter_definition_name": ("parameter_value_id", "parameter_definition_name"),
         "entity_byname": ("parameter_value_id", "entity_byname"),
         "alternative_name": ("parameter_value_id", "alternative_name"),
@@ -721,7 +738,7 @@ class ParameterValueMetadataItem(MappedItemBase):
         "metadata_value": ("metadata_id", "value"),
     }
     _alt_references = {
-        ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"): (
+        ("class_name", "parameter_definition_name", "entity_byname", "alternative_name"): (
             "parameter_value",
             ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
         ),
@@ -729,7 +746,7 @@ class ParameterValueMetadataItem(MappedItemBase):
     }
     _internal_fields = {
         "parameter_value_id": (
-            ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
+            ("class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
             "id",
         ),
         "metadata_id": (("metadata_name", "metadata_value"), "id"),

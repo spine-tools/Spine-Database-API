@@ -216,6 +216,169 @@ class TestDatabaseMapping(unittest.TestCase):
             )
             self.assertIsNotNone(color)
 
+    def test_update_entity_metadata_by_changing_its_entity(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            entity_class, _ = db_map.add_entity_class_item(name="my_class")
+            db_map.add_entity_item(name="entity_1", class_name="my_class")
+            entity_2, _ = db_map.add_entity_item(name="entity_2", class_name="my_class")
+            metadata_value = '{"sources": [], "contributors": []}'
+            metadata, _ = db_map.add_metadata_item(name="my_metadata", value=metadata_value)
+            entity_metadata, error = db_map.add_entity_metadata_item(
+                metadata_name="my_metadata",
+                metadata_value=metadata_value,
+                class_name="my_class",
+                entity_byname=("entity_1",),
+            )
+            self.assertIsNone(error)
+            entity_metadata.update(entity_byname=("entity_2",))
+            self.assertEqual(
+                entity_metadata._extended(),
+                {
+                    "class_name": "my_class",
+                    "entity_byname": ("entity_2",),
+                    "entity_id": entity_2["id"],
+                    "id": entity_metadata["id"],
+                    "metadata_id": metadata["id"],
+                    "metadata_name": "my_metadata",
+                    "metadata_value": metadata_value,
+                },
+            )
+            db_map.commit_session("Add initial data.")
+            entity_sq = (
+                db_map.query(
+                    db_map.entity_sq.c.id.label("entity_id"),
+                    db_map.entity_class_sq.c.name.label("class_name"),
+                    db_map.entity_sq.c.name.label("entity_name"),
+                )
+                .join(db_map.entity_class_sq, db_map.entity_class_sq.c.id == db_map.entity_sq.c.class_id)
+                .subquery()
+            )
+            metadata_records = (
+                db_map.query(
+                    db_map.entity_metadata_sq.c.id,
+                    entity_sq.c.class_name,
+                    entity_sq.c.entity_name,
+                    db_map.metadata_sq.c.name.label("metadata_name"),
+                    db_map.metadata_sq.c.value.label("metadata_value"),
+                )
+                .join(entity_sq, entity_sq.c.entity_id == db_map.entity_metadata_sq.c.entity_id)
+                .join(db_map.metadata_sq, db_map.metadata_sq.c.id == db_map.entity_metadata_sq.c.metadata_id)
+                .all()
+            )
+            self.assertEqual(len(metadata_records), 1)
+            self.assertEqual(
+                dict(**metadata_records[0]),
+                {
+                    "id": 1,
+                    "class_name": "my_class",
+                    "entity_name": "entity_2",
+                    "metadata_name": "my_metadata",
+                    "metadata_value": metadata_value,
+                },
+            )
+
+    def test_update_parameter_value_metadata_by_changing_its_parameter(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            entity_class, _ = db_map.add_entity_class_item(name="my_class")
+            _, error = db_map.add_parameter_definition_item(name="x", entity_class_name="my_class")
+            self.assertIsNone(error)
+            db_map.add_parameter_definition_item(name="y", entity_class_name="my_class")
+            entity, _ = db_map.add_entity_item(name="my_entity", class_name="my_class")
+            value, value_type = to_database(2.3)
+            _, error = db_map.add_parameter_value_item(
+                entity_class_name="my_class",
+                entity_byname=("my_entity",),
+                parameter_definition_name="x",
+                alternative_name="Base",
+                value=value,
+                type=value_type,
+            )
+            self.assertIsNone(error)
+            value, value_type = to_database(-2.3)
+            y, error = db_map.add_parameter_value_item(
+                entity_class_name="my_class",
+                entity_byname=("my_entity",),
+                parameter_definition_name="y",
+                alternative_name="Base",
+                value=value,
+                type=value_type,
+            )
+            self.assertIsNone(error)
+            metadata_value = '{"sources": [], "contributors": []}'
+            metadata, error = db_map.add_metadata_item(name="my_metadata", value=metadata_value)
+            self.assertIsNone(error)
+            value_metadata, error = db_map.add_parameter_value_metadata_item(
+                metadata_name="my_metadata",
+                metadata_value=metadata_value,
+                class_name="my_class",
+                entity_byname=("my_entity",),
+                parameter_definition_name="x",
+                alternative_name="Base",
+            )
+            self.assertIsNone(error)
+            value_metadata.update(parameter_definition_name="y")
+            self.assertEqual(
+                value_metadata._extended(),
+                {
+                    "class_name": "my_class",
+                    "entity_byname": ("my_entity",),
+                    "alternative_name": "Base",
+                    "parameter_definition_name": "y",
+                    "parameter_value_id": y["id"],
+                    "id": value_metadata["id"],
+                    "metadata_id": metadata["id"],
+                    "metadata_name": "my_metadata",
+                    "metadata_value": metadata_value,
+                },
+            )
+            db_map.commit_session("Add initial data.")
+            parameter_sq = (
+                db_map.query(
+                    db_map.parameter_value_sq.c.id.label("value_id"),
+                    db_map.entity_class_sq.c.name.label("class_name"),
+                    db_map.entity_sq.c.name.label("entity_name"),
+                    db_map.parameter_definition_sq.c.name.label("parameter_definition_name"),
+                    db_map.alternative_sq.c.name.label("alternative_name"),
+                )
+                .join(
+                    db_map.entity_class_sq, db_map.entity_class_sq.c.id == db_map.parameter_value_sq.c.entity_class_id
+                )
+                .join(db_map.entity_sq, db_map.entity_sq.c.id == db_map.parameter_value_sq.c.entity_id)
+                .join(
+                    db_map.parameter_definition_sq,
+                    db_map.parameter_definition_sq.c.id == db_map.parameter_value_sq.c.parameter_definition_id,
+                )
+                .join(db_map.alternative_sq, db_map.alternative_sq.c.id == db_map.parameter_value_sq.c.alternative_id)
+                .subquery("parameter_sq")
+            )
+            metadata_records = (
+                db_map.query(
+                    db_map.parameter_value_metadata_sq.c.id,
+                    parameter_sq.c.class_name,
+                    parameter_sq.c.entity_name,
+                    parameter_sq.c.parameter_definition_name,
+                    parameter_sq.c.alternative_name,
+                    db_map.metadata_sq.c.name.label("metadata_name"),
+                    db_map.metadata_sq.c.value.label("metadata_value"),
+                )
+                .join(parameter_sq, parameter_sq.c.value_id == db_map.parameter_value_metadata_sq.c.parameter_value_id)
+                .join(db_map.metadata_sq, db_map.metadata_sq.c.id == db_map.parameter_value_metadata_sq.c.metadata_id)
+                .all()
+            )
+            self.assertEqual(len(metadata_records), 1)
+            self.assertEqual(
+                dict(**metadata_records[0]),
+                {
+                    "id": 1,
+                    "class_name": "my_class",
+                    "entity_name": "my_entity",
+                    "parameter_definition_name": "y",
+                    "alternative_name": "Base",
+                    "metadata_name": "my_metadata",
+                    "metadata_value": metadata_value,
+                },
+            )
+
     def test_fetch_more(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             alternatives = db_map.fetch_more("alternative")
@@ -2092,6 +2255,10 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
     def tearDown(self):
         self._db_map.close()
 
+    def _assert_import(self, result):
+        error = result[1]
+        self.assertEqual(error, [])
+
     def test_remove_object_class(self):
         """Test adding and removing an object class and committing"""
         items, _ = self._db_map.add_object_classes({"name": "oc1", "id": 1}, {"name": "oc2", "id": 2})
@@ -2332,7 +2499,11 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
             self._db_map, (("my_class", "my_object", "my_parameter", 99.0),)
         )
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
-        import_functions.import_object_metadata(self._db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+        self._assert_import(
+            import_functions.import_object_metadata(
+                self._db_map, (("my_class", "my_object", '{"title": "My metadata."}'),)
+            )
+        )
         import_functions.import_object_parameter_value_metadata(
             self._db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
         )
