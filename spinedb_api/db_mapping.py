@@ -157,11 +157,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._filter_configs = filter_configs if apply_filters else None
         try:
             self.sa_url = make_url(db_url)
-        except ArgumentError as err:
-            raise SpineDBAPIError(
-                f"Could not parse the given URL. "
-                f"Please check that it is valid."
-            )
+        except ArgumentError:
+            raise SpineDBAPIError("Could not parse the given URL. Please check that it is valid.")
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
         self._memory = memory

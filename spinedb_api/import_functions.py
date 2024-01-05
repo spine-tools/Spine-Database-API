@@ -642,7 +642,7 @@ def _get_metadata_for_import(db_map, data):
 
 
 def _get_entity_metadata_for_import(db_map, data):
-    key = ("entity_class_name", "entity_byname", "metadata_name", "metadata_value")
+    key = ("class_name", "entity_byname", "metadata_name", "metadata_value")
     for class_name, entity_byname, metadata in data:
         if isinstance(entity_byname, str):
             entity_byname = (entity_byname,)
@@ -652,7 +652,7 @@ def _get_entity_metadata_for_import(db_map, data):
 
 def _get_parameter_value_metadata_for_import(db_map, data):
     key = (
-        "entity_class_name",
+        "class_name",
         "entity_byname",
         "parameter_definition_name",
         "metadata_name",
