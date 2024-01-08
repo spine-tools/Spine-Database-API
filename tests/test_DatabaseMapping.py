@@ -481,6 +481,35 @@ class TestDatabaseMapping(unittest.TestCase):
                 self.assertEqual(scenario_alternatives[1]["alternative_name"], "alt2")
                 self.assertEqual(scenario_alternatives[1]["rank"], 1)
 
+    def test_committing_entity_class_items_doesnt_add_commit_ids_to_them(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class_item(name="my_class")
+            db_map.commit_session("Add class.")
+            classes = db_map.get_entity_class_items()
+            self.assertEqual(len(classes), 1)
+            self.assertNotIn("commit_id", classes[0]._extended())
+
+    def test_committing_superclass_subclass_items_doesnt_add_commit_ids_to_them(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class_item(name="high")
+            db_map.add_entity_class_item(name="low")
+            db_map.add_superclass_subclass_item(superclass_name="high", subclass_name="low")
+            db_map.commit_session("Add class hierarchy.")
+            classes = db_map.get_superclass_subclass_items()
+            self.assertEqual(len(classes), 1)
+            self.assertNotIn("commit_id", classes[0]._extended())
+
+    def test_committing_entity_group_items_doesnt_add_commit_ids_to_them(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class_item(name="my_class")
+            db_map.add_entity_item(name="element", class_name="my_class")
+            db_map.add_entity_item(name="container", class_name="my_class")
+            db_map.add_entity_group_item(group_name="container", member_name="element", class_name="my_class")
+            db_map.commit_session("Add entity group.")
+            groups = db_map.get_entity_group_items()
+            self.assertEqual(len(groups), 1)
+            self.assertNotIn("commit_id", groups[0]._extended())
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

@@ -279,6 +279,9 @@ class EntityGroupItem(MappedItemBase):
             return self["entity_id"]
         return super().__getitem__(key)
 
+    def commit(self, _commit_id):
+        super().commit(None)
+
 
 class EntityAlternativeItem(MappedItemBase):
     fields = {
@@ -777,3 +780,6 @@ class SuperclassSubclassItem(MappedItemBase):
         if self._subclass_entities():
             return "can't set or modify the superclass for a class that already has entities"
         return super().check_mutability()
+
+    def commit(self, _commit_id):
+        super().commit(None)
