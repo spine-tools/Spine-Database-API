@@ -14,7 +14,6 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 from unittest.mock import patch
-
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.util import KeyedTuple
 from spinedb_api import (
@@ -94,7 +93,7 @@ class TestDatabaseMapping(unittest.TestCase):
     def test_add_parameter_value_without_value_gives_error(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="Widget"))
-            self._assert_success(db_map.add_entity_item(name="spoon", class_name="Widget"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Widget"))
             self._assert_success(db_map.add_parameter_definition_item(name="size", entity_class_name="Widget"))
             self.assertRaises(
                 SpineDBAPIError,
@@ -111,7 +110,7 @@ class TestDatabaseMapping(unittest.TestCase):
     def test_add_parameter_value_without_type_gives_error(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="Widget"))
-            self._assert_success(db_map.add_entity_item(name="spoon", class_name="Widget"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Widget"))
             self._assert_success(db_map.add_parameter_definition_item(name="size", entity_class_name="Widget"))
             self.assertRaises(
                 SpineDBAPIError,
@@ -188,7 +187,9 @@ class TestDatabaseMapping(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_item("entity_class", name="fish", description="It swims."))
                 self._assert_success(
-                    db_map.add_item("entity", class_name="fish", name="Nemo", description="Peacefully swimming away.")
+                    db_map.add_item(
+                        "entity", entity_class_name="fish", name="Nemo", description="Peacefully swimming away."
+                    )
                 )
                 self._assert_success(db_map.add_item("parameter_definition", entity_class_name="fish", name="color"))
                 value, type_ = to_database("mainly orange")
@@ -230,15 +231,15 @@ class TestDatabaseMapping(unittest.TestCase):
                     )
                 )
                 self._assert_success(
-                    db_map.add_item("entity", class_name="fish", name="Nemo", description="Lost (soon).")
+                    db_map.add_item("entity", entity_class_name="fish", name="Nemo", description="Lost (soon).")
                 )
                 self._assert_success(
                     db_map.add_item(
-                        "entity", class_name="cat", name="Felix", description="The wonderful wonderful cat."
+                        "entity", entity_class_name="cat", name="Felix", description="The wonderful wonderful cat."
                     )
                 )
                 self._assert_success(
-                    db_map.add_item("entity", class_name="fish__cat", element_name_list=("Nemo", "Felix"))
+                    db_map.add_item("entity", entity_class_name="fish__cat", element_name_list=("Nemo", "Felix"))
                 )
                 self._assert_success(
                     db_map.add_item("parameter_definition", entity_class_name="fish__cat", name="rate")
@@ -271,7 +272,9 @@ class TestDatabaseMapping(unittest.TestCase):
         with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
             self._assert_success(db_map.add_item("entity_class", name="fish", description="It swims."))
             self._assert_success(
-                db_map.add_item("entity", class_name="fish", name="Nemo", description="Peacefully swimming away.")
+                db_map.add_item(
+                    "entity", entity_class_name="fish", name="Nemo", description="Peacefully swimming away."
+                )
             )
             self._assert_success(db_map.add_item("parameter_definition", entity_class_name="fish", name="color"))
             value, type_ = to_database("mainly orange")
@@ -294,7 +297,7 @@ class TestDatabaseMapping(unittest.TestCase):
                 alternative_name="Base",
             )
             self.assertIsNotNone(color)
-            fish = db_map.get_item("entity", class_name="fish", name="Nemo")
+            fish = db_map.get_item("entity", entity_class_name="fish", name="Nemo")
             self.assertIsNotNone(fish)
             fish.update(name="NotNemo")
             self.assertEqual(fish["name"], "NotNemo")
@@ -318,15 +321,15 @@ class TestDatabaseMapping(unittest.TestCase):
     def test_update_entity_metadata_by_changing_its_entity(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="my_class"))
-            self._assert_success(db_map.add_entity_item(name="entity_1", class_name="my_class"))
-            entity_2 = self._assert_success(db_map.add_entity_item(name="entity_2", class_name="my_class"))
+            self._assert_success(db_map.add_entity_item(name="entity_1", entity_class_name="my_class"))
+            entity_2 = self._assert_success(db_map.add_entity_item(name="entity_2", entity_class_name="my_class"))
             metadata_value = '{"sources": [], "contributors": []}'
             metadata = self._assert_success(db_map.add_metadata_item(name="my_metadata", value=metadata_value))
             entity_metadata = self._assert_success(
                 db_map.add_entity_metadata_item(
                     metadata_name="my_metadata",
                     metadata_value=metadata_value,
-                    class_name="my_class",
+                    entity_class_name="my_class",
                     entity_byname=("entity_1",),
                 )
             )
@@ -334,7 +337,7 @@ class TestDatabaseMapping(unittest.TestCase):
             self.assertEqual(
                 entity_metadata.extended(),
                 {
-                    "class_name": "my_class",
+                    "entity_class_name": "my_class",
                     "entity_byname": ("entity_2",),
                     "entity_id": entity_2["id"],
                     "id": entity_metadata["id"],
@@ -347,7 +350,7 @@ class TestDatabaseMapping(unittest.TestCase):
             entity_sq = (
                 db_map.query(
                     db_map.entity_sq.c.id.label("entity_id"),
-                    db_map.entity_class_sq.c.name.label("class_name"),
+                    db_map.entity_class_sq.c.name.label("entity_class_name"),
                     db_map.entity_sq.c.name.label("entity_name"),
                 )
                 .join(db_map.entity_class_sq, db_map.entity_class_sq.c.id == db_map.entity_sq.c.class_id)
@@ -356,7 +359,7 @@ class TestDatabaseMapping(unittest.TestCase):
             metadata_records = (
                 db_map.query(
                     db_map.entity_metadata_sq.c.id,
-                    entity_sq.c.class_name,
+                    entity_sq.c.entity_class_name,
                     entity_sq.c.entity_name,
                     db_map.metadata_sq.c.name.label("metadata_name"),
                     db_map.metadata_sq.c.value.label("metadata_value"),
@@ -370,7 +373,7 @@ class TestDatabaseMapping(unittest.TestCase):
                 dict(**metadata_records[0]),
                 {
                     "id": 1,
-                    "class_name": "my_class",
+                    "entity_class_name": "my_class",
                     "entity_name": "entity_2",
                     "metadata_name": "my_metadata",
                     "metadata_value": metadata_value,
@@ -382,7 +385,7 @@ class TestDatabaseMapping(unittest.TestCase):
             entity_class = self._assert_success(db_map.add_entity_class_item(name="my_class"))
             self._assert_success(db_map.add_parameter_definition_item(name="x", entity_class_name="my_class"))
             self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="my_class"))
-            self._assert_success(db_map.add_entity_item(name="my_entity", class_name="my_class"))
+            self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
             value, value_type = to_database(2.3)
             self._assert_success(
                 db_map.add_parameter_value_item(
@@ -411,7 +414,7 @@ class TestDatabaseMapping(unittest.TestCase):
                 db_map.add_parameter_value_metadata_item(
                     metadata_name="my_metadata",
                     metadata_value=metadata_value,
-                    class_name="my_class",
+                    entity_class_name="my_class",
                     entity_byname=("my_entity",),
                     parameter_definition_name="x",
                     alternative_name="Base",
@@ -421,7 +424,7 @@ class TestDatabaseMapping(unittest.TestCase):
             self.assertEqual(
                 value_metadata.extended(),
                 {
-                    "class_name": "my_class",
+                    "entity_class_name": "my_class",
                     "entity_byname": ("my_entity",),
                     "alternative_name": "Base",
                     "parameter_definition_name": "y",
@@ -436,7 +439,7 @@ class TestDatabaseMapping(unittest.TestCase):
             parameter_sq = (
                 db_map.query(
                     db_map.parameter_value_sq.c.id.label("value_id"),
-                    db_map.entity_class_sq.c.name.label("class_name"),
+                    db_map.entity_class_sq.c.name.label("entity_class_name"),
                     db_map.entity_sq.c.name.label("entity_name"),
                     db_map.parameter_definition_sq.c.name.label("parameter_definition_name"),
                     db_map.alternative_sq.c.name.label("alternative_name"),
@@ -455,7 +458,7 @@ class TestDatabaseMapping(unittest.TestCase):
             metadata_records = (
                 db_map.query(
                     db_map.parameter_value_metadata_sq.c.id,
-                    parameter_sq.c.class_name,
+                    parameter_sq.c.entity_class_name,
                     parameter_sq.c.entity_name,
                     parameter_sq.c.parameter_definition_name,
                     parameter_sq.c.alternative_name,
@@ -471,7 +474,7 @@ class TestDatabaseMapping(unittest.TestCase):
                 dict(**metadata_records[0]),
                 {
                     "id": 1,
-                    "class_name": "my_class",
+                    "entity_class_name": "my_class",
                     "entity_name": "my_entity",
                     "parameter_definition_name": "y",
                     "alternative_name": "Base",
@@ -489,10 +492,10 @@ class TestDatabaseMapping(unittest.TestCase):
     def test_fetch_more_after_commit(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_item("entity_class", name="Widget")
-            db_map.add_item("entity", class_name="Widget", name="gadget")
+            db_map.add_item("entity", entity_class_name="Widget", name="gadget")
             db_map.commit_session("Add test data.")
             entities = db_map.fetch_more("entity")
-            self.assertEqual([(x["class_name"], x["name"]) for x in entities], [("Widget", "gadget")])
+            self.assertEqual([(x["entity_class_name"], x["name"]) for x in entities], [("Widget", "gadget")])
 
     def test_has_external_commits_returns_false_initially(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -531,16 +534,16 @@ class TestDatabaseMapping(unittest.TestCase):
                 self._assert_success(db_map.add_entity_class_item(name="dog"))
                 self._assert_success(db_map.add_entity_class_item(name="cat"))
                 self._assert_success(db_map.add_entity_class_item(name="dog__cat", dimension_name_list=("dog", "cat")))
-                self._assert_success(db_map.add_entity_item(name="Pulgoso", class_name="dog"))
-                self._assert_success(db_map.add_entity_item(name="Sylvester", class_name="cat"))
-                self._assert_success(db_map.add_entity_item(name="Tom", class_name="cat"))
+                self._assert_success(db_map.add_entity_item(name="Pulgoso", entity_class_name="dog"))
+                self._assert_success(db_map.add_entity_item(name="Sylvester", entity_class_name="cat"))
+                self._assert_success(db_map.add_entity_item(name="Tom", entity_class_name="cat"))
                 db_map.commit_session("Arf!")
             with DatabaseMapping(url) as db_map:
                 # Remove the entity in the middle and add a multi-D one referring to the third entity.
                 # The multi-D one will go in the middle.
-                db_map.get_entity_item(name="Sylvester", class_name="cat").remove()
+                db_map.get_entity_item(name="Sylvester", entity_class_name="cat").remove()
                 self._assert_success(
-                    db_map.add_entity_item(element_name_list=("Pulgoso", "Tom"), class_name="dog__cat")
+                    db_map.add_entity_item(element_name_list=("Pulgoso", "Tom"), entity_class_name="dog__cat")
                 )
                 db_map.commit_session("Meow!")
             with DatabaseMapping(url) as db_map:
@@ -599,10 +602,12 @@ class TestDatabaseMapping(unittest.TestCase):
     def test_committing_entity_group_items_doesnt_add_commit_ids_to_them(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="my_class"))
-            self._assert_success(db_map.add_entity_item(name="element", class_name="my_class"))
-            self._assert_success(db_map.add_entity_item(name="container", class_name="my_class"))
+            self._assert_success(db_map.add_entity_item(name="element", entity_class_name="my_class"))
+            self._assert_success(db_map.add_entity_item(name="container", entity_class_name="my_class"))
             self._assert_success(
-                db_map.add_entity_group_item(group_name="container", member_name="element", class_name="my_class")
+                db_map.add_entity_group_item(
+                    group_name="container", member_name="element", entity_class_name="my_class"
+                )
             )
             db_map.commit_session("Add entity group.")
             groups = db_map.get_entity_group_items()
@@ -617,7 +622,7 @@ class TestDatabaseMapping(unittest.TestCase):
                 self.assertEqual(len(items), 0)
                 with DatabaseMapping(url) as shadow_db_map:
                     self._assert_success(shadow_db_map.add_entity_class_item(name="my_class"))
-                    self._assert_success(shadow_db_map.add_entity_item(name="my_entity", class_name="my_class"))
+                    self._assert_success(shadow_db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
                     shadow_db_map.commit_session("Add entity.")
                 items = db_map.get_items("entity")
                 self.assertEqual(len(items), 1)
@@ -676,7 +681,7 @@ class TestDatabaseMapping(unittest.TestCase):
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
-                self._assert_success(db_map.add_entity_item(name="my_entity", class_name="my_class"))
+                self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
                 db_map.commit_session("Add initial data.")
                 with DatabaseMapping(url) as shadow_db_map:
                     items = shadow_db_map.fetch_more("entity")
@@ -697,7 +702,7 @@ class TestDatabaseMapping(unittest.TestCase):
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
             with DatabaseMapping(url, create=True) as db_map:
                 removed_item = self._assert_success(db_map.add_entity_class_item(name="my_class"))
-                self._assert_success(db_map.add_entity_item(name="my_entity", class_name="my_class"))
+                self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
                 db_map.commit_session("Add initial data.")
                 removed_item.remove()
                 db_map.commit_session("Remove entity class.")
@@ -717,7 +722,7 @@ class TestDatabaseMapping(unittest.TestCase):
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
-                item = self._assert_success(db_map.add_entity_item(class_name="my_class", name="my_entity"))
+                item = self._assert_success(db_map.add_entity_item(entity_class_name="my_class", name="my_entity"))
                 original_id = item["id"]
                 db_map.commit_session("Add initial data.")
                 items = db_map.fetch_more("entity")
@@ -726,7 +731,9 @@ class TestDatabaseMapping(unittest.TestCase):
                 db_map.commit_session("Removed entity.")
                 self.assertEqual(len(db_map.get_entity_items()), 0)
                 with DatabaseMapping(url) as shadow_db_map:
-                    self._assert_success(shadow_db_map.add_entity_item(class_name="my_class", name="other_entity"))
+                    self._assert_success(
+                        shadow_db_map.add_entity_item(entity_class_name="my_class", name="other_entity")
+                    )
                     shadow_db_map.commit_session("Add entity with different name, probably reusing previous id.")
                 items = db_map.fetch_more("entity")
                 self.assertEqual(len(items), 1)
@@ -750,7 +757,9 @@ class TestDatabaseMapping(unittest.TestCase):
                 self._assert_success(
                     db_map.add_parameter_definition_item(name="quantity", entity_class_name="filler_class")
                 )
-                self._assert_success(db_map.add_entity_item(name="object_of_interest", class_name="interesting_class"))
+                self._assert_success(
+                    db_map.add_entity_item(name="object_of_interest", entity_class_name="interesting_class")
+                )
                 value, value_type = to_database(2.3)
                 self._assert_success(
                     db_map.add_parameter_value_item(
@@ -763,14 +772,14 @@ class TestDatabaseMapping(unittest.TestCase):
                     )
                 )
                 db_map.commit_session("Add initial data")
-                removed_item = db_map.get_entity_item(name="object_of_interest", class_name="interesting_class")
+                removed_item = db_map.get_entity_item(name="object_of_interest", entity_class_name="interesting_class")
                 removed_item.remove()
                 db_map.commit_session("Remove object of interest")
                 with DatabaseMapping(url) as shadow_db_map:
                     self._assert_success(
-                        shadow_db_map.add_entity_item(name="other_entity", class_name="interesting_class")
+                        shadow_db_map.add_entity_item(name="other_entity", entity_class_name="interesting_class")
                     )
-                    self._assert_success(shadow_db_map.add_entity_item(name="filler", class_name="filler_class"))
+                    self._assert_success(shadow_db_map.add_entity_item(name="filler", entity_class_name="filler_class"))
                     value, value_type = to_database(-2.3)
                     self._assert_success(
                         shadow_db_map.add_parameter_value_item(
@@ -806,7 +815,7 @@ class TestDatabaseMapping(unittest.TestCase):
                         "element_id_list": (),
                         "element_name_list": (),
                         "commit_id": -4,
-                        "class_name": "interesting_class",
+                        "entity_class_name": "interesting_class",
                         "dimension_id_list": (),
                         "dimension_name_list": (),
                         "element_byname_list": (),
@@ -824,7 +833,7 @@ class TestDatabaseMapping(unittest.TestCase):
                         "element_id_list": (),
                         "element_name_list": (),
                         "commit_id": -4,
-                        "class_name": "filler_class",
+                        "entity_class_name": "filler_class",
                         "dimension_id_list": (),
                         "dimension_name_list": (),
                         "element_byname_list": (),
@@ -891,24 +900,26 @@ class TestDatabaseMapping(unittest.TestCase):
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
-                self._assert_success(db_map.add_entity_item(name="my_entity", class_name="my_class"))
+                self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
                 metadata_value = '{"sources": [], "contributors": []}'
                 self._assert_success(db_map.add_metadata_item(name="my_metadata", value=metadata_value))
                 self._assert_success(
                     db_map.add_entity_metadata_item(
                         metadata_name="my_metadata",
                         metadata_value=metadata_value,
-                        class_name="my_class",
+                        entity_class_name="my_class",
                         entity_byname=("my_entity",),
                     )
                 )
                 db_map.commit_session("Add initial data.")
                 with DatabaseMapping(url) as shadow_db_map:
-                    self._assert_success(shadow_db_map.add_entity_item(name="other_entity", class_name="my_class"))
+                    self._assert_success(
+                        shadow_db_map.add_entity_item(name="other_entity", entity_class_name="my_class")
+                    )
                     metadata_item = shadow_db_map.get_entity_metadata_item(
                         metadata_name="my_metadata",
                         metadata_value=metadata_value,
-                        class_name="my_class",
+                        entity_class_name="my_class",
                         entity_byname=("my_entity",),
                     )
                     self.assertTrue(metadata_item)
@@ -920,7 +931,7 @@ class TestDatabaseMapping(unittest.TestCase):
                     metadata_items[0].extended(),
                     {
                         "id": -1,
-                        "class_name": "my_class",
+                        "entity_class_name": "my_class",
                         "entity_byname": ("my_entity",),
                         "entity_id": -1,
                         "metadata_id": -1,
@@ -934,7 +945,7 @@ class TestDatabaseMapping(unittest.TestCase):
                     metadata_items[1].extended(),
                     {
                         "id": -2,
-                        "class_name": "my_class",
+                        "entity_class_name": "my_class",
                         "entity_byname": ("other_entity",),
                         "entity_id": -2,
                         "metadata_id": -1,
@@ -951,7 +962,7 @@ class TestDatabaseMapping(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 self._assert_success(db_map.add_parameter_definition_item(name="x", entity_class_name="my_class"))
-                self._assert_success(db_map.add_entity_item(name="my_entity", class_name="my_class"))
+                self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
                 value, value_type = to_database(2.3)
                 self._assert_success(
                     db_map.add_parameter_value_item(
@@ -969,7 +980,7 @@ class TestDatabaseMapping(unittest.TestCase):
                     db_map.add_parameter_value_metadata_item(
                         metadata_name="my_metadata",
                         metadata_value=metadata_value,
-                        class_name="my_class",
+                        entity_class_name="my_class",
                         entity_byname=("my_entity",),
                         parameter_definition_name="x",
                         alternative_name="Base",
@@ -977,7 +988,9 @@ class TestDatabaseMapping(unittest.TestCase):
                 )
                 db_map.commit_session("Add initial data.")
                 with DatabaseMapping(url) as shadow_db_map:
-                    self._assert_success(shadow_db_map.add_entity_item(name="other_entity", class_name="my_class"))
+                    self._assert_success(
+                        shadow_db_map.add_entity_item(name="other_entity", entity_class_name="my_class")
+                    )
                     value, value_type = to_database(5.0)
                     self._assert_success(
                         shadow_db_map.add_parameter_value_item(
@@ -992,7 +1005,7 @@ class TestDatabaseMapping(unittest.TestCase):
                     metadata_item = shadow_db_map.get_parameter_value_metadata_item(
                         metadata_name="my_metadata",
                         metadata_value=metadata_value,
-                        class_name="my_class",
+                        entity_class_name="my_class",
                         entity_byname=("my_entity",),
                         parameter_definition_name="x",
                         alternative_name="Base",
@@ -1006,7 +1019,7 @@ class TestDatabaseMapping(unittest.TestCase):
                     metadata_items[0].extended(),
                     {
                         "id": -1,
-                        "class_name": "my_class",
+                        "entity_class_name": "my_class",
                         "parameter_definition_name": "x",
                         "parameter_value_id": -1,
                         "entity_byname": ("my_entity",),
@@ -1022,7 +1035,7 @@ class TestDatabaseMapping(unittest.TestCase):
                     metadata_items[1].extended(),
                     {
                         "id": -2,
-                        "class_name": "my_class",
+                        "entity_class_name": "my_class",
                         "parameter_definition_name": "x",
                         "parameter_value_id": -2,
                         "entity_byname": ("other_entity",),
@@ -1040,7 +1053,7 @@ class TestDatabaseMapping(unittest.TestCase):
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
-                self._assert_success(db_map.add_entity_item(name="my_entity", class_name="my_class"))
+                self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
                 self._assert_success(
                     db_map.add_entity_alternative_item(
                         entity_byname=("my_entity",),
@@ -1051,7 +1064,9 @@ class TestDatabaseMapping(unittest.TestCase):
                 )
                 db_map.commit_session("Add initial data.")
                 with DatabaseMapping(url) as shadow_db_map:
-                    self._assert_success(shadow_db_map.add_entity_item(name="other_entity", class_name="my_class"))
+                    self._assert_success(
+                        shadow_db_map.add_entity_item(name="other_entity", entity_class_name="my_class")
+                    )
                     entity_alternative = shadow_db_map.get_entity_alternative_item(
                         entity_class_name="my_class", entity_byname=("my_entity",), alternative_name="Base"
                     )
@@ -1147,7 +1162,7 @@ class TestDatabaseMapping(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 self._assert_success(db_map.add_parameter_definition_item(name="x", entity_class_name="my_class"))
-                my_entity = self._assert_success(db_map.add_entity_item(name="my_entity", class_name="my_class"))
+                my_entity = self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
                 value, value_type = to_database(2.3)
                 self._assert_success(
                     db_map.add_parameter_value_item(
@@ -1163,7 +1178,9 @@ class TestDatabaseMapping(unittest.TestCase):
                 my_entity.remove()
                 db_map.commit_session("Remove entity.")
                 with DatabaseMapping(url) as shadow_db_map:
-                    self._assert_success(shadow_db_map.add_entity_item(name="other_entity", class_name="my_class"))
+                    self._assert_success(
+                        shadow_db_map.add_entity_item(name="other_entity", entity_class_name="my_class")
+                    )
                     self._assert_success(
                         shadow_db_map.add_parameter_value_item(
                             entity_class_name="my_class",
@@ -1208,16 +1225,18 @@ class TestDatabaseMapping(unittest.TestCase):
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
-                self._assert_success(db_map.add_entity_item(name="ghost", class_name="my_class"))
+                self._assert_success(db_map.add_entity_item(name="ghost", entity_class_name="my_class"))
                 db_map.commit_session("Add soon-to-be-removed entity.")
                 db_map.purge_items("entity")
                 db_map.commit_session("Purge entities.")
                 with DatabaseMapping(url) as shadow_db_map:
-                    self._assert_success(shadow_db_map.add_entity_item(name="other_entity", class_name="my_class"))
+                    self._assert_success(
+                        shadow_db_map.add_entity_item(name="other_entity", entity_class_name="my_class")
+                    )
                     shadow_db_map.commit_session("Add another entity that steals ghost's id.")
                 db_map.do_fetch_all("entity")
                 self.assertFalse(db_map.any_uncommitted_items())
-                self._assert_success(db_map.add_entity_item(name="dirty_entity", class_name="my_class"))
+                self._assert_success(db_map.add_entity_item(name="dirty_entity", entity_class_name="my_class"))
                 self.assertTrue(db_map.any_uncommitted_items())
                 db_map.commit_session("Add still uncommitted entity.")
                 entities = db_map.query(db_map.wide_entity_sq).all()
@@ -1229,10 +1248,12 @@ class TestDatabaseMapping(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 db_map.commit_session("Add entity_class.")
-                self._assert_success(db_map.add_entity_item(name="my_entity", class_name="my_class"))
+                self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
                 db_map.purge_items("entity")
                 with DatabaseMapping(url) as shadow_db_map:
-                    self._assert_success(shadow_db_map.add_entity_item(name="other_entity", class_name="my_class"))
+                    self._assert_success(
+                        shadow_db_map.add_entity_item(name="other_entity", entity_class_name="my_class")
+                    )
                     shadow_db_map.commit_session("Add another entity that should not be purged.")
                 db_map.reset_purging()
                 entities = db_map.get_entity_items("entity")
@@ -1285,7 +1306,6 @@ class TestDatabaseMappingLegacy(unittest.TestCase):
             ) as mock_load:
                 db_map = CustomDatabaseMapping(sa_url, create=True)
                 db_map.close()
-
                 mock_load.assert_called_once_with(["fltr1", "fltr2"])
                 mock_apply.assert_called_once_with(db_map, [{"fltr1": "config1", "fltr2": "config2"}])
 
@@ -1801,7 +1821,7 @@ class TestDatabaseMappingGet(unittest.TestCase):
     def test_get_entity_class_items_check_fields(self):
         import_functions.import_data(self._db_map, entity_classes=(("fish",),))
         with self.assertRaises(SpineDBAPIError):
-            self._db_map.get_entity_class_item(class_name="fish")
+            self._db_map.get_entity_class_item(entity_class_name="fish")
         with self.assertRaises(SpineDBAPIError):
             self._db_map.get_entity_class_item(name=("fish",))
         self._db_map.get_entity_class_item(name="fish")
@@ -1884,7 +1904,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         """Test that adding object classes with empty name raises error"""
         self._db_map.add_object_classes({"name": "fish"})
         with self.assertRaises(SpineIntegrityError):
-            self._db_map.add_objects({"name": "", "class_name": "fish"}, strict=True)
+            self._db_map.add_objects({"name": "", "entity_class_name": "fish"}, strict=True)
 
     def test_add_objects_with_same_name(self):
         """Test that adding two objects with the same name only adds one of them."""
@@ -2603,7 +2623,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         count, errors = import_functions.import_entities(self._db_map, (("fish", "Nemo"), ("dog", "Pulgoso")))
         self.assertEqual(errors, [])
         self._db_map.commit_session("Add test data.")
-        item, error = self._db_map.add_item("entity", class_name="two_animals", element_name_list=("Nemo", "Pulgoso"))
+        item, error = self._db_map.add_item(
+            "entity", entity_class_name="two_animals", element_name_list=("Nemo", "Pulgoso")
+        )
         self.assertTrue(item)
         self.assertFalse(error)
         self._db_map.commit_session("Add test data.")
@@ -3555,8 +3577,8 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         self._db_map.reset()
         self._db_map.remove_items("entity_class", 1)
         self._db_map.commit_session("test commit")
-        entities = self._db_map.query(self._db_map.entity_sq).all()
-        self.assertEqual(entities, [])
+        ents = self._db_map.query(self._db_map.entity_sq).all()
+        self.assertEqual(ents, [])
 
 
 if __name__ == "__main__":

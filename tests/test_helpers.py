@@ -77,7 +77,7 @@ class TestQueryByname(unittest.TestCase):
     def test_zero_dimension_entity(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="my_class"))
-            self._assert_success(db_map.add_entity_item(name="my_entity", class_name="my_class"))
+            self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
             db_map.commit_session("Add entity.")
             entity_row = db_map.query(db_map.wide_entity_sq).one()
             self.assertEqual(query_byname(entity_row, db_map), ("my_entity",))
@@ -86,13 +86,13 @@ class TestQueryByname(unittest.TestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="class_1"))
             self._assert_success(db_map.add_entity_class_item(name="class_2"))
-            self._assert_success(db_map.add_entity_item(name="entity_1", class_name="class_1"))
-            self._assert_success(db_map.add_entity_item(name="entity_2", class_name="class_2"))
+            self._assert_success(db_map.add_entity_item(name="entity_1", entity_class_name="class_1"))
+            self._assert_success(db_map.add_entity_item(name="entity_2", entity_class_name="class_2"))
             self._assert_success(
                 db_map.add_entity_class_item(name="relationship", dimension_name_list=("class_1", "class_2"))
             )
             relationship = self._assert_success(
-                db_map.add_entity_item(class_name="relationship", element_name_list=("entity_1", "entity_2"))
+                db_map.add_entity_item(entity_class_name="relationship", element_name_list=("entity_1", "entity_2"))
             )
             db_map.commit_session("Add entities")
             entity_row = (
@@ -106,19 +106,19 @@ class TestQueryByname(unittest.TestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="class_1"))
             self._assert_success(db_map.add_entity_class_item(name="class_2"))
-            self._assert_success(db_map.add_entity_item(name="entity_1", class_name="class_1"))
-            self._assert_success(db_map.add_entity_item(name="entity_2", class_name="class_2"))
+            self._assert_success(db_map.add_entity_item(name="entity_1", entity_class_name="class_1"))
+            self._assert_success(db_map.add_entity_item(name="entity_2", entity_class_name="class_2"))
             self._assert_success(
                 db_map.add_entity_class_item(name="relationship_1", dimension_name_list=("class_1", "class_2"))
             )
             relationship_1 = self._assert_success(
-                db_map.add_entity_item(class_name="relationship_1", element_name_list=("entity_1", "entity_2"))
+                db_map.add_entity_item(entity_class_name="relationship_1", element_name_list=("entity_1", "entity_2"))
             )
             self._assert_success(
                 db_map.add_entity_class_item(name="relationship_2", dimension_name_list=("class_2", "class_1"))
             )
             relationship_2 = self._assert_success(
-                db_map.add_entity_item(class_name="relationship_2", element_name_list=("entity_2", "entity_1"))
+                db_map.add_entity_item(entity_class_name="relationship_2", element_name_list=("entity_2", "entity_1"))
             )
             self._assert_success(
                 db_map.add_entity_class_item(
@@ -127,7 +127,8 @@ class TestQueryByname(unittest.TestCase):
             )
             superrelationship = self._assert_success(
                 db_map.add_entity_item(
-                    class_name="super_relationship", element_name_list=(relationship_1["name"], relationship_2["name"])
+                    entity_class_name="super_relationship",
+                    element_name_list=(relationship_1["name"], relationship_2["name"]),
                 )
             )
             db_map.commit_session("Add entities")

@@ -115,10 +115,10 @@ class EntityClassItem(MappedItemBase):
 
 class EntityItem(MappedItemBase):
     fields = {
-        'class_name': {'type': str, 'value': 'The entity class name.'},
+        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
         'name': {'type': str, 'value': 'The entity name.'},
         'element_name_list': {'type': tuple, 'value': 'The element names if the entity is multi-dimensional.'},
-        'byname': {
+        'entity_byname': {
             'type': tuple,
             'value': 'A tuple with the entity name as single element if the entity is zero-dimensional,'
             'or the element names if it is multi-dimensional.',
@@ -127,23 +127,23 @@ class EntityItem(MappedItemBase):
     }
 
     _defaults = {"description": None}
-    _unique_keys = (("class_name", "name"), ("class_name", "byname"))
+    _unique_keys = (("entity_class_name", "name"), ("entity_class_name", "entity_byname"))
     _references = {"class_id": ("entity_class", "id"), "element_id_list": ("entity", "id")}
     _external_fields = {
-        "class_name": ("class_id", "name"),
+        "entity_class_name": ("class_id", "name"),
         "dimension_id_list": ("class_id", "dimension_id_list"),
         "dimension_name_list": ("class_id", "dimension_name_list"),
         "superclass_id": ("class_id", "superclass_id"),
         "superclass_name": ("class_id", "superclass_name"),
         "element_name_list": ("element_id_list", "name"),
-        "element_byname_list": ("element_id_list", "byname"),
+        "element_byname_list": ("element_id_list", "entity_byname"),
     }
     _alt_references = {
-        ("class_name",): ("entity_class", ("name",)),
-        ("dimension_name_list", "element_name_list"): ("entity", ("class_name", "name")),
+        ("entity_class_name",): ("entity_class", ("name",)),
+        ("dimension_name_list", "element_name_list"): ("entity", ("entity_class_name", "name")),
     }
     _internal_fields = {
-        "class_id": (("class_name",), "id"),
+        "class_id": (("entity_class_name",), "id"),
         "element_id_list": (("dimension_name_list", "element_name_list"), "id"),
     }
     _id_fields = {"entity_class": ("class_id",), "entity": ("element_id_list",), "commit": ("commit_id",)}
@@ -163,14 +163,14 @@ class EntityItem(MappedItemBase):
             return True
         if self["name"] != db_item["name"]:
             return False
-        return _fields_equal("entity_class", db_item["class_id"], "name", self["class_name"], self._db_map)
+        return _fields_equal("entity_class", db_item["class_id"], "name", self["entity_class_name"], self._db_map)
 
     @classmethod
     def unique_values_for_item(cls, item, skip_keys=()):
         """Overriden to also yield unique values for the superclass."""
         for key, value in super().unique_values_for_item(item, skip_keys=skip_keys):
             yield key, value
-            sc_value = tuple(item.get("superclass_name" if k == "class_name" else k) for k in key)
+            sc_value = tuple(item.get("superclass_name" if k == "entity_class_name" else k) for k in key)
             if None not in sc_value:
                 yield (key, sc_value)
 
@@ -184,7 +184,7 @@ class EntityItem(MappedItemBase):
                 yield from self._byname_iter(element)
 
     def __getitem__(self, key):
-        if key == "byname":
+        if key == "entity_byname":
             return tuple(self._byname_iter(self))
         return super().__getitem__(key)
 
@@ -193,7 +193,7 @@ class EntityItem(MappedItemBase):
         error = super().resolve_internal_fields(skip_keys=skip_keys)
         if error:
             return error
-        byname = dict.pop(self, "byname", None)
+        byname = dict.pop(self, "entity_byname", None)
         if byname is None:
             return
         dim_count = len(self["dimension_id_list"])
@@ -201,7 +201,7 @@ class EntityItem(MappedItemBase):
             self["name"] = byname[0]
             return
         byname_remainder = list(byname)
-        element_name_list, _ = self._element_name_list_recursive(self["class_name"], byname_remainder)
+        element_name_list, _ = self._element_name_list_recursive(self["entity_class_name"], byname_remainder)
         if len(element_name_list) < dim_count:
             return f"too few elements given for entity ({byname})"
         if byname_remainder:
@@ -209,7 +209,7 @@ class EntityItem(MappedItemBase):
         self["element_name_list"] = element_name_list
         return self._do_resolve_internal_field("element_id_list")
 
-    def _element_name_list_recursive(self, class_name, byname):
+    def _element_name_list_recursive(self, class_name, entity_byname):
         """Returns the element name list corresponding to given class and byname.
         If the class is multi-dimensional then recurses for each dimension.
         If the class is a superclass then it tries for each subclass until finding something useful.
@@ -221,18 +221,23 @@ class EntityItem(MappedItemBase):
             dimension_name_list = self._db_map.get_item("entity_class", name=class_name_).get("dimension_name_list")
             if not dimension_name_list:
                 continue
-            byname_backup = list(byname)
+            byname_backup = list(entity_byname)
             element_name_list = tuple(
                 self._db_map.get_item(
                     "entity",
-                    **dict(zip(("byname", "class_name"), self._element_name_list_recursive(dim_name, byname))),
+                    **dict(
+                        zip(
+                            ("entity_byname", "entity_class_name"),
+                            self._element_name_list_recursive(dim_name, entity_byname),
+                        )
+                    ),
                 ).get("name")
                 for dim_name in dimension_name_list
             )
             if None not in element_name_list:
                 return element_name_list, class_name_
-            byname = byname_backup
-        name = byname.pop(0) if byname else None
+            entity_byname = byname_backup
+        name = entity_byname.pop(0) if entity_byname else None
         return (name,), class_name
 
     def polish(self):
@@ -242,7 +247,7 @@ class EntityItem(MappedItemBase):
         dim_name_lst, el_name_lst = dict.get(self, "dimension_name_list"), dict.get(self, "element_name_list")
         if dim_name_lst and el_name_lst:
             for dim_name, el_name in zip(dim_name_lst, el_name_lst):
-                if not self._db_map.get_item("entity", class_name=dim_name, name=el_name, fetch=False):
+                if not self._db_map.get_item("entity", entity_class_name=dim_name, name=el_name, fetch=False):
                     return f"element '{el_name}' is not an instance of class '{dim_name}'"
         if self.get("name") is not None:
             return
@@ -250,8 +255,8 @@ class EntityItem(MappedItemBase):
         name = base_name
         index = 1
         while any(
-            self._db_map.get_item("entity", class_name=self[k], name=name)
-            for k in ("class_name", "superclass_name")
+            self._db_map.get_item("entity", entity_class_name=self[k], name=name)
+            for k in ("entity_class_name", "superclass_name")
             if self[k] is not None
         ):
             name = f"{base_name}_{index}"
@@ -261,31 +266,31 @@ class EntityItem(MappedItemBase):
 
 class EntityGroupItem(MappedItemBase):
     fields = {
-        'class_name': {'type': str, 'value': 'The entity class name.'},
+        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
         'group_name': {'type': str, 'value': 'The group entity name.'},
         'member_name': {'type': str, 'value': 'The member entity name.'},
     }
-    _unique_keys = (("class_name", "group_name", "member_name"),)
+    _unique_keys = (("entity_class_name", "group_name", "member_name"),)
     _references = {
         "entity_class_id": ("entity_class", "id"),
         "entity_id": ("entity", "id"),
         "member_id": ("entity", "id"),
     }
     _external_fields = {
-        "class_name": ("entity_class_id", "name"),
+        "entity_class_name": ("entity_class_id", "name"),
         "dimension_id_list": ("entity_class_id", "dimension_id_list"),
         "group_name": ("entity_id", "name"),
         "member_name": ("member_id", "name"),
     }
     _alt_references = {
-        ("class_name",): ("entity_class", ("name",)),
-        ("class_name", "group_name"): ("entity", ("class_name", "name")),
-        ("class_name", "member_name"): ("entity", ("class_name", "name")),
+        ("entity_class_name",): ("entity_class", ("name",)),
+        ("entity_class_name", "group_name"): ("entity", ("entity_class_name", "name")),
+        ("entity_class_name", "member_name"): ("entity", ("entity_class_name", "name")),
     }
     _internal_fields = {
-        "entity_class_id": (("class_name",), "id"),
-        "entity_id": (("class_name", "group_name"), "id"),
-        "member_id": (("class_name", "member_name"), "id"),
+        "entity_class_id": (("entity_class_name",), "id"),
+        "entity_id": (("entity_class_name", "group_name"), "id"),
+        "member_id": (("entity_class_name", "member_name"), "id"),
     }
     _id_fields = {"entity_class": ("entity_class_id",), "entity": ("entity_id", "member_id")}
     _external_id_fields = {"dimension_id_list"}
@@ -303,7 +308,7 @@ class EntityGroupItem(MappedItemBase):
             return False
         if not _fields_equal("entity", db_item["member_id"], "name", self["member_name"], db_map):
             return False
-        return _fields_equal("entity_class", db_item["entity_class_id"], "name", self["class_name"], db_map)
+        return _fields_equal("entity_class", db_item["entity_class_id"], "name", self["entity_class_name"], db_map)
 
     def commit(self, _commit_id):
         super().commit(None)
@@ -336,13 +341,13 @@ class EntityAlternativeItem(MappedItemBase):
         "dimension_id_list": ("entity_class_id", "dimension_id_list"),
         "dimension_name_list": ("entity_class_id", "dimension_name_list"),
         "entity_name": ("entity_id", "name"),
-        "entity_byname": ("entity_id", "byname"),
+        "entity_byname": ("entity_id", "entity_byname"),
         "element_id_list": ("entity_id", "element_id_list"),
         "element_name_list": ("entity_id", "element_name_list"),
         "alternative_name": ("alternative_id", "name"),
     }
     _alt_references = {
-        ("entity_class_name", "entity_byname"): ("entity", ("class_name", "byname")),
+        ("entity_class_name", "entity_byname"): ("entity", ("entity_class_name", "entity_byname")),
         ("alternative_name",): ("alternative", ("name",)),
     }
     _internal_fields = {
@@ -593,7 +598,7 @@ class ParameterValueItem(ParameterItemBase):
         "parameter_value_list_id": ("parameter_definition_id", "parameter_value_list_id"),
         "parameter_value_list_name": ("parameter_definition_id", "parameter_value_list_name"),
         "entity_name": ("entity_id", "name"),
-        "entity_byname": ("entity_id", "byname"),
+        "entity_byname": ("entity_id", "entity_byname"),
         "element_id_list": ("entity_id", "element_id_list"),
         "element_name_list": ("entity_id", "element_name_list"),
         "alternative_name": ("alternative_id", "name"),
@@ -601,7 +606,7 @@ class ParameterValueItem(ParameterItemBase):
     _alt_references = {
         ("entity_class_name",): ("entity_class", ("name",)),
         ("entity_class_name", "parameter_definition_name"): ("parameter_definition", ("entity_class_name", "name")),
-        ("entity_class_name", "entity_byname"): ("entity", ("class_name", "byname")),
+        ("entity_class_name", "entity_byname"): ("entity", ("entity_class_name", "entity_byname")),
         ("alternative_name",): ("alternative", ("name",)),
     }
     _internal_fields = {
@@ -811,31 +816,31 @@ class MetadataItem(MappedItemBase):
 
 class EntityMetadataItem(MappedItemBase):
     fields = {
-        'class_name': {'type': str, 'value': 'The entity class name.'},
+        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
         'entity_byname': {'type': tuple, 'value': _ENTITY_BYNAME_VALUE},
         'metadata_name': {'type': str, 'value': 'The metadata entry name.'},
         'metadata_value': {'type': str, 'value': 'The metadata entry value.'},
     }
-    _unique_keys = (("class_name", "entity_byname", "metadata_name", "metadata_value"),)
+    _unique_keys = (("entity_class_name", "entity_byname", "metadata_name", "metadata_value"),)
     _references = {
         "entity_id": ("entity", "id"),
         "metadata_id": ("metadata", "id"),
     }
     _external_fields = {
-        "class_name": ("entity_id", "class_name"),
-        "entity_byname": ("entity_id", "byname"),
+        "entity_class_name": ("entity_id", "entity_class_name"),
+        "entity_byname": ("entity_id", "entity_byname"),
         "metadata_name": ("metadata_id", "name"),
         "metadata_value": ("metadata_id", "value"),
     }
     _alt_references = {
         (
-            "class_name",
+            "entity_class_name",
             "entity_byname",
-        ): ("entity", ("class_name", "byname")),
+        ): ("entity", ("entity_class_name", "entity_byname")),
         ("metadata_name", "metadata_value"): ("metadata", ("name", "value")),
     }
     _internal_fields = {
-        "entity_id": (("class_name", "entity_byname"), "id"),
+        "entity_id": (("entity_class_name", "entity_byname"), "id"),
         "metadata_id": (("metadata_name", "metadata_value"), "id"),
     }
     _id_fields = {"entity": ("entity_id",), "metadata": ("metadata_id",), "commit": ("commit_id",)}
@@ -846,7 +851,7 @@ class EntityMetadataItem(MappedItemBase):
         entity_record = self._db_map.make_query("entity", id=db_item["entity_id"]).one_or_none()
         if not entity_record or query_byname(entity_record, self._db_map) != self["entity_byname"]:
             return False
-        if not _fields_equal("entity_class", db_item["class_id"], "name", self["class_name"], self._db_map):
+        if not _fields_equal("entity_class", db_item["class_id"], "name", self["entity_class_name"], self._db_map):
             return False
         record = self._db_map.make_query("metadata", id=db_item["metadata_id"]).one_or_none()
         return record and self["metadata_name"] == record["name"] and self["metadata_value"] == record["value"]
@@ -854,7 +859,7 @@ class EntityMetadataItem(MappedItemBase):
 
 class ParameterValueMetadataItem(MappedItemBase):
     fields = {
-        'class_name': {'type': str, 'value': 'The entity class name.'},
+        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
         'parameter_definition_name': {'type': str, 'value': 'The parameter name.'},
         'entity_byname': {
             'type': tuple,
@@ -866,7 +871,7 @@ class ParameterValueMetadataItem(MappedItemBase):
     }
     _unique_keys = (
         (
-            "class_name",
+            "entity_class_name",
             "parameter_definition_name",
             "entity_byname",
             "alternative_name",
@@ -876,7 +881,7 @@ class ParameterValueMetadataItem(MappedItemBase):
     )
     _references = {"parameter_value_id": ("parameter_value", "id"), "metadata_id": ("metadata", "id")}
     _external_fields = {
-        "class_name": ("parameter_value_id", "entity_class_name"),
+        "entity_class_name": ("parameter_value_id", "entity_class_name"),
         "parameter_definition_name": ("parameter_value_id", "parameter_definition_name"),
         "entity_byname": ("parameter_value_id", "entity_byname"),
         "alternative_name": ("parameter_value_id", "alternative_name"),
@@ -884,7 +889,7 @@ class ParameterValueMetadataItem(MappedItemBase):
         "metadata_value": ("metadata_id", "value"),
     }
     _alt_references = {
-        ("class_name", "parameter_definition_name", "entity_byname", "alternative_name"): (
+        ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"): (
             "parameter_value",
             ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
         ),
@@ -892,7 +897,7 @@ class ParameterValueMetadataItem(MappedItemBase):
     }
     _internal_fields = {
         "parameter_value_id": (
-            ("class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
+            ("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),
             "id",
         ),
         "metadata_id": (("metadata_name", "metadata_value"), "id"),
@@ -906,7 +911,9 @@ class ParameterValueMetadataItem(MappedItemBase):
         entity_record = self._db_map.make_query("entity", id=value_record["entity_id"]).one()
         if query_byname(entity_record, self._db_map) != self["entity_byname"]:
             return False
-        if not _fields_equal("entity_class", value_record["entity_class_id"], "name", self["class_name"], self._db_map):
+        if not _fields_equal(
+            "entity_class", value_record["entity_class_id"], "name", self["entity_class_name"], self._db_map
+        ):
             return False
         if not _fields_equal(
             "parameter_definition",

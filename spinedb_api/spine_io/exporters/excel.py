@@ -122,8 +122,8 @@ def _make_scenario_alternative_mapping():
 
 
 def _make_object_group_mappings(db_map):
-    for obj_grp in db_map.query(db_map.ext_entity_group_sq).group_by(db_map.ext_entity_group_sq.c.class_name):
-        root_mapping = EntityClassMapping(Position.table_name, filter_re=obj_grp.class_name)
+    for obj_grp in db_map.query(db_map.ext_entity_group_sq).group_by(db_map.ext_entity_group_sq.c.entity_class_name):
+        root_mapping = EntityClassMapping(Position.table_name, filter_re=obj_grp.entity_class_name)
         group_mapping = root_mapping.child = FixedValueMapping(Position.table_name, value="group")
         object_mapping = group_mapping.child = EntityMapping(1, header="member")
         object_mapping.child = EntityGroupMapping(0, header="group")
@@ -184,10 +184,10 @@ def _make_relationship_mapping(relationship_class_name, object_class_name_list, 
     root_mapping = EntityClassMapping(Position.table_name, filter_re=f"^{relationship_class_name}$")
     relationship_mapping = root_mapping.child = EntityMapping(Position.hidden)
     parent_mapping = relationship_mapping
-    for d, class_name in enumerate(object_class_name_list):
+    for d, entity_class_name in enumerate(object_class_name_list):
         if pivoted:
             d = -(d + 1)
-        object_mapping = parent_mapping.child = ElementMapping(d, header=class_name)
+        object_mapping = parent_mapping.child = ElementMapping(d, header=entity_class_name)
         parent_mapping = object_mapping
     return root_mapping
 
