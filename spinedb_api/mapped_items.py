@@ -111,7 +111,7 @@ class EntityItem(MappedItemBase):
         'class_name': {'type': str, 'value': 'The entity class name.'},
         'name': {'type': str, 'value': 'The entity name.'},
         'element_name_list': {'type': tuple, 'value': 'The element names if the entity is multi-dimensional.'},
-        'byname': {
+        'entity_byname': {
             'type': tuple,
             'value': 'A tuple with the entity name as single element if the entity is zero-dimensional,'
             'or the element names if it is multi-dimensional.',
@@ -120,7 +120,7 @@ class EntityItem(MappedItemBase):
     }
 
     _defaults = {"description": None}
-    _unique_keys = (("class_name", "name"), ("class_name", "byname"))
+    _unique_keys = (("class_name", "name"), ("class_name", "entity_byname"))
     _references = {"class_id": ("entity_class", "id"), "element_id_list": ("entity", "id")}
     _external_fields = {
         "class_name": ("class_id", "name"),
@@ -129,7 +129,7 @@ class EntityItem(MappedItemBase):
         "superclass_id": ("class_id", "superclass_id"),
         "superclass_name": ("class_id", "superclass_name"),
         "element_name_list": ("element_id_list", "name"),
-        "element_byname_list": ("element_id_list", "byname"),
+        "element_byname_list": ("element_id_list", "entity_byname"),
     }
     _alt_references = {
         ("class_name",): ("entity_class", ("name",)),
@@ -168,7 +168,7 @@ class EntityItem(MappedItemBase):
                 yield from self._byname_iter(element)
 
     def __getitem__(self, key):
-        if key == "byname":
+        if key == "entity_byname":
             return tuple(self._byname_iter(self))
         return super().__getitem__(key)
 
@@ -177,7 +177,7 @@ class EntityItem(MappedItemBase):
         error = super().resolve_internal_fields(skip_keys=skip_keys)
         if error:
             return error
-        byname = dict.pop(self, "byname", None)
+        byname = dict.pop(self, "entity_byname", None)
         if byname is None:
             return
         dim_count = len(self["dimension_id_list"])
@@ -193,7 +193,7 @@ class EntityItem(MappedItemBase):
         self["element_name_list"] = element_name_list
         return self._do_resolve_internal_field("element_id_list")
 
-    def _element_name_list_recursive(self, class_name, byname):
+    def _element_name_list_recursive(self, class_name, entity_byname):
         """Returns the element name list corresponding to given class and byname.
         If the class is multi-dimensional then recurses for each dimension.
         If the class is a superclass then it tries for each subclass until finding something useful.
@@ -205,18 +205,20 @@ class EntityItem(MappedItemBase):
             dimension_name_list = self._db_map.get_item("entity_class", name=class_name_).get("dimension_name_list")
             if not dimension_name_list:
                 continue
-            byname_backup = list(byname)
+            byname_backup = list(entity_byname)
             element_name_list = tuple(
                 self._db_map.get_item(
                     "entity",
-                    **dict(zip(("byname", "class_name"), self._element_name_list_recursive(dim_name, byname))),
+                    **dict(
+                        zip(("entity_byname", "class_name"), self._element_name_list_recursive(dim_name, entity_byname))
+                    ),
                 ).get("name")
                 for dim_name in dimension_name_list
             )
             if None not in element_name_list:
                 return element_name_list, class_name_
-            byname = byname_backup
-        name = byname.pop(0) if byname else None
+            entity_byname = byname_backup
+        name = entity_byname.pop(0) if entity_byname else None
         return (name,), class_name
 
     def polish(self):
@@ -310,13 +312,13 @@ class EntityAlternativeItem(MappedItemBase):
         "dimension_id_list": ("entity_class_id", "dimension_id_list"),
         "dimension_name_list": ("entity_class_id", "dimension_name_list"),
         "entity_name": ("entity_id", "name"),
-        "entity_byname": ("entity_id", "byname"),
+        "entity_byname": ("entity_id", "entity_byname"),
         "element_id_list": ("entity_id", "element_id_list"),
         "element_name_list": ("entity_id", "element_name_list"),
         "alternative_name": ("alternative_id", "name"),
     }
     _alt_references = {
-        ("entity_class_name", "entity_byname"): ("entity", ("class_name", "byname")),
+        ("entity_class_name", "entity_byname"): ("entity", ("class_name", "entity_byname")),
         ("alternative_name",): ("alternative", ("name",)),
     }
     _internal_fields = {
@@ -530,7 +532,7 @@ class ParameterValueItem(ParameterItemBase):
         "parameter_value_list_id": ("parameter_definition_id", "parameter_value_list_id"),
         "parameter_value_list_name": ("parameter_definition_id", "parameter_value_list_name"),
         "entity_name": ("entity_id", "name"),
-        "entity_byname": ("entity_id", "byname"),
+        "entity_byname": ("entity_id", "entity_byname"),
         "element_id_list": ("entity_id", "element_id_list"),
         "element_name_list": ("entity_id", "element_name_list"),
         "alternative_name": ("alternative_id", "name"),
@@ -538,7 +540,7 @@ class ParameterValueItem(ParameterItemBase):
     _alt_references = {
         ("entity_class_name",): ("entity_class", ("name",)),
         ("entity_class_name", "parameter_definition_name"): ("parameter_definition", ("entity_class_name", "name")),
-        ("entity_class_name", "entity_byname"): ("entity", ("class_name", "byname")),
+        ("entity_class_name", "entity_byname"): ("entity", ("class_name", "entity_byname")),
         ("alternative_name",): ("alternative", ("name",)),
     }
     _internal_fields = {
@@ -692,7 +694,7 @@ class EntityMetadataItem(MappedItemBase):
     }
     _external_fields = {
         "class_name": ("entity_id", "class_name"),
-        "entity_byname": ("entity_id", "byname"),
+        "entity_byname": ("entity_id", "entity_byname"),
         "metadata_name": ("metadata_id", "name"),
         "metadata_value": ("metadata_id", "value"),
     }
@@ -700,7 +702,7 @@ class EntityMetadataItem(MappedItemBase):
         (
             "class_name",
             "entity_byname",
-        ): ("entity", ("class_name", "byname")),
+        ): ("entity", ("class_name", "entity_byname")),
         ("metadata_name", "metadata_value"): ("metadata", ("name", "value")),
     }
     _internal_fields = {

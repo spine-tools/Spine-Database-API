@@ -498,7 +498,7 @@ def _get_superclass_subclasses_for_import(db_map, data):
 
 def _get_entities_for_import(db_map, data):
     items_by_el_count = {}
-    key = ("class_name", "byname", "description")
+    key = ("class_name", "entity_byname", "description")
     for class_name, name_or_el_name_list, *optionals in data:
         if isinstance(name_or_el_name_list, (list, tuple)):
             el_count = len(name_or_el_name_list)
