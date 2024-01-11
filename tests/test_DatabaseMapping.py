@@ -90,7 +90,7 @@ class TestDatabaseMapping(unittest.TestCase):
                 _, error = db_map.add_item("entity_class", name="fish", description="It swims.")
                 self.assertIsNone(error)
                 _, error = db_map.add_item(
-                    "entity", class_name="fish", name="Nemo", description="Peacefully swimming away."
+                    "entity", entity_class_name="fish", name="Nemo", description="Peacefully swimming away."
                 )
                 self.assertIsNone(error)
                 _, error = db_map.add_item("parameter_definition", entity_class_name="fish", name="color")
@@ -133,13 +133,13 @@ class TestDatabaseMapping(unittest.TestCase):
                     description="A fish getting eaten by a cat?",
                 )
                 self.assertIsNone(error)
-                _, error = db_map.add_item("entity", class_name="fish", name="Nemo", description="Lost (soon).")
+                _, error = db_map.add_item("entity", entity_class_name="fish", name="Nemo", description="Lost (soon).")
                 self.assertIsNone(error)
                 _, error = db_map.add_item(
-                    "entity", class_name="cat", name="Felix", description="The wonderful wonderful cat."
+                    "entity", entity_class_name="cat", name="Felix", description="The wonderful wonderful cat."
                 )
                 self.assertIsNone(error)
-                _, error = db_map.add_item("entity", class_name="fish__cat", element_name_list=("Nemo", "Felix"))
+                _, error = db_map.add_item("entity", entity_class_name="fish__cat", element_name_list=("Nemo", "Felix"))
                 self.assertIsNone(error)
                 _, error = db_map.add_item("parameter_definition", entity_class_name="fish__cat", name="rate")
                 self.assertIsNone(error)
@@ -171,7 +171,7 @@ class TestDatabaseMapping(unittest.TestCase):
             _, error = db_map.add_item("entity_class", name="fish", description="It swims.")
             self.assertIsNone(error)
             _, error = db_map.add_item(
-                "entity", class_name="fish", name="Nemo", description="Peacefully swimming away."
+                "entity", entity_class_name="fish", name="Nemo", description="Peacefully swimming away."
             )
             self.assertIsNone(error)
             _, error = db_map.add_item("parameter_definition", entity_class_name="fish", name="color")
@@ -195,7 +195,7 @@ class TestDatabaseMapping(unittest.TestCase):
                 alternative_name="Base",
             )
             self.assertIsNotNone(color)
-            fish = db_map.get_item("entity", class_name="fish", name="Nemo")
+            fish = db_map.get_item("entity", entity_class_name="fish", name="Nemo")
             self.assertIsNotNone(fish)
             fish.update(name="NotNemo")
             self.assertEqual(fish["name"], "NotNemo")
@@ -219,14 +219,14 @@ class TestDatabaseMapping(unittest.TestCase):
     def test_update_entity_metadata_by_changing_its_entity(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             entity_class, _ = db_map.add_entity_class_item(name="my_class")
-            db_map.add_entity_item(name="entity_1", class_name="my_class")
-            entity_2, _ = db_map.add_entity_item(name="entity_2", class_name="my_class")
+            db_map.add_entity_item(name="entity_1", entity_class_name="my_class")
+            entity_2, _ = db_map.add_entity_item(name="entity_2", entity_class_name="my_class")
             metadata_value = '{"sources": [], "contributors": []}'
             metadata, _ = db_map.add_metadata_item(name="my_metadata", value=metadata_value)
             entity_metadata, error = db_map.add_entity_metadata_item(
                 metadata_name="my_metadata",
                 metadata_value=metadata_value,
-                class_name="my_class",
+                entity_class_name="my_class",
                 entity_byname=("entity_1",),
             )
             self.assertIsNone(error)
@@ -234,7 +234,7 @@ class TestDatabaseMapping(unittest.TestCase):
             self.assertEqual(
                 entity_metadata._extended(),
                 {
-                    "class_name": "my_class",
+                    "entity_class_name": "my_class",
                     "entity_byname": ("entity_2",),
                     "entity_id": entity_2["id"],
                     "id": entity_metadata["id"],
@@ -247,7 +247,7 @@ class TestDatabaseMapping(unittest.TestCase):
             entity_sq = (
                 db_map.query(
                     db_map.entity_sq.c.id.label("entity_id"),
-                    db_map.entity_class_sq.c.name.label("class_name"),
+                    db_map.entity_class_sq.c.name.label("entity_class_name"),
                     db_map.entity_sq.c.name.label("entity_name"),
                 )
                 .join(db_map.entity_class_sq, db_map.entity_class_sq.c.id == db_map.entity_sq.c.class_id)
@@ -256,7 +256,7 @@ class TestDatabaseMapping(unittest.TestCase):
             metadata_records = (
                 db_map.query(
                     db_map.entity_metadata_sq.c.id,
-                    entity_sq.c.class_name,
+                    entity_sq.c.entity_class_name,
                     entity_sq.c.entity_name,
                     db_map.metadata_sq.c.name.label("metadata_name"),
                     db_map.metadata_sq.c.value.label("metadata_value"),
@@ -270,7 +270,7 @@ class TestDatabaseMapping(unittest.TestCase):
                 dict(**metadata_records[0]),
                 {
                     "id": 1,
-                    "class_name": "my_class",
+                    "entity_class_name": "my_class",
                     "entity_name": "entity_2",
                     "metadata_name": "my_metadata",
                     "metadata_value": metadata_value,
@@ -283,7 +283,7 @@ class TestDatabaseMapping(unittest.TestCase):
             _, error = db_map.add_parameter_definition_item(name="x", entity_class_name="my_class")
             self.assertIsNone(error)
             db_map.add_parameter_definition_item(name="y", entity_class_name="my_class")
-            entity, _ = db_map.add_entity_item(name="my_entity", class_name="my_class")
+            entity, _ = db_map.add_entity_item(name="my_entity", entity_class_name="my_class")
             value, value_type = to_database(2.3)
             _, error = db_map.add_parameter_value_item(
                 entity_class_name="my_class",
@@ -310,7 +310,7 @@ class TestDatabaseMapping(unittest.TestCase):
             value_metadata, error = db_map.add_parameter_value_metadata_item(
                 metadata_name="my_metadata",
                 metadata_value=metadata_value,
-                class_name="my_class",
+                entity_class_name="my_class",
                 entity_byname=("my_entity",),
                 parameter_definition_name="x",
                 alternative_name="Base",
@@ -320,7 +320,7 @@ class TestDatabaseMapping(unittest.TestCase):
             self.assertEqual(
                 value_metadata._extended(),
                 {
-                    "class_name": "my_class",
+                    "entity_class_name": "my_class",
                     "entity_byname": ("my_entity",),
                     "alternative_name": "Base",
                     "parameter_definition_name": "y",
@@ -335,7 +335,7 @@ class TestDatabaseMapping(unittest.TestCase):
             parameter_sq = (
                 db_map.query(
                     db_map.parameter_value_sq.c.id.label("value_id"),
-                    db_map.entity_class_sq.c.name.label("class_name"),
+                    db_map.entity_class_sq.c.name.label("entity_class_name"),
                     db_map.entity_sq.c.name.label("entity_name"),
                     db_map.parameter_definition_sq.c.name.label("parameter_definition_name"),
                     db_map.alternative_sq.c.name.label("alternative_name"),
@@ -354,7 +354,7 @@ class TestDatabaseMapping(unittest.TestCase):
             metadata_records = (
                 db_map.query(
                     db_map.parameter_value_metadata_sq.c.id,
-                    parameter_sq.c.class_name,
+                    parameter_sq.c.entity_class_name,
                     parameter_sq.c.entity_name,
                     parameter_sq.c.parameter_definition_name,
                     parameter_sq.c.alternative_name,
@@ -370,7 +370,7 @@ class TestDatabaseMapping(unittest.TestCase):
                 dict(**metadata_records[0]),
                 {
                     "id": 1,
-                    "class_name": "my_class",
+                    "entity_class_name": "my_class",
                     "entity_name": "my_entity",
                     "parameter_definition_name": "y",
                     "alternative_name": "Base",
@@ -388,11 +388,11 @@ class TestDatabaseMapping(unittest.TestCase):
     def test_fetch_more_after_commit_and_refresh(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_item("entity_class", name="Widget")
-            db_map.add_item("entity", class_name="Widget", name="gadget")
+            db_map.add_item("entity", entity_class_name="Widget", name="gadget")
             db_map.commit_session("Add test data.")
             db_map.refresh_session()
             entities = db_map.fetch_more("entity")
-            self.assertEqual([(x["class_name"], x["name"]) for x in entities], [("Widget", "gadget")])
+            self.assertEqual([(x["entity_class_name"], x["name"]) for x in entities], [("Widget", "gadget")])
 
     def test_has_external_commits_returns_false_initially(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -431,15 +431,15 @@ class TestDatabaseMapping(unittest.TestCase):
                 db_map.add_entity_class_item(name="dog")
                 db_map.add_entity_class_item(name="cat")
                 db_map.add_entity_class_item(name="dog__cat", dimension_name_list=("dog", "cat"))
-                db_map.add_entity_item(name="Pulgoso", class_name="dog")
-                db_map.add_entity_item(name="Sylvester", class_name="cat")
-                db_map.add_entity_item(name="Tom", class_name="cat")
+                db_map.add_entity_item(name="Pulgoso", entity_class_name="dog")
+                db_map.add_entity_item(name="Sylvester", entity_class_name="cat")
+                db_map.add_entity_item(name="Tom", entity_class_name="cat")
                 db_map.commit_session("Arf!")
             with DatabaseMapping(url) as db_map:
                 # Remove the entity in the middle and add a multi-D one referring to the third entity.
                 # The multi-D one will go in the middle.
-                db_map.get_entity_item(name="Sylvester", class_name="cat").remove()
-                db_map.add_entity_item(element_name_list=("Pulgoso", "Tom"), class_name="dog__cat")
+                db_map.get_entity_item(name="Sylvester", entity_class_name="cat").remove()
+                db_map.add_entity_item(element_name_list=("Pulgoso", "Tom"), entity_class_name="dog__cat")
                 db_map.commit_session("Meow!")
             with DatabaseMapping(url) as db_map:
                 # The ("Pulgoso", "Tom") entity will be fetched before "Tom".
@@ -502,9 +502,9 @@ class TestDatabaseMapping(unittest.TestCase):
     def test_committing_entity_group_items_doesnt_add_commit_ids_to_them(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_entity_class_item(name="my_class")
-            db_map.add_entity_item(name="element", class_name="my_class")
-            db_map.add_entity_item(name="container", class_name="my_class")
-            db_map.add_entity_group_item(group_name="container", member_name="element", class_name="my_class")
+            db_map.add_entity_item(name="element", entity_class_name="my_class")
+            db_map.add_entity_item(name="container", entity_class_name="my_class")
+            db_map.add_entity_group_item(group_name="container", member_name="element", entity_class_name="my_class")
             db_map.commit_session("Add entity group.")
             groups = db_map.get_entity_group_items()
             self.assertEqual(len(groups), 1)
@@ -1059,7 +1059,7 @@ class TestDatabaseMappingGet(unittest.TestCase):
     def test_get_entity_class_items_check_fields(self):
         import_functions.import_data(self._db_map, entity_classes=(("fish",),))
         with self.assertRaises(SpineDBAPIError):
-            self._db_map.get_entity_class_item(class_name="fish")
+            self._db_map.get_entity_class_item(entity_class_name="fish")
         with self.assertRaises(SpineDBAPIError):
             self._db_map.get_entity_class_item(name=("fish",))
         self._db_map.get_entity_class_item(name="fish")
@@ -1142,7 +1142,7 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         """Test that adding object classes with empty name raises error"""
         self._db_map.add_object_classes({"name": "fish"})
         with self.assertRaises(SpineIntegrityError):
-            self._db_map.add_objects({"name": "", "class_name": "fish"}, strict=True)
+            self._db_map.add_objects({"name": "", "entity_class_name": "fish"}, strict=True)
 
     def test_add_objects_with_same_name(self):
         """Test that adding two objects with the same name only adds one of them."""
@@ -1853,7 +1853,9 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_superclass_subclasses(self._db_map, (("animal", "fish"), ("animal", "dog")))
         import_functions.import_entities(self._db_map, (("fish", "Nemo"), ("dog", "Pulgoso")))
         self._db_map.commit_session("Add test data.")
-        item, error = self._db_map.add_item("entity", class_name="two_animals", element_name_list=("Nemo", "Pulgoso"))
+        item, error = self._db_map.add_item(
+            "entity", entity_class_name="two_animals", element_name_list=("Nemo", "Pulgoso")
+        )
         self.assertTrue(item)
         self.assertFalse(error)
         self._db_map.commit_session("Add test data.")
