@@ -139,9 +139,9 @@ class DatabaseMappingCommitMixin:
         purging = Asterisk in ids
         if not purging:
             ids = {id_map.db_id(id_) for id_ in ids}
-        if tablename == "alternative":
-            # Do not remove the Base alternative
-            ids.discard(1)
+            if tablename == "alternative":
+                # Do not remove the Base alternative
+                ids.discard(1)
         if not ids:
             return
         tablenames = [tablename]

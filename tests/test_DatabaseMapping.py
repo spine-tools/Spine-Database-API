@@ -26,7 +26,7 @@ from spinedb_api import (
     SpineIntegrityError,
 )
 from spinedb_api.conflict_resolution import select_in_db_item_always
-from spinedb_api.helpers import name_from_elements
+from spinedb_api.helpers import Asterisk, name_from_elements
 from spinedb_api.mapped_items import EntityItem
 from tests.custom_db_mapping import CustomDatabaseMapping
 
@@ -1238,6 +1238,18 @@ class TestDatabaseMapping(unittest.TestCase):
                 entities = db_map.get_entity_items("entity")
                 self.assertEqual(len(entities), 1)
                 self.assertEqual(entities[0]["name"], "other_entity")
+
+    def test_remove_items_by_asterisk(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_alternative_item(name="alt_1"))
+            self._assert_success(db_map.add_alternative_item(name="alt_2"))
+            db_map.commit_session("Add alternatives.")
+            alternatives = db_map.get_alternative_items()
+            self.assertEqual(len(alternatives), 3)
+            db_map.remove_items("alternative", Asterisk)
+            db_map.commit_session("Remove all alternatives.")
+            alternatives = db_map.get_alternative_items()
+            self.assertEqual(alternatives, [])
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
