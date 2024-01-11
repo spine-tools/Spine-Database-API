@@ -342,7 +342,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Example::
 
             with DatabaseMapping(db_url) as db_map:
-                prince = db_map.get_item("entity", class_name="musician", name="Prince")
+                prince = db_map.get_item("entity", entity_class_name="musician", name="Prince")
 
         Args:
             item_type (str): One of <spine_item_types>.
@@ -405,7 +405,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
             with DatabaseMapping(db_url) as db_map:
                 db_map.add_item("entity_class", name="musician")
-                db_map.add_item("entity", class_name="musician", name="Prince")
+                db_map.add_item("entity", entity_class_name="musician", name="Prince")
 
         Args:
             item_type (str): One of <spine_item_types>.
@@ -443,7 +443,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Example::
 
             with DatabaseMapping(db_url) as db_map:
-                prince = db_map.get_item("entity", class_name="musician", name="Prince")
+                prince = db_map.get_item("entity", entity_class_name="musician", name="Prince")
                 db_map.update_item(
                     "entity", id=prince["id"], name="the Artist", description="Formerly known as Prince."
                 )
@@ -529,7 +529,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Example::
 
             with DatabaseMapping(db_url) as db_map:
-                prince = db_map.get_item("entity", class_name="musician", name="Prince")
+                prince = db_map.get_item("entity", entity_class_name="musician", name="Prince")
                 db_map.remove_item("entity", prince["id"])
 
         Args:
@@ -578,7 +578,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Example::
 
             with DatabaseMapping(db_url) as db_map:
-                prince = db_map.get_item("entity", skip_remove=False, class_name="musician", name="Prince")
+                prince = db_map.get_item("entity", skip_remove=False, entity_class_name="musician", name="Prince")
                 db_map.restore_item("entity", prince["id"])
 
         Args:

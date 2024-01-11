@@ -498,7 +498,7 @@ def _get_superclass_subclasses_for_import(db_map, data):
 
 def _get_entities_for_import(db_map, data):
     items_by_el_count = {}
-    key = ("class_name", "entity_byname", "description")
+    key = ("entity_class_name", "entity_byname", "description")
     for class_name, name_or_el_name_list, *optionals in data:
         if isinstance(name_or_el_name_list, (list, tuple)):
             el_count = len(name_or_el_name_list)
@@ -520,7 +520,7 @@ def _get_entity_alternatives_for_import(db_map, data):
 
 
 def _get_entity_groups_for_import(db_map, data):
-    key = ("class_name", "group_name", "member_name")
+    key = ("entity_class_name", "group_name", "member_name")
     return (dict(zip(key, x)) for x in data)
 
 
@@ -642,7 +642,7 @@ def _get_metadata_for_import(db_map, data):
 
 
 def _get_entity_metadata_for_import(db_map, data):
-    key = ("class_name", "entity_byname", "metadata_name", "metadata_value")
+    key = ("entity_class_name", "entity_byname", "metadata_name", "metadata_value")
     for class_name, entity_byname, metadata in data:
         if isinstance(entity_byname, str):
             entity_byname = (entity_byname,)
@@ -652,7 +652,7 @@ def _get_entity_metadata_for_import(db_map, data):
 
 def _get_parameter_value_metadata_for_import(db_map, data):
     key = (
-        "class_name",
+        "entity_class_name",
         "entity_byname",
         "parameter_definition_name",
         "metadata_name",

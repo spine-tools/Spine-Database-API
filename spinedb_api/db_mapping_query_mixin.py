@@ -893,7 +893,7 @@ class DatabaseMappingQueryMixin:
                     self.entity_group_sq.c.entity_class_id.label("class_id"),
                     self.entity_group_sq.c.entity_id.label("group_id"),
                     self.entity_group_sq.c.member_id.label("member_id"),
-                    self.wide_entity_class_sq.c.name.label("class_name"),
+                    self.wide_entity_class_sq.c.name.label("entity_class_name"),
                     group_entity.c.name.label("group_name"),
                     member_entity.c.name.label("member_name"),
                     label("object_class_id", self._object_class_id()),
