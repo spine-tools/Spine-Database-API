@@ -84,15 +84,15 @@ as `dimension_name_list`::
 
 Let's add entities to our zero-dimensional classes::
 
-    db_map.add_entity_item(class_name="fish", name="Nemo", description="Lost (for now).")
+    db_map.add_entity_item(entity_class_name="fish", name="Nemo", description="Lost (for now).")
     db_map.add_entity_item(
-        class_name="cat", name="Felix", description="The wonderful wonderful cat."
+        entity_class_name="cat", name="Felix", description="The wonderful wonderful cat."
     )
 
 Let's add a multi-dimensional entity to our multi-dimensional class. For this we need to specify the entity names
 as `element_name_list`::
 
-    db_map.add_entity_item(class_name="fish__cat", element_name_list=("Nemo", "Felix"))
+    db_map.add_entity_item(entity_class_name="fish__cat", element_name_list=("Nemo", "Felix"))
 
 Let's add a parameter definition for one of our entity classes::
 
@@ -132,14 +132,14 @@ This implicitly fetches data from the DB
 into the in-memory mapping, if not already there.
 For example, let's find one of the entities we inserted above::
 
-    felix_item = db_map.get_entity_item(class_name="cat", name="Felix")
+    felix_item = db_map.get_entity_item(entity_class_name="cat", name="Felix")
     assert felix_item["description"] == "The wonderful wonderful cat."
 
 Above, ``felix_item`` is a :class:`~.PublicItem` object, representing an item.
 
 Let's find our multi-dimensional entity::
 
-    nemo_felix_item = db_map.get_entity_item("entity", class_name="fish__cat", element_name_list=("Nemo", "Felix"))
+    nemo_felix_item = db_map.get_entity_item("entity", entity_class_name="fish__cat", element_name_list=("Nemo", "Felix"))
     assert nemo_felix_item["dimension_name_list"] == ('fish', 'cat')
 
 Now let's retrieve our parameter value::
@@ -151,13 +151,14 @@ Now let's retrieve our parameter value::
         alternative_name="Base"
     )
 
-We use :func:`.from_database` to convert the value and type from the parameter value into our original value:: 
+We use :func:`.from_database` to convert the value and type from the parameter value into our original value::
+
     nemo_color = api.from_database(nemo_color_item["value"], nemo_color_item["type"])
     assert nemo_color == "mainly orange"
 
 To retrieve all the items of a given type, we use :meth:`~.DatabaseMapping.get_items`::
 
-    assert [entity["byname"] for entity in db_map.get_items("entity")] == [
+    assert [entity["entity_byname"] for entity in db_map.get_items("entity")] == [
         ("Nemo",), ("Felix",), ("Nemo", "Felix")
     ]
 
@@ -171,7 +172,7 @@ To update data, we use the :meth:`~.PublicItem.update` method of :class:`~.Publi
 
 Let's rename our fish entity to avoid any copyright infringements::
 
-    db_map.get_entity_item(class_name="fish", name="Nemo").update(name="NotNemo")
+    db_map.get_entity_item(entity_class_name="fish", name="Nemo").update(name="NotNemo")
 
 To be safe, let's also change the color::
 
@@ -191,7 +192,7 @@ Removing data
 You know what, let's just remove the entity entirely.
 To do this we use the :meth:`~.PublicItem.remove` method of :class:`~.PublicItem`::
 
-    db_map.get_entity_item(class_name="fish", name="NotNemo").remove()
+    db_map.get_entity_item(entity_class_name="fish", name="NotNemo").remove()
 
 Note that the above call removes items in *cascade*,
 meaning that items that depend on ``"NotNemo"`` will get removed as well.
