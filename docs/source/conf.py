@@ -161,7 +161,8 @@ def _db_mapping_schema_lines():
         lines.extend([".. list-table:: Unique keys", "   :header-rows: 0", ""])
         for f_names in factory._unique_keys:
             f_names = ", ".join(f_names)
-            lines.extend([f"   * - {f_names}"])
+            lines.append(f"   * - {f_names}")
+        lines.append("")
     return lines
 
 
