@@ -8,16 +8,13 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Unit tests for ``alternative_value_filter`` module.
-
-"""
+""" Unit tests for ``alternative_value_filter`` module. """
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
+    apply_filter_stack,
     apply_scenario_filter_to_subqueries,
     create_new_spine_database,
     DatabaseMapping,
@@ -44,6 +41,62 @@ from spinedb_api.filters.scenario_filter import (
     scenario_filter_shorthand_to_config,
     scenario_name_from_dict,
 )
+
+
+class TestScenarioFilterInMemory(unittest.TestCase):
+    def _assert_success(self, result):
+        item, error = result
+        self.assertIsNone(error)
+        return item
+
+    def test_filter_entities_with_default_activity_only(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="visible", active_by_default=True))
+            self._assert_success(db_map.add_entity_item(name="visible_object", entity_class_name="visible"))
+            self._assert_success(db_map.add_entity_class_item(name="hidden", active_by_default=False))
+            self._assert_success(db_map.add_entity_item(name="invisible_object", entity_class_name="hidden"))
+            self._assert_success(db_map.add_scenario_item(name="S"))
+            db_map.commit_session("Add data.")
+            apply_filter_stack(db_map, [scenario_filter_config("S")])
+            entities = db_map.query(db_map.wide_entity_sq).all()
+            self.assertEqual(len(entities), 1)
+            self.assertEqual(entities[0]["name"], "visible_object")
+
+    def test_filter_entities_with_default_activity(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_alternative_item(name="alt"))
+            self._assert_success(db_map.add_entity_class_item(name="visible_by_default", active_by_default=True))
+            self._assert_success(db_map.add_entity_item(name="visible", entity_class_name="visible_by_default"))
+            self._assert_success(db_map.add_entity_item(name="hidden", entity_class_name="visible_by_default"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_class_name="visible_by_default",
+                    entity_byname=("hidden",),
+                    alternative_name="alt",
+                    active=False,
+                )
+            )
+            self._assert_success(db_map.add_entity_class_item(name="hidden_by_default", active_by_default=False))
+            self._assert_success(db_map.add_entity_item(name="visible", entity_class_name="hidden_by_default"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_class_name="hidden_by_default",
+                    entity_byname=("visible",),
+                    alternative_name="alt",
+                    active=True,
+                )
+            )
+            self._assert_success(db_map.add_entity_item(name="hidden", entity_class_name="hidden_by_default"))
+            self._assert_success(db_map.add_scenario_item(name="S"))
+            self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="S", alternative_name="alt", rank=0)
+            )
+            db_map.commit_session("Add data.")
+            apply_filter_stack(db_map, [scenario_filter_config("S")])
+            entities = db_map.query(db_map.wide_entity_sq).all()
+            self.assertEqual(len(entities), 2)
+            self.assertEqual(entities[0]["name"], "visible")
+            self.assertEqual(entities[1]["name"], "visible")
 
 
 class TestScenarioFilter(unittest.TestCase):
@@ -138,6 +191,8 @@ class TestScenarioFilter(unittest.TestCase):
         import_scenario_alternatives(
             self._out_db_map, [("scenario1", "alternative2"), ("scenario1", "alternative1", "alternative2")]
         )
+        for entity_class in self._out_db_map.get_entity_class_items():
+            entity_class.update(active_by_default=True)
         self._out_db_map.commit_session("Add test data")
         entities = self._db_map.query(self._db_map.entity_sq).all()
         self.assertEqual(len(entities), 5)
@@ -356,6 +411,8 @@ class TestScenarioFilter(unittest.TestCase):
         )
         import_scenarios(self._out_db_map, [("scenario", True)])
         import_scenario_alternatives(self._out_db_map, [("scenario", "alternative")])
+        for item in self._out_db_map.get_entity_class_items():
+            item.update(active_by_default=True)
         self._out_db_map.commit_session("Add test data")
         apply_scenario_filter_to_subqueries(self._db_map, "scenario")
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
@@ -469,6 +526,8 @@ def _build_data_with_single_scenario(db_map, commit=True):
     import_object_parameter_values(db_map, [("object_class", "object", "parameter", 23.0, "alternative")])
     import_scenarios(db_map, [("scenario", True)])
     import_scenario_alternatives(db_map, [("scenario", "alternative")])
+    for entity_class in db_map.get_entity_class_items():
+        entity_class.update(active_by_default=True)
     if commit:
         db_map.commit_session("Add test data.")
 

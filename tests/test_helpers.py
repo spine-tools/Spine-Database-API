@@ -15,6 +15,7 @@ import unittest
 from spinedb_api.helpers import (
     compare_schemas,
     create_new_spine_database,
+    get_head_alembic_version,
     name_from_dimensions,
     name_from_elements,
     remove_credentials_from_url,
@@ -65,6 +66,12 @@ class TestRemoveCredentialsFromUrl(unittest.TestCase):
         url = "mysql://user:p@ass://word@example.com/db"
         sanitized = remove_credentials_from_url(url)
         self.assertEqual(sanitized, "mysql://example.com/db")
+
+
+class TestGetHeadAlembicVersion(unittest.TestCase):
+    def test_returns_latest_version(self):
+        # This test must be updated each time new migration script is added.
+        self.assertEqual(get_head_alembic_version(), "8b0eff478bcb")
 
 
 if __name__ == "__main__":

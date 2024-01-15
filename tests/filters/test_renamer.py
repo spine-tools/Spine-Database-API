@@ -8,11 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Unit tests for ``renamer`` module.
-
-"""
+""" Unit tests for ``renamer`` module. """
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -67,7 +63,7 @@ class TestEntityClassRenamer(unittest.TestCase):
         self.assertEqual(len(classes), 1)
         class_row = classes[0]
         keys = tuple(class_row.keys())
-        expected_keys = ("id", "name", "description", "display_order", "display_icon", "hidden")
+        expected_keys = ("id", "name", "description", "display_order", "display_icon", "hidden", "active_by_default")
         self.assertEqual(len(keys), len(expected_keys))
         for expected_key in expected_keys:
             self.assertIn(expected_key, keys)
@@ -124,7 +120,7 @@ class TestEntityClassRenamer(unittest.TestCase):
         self.assertEqual(len(classes), 1)
         class_row = classes[0]
         keys = tuple(class_row.keys())
-        expected_keys = ("id", "name", "description", "display_order", "display_icon", "hidden")
+        expected_keys = ("id", "name", "description", "display_order", "display_icon", "hidden", "active_by_default")
         self.assertEqual(len(keys), len(expected_keys))
         for expected_key in expected_keys:
             self.assertIn(expected_key, keys)

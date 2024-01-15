@@ -83,6 +83,43 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
 
 
 class TestDatabaseMapping(unittest.TestCase):
+    def test_active_by_default_is_initially_false_for_zero_dimensional_entity_class(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            item, error = db_map.add_entity_class_item(name="Entity")
+            self.assertIsNone(error)
+            self.assertFalse(item["active_by_default"])
+
+    def test_active_by_default_is_initially_false_for_multi_dimensional_entity_class(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class_item(name="Dimension")
+            item, error = db_map.add_entity_class_item(name="Entity", dimension_name_list=("Dimension",))
+            self.assertIsNone(error)
+            self.assertTrue(item["active_by_default"])
+
+    def test_read_active_by_default_from_database(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            with DatabaseMapping(url, create=True) as out_db_map:
+                _, error = out_db_map.add_entity_class_item(name="HiddenStuff", active_by_default=False)
+                self.assertIsNone(error)
+                _, error = out_db_map.add_entity_class_item(name="VisibleStuff", active_by_default=True)
+                self.assertIsNone(error)
+                out_db_map.commit_session("Add entity classes.")
+                entity_classes = out_db_map.query(out_db_map.wide_entity_class_sq).all()
+                self.assertEqual(len(entity_classes), 2)
+                activities = ((row.name, row.active_by_default) for row in entity_classes)
+                expected = (("HiddenStuff", False), ("VisibleStuff", True))
+                self.assertCountEqual(activities, expected)
+            with DatabaseMapping(url) as db_map:
+                entity_classes = db_map.get_entity_class_items()
+                self.assertEqual(len(entity_classes), 2)
+                active_by_default = {c["name"]: c["active_by_default"] for c in entity_classes}
+                expected = {"HiddenStuff": False, "VisibleStuff": True}
+                for name, activity in active_by_default.items():
+                    expected_activity = expected.pop(name)
+                    with self.subTest(class_name=name):
+                        self.assertEqual(activity, expected_activity)
+
     def test_commit_parameter_value(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
