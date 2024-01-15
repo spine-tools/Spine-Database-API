@@ -8,11 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Unit tests for import_functions.py.
-
-"""
+""" Unit tests for import_functions.py. """
 
 import unittest
 
@@ -20,6 +16,7 @@ from spinedb_api.spine_db_server import _unparse_value
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.import_functions import (
     import_alternatives,
+    import_entity_classes,
     import_object_classes,
     import_object_parameter_values,
     import_object_parameters,
@@ -338,6 +335,42 @@ class TestImportRelationshipClassParameter(unittest.TestCase):
         _, errors = import_relationship_parameters(db_map, [["relationship_class", "new_parameter"]])
         self.assertFalse(errors)
         db_map.close()
+
+
+class TestImportEntityClasses(unittest.TestCase):
+    def _assert_success(self, result):
+        items, errors = result
+        self.assertEqual(errors, [])
+        return items
+
+    def test_import_object_class_with_all_optional_data(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(
+                import_entity_classes(
+                    db_map,
+                    (
+                        ("Object", (), "The test class.", 23, True),
+                        ("Relation", ("Object",), "The test relationship.", 5, False),
+                    ),
+                )
+            )
+            entity_classes = db_map.get_entity_class_items()
+            self.assertEqual(len(entity_classes), 2)
+            data = (
+                (
+                    row["name"],
+                    row["dimension_name_list"],
+                    row["description"],
+                    row["display_icon"],
+                    row["active_by_default"],
+                )
+                for row in entity_classes
+            )
+            expected = (
+                ("Object", (), "The test class.", 23, True),
+                ("Relation", ("Object",), "The test relationship.", 5, False),
+            )
+            self.assertCountEqual(data, expected)
 
 
 class TestImportEntity(unittest.TestCase):

@@ -8,10 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Functions for exporting data from a Spine database in a standard format.
-"""
+""" Functions for exporting data from a Spine database in a standard format. """
 from operator import itemgetter
 
 from sqlalchemy.util import KeyedTuple
@@ -122,7 +119,7 @@ def export_parameter_value_lists(db_map, ids=Asterisk, parse_value=from_database
 def export_entity_classes(db_map, ids=Asterisk):
     return sorted(
         (
-            (x.name, x.dimension_name_list, x.description, x.display_icon)
+            (x.name, x.dimension_name_list, x.description, x.display_icon, x.active_by_default)
             for x in _get_items(db_map, "entity_class", ids)
         ),
         key=lambda x: (len(x[1]), x[0]),
