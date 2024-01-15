@@ -211,7 +211,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if not self.sa_url.drivername.startswith("sqlite"):
             return self.sa_url.database
         if self.sa_url.database is not None:
-            return os.path.basename(self.sa_url.database)
+            return os.path.splitext(os.path.basename(self.sa_url.database))[0]
         hashing = hashlib.sha1()
         hashing.update(bytes(str(time.time()), "utf-8"))
         return hashing.hexdigest()
