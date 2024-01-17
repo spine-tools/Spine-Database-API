@@ -10,10 +10,12 @@
 ######################################################################################################################
 """Unit tests for helpers.py."""
 
+
 import unittest
 from spinedb_api.helpers import (
     compare_schemas,
     create_new_spine_database,
+    get_head_alembic_version,
     name_from_dimensions,
     name_from_elements,
     query_byname,
@@ -138,6 +140,12 @@ class TestQueryByname(unittest.TestCase):
                 .one()
             )
             self.assertEqual(query_byname(entity_row, db_map), ("entity_1", "entity_2", "entity_2", "entity_1"))
+
+
+class TestGetHeadAlembicVersion(unittest.TestCase):
+    def test_returns_latest_version(self):
+        # This test must be updated each time new migration script is added.
+        self.assertEqual(get_head_alembic_version(), "8b0eff478bcb")
 
 
 if __name__ == "__main__":

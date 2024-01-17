@@ -100,7 +100,7 @@ class TestApplyFilterStack(unittest.TestCase):
         try:
             apply_filter_stack(db_map, [])
             object_classes = export_entity_classes(db_map)
-            self.assertEqual(object_classes, [("object_class", (), None, None)])
+            self.assertEqual(object_classes, [("object_class", (), None, None, False)])
         finally:
             db_map.close()
 
@@ -110,7 +110,7 @@ class TestApplyFilterStack(unittest.TestCase):
             stack = [entity_class_renamer_config(object_class="renamed_once")]
             apply_filter_stack(db_map, stack)
             object_classes = export_entity_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_once", (), None, None)])
+            self.assertEqual(object_classes, [("renamed_once", (), None, None, False)])
         finally:
             db_map.close()
 
@@ -123,7 +123,7 @@ class TestApplyFilterStack(unittest.TestCase):
             ]
             apply_filter_stack(db_map, stack)
             object_classes = export_entity_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_twice", (), None, None)])
+            self.assertEqual(object_classes, [("renamed_twice", (), None, None, False)])
         finally:
             db_map.close()
 
@@ -146,7 +146,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         db_map = DatabaseMapping(self._db_url, self._engine)
         try:
             object_classes = export_entity_classes(db_map)
-            self.assertEqual(object_classes, [("object_class", (), None, None)])
+            self.assertEqual(object_classes, [("object_class", (), None, None, False)])
         finally:
             db_map.close()
 
@@ -158,7 +158,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         db_map = DatabaseMapping(url, self._engine)
         try:
             object_classes = export_entity_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_once", (), None, None)])
+            self.assertEqual(object_classes, [("renamed_once", (), None, None, False)])
         finally:
             db_map.close()
 
@@ -174,7 +174,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         db_map = DatabaseMapping(url, self._engine)
         try:
             object_classes = export_entity_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_twice", (), None, None)])
+            self.assertEqual(object_classes, [("renamed_twice", (), None, None, False)])
         finally:
             db_map.close()
 
@@ -184,7 +184,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         db_map = DatabaseMapping(url, self._engine)
         try:
             object_classes = export_entity_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_once", (), None, None)])
+            self.assertEqual(object_classes, [("renamed_once", (), None, None, False)])
         finally:
             db_map.close()
 

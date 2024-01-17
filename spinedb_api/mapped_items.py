@@ -72,6 +72,11 @@ class EntityClassItem(MappedItemBase):
         },
         'display_order': {'type': int, 'value': 'Not in use at the moment.', 'optional': True},
         'hidden': {'type': int, 'value': 'Not in use at the moment.', 'optional': True},
+        "active_by_default": {
+            "type": bool,
+            "value": "Default activity for the entity alternatives of the class.",
+            "optional": True,
+        },
     }
     _defaults = {"description": None, "display_icon": None, "display_order": 99, "hidden": False}
     _unique_keys = (("name",),)
@@ -95,6 +100,13 @@ class EntityClassItem(MappedItemBase):
         if key in ("superclass_id", "superclass_name"):
             return self._get_ref("superclass_subclass", {"subclass_id": self["id"]}, strong=False).get(key)
         return super().__getitem__(key)
+
+    def polish(self):
+        error = super().polish()
+        if error:
+            return error
+        if "active_by_default" not in self:
+            self["active_by_default"] = bool(dict.get(self, "dimension_id_list"))
 
     def same_db_item(self, db_item):
         return self["name"] == db_item["name"]
