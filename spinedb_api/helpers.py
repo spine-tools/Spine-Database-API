@@ -8,10 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-General helper functions.
-"""
+""" General helper functions. """
 import os
 import json
 import warnings
@@ -318,6 +315,13 @@ def is_empty(db_url):
     return True
 
 
+def get_head_alembic_version():
+    config = Config()
+    config.set_main_option("script_location", "spinedb_api:alembic")
+    script = ScriptDirectory.from_config(config)
+    return script.get_current_head()
+
+
 def create_spine_metadata():
     meta = MetaData(naming_convention=naming_convention)
     Table(
@@ -374,6 +378,7 @@ def create_spine_metadata():
         Column("display_order", Integer, server_default="99"),
         Column("display_icon", BigInteger, server_default=null()),
         Column("hidden", Integer, server_default="0"),
+        Column("active_by_default", Boolean(name="active_by_default"), server_default=false(), nullable=False),
     )
     Table(
         "superclass_subclass",
@@ -622,11 +627,12 @@ def create_new_spine_database(db_url):
     meta.drop_all()
     # Create new tables
     meta = create_spine_metadata()
+    version = get_head_alembic_version()
     try:
         meta.create_all(engine)
         engine.execute("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
         engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
-        engine.execute("INSERT INTO alembic_version VALUES ('5385f063bef2')")
+        engine.execute(f"INSERT INTO alembic_version VALUES ('{version}')")
     except DatabaseError as e:
         raise SpineDBAPIError(f"Unable to create Spine database: {e}") from None
     return engine

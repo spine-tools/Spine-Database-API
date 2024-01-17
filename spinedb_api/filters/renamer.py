@@ -8,11 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Provides a database query manipulator that renames database items.
-
-"""
+""" Provides a database query manipulator that renames database items. """
 from functools import partial
 from sqlalchemy import case
 
@@ -215,6 +211,7 @@ def _make_renaming_entity_class_sq(db_map, state):
         subquery.c.display_order,
         subquery.c.display_icon,
         subquery.c.hidden,
+        subquery.c.active_by_default,
     ).subquery()
     return entity_class_sq
 

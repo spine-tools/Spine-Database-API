@@ -8,14 +8,10 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Provides functions to apply filtering based on scenarios to subqueries.
-
-"""
+""" Provides functions to apply filtering based on scenarios to subqueries. """
 
 from functools import partial
-from sqlalchemy import desc, func, or_
+from sqlalchemy import and_, desc, func, or_
 from ..exception import SpineDBAPIError
 
 SCENARIO_FILTER_TYPE = "scenario_filter"
@@ -197,11 +193,13 @@ def _ext_entity_sq(db_map, state):
             )
             .label("desc_rank_row_number"),
             db_map.entity_alternative_sq.c.active,
+            db_map.entity_class_sq.c.active_by_default,
             db_map.scenario_alternative_sq.c.scenario_id,
         )
         .outerjoin(
             db_map.entity_alternative_sq, state.original_entity_sq.c.id == db_map.entity_alternative_sq.c.entity_id
         )
+        .outerjoin(db_map.entity_class_sq, state.original_entity_sq.c.class_id == db_map.entity_class_sq.c.id)
         .outerjoin(
             db_map.scenario_alternative_sq,
             db_map.entity_alternative_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id,
@@ -240,7 +238,7 @@ def _make_scenario_filtered_entity_element_sq(db_map, state):
         )
         .filter(
             element_sq.c.desc_rank_row_number == 1,
-            or_(element_sq.c.active == True, element_sq.c.active == None),
+            or_(element_sq.c.active == True, and_(element_sq.c.active == None, element_sq.c.active_by_default == True)),
         )
         .subquery()
     )
@@ -277,7 +275,10 @@ def _make_scenario_filtered_entity_sq(db_map, state):
         )
         .filter(
             ext_entity_sq.c.desc_rank_row_number == 1,
-            or_(ext_entity_sq.c.active == True, ext_entity_sq.c.active == None),
+            or_(
+                ext_entity_sq.c.active == True,
+                and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
+            ),
         )
         .outerjoin(
             ext_entity_class_dimension_count_sq,

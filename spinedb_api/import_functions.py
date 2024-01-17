@@ -262,8 +262,8 @@ def import_entity_classes(db_map, data):
 
     Args:
         db_map (spinedb_api.DiffDatabaseMapping): database mapping
-        data (list(tuple(str,tuple,str,int)): tuples of
-            (name, dimension name tuple, description, display icon integer)
+        data (list(tuple(str,tuple,str,int,bool)): tuples of
+            (name, dimension name tuple, description, display icon integer, active by default flag)
 
     Returns:
         int: number of items imported
@@ -471,7 +471,7 @@ def import_relationship_parameter_value_metadata(db_map, data):
 def _get_entity_classes_for_import(db_map, data):
     dim_name_list_by_name = {}
     items = []
-    key = ("name", "dimension_name_list", "description", "display_icon")
+    key = ("name", "dimension_name_list", "description", "display_icon", "active_by_default")
     for x in data:
         if isinstance(x, str):
             x = x, ()
