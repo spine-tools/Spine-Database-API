@@ -24,7 +24,7 @@ but those functions and methods are pending deprecation.
 - *Entity alternatives* control the visibility of entities.
   This replaces previous tools, features and methods.
 - Support for *superclasses*.
-  It is not possible to set a superclass for an entity class.
+  It is now possible to set a superclass for an entity class.
   The class then inherits parameter definitions from its superclass.
 
 ### Fixed
