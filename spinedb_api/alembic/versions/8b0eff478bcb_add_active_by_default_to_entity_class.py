@@ -30,6 +30,8 @@ def upgrade():
     metadata.reflect(bind=conn)
     dimension_table = metadata.tables["entity_class_dimension"]
     dimensional_class_ids = {row.entity_class_id for row in session.query(dimension_table)}
+    if not dimensional_class_ids:
+        return
     metadata.reflect(bind=conn)
     class_table = metadata.tables["entity_class"]
     update_statement = (
