@@ -886,3 +886,28 @@ def group_consecutive(list_of_numbers):
     for _k, g in groupby(enumerate(sorted(list_of_numbers)), lambda x: x[0] - x[1]):
         group = list(map(itemgetter(1), g))
         yield group[0], group[-1]
+
+
+_TRUTHS = {s.casefold() for s in ("yes", "true", "y", "t", "1")}
+_FALSES = {s.casefold() for s in ("no", "false", "n", "f", "0")}
+
+
+def string_to_bool(string):
+    """Converts string to boolean.
+
+    Recognizes "yes", "true", "y", "t" and "1" as True, "no", "false", "n", "f" and "0" as False.
+    Case insensitive.
+    Raises Value error if value is not recognized.
+
+    Args:
+        string (str): string to convert
+
+    Returns:
+        bool: True or False
+    """
+    string = string.casefold()
+    if string in _TRUTHS:
+        return True
+    if string in _FALSES:
+        return False
+    raise ValueError(string)
