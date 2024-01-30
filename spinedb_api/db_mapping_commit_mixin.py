@@ -13,7 +13,6 @@ from sqlalchemy import and_, or_
 from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.exc import DBAPIError
 from .exception import SpineDBAPIError
-from .temp_id import TempId, resolve
 from .helpers import group_consecutive, Asterisk
 
 
@@ -36,15 +35,17 @@ class DatabaseMappingCommitMixin:
         if not items_to_add:
             return
         try:
-            table = self._metadata.tables[self.real_item_type(tablename)]
+            item_type = self.real_item_type(tablename)
+            table = self._metadata.tables[item_type]
             id_items, temp_id_items = [], []
+            id_map = self.mapped_table(item_type).id_map
             for item in items_to_add:
-                if isinstance(item["id"], TempId):
+                if id_map.db_id(item["id"]) is None:
                     temp_id_items.append(item)
                 else:
                     id_items.append(item)
             if id_items:
-                connection.execute(table.insert(), [x.resolve() for x in id_items])
+                connection.execute(table.insert(), [x.make_db_item(self.find_db_id) for x in id_items])
             if temp_id_items:
                 current_ids = {x["id"] for x in connection.execute(table.select())}
                 next_id = max(current_ids, default=0) + 1
@@ -53,35 +54,35 @@ class DatabaseMappingCommitMixin:
                 new_ids = set(range(next_id, next_id + required_id_count))
                 ids = sorted(available_ids | new_ids)
                 for id_, item in zip(ids, temp_id_items):
-                    temp_id = item["id"]
-                    temp_id.resolve(id_)
-                connection.execute(table.insert(), [x.resolve() for x in temp_id_items])
+                    id_map.set_db_id(item["id"], id_)
+                connection.execute(table.insert(), [x.make_db_item(self.find_db_id) for x in temp_id_items])
             for tablename_, items_to_add_ in self._extra_items_to_add_per_table(tablename, items_to_add):
                 if not items_to_add_:
                     continue
                 table = self._metadata.tables[self.real_item_type(tablename_)]
-                connection.execute(table.insert(), [resolve(x) for x in items_to_add_])
+                connection.execute(table.insert(), items_to_add_)
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
             raise SpineDBAPIError(msg) from e
 
-    @staticmethod
-    def _dimensions_for_classes(classes):
+    def _dimensions_for_classes(self, classes):
+        id_map = self.mapped_table("entity_class").id_map
         return [
-            {"entity_class_id": x["id"], "position": position, "dimension_id": dimension_id}
+            {"entity_class_id": id_map.db_id(x["id"]), "position": position, "dimension_id": id_map.db_id(dimension_id)}
             for x in classes
             for position, dimension_id in enumerate(x["dimension_id_list"])
         ]
 
-    @staticmethod
-    def _elements_for_entities(entities):
+    def _elements_for_entities(self, entities):
+        entity_id_map = self.mapped_table("entity").id_map
+        class_id_map = self.mapped_table("entity_class").id_map
         return [
             {
-                "entity_id": x["id"],
-                "entity_class_id": x["class_id"],
+                "entity_id": entity_id_map.db_id(x["id"]),
+                "entity_class_id": class_id_map.db_id(x["class_id"]),
                 "position": position,
-                "element_id": element_id,
-                "dimension_id": dimension_id,
+                "element_id": entity_id_map.db_id(element_id),
+                "dimension_id": class_id_map.db_id(dimension_id),
             }
             for x in entities
             for position, (element_id, dimension_id) in enumerate(zip(x["element_id_list"], x["dimension_id_list"]))
@@ -117,12 +118,12 @@ class DatabaseMappingCommitMixin:
             return
         try:
             upd = self._make_update_stmt(tablename, items_to_update[0].keys())
-            connection.execute(upd, [x.resolve() for x in items_to_update])
+            connection.execute(upd, [x.make_db_item(self.find_db_id) for x in items_to_update])
             for tablename_, items_to_update_ in self._extra_items_to_update_per_table(tablename, items_to_update):
                 if not items_to_update_:
                     continue
                 upd = self._make_update_stmt(tablename_, items_to_update_[0].keys())
-                connection.execute(upd, [resolve(x) for x in items_to_update_])
+                connection.execute(upd, items_to_update_)
         except DBAPIError as e:
             msg = f"DBAPIError while updating '{tablename}' items: {e.orig.args}"
             raise SpineDBAPIError(msg) from e
@@ -134,10 +135,13 @@ class DatabaseMappingCommitMixin:
             *ids: ids to remove
         """
         tablename = self.real_item_type(tablename)
-        ids = {resolve(id_) for id_ in ids}
-        if tablename == "alternative":
-            # Do not remove the Base alternative
-            ids.discard(1)
+        id_map = self.mapped_table(tablename).id_map
+        purging = Asterisk in ids
+        if not purging:
+            ids = {id_map.db_id(id_) for id_ in ids}
+            if tablename == "alternative":
+                # Do not remove the Base alternative
+                ids.discard(1)
         if not ids:
             return
         tablenames = [tablename]
@@ -150,7 +154,7 @@ class DatabaseMappingCommitMixin:
         for tablename_ in tablenames:
             table = self._metadata.tables[tablename_]
             delete = table.delete()
-            if Asterisk not in ids:
+            if not purging:
                 id_field = self._id_fields.get(tablename_, "id")
                 id_column = getattr(table.c, id_field)
                 cond = or_(*(and_(id_column >= first, id_column <= last) for first, last in group_consecutive(ids)))
