@@ -28,7 +28,6 @@ dependencies = [
     "chardet >=4.0.0",
     "pymysql >=1.0.2",
     "psycopg2",
-    "cx_Oracle",
 ]
 
 [project.urls]

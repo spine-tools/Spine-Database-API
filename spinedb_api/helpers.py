@@ -61,7 +61,6 @@ SUPPORTED_DIALECTS = {
 UNSUPPORTED_DIALECTS = {
     "mssql": "pyodbc",
     "postgresql": "psycopg2",
-    "oracle": "cx_oracle",
 }
 """Dialects and recommended dbapi that are not supported by DatabaseMapping but are supported by SqlAlchemy."""
 
