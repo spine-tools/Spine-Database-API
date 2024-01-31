@@ -67,7 +67,7 @@ class _TailJSONEncoder(json.JSONEncoder):
         if isinstance(o, SpineDBAPIError):
             return str(o)
         if isinstance(o, PublicItem):
-            return o.extended()
+            return o._extended()
         return super().default(o)
 
     @property

@@ -12,7 +12,7 @@
 
 from operator import itemgetter
 
-from .helpers import name_from_elements, query_byname
+from .helpers import name_from_elements
 from .parameter_value import to_database, from_database, ParameterValueFormatError
 from .db_mapping_base import MappedItemBase
 
@@ -50,9 +50,6 @@ class CommitItem(MappedItemBase):
 
     _unique_keys = (("date",),)
 
-    def same_db_item(self, db_item):
-        return self["date"].replace(tzinfo=None) == db_item["date"]
-
     def commit(self, commit_id):
         raise RuntimeError("Commits are created automatically when session is committed.")
 
@@ -85,7 +82,6 @@ class EntityClassItem(MappedItemBase):
     _external_fields = {"dimension_name_list": ("dimension_id_list", "name")}
     _alt_references = {("dimension_name_list",): ("entity_class", ("name",))}
     _internal_fields = {"dimension_id_list": (("dimension_name_list",), "id")}
-    _id_fields = {"entity_class": ("dimension_id_list",)}
     _private_fields = {"dimension_count"}
 
     def __init__(self, *args, **kwargs):
@@ -108,9 +104,6 @@ class EntityClassItem(MappedItemBase):
             return error
         if "active_by_default" not in self:
             self["active_by_default"] = bool(dict.get(self, "dimension_id_list"))
-
-    def same_db_item(self, db_item):
-        return self["name"] == db_item["name"]
 
     def merge(self, other):
         dimension_id_list = other.pop("dimension_id_list", None)
@@ -159,8 +152,6 @@ class EntityItem(MappedItemBase):
         "class_id": (("entity_class_name",), "id"),
         "element_id_list": (("dimension_name_list", "element_name_list"), "id"),
     }
-    _id_fields = {"entity_class": ("class_id",), "entity": ("element_id_list",), "commit": ("commit_id",)}
-    _external_id_fields = {"dimension_id_list", "superclass_id"}
 
     def __init__(self, *args, **kwargs):
         element_id_list = kwargs.get("element_id_list")
@@ -170,13 +161,6 @@ class EntityItem(MappedItemBase):
             element_id_list = (int(id_) for id_ in element_id_list.split(","))
         kwargs["element_id_list"] = tuple(element_id_list)
         super().__init__(*args, **kwargs)
-
-    def same_db_item(self, db_item):
-        if _commit_ids_equal(self, db_item, self._db_map):
-            return True
-        if self["name"] != db_item["name"]:
-            return False
-        return _fields_equal("entity_class", db_item["class_id"], "name", self["entity_class_name"], self._db_map)
 
     @classmethod
     def unique_values_for_item(cls, item, skip_keys=()):
@@ -305,8 +289,6 @@ class EntityGroupItem(MappedItemBase):
         "entity_id": (("entity_class_name", "group_name"), "id"),
         "member_id": (("entity_class_name", "member_name"), "id"),
     }
-    _id_fields = {"entity_class": ("entity_class_id",), "entity": ("entity_id", "member_id")}
-    _external_id_fields = {"dimension_id_list"}
 
     def __getitem__(self, key):
         if key == "class_id":
@@ -314,14 +296,6 @@ class EntityGroupItem(MappedItemBase):
         if key == "group_id":
             return self["entity_id"]
         return super().__getitem__(key)
-
-    def same_db_item(self, db_item):
-        db_map = self._db_map
-        if not _fields_equal("entity", db_item["entity_id"], "name", self["group_name"], db_map):
-            return False
-        if not _fields_equal("entity", db_item["member_id"], "name", self["member_name"], db_map):
-            return False
-        return _fields_equal("entity_class", db_item["entity_class_id"], "name", self["entity_class_name"], db_map)
 
     def commit(self, _commit_id):
         super().commit(None)
@@ -367,20 +341,6 @@ class EntityAlternativeItem(MappedItemBase):
         "entity_id": (("entity_class_name", "entity_byname"), "id"),
         "alternative_id": (("alternative_name",), "id"),
     }
-    _id_fields = {"entity": ("entity_id",), "alternative": ("alternative_id",), "commit": ("commit_id",)}
-    _external_id_fields = {"entity_class_id", "dimension_id_list", "element_id_list"}
-
-    def same_db_item(self, db_item):
-        if not _commit_ids_equal(self, db_item, self._db_map):
-            return False
-        entity_record = self._db_map.make_query("entity", id=db_item["entity_id"]).one()
-        if not _fields_equal(
-            "entity_class", entity_record["class_id"], "name", self["entity_class_name"], self._db_map
-        ):
-            return False
-        if query_byname(entity_record, self._db_map) != self["entity_byname"]:
-            return False
-        return _fields_equal("alternative", db_item["alternative_id"], "name", self["alternative_name"], self._db_map)
 
 
 class ParsedValueBase(MappedItemBase):
@@ -389,9 +349,6 @@ class ParsedValueBase(MappedItemBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._parsed_value = None
-
-    def same_db_item(self, db_item):
-        raise NotImplementedError()
 
     @property
     def parsed_value(self):
@@ -437,9 +394,6 @@ class ParsedValueBase(MappedItemBase):
 
 
 class ParameterItemBase(ParsedValueBase):
-    def same_db_item(self, db_item):
-        raise NotImplementedError()
-
     @property
     def _value_key(self):
         raise NotImplementedError()
@@ -459,13 +413,12 @@ class ParameterItemBase(ParsedValueBase):
     def list_value_id(self):
         return self["list_value_id"]
 
-    def make_db_item(self, find_db_id):
-        db_item = super().make_db_item(find_db_id)
-        list_value_id = db_item.get("list_value_id")
+    def resolve(self):
+        d = super().resolve()
+        list_value_id = d.get("list_value_id")
         if list_value_id is not None:
-            list_value_db_id = self._db_map.find_db_id("list_value", list_value_id)
-            db_item[self._value_key] = to_database(list_value_db_id)[0]
-        return db_item
+            d[self._value_key] = to_database(list_value_id)[0]
+        return d
 
     def polish(self):
         self["list_value_id"] = None
@@ -521,12 +474,6 @@ class ParameterDefinitionItem(ParameterItemBase):
         "entity_class_id": (("entity_class_name",), "id"),
         "parameter_value_list_id": (("parameter_value_list_name",), "id"),
     }
-    _id_fields = {
-        "entity_class": ("entity_class_id",),
-        "parameter_value_list": ("parameter_value_list_id",),
-        "commit": ("commit_id",),
-    }
-    _external_id_fields = {"dimension_id_list"}
 
     @property
     def _value_key(self):
@@ -552,15 +499,6 @@ class ParameterDefinitionItem(ParameterItemBase):
                 return self._get_ref("list_value", {"id": list_value_id}, strong=False).get(list_value_key)
             return dict.get(self, key)
         return super().__getitem__(key)
-
-    def same_db_item(self, db_item):
-        if _commit_ids_equal(self, db_item, self._db_map):
-            return True
-        if self["name"] != db_item["name"]:
-            return False
-        return _fields_equal(
-            "entity_class", db_item["entity_class_id"], "name", self["entity_class_name"], self._db_map
-        )
 
     def merge(self, other):
         other_parameter_value_list_id = other.get("parameter_value_list_id")
@@ -595,7 +533,6 @@ class ParameterValueItem(ParameterItemBase):
         'type': {'type': str, 'value': 'The value type.', 'optional': True},
         'alternative_name': {'type': str, 'value': "The alternative name - defaults to 'Base'.", 'optional': True},
     }
-    required_fields = ("value", "type")
     _unique_keys = (("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),)
     _references = {
         "entity_class_id": ("entity_class", "id"),
@@ -628,15 +565,6 @@ class ParameterValueItem(ParameterItemBase):
         "entity_id": (("entity_class_name", "entity_byname"), "id"),
         "alternative_id": (("alternative_name",), "id"),
     }
-    _id_fields = {
-        "parameter_definition": ("parameter_definition_id",),
-        "entity_class": ("entity_class_id",),
-        "entity": ("entity_id",),
-        "list_value": ("list_value_id",),
-        "alternative": ("alternative_id",),
-        "commit": ("commit_id",),
-    }
-    _external_id_fields = {"dimension_id_list", "element_id_list", "parameter_value_list_id"}
 
     @property
     def _value_key(self):
@@ -657,25 +585,6 @@ class ParameterValueItem(ParameterItemBase):
                 return self._get_ref("list_value", {"id": list_value_id}, strong=False).get(key)
         return super().__getitem__(key)
 
-    def same_db_item(self, db_item):
-        if _commit_ids_equal(self, db_item, self._db_map):
-            return True
-        if not _fields_equal(
-            "entity_class", db_item["entity_class_id"], "name", self["entity_class_name"], self._db_map
-        ):
-            return False
-        if not _fields_equal(
-            "parameter_definition",
-            db_item["parameter_definition_id"],
-            "name",
-            self["parameter_definition_name"],
-            self._db_map,
-        ):
-            return False
-        if not _fields_equal("entity", db_item["entity_id"], "name", self["entity_name"], self._db_map):
-            return False
-        return _fields_equal("alternative", db_item["alternative_id"], "name", self["alternative_name"], self._db_map)
-
     def _value_not_in_list_error(self, parsed_value, list_name):
         return (
             f"value {parsed_value} of {self['parameter_definition_name']} for {self['entity_byname']} "
@@ -686,10 +595,6 @@ class ParameterValueItem(ParameterItemBase):
 class ParameterValueListItem(MappedItemBase):
     fields = {'name': {'type': str, 'value': 'The parameter value list name.'}}
     _unique_keys = (("name",),)
-    _id_fields = {"commit": ("commit_id",)}
-
-    def same_db_item(self, db_item):
-        return db_item["name"] == self["name"]
 
 
 class ListValueItem(ParsedValueBase):
@@ -704,7 +609,6 @@ class ListValueItem(ParsedValueBase):
     _external_fields = {"parameter_value_list_name": ("parameter_value_list_id", "name")}
     _alt_references = {("parameter_value_list_name",): ("parameter_value_list", ("name",))}
     _internal_fields = {"parameter_value_list_id": (("parameter_value_list_name",), "id")}
-    _id_fields = {"parameter_value_list": ("parameter_value_list_id",), "commit": ("commit_id",)}
 
     @property
     def _value_key(self):
@@ -719,19 +623,6 @@ class ListValueItem(ParsedValueBase):
             return (self["value"], self["type"])
         return super().__getitem__(key)
 
-    def same_db_item(self, db_item):
-        if _commit_ids_equal(self, db_item, self._db_map):
-            return True
-        if self["index"] != db_item["index"]:
-            return False
-        return _fields_equal(
-            "parameter_value_list",
-            db_item["parameter_value_list_id"],
-            "name",
-            self["parameter_value_list_name"],
-            self._db_map,
-        )
-
 
 class AlternativeItem(MappedItemBase):
     fields = {
@@ -740,10 +631,6 @@ class AlternativeItem(MappedItemBase):
     }
     _defaults = {"description": None}
     _unique_keys = (("name",),)
-    _id_fields = {"commit": ("commit_id",)}
-
-    def same_db_item(self, db_item):
-        return self["name"] == db_item["name"]
 
 
 class ScenarioItem(MappedItemBase):
@@ -754,7 +641,6 @@ class ScenarioItem(MappedItemBase):
     }
     _defaults = {"active": False, "description": None}
     _unique_keys = (("name",),)
-    _id_fields = {"commit": ("commit_id",)}
 
     def __getitem__(self, key):
         if key == "alternative_id_list":
@@ -773,9 +659,6 @@ class ScenarioItem(MappedItemBase):
             )
         return super().__getitem__(key)
 
-    def same_db_item(self, db_item):
-        return self["name"] == db_item["name"]
-
 
 class ScenarioAlternativeItem(MappedItemBase):
     fields = {
@@ -788,7 +671,6 @@ class ScenarioAlternativeItem(MappedItemBase):
     _external_fields = {"scenario_name": ("scenario_id", "name"), "alternative_name": ("alternative_id", "name")}
     _alt_references = {("scenario_name",): ("scenario", ("name",)), ("alternative_name",): ("alternative", ("name",))}
     _internal_fields = {"scenario_id": (("scenario_name",), "id"), "alternative_id": (("alternative_name",), "id")}
-    _id_fields = {"scenario": ("scenario_id",), "alternative": ("alternative_id",), "commit": ("commit_id",)}
 
     def __getitem__(self, key):
         # The 'before' is to be interpreted as, this scenario alternative goes *before* the before_alternative.
@@ -805,15 +687,6 @@ class ScenarioAlternativeItem(MappedItemBase):
                 return None
         return super().__getitem__(key)
 
-    def same_db_item(self, db_item):
-        if _commit_ids_equal(self, db_item, self._db_map):
-            return True
-        if not _fields_equal("scenario", db_item["scenario_id"], "name", self["scenario_name"], self._db_map):
-            return False
-        if not _fields_equal("alternative", db_item["alternative_id"], "name", self["alternative_name"], self._db_map):
-            return False
-        return self["rank"] == db_item["rank"]
-
 
 class MetadataItem(MappedItemBase):
     fields = {
@@ -821,10 +694,6 @@ class MetadataItem(MappedItemBase):
         'value': {'type': str, 'value': 'The metadata entry value.'},
     }
     _unique_keys = (("name", "value"),)
-    _id_fields = {"commit": ("commit_id",)}
-
-    def same_db_item(self, db_item):
-        return self["name"] == db_item["name"] and self["value"] == db_item["value"]
 
 
 class EntityMetadataItem(MappedItemBase):
@@ -856,18 +725,6 @@ class EntityMetadataItem(MappedItemBase):
         "entity_id": (("entity_class_name", "entity_byname"), "id"),
         "metadata_id": (("metadata_name", "metadata_value"), "id"),
     }
-    _id_fields = {"entity": ("entity_id",), "metadata": ("metadata_id",), "commit": ("commit_id",)}
-
-    def same_db_item(self, db_item):
-        if _commit_ids_equal(self, db_item, self._db_map):
-            return True
-        entity_record = self._db_map.make_query("entity", id=db_item["entity_id"]).one_or_none()
-        if not entity_record or query_byname(entity_record, self._db_map) != self["entity_byname"]:
-            return False
-        if not _fields_equal("entity_class", db_item["class_id"], "name", self["entity_class_name"], self._db_map):
-            return False
-        record = self._db_map.make_query("metadata", id=db_item["metadata_id"]).one_or_none()
-        return record and self["metadata_name"] == record["name"] and self["metadata_value"] == record["value"]
 
 
 class ParameterValueMetadataItem(MappedItemBase):
@@ -915,33 +772,6 @@ class ParameterValueMetadataItem(MappedItemBase):
         ),
         "metadata_id": (("metadata_name", "metadata_value"), "id"),
     }
-    _id_fields = {"parameter_value": ("parameter_value_id",), "metadata": ("metadata_id",), "commit": ("commit_id",)}
-
-    def same_db_item(self, db_item):
-        if _commit_ids_equal(self, db_item, self._db_map):
-            return True
-        value_record = self._db_map.make_query("parameter_value", id=db_item["parameter_value_id"]).one()
-        entity_record = self._db_map.make_query("entity", id=value_record["entity_id"]).one()
-        if query_byname(entity_record, self._db_map) != self["entity_byname"]:
-            return False
-        if not _fields_equal(
-            "entity_class", value_record["entity_class_id"], "name", self["entity_class_name"], self._db_map
-        ):
-            return False
-        if not _fields_equal(
-            "parameter_definition",
-            value_record["parameter_definition_id"],
-            "name",
-            self["parameter_definition_name"],
-            self._db_map,
-        ):
-            return False
-        if not _fields_equal(
-            "alternative", value_record["alternative_id"], "name", self["alternative_name"], self._db_map
-        ):
-            return False
-        record = self._db_map.make_query("metadata", id=db_item["metadata_id"]).one()
-        return self["metadata_name"] == record["name"] and self["metadata_value"] == record["value"]
 
 
 class SuperclassSubclassItem(MappedItemBase):
@@ -960,7 +790,6 @@ class SuperclassSubclassItem(MappedItemBase):
         ("subclass_name",): ("entity_class", ("name",)),
     }
     _internal_fields = {"superclass_id": (("superclass_name",), "id"), "subclass_id": (("subclass_name",), "id")}
-    _id_fields = {"entity_class": ("superclass_id", "subclass_id")}
 
     def _subclass_entities(self):
         return self._db_map.get_items("entity", class_id=self["subclass_id"])
@@ -970,19 +799,5 @@ class SuperclassSubclassItem(MappedItemBase):
             return "can't set or modify the superclass for a class that already has entities"
         return super().check_mutability()
 
-    def same_db_item(self, db_item):
-        return _fields_equal("entity_class", db_item["subclass_id"], "name", self["subclass_name"], self._db_map)
-
     def commit(self, _commit_id):
         super().commit(None)
-
-
-def _commit_ids_equal(item, db_item, db_map):
-    db_commit_id = db_map.find_db_id("commit", item["commit_id"])
-    return db_commit_id == db_item["commit_id"]
-
-
-def _fields_equal(item_type, db_id, field, expected_value, db_map):
-    # Use plain query as we want the raw data from database, not something that may have been conflict resolved.
-    record = db_map.make_query(item_type, id=db_id).one()
-    return expected_value == record[field]
