@@ -258,6 +258,14 @@ def _make_scenario_filtered_entity_sq(db_map, state):
         Alias: a subquery for entity filtered by selected scenario
     """
     ext_entity_sq = _ext_entity_sq(db_map, state)
+    ext_entity_element_count_sq = (
+        db_map.query(
+            db_map.entity_element_sq.c.entity_id,
+            func.count(db_map.entity_element_sq.c.element_id).label("element_count"),
+        )
+        .group_by(db_map.entity_element_sq.c.entity_id)
+        .subquery()
+    )
     ext_entity_class_dimension_count_sq = (
         db_map.query(
             db_map.entity_class_dimension_sq.c.entity_class_id,
@@ -282,16 +290,20 @@ def _make_scenario_filtered_entity_sq(db_map, state):
             ),
         )
         .outerjoin(
+            ext_entity_element_count_sq,
+            ext_entity_element_count_sq.c.entity_id == ext_entity_sq.c.id,
+        )
+        .outerjoin(
             ext_entity_class_dimension_count_sq,
             ext_entity_class_dimension_count_sq.c.entity_class_id == ext_entity_sq.c.class_id,
         )
-        .outerjoin(db_map.entity_element_sq, ext_entity_sq.c.id == db_map.entity_element_sq.c.entity_id)
-        .group_by(ext_entity_sq.c.id)
-        .having(
+        .filter(
             or_(
-                ext_entity_class_dimension_count_sq.c.dimension_count == None,
-                ext_entity_class_dimension_count_sq.c.dimension_count
-                == func.count(db_map.entity_element_sq.c.element_id),
+                and_(
+                    ext_entity_element_count_sq.c.element_count == None,
+                    ext_entity_class_dimension_count_sq.c.dimension_count == None,
+                ),
+                ext_entity_element_count_sq.c.element_count == ext_entity_class_dimension_count_sq.c.dimension_count,
             )
         )
         .subquery()

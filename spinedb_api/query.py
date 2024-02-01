@@ -31,6 +31,9 @@ class Query:
         self._select = select(entities)
         self._from = None
 
+    def __str__(self):
+        return str(self._select)
+
     @property
     def column_descriptions(self):
         return [{"name": c.name} for c in self._select.columns]
