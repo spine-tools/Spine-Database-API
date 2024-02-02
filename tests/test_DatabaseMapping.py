@@ -548,6 +548,43 @@ class TestDatabaseMapping(unittest.TestCase):
             self.assertEqual(len(groups), 1)
             self.assertNotIn("commit_id", groups[0]._extended())
 
+    def test_commit_default_value_for_parameter_called_is_active(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_parameter_value_list_item(name="booleans")
+            value, value_type = to_database(True)
+            db_map.add_list_value_item(parameter_value_list_name="booleans", value=value, type=value_type, index=0)
+            db_map.add_entity_class_item(name="Widget")
+            db_map.add_parameter_definition_item(
+                name="is_active",
+                entity_class_name="Widget",
+                parameter_value_list_name="booleans",
+                default_value=value,
+                default_type=value_type,
+            )
+            db_map.add_entity_class_item(name="Gadget")
+            db_map.add_parameter_definition_item(
+                name="is_active",
+                entity_class_name="Gadget",
+                parameter_value_list_name="booleans",
+                default_value=value,
+                default_type=value_type,
+            )
+            db_map.add_entity_class_item(name="NoIsActiveDefault")
+            db_map.add_parameter_definition_item(
+                name="is_active", entity_class_name="NoIsActiveDefault", parameter_value_list_name="booleans"
+            )
+            db_map.commit_session("Add test data to see if this crashes")
+            active_by_defaults = {
+                entity_class["name"]: entity_class["active_by_default"]
+                for entity_class in db_map.query(db_map.wide_entity_class_sq)
+            }
+            self.assertEqual(active_by_defaults, {"Widget": True, "Gadget": True, "NoIsActiveDefault": False})
+            defaults = [
+                from_database(definition["default_value"], definition["default_type"])
+                for definition in db_map.query(db_map.parameter_definition_sq)
+            ]
+            self.assertEqual(defaults, 3 * [None])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
