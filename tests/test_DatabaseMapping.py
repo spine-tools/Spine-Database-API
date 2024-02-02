@@ -2928,14 +2928,11 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         self.assertEqual(ents, [])
 
 
+@unittest.skipIf(os.name == 'nt')
 class TestDatabaseMappingConcurrent(unittest.TestCase):
     def test_concurrent_commit_threading(self):
         self._do_test_concurrent_commit(threading.Thread)
 
-    @unittest.skipIf(
-        os.name == 'nt',
-        "AttributeError: Can't pickle local object 'TestDatabaseMappingConcurrent._do_test_concurrent_commit.<locals>._commit_on_thread",
-    )
     def test_concurrent_commit_multiprocessing(self):
         self._do_test_concurrent_commit(multiprocessing.Process)
 
