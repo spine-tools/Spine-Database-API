@@ -148,6 +148,7 @@ class DatabaseMappingBase:
         purged_item_types = {x for x in self.item_types() if self.mapped_table(x).purged}
         self._add_descendants(purged_item_types)
         for item_type in self._sorted_item_types:
+            self.do_fetch_all(item_type)  # To fix conflicts in add_item_from_db
             mapped_table = self.mapped_table(item_type)
             to_add = []
             to_update = []
@@ -164,14 +165,6 @@ class DatabaseMappingBase:
                     _ = item.is_valid()
                     if item.status == Status.to_remove:
                         to_remove.append(item)
-                if to_remove:
-                    # Fetch descendants, so that they are validated in next iterations of the loop.
-                    # This ensures cascade removal.
-                    # FIXME: We should also fetch the current item type because of multi-dimensional entities and
-                    # classes which also depend on zero-dimensional ones
-                    for other_item_type in self.item_types():
-                        if item_type in self.item_factory(other_item_type).ref_types():
-                            self.fetch_all(other_item_type)
             if to_add or to_update or to_remove:
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items
@@ -372,7 +365,7 @@ class _MappedTable(dict):
         id_ = item.get("id")
         if id_ is not None:
             return self.find_item_by_id(id_, fetch=fetch)
-        return self.find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
+        return self._find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
 
     def find_item_by_id(self, id_, fetch=True):
         current_item = self.get(id_, {})
@@ -381,7 +374,7 @@ class _MappedTable(dict):
             current_item = self.get(id_, {})
         return current_item
 
-    def find_item_by_unique_key(self, item, skip_keys=(), fetch=True, complete=True):
+    def _find_item_by_unique_key(self, item, skip_keys=(), fetch=True, complete=True):
         for key, value in self._db_map.item_factory(self._item_type).unique_values_for_item(item, skip_keys=skip_keys):
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch)
             if current_item:
@@ -492,10 +485,13 @@ class _MappedTable(dict):
         Returns:
             tuple(MappedItem,bool): The mapped item and whether it hadn't been added before.
         """
-        current = self.find_item_by_id(item["id"], fetch=False) or self.find_item_by_unique_key(
-            item, fetch=False, complete=False
+        current = self.find_item_by_id(item["id"], fetch=False) or self._find_item_by_unique_key(
+            item, fetch=False, complete=self._db_map.has_external_commits()
         )
         if current:
+            if current.status == Status.to_add:
+                current["id"].resolve(item["id"])
+                current.status = Status.committed
             return current, False
         item = self._make_and_add_item(item)
         if self.purged:

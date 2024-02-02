@@ -28,6 +28,9 @@ class TestDBMapping(DatabaseMappingBase):
             return MappedItemBase
         raise RuntimeError(f"unknown item_type '{item_type}'")
 
+    def _make_query(self, _item_type, **kwargs):
+        return None
+
 
 class TestDBMappingBase(unittest.TestCase):
     def test_rolling_back_new_item_invalidates_its_id(self):

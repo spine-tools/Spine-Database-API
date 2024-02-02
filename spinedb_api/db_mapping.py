@@ -690,17 +690,18 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         if not comment:
             raise SpineDBAPIError("Commit message cannot be empty.")
-        dirty_items = self._dirty_items()
-        if not dirty_items:
-            raise SpineDBAPIError("Nothing to commit.")
-        user = self.username
-        date = datetime.now(timezone.utc)
-        ins = self._metadata.tables["commit"].insert()
         with self.engine.begin() as connection:
+            commit = self._metadata.tables["commit"]
+            commit_item = dict(user=self.username, date=datetime.now(timezone.utc), comment=comment)
             try:
-                commit_id = connection.execute(ins, dict(user=user, date=date, comment=comment)).inserted_primary_key[0]
+                # TODO: The below locks the DB in sqlite, how about other dialects?
+                commit_id = connection.execute(commit.insert(), commit_item).inserted_primary_key[0]
             except DBAPIError as e:
                 raise SpineDBAPIError(f"Fail to commit: {e.orig.args}") from e
+            dirty_items = self._dirty_items()
+            if not dirty_items:
+                connection.execute(commit.delete().where(commit.c.id == commit_id))
+                raise SpineDBAPIError("Nothing to commit.")
             for tablename, (to_add, to_update, to_remove) in dirty_items:
                 for item in to_add + to_update + to_remove:
                     item.commit(commit_id)
