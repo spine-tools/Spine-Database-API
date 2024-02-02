@@ -489,6 +489,9 @@ class _MappedTable(dict):
             item, fetch=False, complete=False
         )
         if current:
+            if current.status == Status.to_add:
+                current["id"].resolve(item["id"])
+                current.status = Status.committed
             return current, False
         item = self._make_and_add_item(item)
         if self.purged:

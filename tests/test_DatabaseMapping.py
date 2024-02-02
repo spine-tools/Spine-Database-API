@@ -14,6 +14,7 @@ import os.path
 from tempfile import TemporaryDirectory
 import unittest
 import threading
+import multiprocessing
 from unittest import mock
 from unittest.mock import patch
 from sqlalchemy.engine.url import make_url, URL
@@ -2832,20 +2833,38 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         ents = self._db_map.query(self._db_map.entity_sq).all()
         self.assertEqual(ents, [])
 
-    def test_concurrent_commit(self):
-        def _commit_on_thread(db_map):
-            db_map.commit_session("...")
 
-        with CustomDatabaseMapping(IN_MEMORY_DB_URL) as other_db_map:
-            self._db_map.add_entity_class(name="dog")
-            self._db_map.add_entity_class(name="cat")
-            other_db_map.add_entity_class(name="cat")
-            t1 = threading.Thread(target=_commit_on_thread, args=(self._db_map,))
-            t2 = threading.Thread(target=_commit_on_thread, args=(other_db_map,))
-            t1.start()
-            t2.start()
-            t1.join()
-            t2.join()
+class TestDatabaseMappingConcurrent(unittest.TestCase):
+    def test_concurrent_commit_threading(self):
+        self._do_test_concurrent_commit(threading.Thread)
+
+    def test_concurrent_commit_multiprocessing(self):
+        self._do_test_concurrent_commit(multiprocessing.Process)
+
+    def _do_test_concurrent_commit(self, make_concurrent):
+        def _commit_on_thread(db_map, msg):
+            db_map.commit_session(msg)
+
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+
+            with CustomDatabaseMapping(url, create=True) as db_map1:
+                with CustomDatabaseMapping(url) as db_map2:
+                    db_map1.add_entity_class_item(name="dog")
+                    db_map1.add_entity_class_item(name="cat")
+                    db_map2.add_entity_class_item(name="cat")
+                    t1 = make_concurrent(target=_commit_on_thread, args=(db_map1, "one"))
+                    t2 = make_concurrent(target=_commit_on_thread, args=(db_map2, "two"))
+                    t2.start()
+                    t1.start()
+                    t1.join()
+                    t2.join()
+
+            with CustomDatabaseMapping(url) as db_map:
+                commit_msgs = {x["comment"] for x in db_map.query(db_map.commit_sq)}
+                entity_class_names = {x["name"] for x in db_map.query(db_map.entity_class_sq)}
+                self.assertEqual(commit_msgs, {"Create the database", "one", "two"})
+                self.assertEqual(entity_class_names, {"cat", "dog"})
 
 
 if __name__ == "__main__":
