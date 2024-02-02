@@ -607,7 +607,6 @@ class TestDatabaseMapping(unittest.TestCase):
             self.assertEqual(in_database, expected)
             self.assertEqual(db_map.query(db_map.parameter_value_sq).all(), [])
 
-
     def test_commit_default_value_for_parameter_called_is_active(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_parameter_value_list_item(name="booleans")
@@ -2933,6 +2932,10 @@ class TestDatabaseMappingConcurrent(unittest.TestCase):
     def test_concurrent_commit_threading(self):
         self._do_test_concurrent_commit(threading.Thread)
 
+    @unittest.skipIf(
+        os.name == 'nt',
+        "AttributeError: Can't pickle local object 'TestDatabaseMappingConcurrent._do_test_concurrent_commit.<locals>._commit_on_thread",
+    )
     def test_concurrent_commit_multiprocessing(self):
         self._do_test_concurrent_commit(multiprocessing.Process)
 
