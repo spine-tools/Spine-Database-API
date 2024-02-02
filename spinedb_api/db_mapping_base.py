@@ -148,6 +148,7 @@ class DatabaseMappingBase:
         purged_item_types = {x for x in self.item_types() if self.mapped_table(x).purged}
         self._add_descendants(purged_item_types)
         for item_type in self._sorted_item_types:
+            self.do_fetch_all(item_type)  # To fix conflicts in add_item_from_db
             mapped_table = self.mapped_table(item_type)
             to_add = []
             to_update = []
@@ -164,14 +165,6 @@ class DatabaseMappingBase:
                     _ = item.is_valid()
                     if item.status == Status.to_remove:
                         to_remove.append(item)
-                if to_remove:
-                    # Fetch descendants, so that they are validated in next iterations of the loop.
-                    # This ensures cascade removal.
-                    # FIXME: We should also fetch the current item type because of multi-dimensional entities and
-                    # classes which also depend on zero-dimensional ones
-                    for other_item_type in self.item_types():
-                        if item_type in self.item_factory(other_item_type).ref_types():
-                            self.fetch_all(other_item_type)
             if to_add or to_update or to_remove:
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items

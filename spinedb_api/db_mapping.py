@@ -679,6 +679,11 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         return Query(self.engine, *args)
 
+    def _get_db_lock(self, connection):
+        if self.sa_url.get_dialect() == "sqlite":
+            connection.execute("BEGIN IMMEDIATE")
+        # TODO: Other dialects? Do they need it?
+
     def commit_session(self, comment):
         """Commits the changes from the in-memory mapping to the database.
 
@@ -690,13 +695,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         if not comment:
             raise SpineDBAPIError("Commit message cannot be empty.")
-        dirty_items = self._dirty_items()
-        if not dirty_items:
-            raise SpineDBAPIError("Nothing to commit.")
-        user = self.username
-        date = datetime.now(timezone.utc)
-        ins = self._metadata.tables["commit"].insert()
         with self.engine.begin() as connection:
+            self._get_db_lock(connection)
+            dirty_items = self._dirty_items()
+            if not dirty_items:
+                raise SpineDBAPIError("Nothing to commit.")
+            user = self.username
+            date = datetime.now(timezone.utc)
+            ins = self._metadata.tables["commit"].insert()
             try:
                 commit_id = connection.execute(ins, dict(user=user, date=date, comment=comment)).inserted_primary_key[0]
             except DBAPIError as e:
