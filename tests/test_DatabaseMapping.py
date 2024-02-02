@@ -548,6 +548,64 @@ class TestDatabaseMapping(unittest.TestCase):
             self.assertEqual(len(groups), 1)
             self.assertNotIn("commit_id", groups[0]._extended())
 
+    def test_commit_parameter_value_coincidentally_called_is_active(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_parameter_value_list_item(name="booleans")
+            value, value_type = to_database(True)
+            db_map.add_list_value_item(parameter_value_list_name="booleans", value=value, type=value_type, index=0)
+            db_map.add_entity_class_item(name="my_class")
+            db_map.add_parameter_definition_item(
+                name="is_active", entity_class_name="my_class", parameter_value_list_name="booleans"
+            )
+            db_map.add_entity_item(name="widget1", entity_class_name="my_class")
+            db_map.add_entity_item(name="widget2", entity_class_name="my_class")
+            db_map.add_entity_item(name="no_is_active", entity_class_name="my_class")
+            db_map.add_entity_alternative_item(
+                entity_class_name="my_class", entity_byname=("widget1",), alternative_name="Base", active=False
+            )
+            db_map.add_entity_alternative_item(
+                entity_class_name="my_class", entity_byname=("widget2",), alternative_name="Base", active=False
+            )
+            db_map.add_entity_alternative_item(
+                entity_class_name="my_class", entity_byname=("no_is_active",), alternative_name="Base", active=False
+            )
+            value, value_type = to_database(True)
+            db_map.add_parameter_value_item(
+                entity_class_name="my_class",
+                parameter_definition_name="is_active",
+                entity_byname=("widget1",),
+                alternative_name="Base",
+                value=value,
+                type=value_type,
+            )
+            db_map.add_parameter_value_item(
+                entity_class_name="my_class",
+                parameter_definition_name="is_active",
+                entity_byname=("widget2",),
+                alternative_name="Base",
+                value=value,
+                type=value_type,
+            )
+            db_map.commit_session("Add test data to see if this crashes.")
+            entity_names = {entity["id"]: entity["name"] for entity in db_map.query(db_map.wide_entity_sq)}
+            alternative_names = {
+                alternative["id"]: alternative["name"] for alternative in db_map.query(db_map.alternative_sq)
+            }
+            expected = {
+                ("widget1", "Base"): True,
+                ("widget2", "Base"): True,
+                ("no_is_active", "Base"): False,
+            }
+            in_database = {}
+            entity_alternatives = db_map.query(db_map.entity_alternative_sq)
+            for entity_alternative in entity_alternatives:
+                entity_name = entity_names[entity_alternative["entity_id"]]
+                alternative_name = alternative_names[entity_alternative["alternative_id"]]
+                in_database[(entity_name, alternative_name)] = entity_alternative["active"]
+            self.assertEqual(in_database, expected)
+            self.assertEqual(db_map.query(db_map.parameter_value_sq).all(), [])
+
+
     def test_commit_default_value_for_parameter_called_is_active(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_parameter_value_list_item(name="booleans")

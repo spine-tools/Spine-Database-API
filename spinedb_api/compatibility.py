@@ -177,8 +177,9 @@ def convert_tool_feature_method_to_entity_alternative(conn):
     pval_ids_to_remove = [x["id"] for x in is_active_pvals]
     if ea_items_to_add:
         conn.execute(ea_table.insert(), ea_items_to_add)
-    if ea_items_to_update:
-        conn.execute(ea_table.update(), ea_items_to_update)
+    ea_update = ea_table.update()
+    for item in ea_items_to_update:
+        conn.execute(ea_update.where(ea_table.c.id == item["id"]), {"active": item["active"]})
     # Delete pvals 499 at a time to avoid too many sql variables
     size = 499
     for i in range(0, len(pval_ids_to_remove), size):
