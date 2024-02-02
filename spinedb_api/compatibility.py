@@ -15,6 +15,91 @@
 import sqlalchemy as sa
 
 
+def convert_tool_feature_method_to_active_by_default(conn):
+    """Transforms default parameter values into active_by_default values, whenever the former are used in a tool filter
+    to control entity activity.
+
+    Args:
+        conn (Connection)
+
+    Returns:
+        tuple: list of entity classes to add, update and ids to remove
+    """
+    meta = sa.MetaData(conn)
+    meta.reflect()
+    lv_table = meta.tables["list_value"]
+    pd_table = meta.tables["parameter_definition"]
+    try:
+        # Compute list-value id by parameter definition id for all features and methods
+        tfm_table = meta.tables["tool_feature_method"]
+        tf_table = meta.tables["tool_feature"]
+        f_table = meta.tables["feature"]
+        lv_id_by_pdef_id = {
+            x["parameter_definition_id"]: x["id"]
+            for x in conn.execute(
+                sa.select([lv_table.c.id, f_table.c.parameter_definition_id])
+                .where(tfm_table.c.parameter_value_list_id == lv_table.c.parameter_value_list_id)
+                .where(tfm_table.c.method_index == lv_table.c.index)
+                .where(tf_table.c.id == tfm_table.c.tool_feature_id)
+                .where(f_table.c.id == tf_table.c.feature_id)
+            )
+        }
+    except KeyError:
+        # It's a new DB without tool/feature/method
+        # we take 'is_active' as feature and JSON "yes" and true as methods
+        lv_id_by_pdef_id = {
+            x["parameter_definition_id"]: x["id"]
+            for x in conn.execute(
+                sa.select([lv_table.c.id, lv_table.c.value, pd_table.c.id.label("parameter_definition_id")])
+                .where(lv_table.c.parameter_value_list_id == pd_table.c.parameter_value_list_id)
+                .where(pd_table.c.name == "is_active")
+                .where(lv_table.c.value.in_((b'"yes"', b"true")))
+            )
+        }
+    # Collect 'is_active' default values
+    list_value_id = sa.case(
+        [(pd_table.c.default_type == "list_value_ref", sa.cast(pd_table.c.default_value, sa.Integer()))], else_=None
+    )
+    is_active_default_vals = [
+        {c: x[c] for c in ("entity_class_id", "parameter_definition_id", "list_value_id")}
+        for x in conn.execute(
+            sa.select(
+                [
+                    pd_table.c.entity_class_id,
+                    pd_table.c.id.label("parameter_definition_id"),
+                    list_value_id.label("list_value_id"),
+                ]
+            ).where(pd_table.c.id.in_(lv_id_by_pdef_id))
+        )
+    ]
+    # Compute new active_by_default values from 'is_active' default values,
+    # where active_by_default is True if the value of 'is_active' is the one from the tool_feature_method specification
+    entity_class_items_to_update = {
+        x["entity_class_id"]: {
+            "active_by_default": x["list_value_id"] == lv_id_by_pdef_id[x["parameter_definition_id"]],
+        }
+        for x in is_active_default_vals
+        if x["list_value_id"] is not None
+    }
+    updated_items = []
+    entity_class_table = meta.tables["entity_class"]
+    update_statement = entity_class_table.update()
+    for class_id, update in entity_class_items_to_update.items():
+        conn.execute(update_statement.where(entity_class_table.c.id == class_id), update)
+        update["id"] = class_id
+        updated_items.append(update)
+    parameter_definitions_to_update = (
+        x["parameter_definition_id"] for x in is_active_default_vals if x["list_value_id"] is not None
+    )
+    update_statement = pd_table.update()
+    for definition_id in parameter_definitions_to_update:
+        update = {"default_value": None, "default_type": None}
+        conn.execute(update_statement.where(pd_table.c.id == definition_id), update)
+        update["id"] = definition_id
+        updated_items.append(update)
+    return [], updated_items, []
+
+
 def convert_tool_feature_method_to_entity_alternative(conn):
     """Transforms parameter_value rows into entity_alternative rows, whenever the former are used in a tool filter
     to control entity activity.
@@ -92,8 +177,9 @@ def convert_tool_feature_method_to_entity_alternative(conn):
     pval_ids_to_remove = [x["id"] for x in is_active_pvals]
     if ea_items_to_add:
         conn.execute(ea_table.insert(), ea_items_to_add)
-    if ea_items_to_update:
-        conn.execute(ea_table.update(), ea_items_to_update)
+    ea_update = ea_table.update()
+    for item in ea_items_to_update:
+        conn.execute(ea_update.where(ea_table.c.id == item["id"]), {"active": item["active"]})
     # Delete pvals 499 at a time to avoid too many sql variables
     size = 499
     for i in range(0, len(pval_ids_to_remove), size):
@@ -121,4 +207,7 @@ def compatibility_transformations(connection):
         transformations.append(("parameter_value", ((), (), pval_ids_removed)))
     if ea_items_added or ea_items_updated or pval_ids_removed:
         info.append("Convert entity activity control using tool/feature/method into entity_alternative")
+    _, ec_items_updated, _ = convert_tool_feature_method_to_active_by_default(connection)
+    if ec_items_updated:
+        transformations.append(("entity_class", ((), ec_items_updated, ())))
     return transformations, info

@@ -9,6 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 import sqlalchemy.orm
 
+from spinedb_api.compatibility import convert_tool_feature_method_to_active_by_default
 
 # revision identifiers, used by Alembic.
 revision = '8b0eff478bcb'
@@ -38,6 +39,7 @@ def upgrade():
         class_table.update().where(class_table.c.id == sa.bindparam("target_id")).values(active_by_default=True)
     )
     conn.execute(update_statement, [{"target_id": class_id} for class_id in dimensional_class_ids])
+    convert_tool_feature_method_to_active_by_default(conn)
 
 
 def downgrade():
