@@ -268,8 +268,9 @@ class DatabaseMappingBase:
         items = []
         new_items = []
         # Add items first
+        fix_id_conflics = self.has_external_commits()
         for x in chunk:
-            item, new = mapped_table.add_item_from_db(x)
+            item, new = mapped_table.add_item_from_db(x, fix_id_conflics)
             if new:
                 new_items.append(item)
             items.append(item)
@@ -281,6 +282,32 @@ class DatabaseMappingBase:
 
     def do_fetch_all(self, item_type, **kwargs):
         self.do_fetch_more(item_type, offset=0, limit=None, **kwargs)
+
+    def update_id(self, mapped_item, new_id):
+        """Updates the id of the given item to the given new_id, also in all its referees.
+
+        Args:
+            mapped_item (MappedItemBase)
+            new_id (int)
+        """
+        old_id = mapped_item["id"]
+        mapped_item["id"] = new_id
+        for item_type in self.item_types():
+            dirty_fields = {
+                field
+                for field, (ref_type, ref_field) in self.item_factory(item_type)._references.items()
+                if ref_type == mapped_item.item_type and ref_field == "id"
+            }  # Fields that might refer the id of the mapped item
+            if not dirty_fields:
+                continue
+            mapped_table = self.mapped_table(item_type)
+            for item in mapped_table.values():
+                for field in dirty_fields:
+                    value = item[field]
+                    if isinstance(value, tuple) and old_id in value:
+                        item[field] = tuple(new_id if id_ == old_id else id_ for id_ in value)
+                    elif old_id == value:
+                        item[field] = new_id
 
 
 class _MappedTable(dict):
@@ -476,7 +503,7 @@ class _MappedTable(dict):
         self[item["id"]] = item
         return item
 
-    def add_item_from_db(self, item):
+    def add_item_from_db(self, item, fix_id_conflics):
         """Adds an item fetched from the DB.
 
         Args:
@@ -485,19 +512,39 @@ class _MappedTable(dict):
         Returns:
             tuple(MappedItem,bool): The mapped item and whether it hadn't been added before.
         """
-        current = self.find_item_by_id(item["id"], fetch=False) or self._find_item_by_unique_key(
-            item, fetch=False, complete=self._db_map.has_external_commits()
-        )
-        if current:
-            if current.status == Status.to_add:
-                current["id"].resolve(item["id"])
-                current.status = Status.committed
-            return current, False
-        item = self._make_and_add_item(item)
+        mapped_item = self._find_item_by_unique_key(item, fetch=False, complete=True)
+        print(item, mapped_item)
+        if mapped_item:
+            self._solve_id_conflict(mapped_item, item)
+            return mapped_item, False
+        mapped_item = self._make_and_add_item(item)
         if self.purged:
             # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
-            item.cascade_remove(source=self.wildcard_item)
-        return item, True
+            mapped_item.cascade_remove(source=self.wildcard_item)
+        return mapped_item, True
+
+    def _solve_id_conflict(self, mapped_item, db_item):
+        """Makes sure that mapped_item and db_item don't have conflicting ids.
+        Both items are equivalent in the sense they share a unique key,
+        so there's only room for one of them. Therefore, they must have the same id.
+
+        Args:
+            current (MappedItemBase): An item in the in-memory item.
+            item (dict): An item just fetched from the DB.
+        """
+        # NOTE: db_item is more recent (because it's been fetched later) so we need to trust its id.
+        mapped_id, db_id = mapped_item["id"], db_item["id"]
+        if isinstance(mapped_id, TempId):
+            # mapped_item was added on this session and hasn't been committed.
+            # Just do as if it was committed and has the id of db_item.
+            mapped_id.resolve(db_id)
+            if mapped_item.status == Status.to_add:
+                mapped_item.status = Status.committed
+        elif mapped_id != db_id:
+            # Both mapped_item and db_item have been committed but with a different id (it can happen).
+            # Change the id of mapped_item to that of db_item.
+            self._db_map.update_id(mapped_item, db_id)
+            self[db_id] = self.pop(mapped_id)
 
     def check_fields(self, item, valid_types=()):
         factory = self._db_map.item_factory(self._item_type)
@@ -533,6 +580,7 @@ class _MappedTable(dict):
         return item
 
     def update_item(self, item):
+        print("update_item", item)
         current_item = self.find_item(item)
         current_item.cascade_remove_unique()
         current_item.update(item)

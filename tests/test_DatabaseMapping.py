@@ -2037,6 +2037,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         self._db_map.add_object_classes({"id": 1, "name": "some_class"})
         self._db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1})
         self._db_map.commit_session("update")
+        print("NOW")
         items, intgr_error_log = self._db_map.update_objects({"id": 1, "name": "klaus"})
         ids = {x["id"] for x in items}
         self._db_map.commit_session("test commit")
