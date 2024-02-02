@@ -486,7 +486,7 @@ class _MappedTable(dict):
             tuple(MappedItem,bool): The mapped item and whether it hadn't been added before.
         """
         current = self.find_item_by_id(item["id"], fetch=False) or self.find_item_by_unique_key(
-            item, fetch=False, complete=False
+            item, fetch=False, complete=True
         )
         if current:
             if current.status == Status.to_add:
