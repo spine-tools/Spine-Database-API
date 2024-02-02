@@ -2928,7 +2928,7 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         self.assertEqual(ents, [])
 
 
-@unittest.skipIf(os.name == 'nt')
+@unittest.skipIf(os.name == 'nt', "Need to fix")
 class TestDatabaseMappingConcurrent(unittest.TestCase):
     def test_concurrent_commit_threading(self):
         self._do_test_concurrent_commit(threading.Thread)
