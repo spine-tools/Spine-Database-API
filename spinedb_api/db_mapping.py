@@ -694,7 +694,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             commit = self._metadata.tables["commit"]
             commit_item = dict(user=self.username, date=datetime.now(timezone.utc), comment=comment)
             try:
-                # The below locks the DB in sqlite
+                # TODO: The below locks the DB in sqlite, how about other dialects?
                 commit_id = connection.execute(commit.insert(), commit_item).inserted_primary_key[0]
             except DBAPIError as e:
                 raise SpineDBAPIError(f"Fail to commit: {e.orig.args}") from e

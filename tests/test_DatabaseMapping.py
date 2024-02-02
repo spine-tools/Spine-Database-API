@@ -2853,18 +2853,19 @@ class TestDatabaseMappingConcurrent(unittest.TestCase):
                     db_map1.add_entity_class_item(name="dog")
                     db_map1.add_entity_class_item(name="cat")
                     db_map2.add_entity_class_item(name="cat")
-                    t1 = make_concurrent(target=_commit_on_thread, args=(db_map1, "one"))
-                    t2 = make_concurrent(target=_commit_on_thread, args=(db_map2, "two"))
-                    t2.start()
-                    t1.start()
-                    t1.join()
-                    t2.join()
+                    c1 = make_concurrent(target=_commit_on_thread, args=(db_map1, "one"))
+                    c2 = make_concurrent(target=_commit_on_thread, args=(db_map2, "two"))
+                    c2.start()
+                    c1.start()
+                    c1.join()
+                    c2.join()
 
             with CustomDatabaseMapping(url) as db_map:
                 commit_msgs = {x["comment"] for x in db_map.query(db_map.commit_sq)}
-                entity_class_names = {x["name"] for x in db_map.query(db_map.entity_class_sq)}
+                entity_class_names = [x["name"] for x in db_map.query(db_map.entity_class_sq)]
                 self.assertEqual(commit_msgs, {"Create the database", "one", "two"})
-                self.assertEqual(entity_class_names, {"cat", "dog"})
+                self.assertEqual(len(entity_class_names), 2)
+                self.assertEqual(set(entity_class_names), {"cat", "dog"})
 
 
 if __name__ == "__main__":

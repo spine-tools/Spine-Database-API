@@ -365,7 +365,7 @@ class _MappedTable(dict):
         id_ = item.get("id")
         if id_ is not None:
             return self.find_item_by_id(id_, fetch=fetch)
-        return self.find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
+        return self._find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
 
     def find_item_by_id(self, id_, fetch=True):
         current_item = self.get(id_, {})
@@ -374,7 +374,7 @@ class _MappedTable(dict):
             current_item = self.get(id_, {})
         return current_item
 
-    def find_item_by_unique_key(self, item, skip_keys=(), fetch=True, complete=True):
+    def _find_item_by_unique_key(self, item, skip_keys=(), fetch=True, complete=True):
         for key, value in self._db_map.item_factory(self._item_type).unique_values_for_item(item, skip_keys=skip_keys):
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch)
             if current_item:
@@ -486,7 +486,7 @@ class _MappedTable(dict):
             tuple(MappedItem,bool): The mapped item and whether it hadn't been added before.
         """
         current = self.find_item_by_id(item["id"], fetch=False) or self.find_item_by_unique_key(
-            item, fetch=False, complete=True
+            item, fetch=False, complete=self._db_map.has_external_commits()
         )
         if current:
             if current.status == Status.to_add:
