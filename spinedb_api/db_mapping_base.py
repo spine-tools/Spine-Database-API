@@ -527,40 +527,68 @@ class _MappedTable(dict):
         """
         mapped_item = self._find_item_by_unique_key(item, fetch=False, valid_only=False)
         if mapped_item:
-            self._fix_id(mapped_item, item["id"])
+            self._force_id(mapped_item, item["id"])
             return mapped_item, False
-        mapped_item = self.find_item_by_id(item["id"], fetch=False)
-        if mapped_item:
-            # An item from the DB has the same id as a mapped item, but they are not equivalent
-            # TODO: Fix id clash
+        mapped_item = self.get(item["id"])
+        if mapped_item is not None and mapped_item.is_equal_in_db(item):
             return mapped_item, False
+        self._free_id(item["id"])
         mapped_item = self._make_and_add_item(item)
         if self.purged:
             # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
             mapped_item.cascade_remove(source=self.wildcard_item)
         return mapped_item, True
 
-    def _fix_id(self, mapped_item, id_):
-        """Makes sure that mapped_item has the given id_.
+    def _force_id(self, mapped_item, id_):
+        """Makes sure that mapped_item has the given id_, corresponding to the new id of the item
+        in the DB after some external changes.
 
         Args:
             mapped_item (MappedItemBase): An item in the in-memory item.
-            id_ (int): The id_ of an equivalent item just fetched from the DB.
+            id_ (int): The most recent id_ of the item as fetched from the DB.
         """
         mapped_id = mapped_item["id"]
+        if mapped_id == id_:  # This is True even if mapped_id is a TempId resolved to the given id_
+            return
         if isinstance(mapped_id, TempId):
-            # mapped_item was added on this session and hasn't been committed.
-            # But it was committed by somebody else, so we need to accept that.
+            # Easy, resolve the TempId to the new db id (and commit the item if pending)
             mapped_id.resolve(id_)
             if mapped_item.status == Status.to_add:
                 mapped_item.status = Status.committed
-        elif mapped_id != id_:
-            # The id of mapped_item has changed in the DB.
+        else:
+            # Hard, update the id of the item manually.
+            self._free_id(id_)
+            self.remove_unique(mapped_item)
             self._db_map.update_id(mapped_item, id_)
-            # TODO: Fix id clash if db_id already in self
-            # Store the mapped item in the new db_id
+            self.add_unique(mapped_item)
             self[id_] = mapped_item
             del self[mapped_id]
+
+    def _free_id(self, id_):
+        """Makes sure the given id_ is free. Fix conflicts if not.
+
+        Args:
+            id_ (int)
+        """
+        conflicting_item = self.pop(id_, None)
+        if conflicting_item is not None:
+            self._resolve_conflict(conflicting_item)
+
+    def _resolve_conflict(self, conflicting_item):
+        """Does something with conflicting item which has been removed from the DB by an external commit.
+
+        Args:
+            conflicting_item (MappedItemBase): an item in the memory mapping.
+        """
+        # Here we could let the user choose the strategy.
+        # For now, we keep the conflicting_item in memory with a new TempId.
+        # It will be committed in the next call to commit_session.
+        self.remove_unique(conflicting_item)
+        new_id = self._new_id()
+        self._db_map.update_id(conflicting_item, new_id)
+        self.add_unique(conflicting_item)
+        if conflicting_item.status in (Status.to_update, Status.committed):
+            conflicting_item.status = Status.to_add
 
     def check_fields(self, item, valid_types=()):
         factory = self._db_map.item_factory(self._item_type)
@@ -805,6 +833,18 @@ class MappedItemBase(dict):
             if value is not None
             or self.fields.get(key, {}).get("optional", False)  # Ignore mandatory fields that are None
         )
+
+    def is_equal_in_db(self, other):
+        """Returns whether this item and other are the same in the DB.
+
+        Args:
+            other (dict)
+
+        Returns:
+            bool
+        """
+        this = self._db_map.make_item(self._item_type, **self.backup) if self.status == Status.to_update else self
+        return not this._something_to_update(other)
 
     def first_invalid_key(self):
         """Goes through the ``_references`` class attribute and returns the key of the first reference
@@ -1224,3 +1264,6 @@ class PublicItem:
 
     def add_restore_callback(self, callback):
         self._mapped_item.restore_callbacks.add(callback)
+
+    def resolve(self):
+        return self._mapped_item.resolve()

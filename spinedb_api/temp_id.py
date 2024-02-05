@@ -42,8 +42,8 @@ class TempId(int):
 
     def resolve(self, db_id):
         self._db_id = db_id
-        while self._resolve_callbacks:
-            self._resolve_callbacks.pop(0)(db_id)
+        for callback in self._resolve_callbacks:
+            callback(db_id)
 
 
 def resolve(value):
