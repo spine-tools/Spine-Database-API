@@ -382,7 +382,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         mapped_table = self.mapped_table(item_type)
         mapped_table.check_fields(kwargs, valid_types=(type(None),))
         if fetch:
-            self.do_fetch_all(item_type, **kwargs)
+            self.do_fetch_more(item_type, offset=0, limit=None, **kwargs)
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
         return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
 
