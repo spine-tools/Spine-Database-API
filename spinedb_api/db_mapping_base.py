@@ -35,7 +35,7 @@ class DatabaseMappingBase:
 
     This class is not meant to be used directly. Instead, you should subclass it to fit your particular DB schema.
 
-    When subclassing, you need to implement :meth:`item_types`, :meth:`item_factory`, and :meth:`_make_query`.
+    When subclassing, you need to implement :meth:`item_types`, :meth:`item_factory`, and :meth:`_make_sq`.
     """
 
     def __init__(self):
@@ -231,6 +231,15 @@ class DatabaseMappingBase:
         self._add_descendants(item_types)
         for item_type in item_types:
             self._mapped_tables.pop(item_type, None)
+
+    def reset_purging(self):
+        """Resets purging status for all item types.
+
+        Fetching items of an item type that has been purged will automatically mark those items removed.
+        Resetting the purge status lets fetched items to be added unmodified.
+        """
+        for mapped_table in self._mapped_tables.values():
+            mapped_table.wildcard_item.status = Status.committed
 
     def _add_descendants(self, item_types):
         while True:
