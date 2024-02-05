@@ -575,14 +575,20 @@ class _MappedTable(dict):
             self._resolve_conflict(conflicting_item)
 
     def _resolve_conflict(self, conflicting_item):
-        """Does something with conflicting item which has been removed from the DB by an external commit.
+        """Does something with conflicting_item which has been removed from the DB by an external commit.
 
         Args:
             conflicting_item (MappedItemBase): an item in the memory mapping.
         """
-        # Here we could let the user choose the strategy.
-        # For now, we keep the conflicting_item in memory with a new TempId.
-        # It will be committed in the next call to commit_session.
+        # Here we could let the user choose the strategy. For now we just 'rescue' the item.
+        self._rescue_item(conflicting_item)
+
+    def _rescue_item(self, conflicting_item):
+        """Rescues the given conflicting_item which has been removed from the DB by an external commit.
+
+        Args:
+            conflicting_item (MappedItemBase): an item in the memory mapping.
+        """
         self.remove_unique(conflicting_item)
         new_id = self._new_id()
         self._db_map.update_id(conflicting_item, new_id)
