@@ -295,10 +295,10 @@ class DatabaseMappingBase:
         new_items = []
         # Add items first
         for x in chunk:
-            item, new = mapped_table.add_item_from_db(x)
-            if new:
-                new_items.append(item)
-            items.append(item)
+            for item, new in mapped_table.add_item_from_db(x):
+                if new:
+                    new_items.append(item)
+                items.append(item)
         # Once all items are added, add the unique key values
         # Otherwise items that refer to other items that come later in the query will be seen as corrupted
         for item in new_items:
@@ -536,22 +536,23 @@ class _MappedTable(dict):
         Args:
             item (dict): item from the DB.
 
-        Returns:
-            tuple(MappedItem,bool): The mapped item and whether it hadn't been added before.
+        Yields:
+            tuple(MappedItem,bool): A mapped item and whether it needs to be added to the unique key values dict.
         """
         mapped_item = self._find_item_by_unique_key(item, fetch=False, valid_only=False)
         if mapped_item:
-            self._force_id(mapped_item, item["id"])
-            return mapped_item, False
+            yield from self._force_id(mapped_item, item["id"])
+            return
         mapped_item = self.get(item["id"])
         if mapped_item is not None and mapped_item.is_equal_in_db(item):
-            return mapped_item, False
-        self._free_id(item["id"])
+            yield mapped_item, False
+            return
+        yield from self._free_id(item["id"])
         mapped_item = self._make_and_add_item(item)
         if self.purged:
             # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
             mapped_item.cascade_remove(source=self.wildcard_item)
-        return mapped_item, True
+        yield mapped_item, True
 
     def _force_id(self, mapped_item, id_):
         """Makes sure that mapped_item has the given id_, corresponding to the new id of the item
@@ -560,36 +561,46 @@ class _MappedTable(dict):
         Args:
             mapped_item (MappedItemBase): An item in the in-memory item.
             id_ (int): The most recent id_ of the item as fetched from the DB.
+
+        Yields:
+            tuple(MappedItem,bool): A mapped item and whether it needs to be added to the unique key values dict.
         """
         mapped_id = mapped_item["id"]
         if mapped_id == id_:  # This is True even if mapped_id is a TempId resolved to the given id_
+            yield mapped_item, False
             return
         if isinstance(mapped_id, TempId):
             # Easy, resolve the TempId to the new db id (and commit the item if pending)
             mapped_id.resolve(id_)
             if mapped_item.status == Status.to_add:
                 mapped_item.status = Status.committed
+            yield mapped_item, False
         else:
             # Hard, update the id of the item manually.
-            self._free_id(id_)
-            self.remove_unique(mapped_item)
-            self._db_map.update_id(mapped_item, id_)
-            self.add_unique(mapped_item)
-            self[id_] = mapped_item
+            mapped_item.cascade_remove()
             del self[mapped_id]
+            self._db_map.update_id(mapped_item, id_)
+            yield from self._free_id(id_)
+            self[id_] = mapped_item
+            yield mapped_item, True
 
     def _free_id(self, id_):
         """Makes sure the given id_ is free. Fix conflicts if not.
 
         Args:
             id_ (int)
+
+        Yields:
+            tuple(MappedItem,bool): A mapped item and whether it needs to be added to the unique key values dict.
         """
         conflicting_item = self.pop(id_, None)
-        if conflicting_item is not None:
-            self._resolve_conflict(conflicting_item)
+        if conflicting_item is None:
+            return ()
+        self._resolve_id_conflict(conflicting_item)
+        yield conflicting_item, True
 
-    def _resolve_conflict(self, conflicting_item):
-        """Does something with conflicting_item which has been removed from the DB by an external commit.
+    def _resolve_id_conflict(self, conflicting_item):
+        """Does something with conflicting_item whose id now belongs to a different item after an external commit.
 
         Args:
             conflicting_item (MappedItemBase): an item in the memory mapping.
@@ -598,16 +609,17 @@ class _MappedTable(dict):
         self._rescue_item(conflicting_item)
 
     def _rescue_item(self, conflicting_item):
-        """Rescues the given conflicting_item which has been removed from the DB by an external commit.
+        """Rescues the given conflicting_item whose id now belongs to a different item after an external commit.
 
         Args:
             conflicting_item (MappedItemBase): an item in the memory mapping.
         """
-        self.remove_unique(conflicting_item)
-        new_id = self._new_id()
-        self._db_map.update_id(conflicting_item, new_id)
-        self.add_unique(conflicting_item)
-        if conflicting_item.status in (Status.to_update, Status.committed):
+        status = conflicting_item.status
+        conflicting_item.cascade_remove()
+        id_ = self._new_id()
+        self._db_map.update_id(conflicting_item, id_)
+        self[id_] = conflicting_item
+        if status in (Status.to_update, Status.committed):
             conflicting_item.status = Status.to_add
 
     def check_fields(self, item, valid_types=()):
