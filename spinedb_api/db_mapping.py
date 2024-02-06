@@ -727,11 +727,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._refresh()
 
     def has_external_commits(self):
-        """Tests whether the database has had commits from other sources than this mapping.
-
-        Returns:
-            bool: True if database has external commits, False otherwise
-        """
+        """See base class."""
         return self._commit_count != self.query(self.commit_sq).count()
 
     def close(self):
