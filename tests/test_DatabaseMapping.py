@@ -85,12 +85,14 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
                 db_map.close()
 
 
-class TestDatabaseMapping(unittest.TestCase):
+class AssertSuccessMixin:
     def _assert_success(self, result):
         item, error = result
         self.assertIsNone(error)
         return item
 
+
+class TestDatabaseMapping(AssertSuccessMixin, unittest.TestCase):
     def test_active_by_default_is_initially_false_for_zero_dimensional_entity_class(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             item = self._assert_success(db_map.add_entity_class_item(name="Entity"))
@@ -2984,7 +2986,7 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
         self.assertEqual(ents, [])
 
 
-class TestDatabaseMappingConcurrent(unittest.TestCase):
+class TestDatabaseMappingConcurrent(AssertSuccessMixin, unittest.TestCase):
     @unittest.skipIf(os.name == 'nt', "Needs fixing")
     def test_concurrent_commit_threading(self):
         self._do_test_concurrent_commit(threading.Thread)
@@ -3021,40 +3023,74 @@ class TestDatabaseMappingConcurrent(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
             with CustomDatabaseMapping(url, create=True) as db_map1:
+                db_map1.add_entity_class_item(name="widget")
+                db_map1.add_entity_class_item(name="gadget")
                 with CustomDatabaseMapping(url) as db_map2:
-                    db_map1.add_entity_class_item(name="widget")
-                    db_map1.add_entity_class_item(name="gadget")
+                    # Add the same classes in different order
                     db_map2.add_entity_class_item(name="gadget")
                     db_map2.add_entity_class_item(name="widget")
                     db_map2.commit_session("No comment")
                     committed_resolved_entity_classes = [x.resolve() for x in db_map2.get_items("entity_class")]
                     committed_resolved_id_by_name = {x["name"]: x["id"] for x in committed_resolved_entity_classes}
-                    uncommitted_entity_classes = db_map1.get_items("entity_class")
-                    uncommitted_resolved_entity_classes = [x.resolve() for x in uncommitted_entity_classes]
-                    uncommitted_resolved_id_by_name = {x["name"]: x["id"] for x in uncommitted_resolved_entity_classes}
-                    self.assertEqual(committed_resolved_id_by_name, uncommitted_resolved_id_by_name)
-                    for mapped_item in uncommitted_entity_classes:
-                        self.assertTrue(mapped_item.is_committed())
-                    with self.assertRaises(SpineDBAPIError):
-                        db_map1.commit_session("No comment")
+                # Verify that the uncommitted classes are now seen as 'committed'
+                uncommitted_entity_classes = db_map1.get_items("entity_class")
+                uncommitted_resolved_entity_classes = [x.resolve() for x in uncommitted_entity_classes]
+                uncommitted_resolved_id_by_name = {x["name"]: x["id"] for x in uncommitted_resolved_entity_classes}
+                self.assertEqual(committed_resolved_id_by_name, uncommitted_resolved_id_by_name)
+                for mapped_item in uncommitted_entity_classes:
+                    self.assertTrue(mapped_item.is_committed())
+                with self.assertRaises(SpineDBAPIError):
+                    db_map1.commit_session("No comment")
 
     def test_committed_mapped_items_take_id_from_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
             with CustomDatabaseMapping(url, create=True) as db_map0:
+                # Add widget before gadget
                 db_map0.add_entity_class_item(name="widget")
                 db_map0.add_entity_class_item(name="gadget")
                 db_map0.commit_session("No comment")
-                with CustomDatabaseMapping(url) as db_map1:
-                    with CustomDatabaseMapping(url) as db_map2:
-                        entity_classes_before = db_map1.get_items("entity_class")
-                        db_map2.purge_items("entity_class")
-                        db_map2.add_entity_class_item(name="gadget")
-                        db_map2.add_entity_class_item(name="widget")
-                        db_map2.commit_session("No comment")
-                        entity_classes_after = db_map1.get_items("entity_class")
-                        # TODO: check that entity_classes_after is the same as entity_classes_before
-                        # with exchanged ids
+            with CustomDatabaseMapping(url) as db_map1:
+                # Add classes to a model
+                model = {}
+                for x in db_map1.get_items("entity_class"):
+                    model[x["id"]] = x
+                    x.add_remove_callback(lambda x: model.pop(x["id"]))
+                self.assertEqual(len(model), 2)
+                with CustomDatabaseMapping(url) as db_map2:
+                    # Purge, then add *gadget* before *widget* (swap the order)
+                    # Also add an entity
+                    db_map2.purge_items("entity_class")
+                    db_map2.add_entity_class_item(name="gadget")
+                    db_map2.add_entity_class_item(name="widget")
+                    db_map2.add_entity_item(entity_class_name="gadget", name="phone")
+                    db_map2.commit_session("No comment")
+                # Check that we see the entity added by the other mapping
+                phone = db_map1.get_entity_item(entity_class_name="gadget", name="phone")
+                self.assertIsNotNone(phone)
+                # Overwritten classes should have been removed from the model
+                self.assertEqual(len(model), 0)
+
+    def test_fetching_entities_after_external_change_has_renamed_their_classes(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Widget"))
+                self._assert_success(db_map.add_entity_class_item(name="Gadget"))
+                self._assert_success(db_map.add_entity_item(entity_class_name="Widget", name="smart_watch"))
+                widget = db_map.get_entity_item(entity_class_name="Widget", name="smart_watch")
+                self.assertEqual(widget["name"], "smart_watch")
+                db_map.commit_session("Add initial data.")
+                with DatabaseMapping(url) as shadow_db_map:
+                    widget_class = shadow_db_map.get_entity_class_item(name="Widget")
+                    widget_class.update(name="NotAWidget")
+                    gadget_class = shadow_db_map.get_entity_class_item(name="Gadget")
+                    gadget_class.update(name="Widget")
+                    widget_class.update(name="Gadget")
+                    shadow_db_map.commit_session("Swap Widget and Gadget to cause mayhem.")
+                db_map.refresh_session()
+                gadget = db_map.get_entity_item(entity_class_name="Gadget", name="smart_watch")
+                self.assertEqual(gadget["name"], "smart_watch")
 
 
 if __name__ == "__main__":

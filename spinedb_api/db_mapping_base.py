@@ -290,6 +290,9 @@ class DatabaseMappingBase:
             return []
         if self.has_external_commits():
             self._refresh()
+            for ref_type in self.item_factory(item_type).ref_types():
+                if ref_type != item_type:
+                    self.do_fetch_all(ref_type)
         mapped_table = self.mapped_table(item_type)
         items = []
         new_items = []
@@ -318,6 +321,8 @@ class DatabaseMappingBase:
             mapped_item (MappedItemBase)
             new_id (int)
         """
+        mapped_item.cascade_call_remove_callbacks()
+        mapped_item.cascade_remove_unique()
         old_id = mapped_item["id"]
         mapped_item["id"] = new_id
         for item_type in self.item_types():
@@ -330,6 +335,7 @@ class DatabaseMappingBase:
                             item[field] = tuple(new_id if id_ == old_id else id_ for id_ in value)
                         elif old_id == value:
                             item[field] = new_id
+        mapped_item.cascade_add_unique()
 
 
 class _MappedTable(dict):
@@ -542,6 +548,7 @@ class _MappedTable(dict):
         mapped_item = self._find_item_by_unique_key(item, fetch=False, valid_only=False)
         if mapped_item:
             yield from self._force_id(mapped_item, item["id"])
+            yield mapped_item, False
             return
         mapped_item = self.get(item["id"])
         if mapped_item is not None and mapped_item.is_equal_in_db(item):
@@ -566,23 +573,19 @@ class _MappedTable(dict):
             tuple(MappedItem,bool): A mapped item and whether it needs to be added to the unique key values dict.
         """
         mapped_id = mapped_item["id"]
-        if mapped_id == id_:  # This is True even if mapped_id is a TempId resolved to the given id_
-            yield mapped_item, False
+        if mapped_id == id_:
             return
         if isinstance(mapped_id, TempId):
             # Easy, resolve the TempId to the new db id (and commit the item if pending)
             mapped_id.resolve(id_)
             if mapped_item.status == Status.to_add:
                 mapped_item.status = Status.committed
-            yield mapped_item, False
         else:
             # Hard, update the id of the item manually.
-            mapped_item.cascade_remove()
-            del self[mapped_id]
             self._db_map.update_id(mapped_item, id_)
             yield from self._free_id(id_)
             self[id_] = mapped_item
-            yield mapped_item, True
+            del self[mapped_id]
 
     def _free_id(self, id_):
         """Makes sure the given id_ is free. Fix conflicts if not.
@@ -595,9 +598,9 @@ class _MappedTable(dict):
         """
         conflicting_item = self.pop(id_, None)
         if conflicting_item is None:
-            return ()
+            return
         self._resolve_id_conflict(conflicting_item)
-        yield conflicting_item, True
+        yield conflicting_item, False
 
     def _resolve_id_conflict(self, conflicting_item):
         """Does something with conflicting_item whose id now belongs to a different item after an external commit.
@@ -615,7 +618,6 @@ class _MappedTable(dict):
             conflicting_item (MappedItemBase): an item in the memory mapping.
         """
         status = conflicting_item.status
-        conflicting_item.cascade_remove()
         id_ = self._new_id()
         self._db_map.update_id(conflicting_item, id_)
         self[id_] = conflicting_item
@@ -1140,11 +1142,19 @@ class MappedItemBase(dict):
         for referrer in self._referrers.values():
             referrer.cascade_remove(source=self)
         self._update_weak_referrers()
+        self.call_remove_callbacks()
+
+    def call_remove_callbacks(self):
         obsolete = set()
         for callback in list(self.remove_callbacks):
             if not callback(self):
                 obsolete.add(callback)
         self.remove_callbacks -= obsolete
+
+    def cascade_call_remove_callbacks(self):
+        for referrer in self._referrers.values():
+            referrer.cascade_call_remove_callbacks()
+        self.call_remove_callbacks()
 
     def cascade_update(self):
         """Updates this item and all its referrers in cascade.
