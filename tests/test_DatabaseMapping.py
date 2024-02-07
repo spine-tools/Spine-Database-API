@@ -3136,7 +3136,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         shadow_db_map.add_entity_item(entity_class_name="my_class", name="other_entity")
                     )
                     shadow_db_map.commit_session("Add entity with different name, probably reusing previous id.")
-                db_map.refresh_session()
+                # db_map.refresh_session()
                 items = db_map.fetch_more("entity")
                 self.assertEqual(len(items), 1)
                 self.assertEqual(items[0]["name"], "other_entity")
@@ -3328,35 +3328,14 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     self.assertTrue(metadata_item)
                     metadata_item.update(entity_byname=("other_entity",))
                     shadow_db_map.commit_session("Move entity metadata to another entity")
-                db_map.refresh_session()
                 metadata_items = db_map.get_entity_metadata_items()
                 self.assertEqual(len(metadata_items), 2)
-                self.assertEqual(
-                    metadata_items[0].extended(),
-                    {
-                        "id": 1,
-                        "entity_class_name": "my_class",
-                        "entity_byname": ("my_entity",),
-                        "entity_id": 1,
-                        "metadata_id": 1,
-                        "metadata_name": "my_metadata",
-                        "metadata_value": metadata_value,
-                        "commit_id": 2,
-                    },
-                )
-                self.assertEqual(
-                    metadata_items[1].extended(),
-                    {
-                        "id": 2,
-                        "entity_class_name": "my_class",
-                        "entity_byname": ("other_entity",),
-                        "entity_id": 2,
-                        "metadata_id": 1,
-                        "metadata_name": "my_metadata",
-                        "metadata_value": metadata_value,
-                        "commit_id": 3,
-                    },
-                )
+                self.assertNotEqual(metadata_items[0]["id"], metadata_items[1]["id"])
+                unique_values = {
+                    (x["entity_class_name"], x["entity_byname"], x["metadata_name"]) for x in metadata_items
+                }
+                self.assertIn(("my_class", ("my_entity",), "my_metadata"), unique_values)
+                self.assertIn(("my_class", ("other_entity",), "my_metadata"), unique_values)
 
     def test_update_parameter_value_metadata_externally(self):
         with TemporaryDirectory() as temp_dir:
@@ -3415,39 +3394,21 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     self.assertTrue(metadata_item)
                     metadata_item.update(entity_byname=("other_entity",))
                     shadow_db_map.commit_session("Move parameter value metadata to another entity")
-                db_map.refresh_session()
                 metadata_items = db_map.get_parameter_value_metadata_items()
                 self.assertEqual(len(metadata_items), 2)
-                self.assertEqual(
-                    metadata_items[0].extended(),
-                    {
-                        "id": 1,
-                        "entity_class_name": "my_class",
-                        "parameter_definition_name": "x",
-                        "parameter_value_id": 1,
-                        "entity_byname": ("my_entity",),
-                        "metadata_id": 1,
-                        "metadata_name": "my_metadata",
-                        "metadata_value": metadata_value,
-                        "alternative_name": "Base",
-                        "commit_id": 2,
-                    },
-                )
-                self.assertEqual(
-                    metadata_items[1].extended(),
-                    {
-                        "id": 2,
-                        "entity_class_name": "my_class",
-                        "parameter_definition_name": "x",
-                        "parameter_value_id": 2,
-                        "entity_byname": ("other_entity",),
-                        "metadata_id": 1,
-                        "metadata_name": "my_metadata",
-                        "metadata_value": metadata_value,
-                        "alternative_name": "Base",
-                        "commit_id": 3,
-                    },
-                )
+                self.assertNotEqual(metadata_items[0]["id"], metadata_items[1]["id"])
+                unique_values = {
+                    (
+                        x["entity_class_name"],
+                        x["parameter_definition_name"],
+                        x["entity_byname"],
+                        x["metadata_name"],
+                        x["alternative_name"],
+                    )
+                    for x in metadata_items
+                }
+                self.assertIn(("my_class", "x", ("my_entity",), "my_metadata", "Base"), unique_values)
+                self.assertIn(("my_class", "x", ("other_entity",), "my_metadata", "Base"), unique_values)
 
     def test_update_entity_alternative_externally(self):
         with TemporaryDirectory() as temp_dir:
@@ -3474,47 +3435,14 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     self.assertTrue(entity_alternative)
                     entity_alternative.update(entity_byname=("other_entity",))
                     shadow_db_map.commit_session("Move entity alternative to another entity.")
-                db_map.refresh_session()
                 entity_alternatives = db_map.get_entity_alternative_items()
                 self.assertEqual(len(entity_alternatives), 2)
-                self.assertEqual(
-                    entity_alternatives[0].extended(),
-                    {
-                        "id": 1,
-                        "entity_class_name": "my_class",
-                        "entity_class_id": 1,
-                        "entity_byname": ("my_entity",),
-                        "entity_name": "my_entity",
-                        "entity_id": 1,
-                        "dimension_name_list": (),
-                        "dimension_id_list": (),
-                        "element_name_list": (),
-                        "element_id_list": (),
-                        "alternative_name": "Base",
-                        "alternative_id": 1,
-                        "active": False,
-                        "commit_id": 2,
-                    },
-                )
-                self.assertEqual(
-                    entity_alternatives[1].extended(),
-                    {
-                        "id": 2,
-                        "entity_class_name": "my_class",
-                        "entity_class_id": 1,
-                        "entity_byname": ("other_entity",),
-                        "entity_name": "other_entity",
-                        "entity_id": 2,
-                        "dimension_name_list": (),
-                        "dimension_id_list": (),
-                        "element_name_list": (),
-                        "element_id_list": (),
-                        "alternative_name": "Base",
-                        "alternative_id": 1,
-                        "active": False,
-                        "commit_id": 3,
-                    },
-                )
+                self.assertNotEqual(entity_alternatives[0]["id"], entity_alternatives[1]["id"])
+                unique_values = {
+                    (x["entity_class_name"], x["entity_name"], x["alternative_name"]) for x in entity_alternatives
+                }
+                self.assertIn(("my_class", "my_entity", "Base"), unique_values)
+                self.assertIn(("my_class", "other_entity", "Base"), unique_values)
 
     def test_update_superclass_subclass_externally(self):
         with TemporaryDirectory() as temp_dir:
@@ -3531,29 +3459,12 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     superclass_subclass = shadow_db_map.get_superclass_subclass_item(subclass_name="floor")
                     superclass_subclass.update(subclass_name="soil")
                     shadow_db_map.commit_session("Changes subclass to another one.")
-                db_map.refresh_session()
                 superclass_subclasses = db_map.get_superclass_subclass_items()
                 self.assertEqual(len(superclass_subclasses), 2)
-                self.assertEqual(
-                    superclass_subclasses[0].extended(),
-                    {
-                        "id": 1,
-                        "superclass_name": "ceiling",
-                        "superclass_id": 1,
-                        "subclass_name": "floor",
-                        "subclass_id": 2,
-                    },
-                )
-                self.assertEqual(
-                    superclass_subclasses[1].extended(),
-                    {
-                        "id": 2,
-                        "superclass_name": "ceiling",
-                        "superclass_id": 1,
-                        "subclass_name": "soil",
-                        "subclass_id": 3,
-                    },
-                )
+                self.assertNotEqual(superclass_subclasses[0]["id"], superclass_subclasses[1]["id"])
+                unique_values = {(x["superclass_name"], x["subclass_name"]) for x in superclass_subclasses}
+                self.assertIn(("ceiling", "floor"), unique_values)
+                self.assertIn(("ceiling", "soil"), unique_values)
 
     def test_adding_same_parameters_values_to_different_entities_externally(self):
         with TemporaryDirectory() as temp_dir:

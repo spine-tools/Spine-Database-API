@@ -45,6 +45,9 @@ class TempId(int):
         for callback in self._resolve_callbacks:
             callback(db_id)
 
+    def unresolve(self):
+        self._db_id = None
+
 
 def resolve(value):
     if isinstance(value, dict):
