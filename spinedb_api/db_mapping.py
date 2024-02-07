@@ -175,11 +175,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._metadata = MetaData(self.engine)
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
-        self.closed = False
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
-        self._commit_count = self.query(self.commit_sq).count()
+        self._commit_count = self._query_commit_count()
 
     def __enter__(self):
         return self
@@ -201,6 +200,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     @staticmethod
     def item_factory(item_type):
         return item_factory(item_type)
+
+    def _query_commit_count(self):
+        return self.query(self.commit_sq).count()
 
     def _make_sq(self, item_type):
         sq_name = self._sq_name_by_item_type[item_type]
@@ -712,7 +714,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             if self._memory:
                 self._memory_dirty = True
             transformation_info = compatibility_transformations(connection)
-        self._commit_count = self.query(self.commit_sq).count()
+        self._commit_count = self._query_commit_count()
         return transformation_info
 
     def rollback_session(self):
@@ -728,7 +730,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     def has_external_commits(self):
         """See base class."""
-        return self._commit_count != self.query(self.commit_sq).count()
+        return self._commit_count != self._query_commit_count()
 
     def close(self):
         """Closes this DB mapping. This is only needed if you're keeping a long-lived session.

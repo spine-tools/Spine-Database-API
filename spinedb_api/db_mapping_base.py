@@ -36,12 +36,13 @@ class DatabaseMappingBase:
     This class is not meant to be used directly. Instead, you should subclass it to fit your particular DB schema.
 
     When subclassing, you need to implement :meth:`item_types`, :meth:`item_factory`, :meth:`_make_sq`,
-    and :meth:`has_external_commits`.
+    and :meth:`_query_commit_count`.
     """
 
     def __init__(self):
+        self.closed = False
         self._mapped_tables = {}
-        self._fetched = set()
+        self._fetched = {}
         item_types = self.item_types()
         self._sorted_item_types = []
         while item_types:
@@ -50,6 +51,7 @@ class DatabaseMappingBase:
                 item_types.append(item_type)
             else:
                 self._sorted_item_types.append(item_type)
+        self._refresh()
 
     @staticmethod
     def item_types():
@@ -84,14 +86,6 @@ class DatabaseMappingBase:
 
         Returns:
             function
-        """
-        raise NotImplementedError()
-
-    def has_external_commits(self):
-        """Tests whether the database has had commits from other sources than this mapping.
-
-        Returns:
-            bool: True if database has external commits, False otherwise
         """
         raise NotImplementedError()
 
@@ -136,6 +130,16 @@ class DatabaseMappingBase:
         """
         raise NotImplementedError()
 
+    def _query_commit_count(self):
+        """Returns the number of commits in the DB.
+
+        :meta private:
+
+        Returns:
+            int
+        """
+        raise NotImplementedError()
+
     def make_item(self, item_type, **item):
         factory = self.item_factory(item_type)
         return factory(self, item_type, **item)
@@ -154,8 +158,6 @@ class DatabaseMappingBase:
         Returns:
             list
         """
-        if self.has_external_commits():
-            self._refresh()
         dirty_items = []
         purged_item_types = {x for x in self.item_types() if self.mapped_table(x).purged}
         self._add_descendants(purged_item_types)
@@ -216,8 +218,11 @@ class DatabaseMappingBase:
 
     def _refresh(self):
         """Clears fetch progress, so the DB is queried again."""
-        for item_type in self.item_types():
-            self._fetched.discard(item_type)
+        self._reset_fetched(self.item_types())
+
+    def _reset_fetched(self, item_types):
+        for item_type in item_types:
+            self._fetched[item_type] = -1
 
     def _check_item_type(self, item_type):
         if item_type not in self.all_item_types():
@@ -238,7 +243,7 @@ class DatabaseMappingBase:
         self._add_descendants(item_types)
         for item_type in item_types:
             self._mapped_tables.pop(item_type, None)
-            self._fetched.discard(item_type)
+        self._reset_fetched(item_types)
 
     def reset_purging(self):
         """Resets purging status for all item types.
@@ -288,11 +293,9 @@ class DatabaseMappingBase:
         chunk = self._get_next_chunk(item_type, offset, limit, **kwargs)
         if not chunk:
             return []
-        if self.has_external_commits():
-            self._refresh()
-            for ref_type in self.item_factory(item_type).ref_types():
-                if ref_type != item_type:
-                    self.do_fetch_all(ref_type)
+        for ref_type in self.item_factory(item_type).ref_types():
+            if ref_type != item_type:
+                self.do_fetch_all(ref_type)
         mapped_table = self.mapped_table(item_type)
         items = []
         new_items = []
@@ -309,10 +312,10 @@ class DatabaseMappingBase:
         return items
 
     def do_fetch_all(self, item_type):
-        if item_type in self._fetched:
-            return
-        self._fetched.add(item_type)
-        self.do_fetch_more(item_type, offset=0, limit=None)
+        commit_count = self._query_commit_count()
+        if self._fetched[item_type] != commit_count:
+            self._fetched[item_type] = commit_count
+            self.do_fetch_more(item_type, offset=0, limit=None)
 
     def update_id(self, mapped_item, new_id):
         """Updates the id of the given item to the given new_id, also in all its referees.
