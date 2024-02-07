@@ -549,12 +549,12 @@ class _MappedTable(dict):
             tuple(MappedItem,bool): A mapped item and whether it needs to be added to the unique key values dict.
         """
         mapped_item = self._find_item_by_unique_key(item, fetch=False, valid_only=False)
-        if mapped_item:
+        if mapped_item and mapped_item.is_equal_in_db(item):
             yield from self._force_id(mapped_item, item["id"])
             yield mapped_item, False
             return
         mapped_item = self.get(item["id"])
-        if mapped_item is not None and mapped_item.is_equal_in_db(item):
+        if mapped_item and mapped_item.is_equal_in_db(item):
             yield mapped_item, False
             return
         yield from self._free_id(item["id"])
