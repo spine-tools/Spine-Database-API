@@ -36,13 +36,13 @@ class DatabaseMappingBase:
     This class is not meant to be used directly. Instead, you should subclass it to fit your particular DB schema.
 
     When subclassing, you need to implement :meth:`item_types`, :meth:`item_factory`, :meth:`_make_sq`,
-    and :meth:`_query_commit_count`.
+    and :meth:`has_external_commits`.
     """
 
     def __init__(self):
         self.closed = False
         self._mapped_tables = {}
-        self._fetched = {}
+        self._fetched = set()
         item_types = self.item_types()
         self._sorted_item_types = []
         while item_types:
@@ -51,7 +51,6 @@ class DatabaseMappingBase:
                 item_types.append(item_type)
             else:
                 self._sorted_item_types.append(item_type)
-        self._refresh()
 
     @staticmethod
     def item_types():
@@ -130,13 +129,11 @@ class DatabaseMappingBase:
         """
         raise NotImplementedError()
 
-    def _query_commit_count(self):
-        """Returns the number of commits in the DB.
-
-        :meta private:
+    def has_external_commits(self):
+        """Tests whether the database has had commits from other sources than this mapping.
 
         Returns:
-            int
+            bool: True if database has external commits, False otherwise
         """
         raise NotImplementedError()
 
@@ -158,6 +155,8 @@ class DatabaseMappingBase:
         Returns:
             list
         """
+        if self.has_external_commits():
+            self._refresh()
         dirty_items = []
         purged_item_types = {x for x in self.item_types() if self.mapped_table(x).purged}
         self._add_descendants(purged_item_types)
@@ -218,11 +217,7 @@ class DatabaseMappingBase:
 
     def _refresh(self):
         """Clears fetch progress, so the DB is queried again."""
-        self._reset_fetched(self.item_types())
-
-    def _reset_fetched(self, item_types):
-        for item_type in item_types:
-            self._fetched[item_type] = -1
+        self._fetched.clear()
 
     def _check_item_type(self, item_type):
         if item_type not in self.all_item_types():
@@ -243,7 +238,7 @@ class DatabaseMappingBase:
         self._add_descendants(item_types)
         for item_type in item_types:
             self._mapped_tables.pop(item_type, None)
-        self._reset_fetched(item_types)
+            self._fetched.discard(item_type)
 
     def reset_purging(self):
         """Resets purging status for all item types.
@@ -293,15 +288,18 @@ class DatabaseMappingBase:
         chunk = self._get_next_chunk(item_type, offset, limit, **kwargs)
         if not chunk:
             return []
-        for ref_type in self.item_factory(item_type).ref_types():
-            if ref_type != item_type:
-                self.do_fetch_all(ref_type)
+        is_db_dirty = self.has_external_commits()
+        if is_db_dirty:
+            for ref_type in self.item_factory(item_type).ref_types():
+                if ref_type != item_type:
+                    self._fetched.discard(ref_type)
+                    self.do_fetch_all(ref_type)
         mapped_table = self.mapped_table(item_type)
         items = []
         new_items = []
         # Add items first
         for x in chunk:
-            for item, new in mapped_table.add_item_from_db(x):
+            for item, new in mapped_table.add_item_from_db(x, not is_db_dirty):
                 if new:
                     new_items.append(item)
                 items.append(item)
@@ -312,9 +310,8 @@ class DatabaseMappingBase:
         return items
 
     def do_fetch_all(self, item_type):
-        commit_count = self._query_commit_count()
-        if self._fetched[item_type] != commit_count:
-            self._fetched[item_type] = commit_count
+        if item_type not in self._fetched:
+            self._fetched.add(item_type)
             self.do_fetch_more(item_type, offset=0, limit=None)
 
     def update_id(self, mapped_item, new_id):
@@ -539,22 +536,23 @@ class _MappedTable(dict):
         self[item["id"]] = item
         return item
 
-    def add_item_from_db(self, item):
+    def add_item_from_db(self, item, is_db_clean):
         """Adds an item fetched from the DB.
 
         Args:
             item (dict): item from the DB.
+            is_db_clean (Bool)
 
         Yields:
             tuple(MappedItem,bool): A mapped item and whether it needs to be added to the unique key values dict.
         """
         mapped_item = self._find_item_by_unique_key(item, fetch=False, valid_only=False)
-        if mapped_item and mapped_item.is_equal_in_db(item):
+        if mapped_item and (is_db_clean or mapped_item.is_equal_in_db(item)):
             yield from self._force_id(mapped_item, item["id"])
             yield mapped_item, False
             return
         mapped_item = self.get(item["id"])
-        if mapped_item and mapped_item.is_equal_in_db(item):
+        if mapped_item and (is_db_clean or mapped_item.is_equal_in_db(item)):
             yield mapped_item, False
             return
         yield from self._free_id(item["id"])
