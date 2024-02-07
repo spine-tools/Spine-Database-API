@@ -1293,7 +1293,7 @@ class PublicItem:
     def _asdict(self):
         return self._mapped_item._asdict()
 
-    def _extended(self):
+    def extended(self):
         return self._mapped_item._extended()
 
     def update(self, **kwargs):
