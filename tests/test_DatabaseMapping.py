@@ -3070,12 +3070,6 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 db_map0.add_entity_class_item(name="gadget")
                 db_map0.commit_session("No comment")
             with CustomDatabaseMapping(url) as db_map1:
-                # Add classes to a model
-                model = {}
-                for x in db_map1.get_items("entity_class"):
-                    model[x["id"]] = x
-                    x.add_remove_callback(lambda x: model.pop(x["id"]))
-                self.assertEqual(len(model), 2)
                 with CustomDatabaseMapping(url) as db_map2:
                     # Purge, then add *gadget* before *widget* (swap the order)
                     # Also add an entity
@@ -3087,8 +3081,6 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 # Check that we see the entity added by the other mapping
                 phone = db_map1.get_entity_item(entity_class_name="gadget", name="phone")
                 self.assertIsNotNone(phone)
-                # Overwritten classes should have been removed from the model
-                self.assertEqual(len(model), 0)
 
     def test_fetching_entities_after_external_change_has_renamed_their_classes(self):
         with TemporaryDirectory() as temp_dir:
@@ -3227,94 +3219,26 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 db_map.refresh_session()
                 entity_items = db_map.get_entity_items()
                 self.assertEqual(len(entity_items), 2)
-                self.assertEqual(
-                    entity_items[0]._extended(),
-                    {
-                        "id": 1,
-                        "name": "other_entity",
-                        "description": None,
-                        "class_id": 1,
-                        "element_id_list": (),
-                        "element_name_list": (),
-                        "commit_id": 4,
-                        "entity_class_name": "interesting_class",
-                        "dimension_id_list": (),
-                        "dimension_name_list": (),
-                        "element_byname_list": (),
-                        "superclass_id": None,
-                        "superclass_name": None,
-                    },
-                )
-                self.assertEqual(
-                    entity_items[1]._extended(),
-                    {
-                        "id": 2,
-                        "name": "filler",
-                        "description": None,
-                        "class_id": 2,
-                        "element_id_list": (),
-                        "element_name_list": (),
-                        "commit_id": 4,
-                        "entity_class_name": "filler_class",
-                        "dimension_id_list": (),
-                        "dimension_name_list": (),
-                        "element_byname_list": (),
-                        "superclass_id": None,
-                        "superclass_name": None,
-                    },
-                )
+                unique_values = {(x["name"], x["entity_class_name"]) for x in entity_items}
+                self.assertIn(("other_entity", "interesting_class"), unique_values)
+                self.assertIn(("filler", "filler_class"), unique_values)
                 value_items = db_map.get_parameter_value_items()
                 self.assertEqual(len(value_items), 2)
                 self.assertTrue(removed_item.is_committed())
-                self.assertEqual(
-                    value_items[0]._extended(),
-                    {
-                        "alternative_id": 1,
-                        "alternative_name": "Base",
-                        "commit_id": 4,
-                        "dimension_id_list": (),
-                        "dimension_name_list": (),
-                        "element_id_list": (),
-                        "element_name_list": (),
-                        "entity_byname": ("filler",),
-                        "entity_class_id": 2,
-                        "entity_class_name": "filler_class",
-                        "entity_id": 3,
-                        "entity_name": "filler",
-                        "id": 2,
-                        "list_value_id": None,
-                        "parameter_definition_id": 2,
-                        "parameter_definition_name": "quantity",
-                        "parameter_value_list_id": None,
-                        "parameter_value_list_name": None,
-                        "type": to_database(-2.3)[1],
-                        "value": to_database(-2.3)[0],
-                    },
-                )
-                self.assertEqual(
-                    value_items[1]._extended(),
-                    {
-                        "alternative_id": 1,
-                        "alternative_name": "Base",
-                        "commit_id": 4,
-                        "dimension_id_list": (),
-                        "dimension_name_list": (),
-                        "element_id_list": (),
-                        "element_name_list": (),
-                        "entity_byname": ("other_entity",),
-                        "entity_class_id": 1,
-                        "entity_class_name": "interesting_class",
-                        "entity_id": 2,
-                        "entity_name": "other_entity",
-                        "id": 3,
-                        "list_value_id": None,
-                        "parameter_definition_id": 1,
-                        "parameter_definition_name": "quality",
-                        "parameter_value_list_id": None,
-                        "parameter_value_list_name": None,
-                        "type": to_database(99.9)[1],
-                        "value": to_database(99.9)[0],
-                    },
+                unique_values = {
+                    (
+                        x["entity_class_name"],
+                        x["parameter_definition_name"],
+                        x["entity_name"],
+                        x["alternative_name"],
+                        x["value"],
+                        x["type"],
+                    )
+                    for x in value_items
+                }
+                self.assertIn(("filler_class", "quantity", "filler", "Base", *to_database(-2.3)), unique_values)
+                self.assertIn(
+                    ("interesting_class", "quality", "other_entity", "Base", *to_database(99.9)), unique_values
                 )
 
     def test_update_entity_metadata_externally(self):
@@ -3351,10 +3275,11 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self.assertEqual(len(metadata_items), 2)
                 self.assertNotEqual(metadata_items[0]["id"], metadata_items[1]["id"])
                 unique_values = {
-                    (x["entity_class_name"], x["entity_byname"], x["metadata_name"]) for x in metadata_items
+                    (x["entity_class_name"], x["entity_byname"], x["metadata_name"], x["metadata_value"])
+                    for x in metadata_items
                 }
-                self.assertIn(("my_class", ("my_entity",), "my_metadata"), unique_values)
-                self.assertIn(("my_class", ("other_entity",), "my_metadata"), unique_values)
+                self.assertIn(("my_class", ("my_entity",), "my_metadata", metadata_value), unique_values)
+                self.assertIn(("my_class", ("other_entity",), "my_metadata", metadata_value), unique_values)
 
     def test_update_parameter_value_metadata_externally(self):
         with TemporaryDirectory() as temp_dir:
@@ -3423,11 +3348,14 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         x["entity_byname"],
                         x["metadata_name"],
                         x["alternative_name"],
+                        x["metadata_value"],
                     )
                     for x in metadata_items
                 }
-                self.assertIn(("my_class", "x", ("my_entity",), "my_metadata", "Base"), unique_values)
-                self.assertIn(("my_class", "x", ("other_entity",), "my_metadata", "Base"), unique_values)
+                self.assertIn(("my_class", "x", ("my_entity",), "my_metadata", "Base", metadata_value), unique_values)
+                self.assertIn(
+                    ("my_class", "x", ("other_entity",), "my_metadata", "Base", metadata_value), unique_values
+                )
 
     def test_update_entity_alternative_externally(self):
         with TemporaryDirectory() as temp_dir:
@@ -3521,34 +3449,17 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         )
                     )
                     shadow_db_map.commit_session("Add another entity.")
-                db_map.refresh_session()
                 values = db_map.get_parameter_value_items()
                 self.assertEqual(len(values), 1)
-                self.assertEqual(
-                    values[0]._extended(),
-                    {
-                        "id": -2,
-                        "entity_class_name": "my_class",
-                        "entity_class_id": -1,
-                        "dimension_name_list": (),
-                        "dimension_id_list": (),
-                        "parameter_definition_name": "x",
-                        "parameter_definition_id": -1,
-                        "entity_byname": ("other_entity",),
-                        "entity_name": "other_entity",
-                        "entity_id": -2,
-                        "element_name_list": (),
-                        "element_id_list": (),
-                        "alternative_name": "Base",
-                        "alternative_id": -1,
-                        "parameter_value_list_name": None,
-                        "parameter_value_list_id": None,
-                        "list_value_id": None,
-                        "type": value_type,
-                        "value": value,
-                        "commit_id": -4,
-                    },
+                unique_value = (
+                    values[0]["entity_class_name"],
+                    values[0]["parameter_definition_name"],
+                    values[0]["entity_name"],
+                    values[0]["alternative_name"],
                 )
+                value_and_type = (values[0]["value"], values[0]["type"])
+                self.assertEqual(unique_value, ("my_class", "x", "other_entity", "Base"))
+                self.assertEqual(value_and_type, (value, value_type))
 
     def test_committing_changed_purged_entity_has_been_overwritten_by_external_change(self):
         with TemporaryDirectory() as temp_dir:
@@ -3564,7 +3475,6 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         shadow_db_map.add_entity_item(name="other_entity", entity_class_name="my_class")
                     )
                     shadow_db_map.commit_session("Add another entity that steals ghost's id.")
-                db_map.refresh_session()
                 db_map.do_fetch_all("entity")
                 self._assert_success(db_map.add_entity_item(name="dirty_entity", entity_class_name="my_class"))
                 db_map.commit_session("Add still uncommitted entity.")

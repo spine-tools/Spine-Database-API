@@ -532,26 +532,14 @@ class _MappedTable(dict):
         mapped_item = self.get(item["id"])
         if mapped_item and (is_db_clean or mapped_item.is_equal_in_db(item)):
             return mapped_item, False
-        self._free_id(item["id"])
+        conflicting_item = self.get(item["id"])
+        if conflicting_item is not None:
+            conflicting_item.detach()
         mapped_item = self._make_and_add_item(item)
         if self.purged:
             # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
             mapped_item.cascade_remove(source=self.wildcard_item)
         return mapped_item, True
-
-    def _free_id(self, id_):
-        """Makes sure the given id_ is free. Fix conflicts if not.
-
-        Args:
-            id_ (int)
-
-        Yields:
-            tuple(MappedItem,bool): A mapped item and whether it needs to be added to the unique key values dict.
-        """
-        conflicting_item = self.get(id_)
-        if conflicting_item is None:
-            return
-        conflicting_item.detach()
 
     def check_fields(self, item, valid_types=()):
         factory = self._db_map.item_factory(self._item_type)
@@ -1205,8 +1193,7 @@ class MappedItemBase(dict):
     def detach(self):
         """Detaches this item whose id now belongs to a different item after an external commit."""
         self["id"].unresolve()
-        if self.status in (Status.to_update, Status.committed):
-            self.status = Status.to_add
+        # TODO: Update item's status.
 
 
 class PublicItem:
