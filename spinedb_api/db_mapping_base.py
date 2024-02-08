@@ -600,7 +600,7 @@ class _MappedTable(dict):
         if item is self.wildcard_item:
             self.purged = True
             for current_item in self.valid_values():
-                current_item.cascade_remove(source=self.wildcard_item)
+                current_item.cascade_remove()
             return self.wildcard_item
         item.cascade_remove()
         return item
@@ -609,7 +609,7 @@ class _MappedTable(dict):
         if id_ is Asterisk:
             self.purged = False
             for current_item in self.values():
-                current_item.cascade_restore(source=self.wildcard_item)
+                current_item.cascade_restore()
             return self.wildcard_item
         current_item = self.find_item({"id": id_})
         if current_item:

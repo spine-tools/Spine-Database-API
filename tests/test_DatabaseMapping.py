@@ -702,6 +702,25 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(len(entity_classes), 1)
                 self.assertEqual(entity_classes[0]["name"], "Gadget")
 
+    def test_restored_entity_class_item_has_display_icon_field(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            entity_class = self._assert_success(db_map.add_entity_class_item(name="Gadget"))
+            db_map.purge_items("entity_class")
+            entity_class.restore()
+            item = db_map.get_entity_class_item(name="Gadget")
+            self.assertIsNone(item["display_icon"])
+
+    def test_trying_to_restore_item_whose_parent_is_removed_fails(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            entity_class = self._assert_success(db_map.add_entity_class_item(name="Object"))
+            entity = self._assert_success(db_map.add_entity_item(name="knife", entity_class_name="Object"))
+            entity_class.remove()
+            self.assertFalse(entity.is_valid())
+            entity.restore()
+            self.assertFalse(entity.is_valid())
+            entity_class.restore()
+            self.assertTrue(entity.is_valid())
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
