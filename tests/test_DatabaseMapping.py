@@ -129,20 +129,24 @@ class TestDatabaseMapping(unittest.TestCase):
             url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_item("entity_class", name="fish", description="It swims."))
-                self._assert_success(db_map.add_item(
-                    "entity", entity_class_name="fish", name="Nemo", description="Peacefully swimming away."
-                ))
+                self._assert_success(
+                    db_map.add_item(
+                        "entity", entity_class_name="fish", name="Nemo", description="Peacefully swimming away."
+                    )
+                )
                 self._assert_success(db_map.add_item("parameter_definition", entity_class_name="fish", name="color"))
                 value, type_ = to_database("mainly orange")
-                self._assert_success(db_map.add_item(
-                    "parameter_value",
-                    entity_class_name="fish",
-                    entity_byname=("Nemo",),
-                    parameter_definition_name="color",
-                    alternative_name="Base",
-                    value=value,
-                    type=type_,
-                ))
+                self._assert_success(
+                    db_map.add_item(
+                        "parameter_value",
+                        entity_class_name="fish",
+                        entity_byname=("Nemo",),
+                        parameter_definition_name="color",
+                        alternative_name="Base",
+                        value=value,
+                        type=type_,
+                    )
+                )
                 db_map.commit_session("Added data")
             with DatabaseMapping(url) as db_map:
                 color = db_map.get_item(
@@ -161,28 +165,40 @@ class TestDatabaseMapping(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_item("entity_class", name="fish", description="It swims."))
                 self._assert_success(db_map.add_item("entity_class", name="cat", description="Eats fish."))
-                self._assert_success(db_map.add_item(
-                    "entity_class",
-                    name="fish__cat",
-                    dimension_name_list=("fish", "cat"),
-                    description="A fish getting eaten by a cat?",
-                ))
-                self._assert_success(db_map.add_item("entity", entity_class_name="fish", name="Nemo", description="Lost (soon)."))
-                self._assert_success(db_map.add_item(
-                    "entity", entity_class_name="cat", name="Felix", description="The wonderful wonderful cat."
-                ))
-                self._assert_success(db_map.add_item("entity", entity_class_name="fish__cat", element_name_list=("Nemo", "Felix")))
-                self._assert_success(db_map.add_item("parameter_definition", entity_class_name="fish__cat", name="rate"))
+                self._assert_success(
+                    db_map.add_item(
+                        "entity_class",
+                        name="fish__cat",
+                        dimension_name_list=("fish", "cat"),
+                        description="A fish getting eaten by a cat?",
+                    )
+                )
+                self._assert_success(
+                    db_map.add_item("entity", entity_class_name="fish", name="Nemo", description="Lost (soon).")
+                )
+                self._assert_success(
+                    db_map.add_item(
+                        "entity", entity_class_name="cat", name="Felix", description="The wonderful wonderful cat."
+                    )
+                )
+                self._assert_success(
+                    db_map.add_item("entity", entity_class_name="fish__cat", element_name_list=("Nemo", "Felix"))
+                )
+                self._assert_success(
+                    db_map.add_item("parameter_definition", entity_class_name="fish__cat", name="rate")
+                )
                 value, type_ = to_database(0.23)
-                self._assert_success(db_map.add_item(
-                    "parameter_value",
-                    entity_class_name="fish__cat",
-                    entity_byname=("Nemo", "Felix"),
-                    parameter_definition_name="rate",
-                    alternative_name="Base",
-                    value=value,
-                    type=type_,
-                ))
+                self._assert_success(
+                    db_map.add_item(
+                        "parameter_value",
+                        entity_class_name="fish__cat",
+                        entity_byname=("Nemo", "Felix"),
+                        parameter_definition_name="rate",
+                        alternative_name="Base",
+                        value=value,
+                        type=type_,
+                    )
+                )
                 db_map.commit_session("Added data")
             with DatabaseMapping(url) as db_map:
                 color = db_map.get_item(
@@ -198,20 +214,24 @@ class TestDatabaseMapping(unittest.TestCase):
     def test_updating_entity_name_updates_the_name_in_parameter_value_too(self):
         with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
             self._assert_success(db_map.add_item("entity_class", name="fish", description="It swims."))
-            self._assert_success(db_map.add_item(
-                "entity", entity_class_name="fish", name="Nemo", description="Peacefully swimming away."
-            ))
+            self._assert_success(
+                db_map.add_item(
+                    "entity", entity_class_name="fish", name="Nemo", description="Peacefully swimming away."
+                )
+            )
             self._assert_success(db_map.add_item("parameter_definition", entity_class_name="fish", name="color"))
             value, type_ = to_database("mainly orange")
-            self._assert_success(db_map.add_item(
-                "parameter_value",
-                entity_class_name="fish",
-                entity_byname=("Nemo",),
-                parameter_definition_name="color",
-                alternative_name="Base",
-                value=value,
-                type=type_,
-            ))
+            self._assert_success(
+                db_map.add_item(
+                    "parameter_value",
+                    entity_class_name="fish",
+                    entity_byname=("Nemo",),
+                    parameter_definition_name="color",
+                    alternative_name="Base",
+                    value=value,
+                    type=type_,
+                )
+            )
             color = db_map.get_item(
                 "parameter_value",
                 entity_class_name="fish",
@@ -248,12 +268,14 @@ class TestDatabaseMapping(unittest.TestCase):
             entity_2 = self._assert_success(db_map.add_entity_item(name="entity_2", entity_class_name="my_class"))
             metadata_value = '{"sources": [], "contributors": []}'
             metadata = self._assert_success(db_map.add_metadata_item(name="my_metadata", value=metadata_value))
-            entity_metadata = self._assert_success(db_map.add_entity_metadata_item(
-                metadata_name="my_metadata",
-                metadata_value=metadata_value,
-                entity_class_name="my_class",
-                entity_byname=("entity_1",),
-            ))
+            entity_metadata = self._assert_success(
+                db_map.add_entity_metadata_item(
+                    metadata_name="my_metadata",
+                    metadata_value=metadata_value,
+                    entity_class_name="my_class",
+                    entity_byname=("entity_1",),
+                )
+            )
             entity_metadata.update(entity_byname=("entity_2",))
             self.assertEqual(
                 entity_metadata._extended(),
@@ -308,33 +330,39 @@ class TestDatabaseMapping(unittest.TestCase):
             self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="my_class"))
             self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
             value, value_type = to_database(2.3)
-            self._assert_success(db_map.add_parameter_value_item(
-                entity_class_name="my_class",
-                entity_byname=("my_entity",),
-                parameter_definition_name="x",
-                alternative_name="Base",
-                value=value,
-                type=value_type,
-            ))
+            self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="my_class",
+                    entity_byname=("my_entity",),
+                    parameter_definition_name="x",
+                    alternative_name="Base",
+                    value=value,
+                    type=value_type,
+                )
+            )
             value, value_type = to_database(-2.3)
-            y = self._assert_success(db_map.add_parameter_value_item(
-                entity_class_name="my_class",
-                entity_byname=("my_entity",),
-                parameter_definition_name="y",
-                alternative_name="Base",
-                value=value,
-                type=value_type,
-            ))
+            y = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="my_class",
+                    entity_byname=("my_entity",),
+                    parameter_definition_name="y",
+                    alternative_name="Base",
+                    value=value,
+                    type=value_type,
+                )
+            )
             metadata_value = '{"sources": [], "contributors": []}'
             metadata = self._assert_success(db_map.add_metadata_item(name="my_metadata", value=metadata_value))
-            value_metadata = self._assert_success(db_map.add_parameter_value_metadata_item(
-                metadata_name="my_metadata",
-                metadata_value=metadata_value,
-                entity_class_name="my_class",
-                entity_byname=("my_entity",),
-                parameter_definition_name="x",
-                alternative_name="Base",
-            ))
+            value_metadata = self._assert_success(
+                db_map.add_parameter_value_metadata_item(
+                    metadata_name="my_metadata",
+                    metadata_value=metadata_value,
+                    entity_class_name="my_class",
+                    entity_byname=("my_entity",),
+                    parameter_definition_name="x",
+                    alternative_name="Base",
+                )
+            )
             value_metadata.update(parameter_definition_name="y")
             self.assertEqual(
                 value_metadata._extended(),
@@ -458,7 +486,9 @@ class TestDatabaseMapping(unittest.TestCase):
                 # Remove the entity in the middle and add a multi-D one referring to the third entity.
                 # The multi-D one will go in the middle.
                 db_map.get_entity_item(name="Sylvester", entity_class_name="cat").remove()
-                self._assert_success(db_map.add_entity_item(element_name_list=("Pulgoso", "Tom"), entity_class_name="dog__cat"))
+                self._assert_success(
+                    db_map.add_entity_item(element_name_list=("Pulgoso", "Tom"), entity_class_name="dog__cat")
+                )
                 db_map.commit_session("Meow!")
             with DatabaseMapping(url) as db_map:
                 # The ("Pulgoso", "Tom") entity will be fetched before "Tom".
@@ -476,13 +506,13 @@ class TestDatabaseMapping(unittest.TestCase):
                 self.assertIsNotNone(item)
                 item = self._assert_success(db_map.add_scenario_item(name="my_scenario"))
                 self.assertIsNotNone(item)
-                item = self._assert_success(db_map.add_scenario_alternative_item(
-                    scenario_name="my_scenario", alternative_name="alt1", rank=0
-                ))
+                item = self._assert_success(
+                    db_map.add_scenario_alternative_item(scenario_name="my_scenario", alternative_name="alt1", rank=0)
+                )
                 self.assertIsNotNone(item)
-                item = self._assert_success(db_map.add_scenario_alternative_item(
-                    scenario_name="my_scenario", alternative_name="alt2", rank=1
-                ))
+                item = self._assert_success(
+                    db_map.add_scenario_alternative_item(scenario_name="my_scenario", alternative_name="alt2", rank=1)
+                )
                 self.assertIsNotNone(item)
                 db_map.commit_session("Add test data.")
             with DatabaseMapping(url) as db_map:
@@ -518,7 +548,11 @@ class TestDatabaseMapping(unittest.TestCase):
             self._assert_success(db_map.add_entity_class_item(name="my_class"))
             self._assert_success(db_map.add_entity_item(name="element", entity_class_name="my_class"))
             self._assert_success(db_map.add_entity_item(name="container", entity_class_name="my_class"))
-            self._assert_success(db_map.add_entity_group_item(group_name="container", member_name="element", entity_class_name="my_class"))
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    group_name="container", member_name="element", entity_class_name="my_class"
+                )
+            )
             db_map.commit_session("Add entity group.")
             groups = db_map.get_entity_group_items()
             self.assertEqual(len(groups), 1)
@@ -528,40 +562,54 @@ class TestDatabaseMapping(unittest.TestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_parameter_value_list_item(name="booleans"))
             value, value_type = to_database(True)
-            self._assert_success(db_map.add_list_value_item(parameter_value_list_name="booleans", value=value, type=value_type, index=0))
+            self._assert_success(
+                db_map.add_list_value_item(parameter_value_list_name="booleans", value=value, type=value_type, index=0)
+            )
             self._assert_success(db_map.add_entity_class_item(name="my_class"))
-            self._assert_success(db_map.add_parameter_definition_item(
-                name="is_active", entity_class_name="my_class", parameter_value_list_name="booleans"
-            ))
+            self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="is_active", entity_class_name="my_class", parameter_value_list_name="booleans"
+                )
+            )
             self._assert_success(db_map.add_entity_item(name="widget1", entity_class_name="my_class"))
             self._assert_success(db_map.add_entity_item(name="widget2", entity_class_name="my_class"))
             self._assert_success(db_map.add_entity_item(name="no_is_active", entity_class_name="my_class"))
-            self._assert_success(db_map.add_entity_alternative_item(
-                entity_class_name="my_class", entity_byname=("widget1",), alternative_name="Base", active=False
-            ))
-            self._assert_success(db_map.add_entity_alternative_item(
-                entity_class_name="my_class", entity_byname=("widget2",), alternative_name="Base", active=False
-            ))
-            self._assert_success(db_map.add_entity_alternative_item(
-                entity_class_name="my_class", entity_byname=("no_is_active",), alternative_name="Base", active=False
-            ))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_class_name="my_class", entity_byname=("widget1",), alternative_name="Base", active=False
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_class_name="my_class", entity_byname=("widget2",), alternative_name="Base", active=False
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_class_name="my_class", entity_byname=("no_is_active",), alternative_name="Base", active=False
+                )
+            )
             value, value_type = to_database(True)
-            self._assert_success(db_map.add_parameter_value_item(
-                entity_class_name="my_class",
-                parameter_definition_name="is_active",
-                entity_byname=("widget1",),
-                alternative_name="Base",
-                value=value,
-                type=value_type,
-            ))
-            self._assert_success(db_map.add_parameter_value_item(
-                entity_class_name="my_class",
-                parameter_definition_name="is_active",
-                entity_byname=("widget2",),
-                alternative_name="Base",
-                value=value,
-                type=value_type,
-            ))
+            self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="my_class",
+                    parameter_definition_name="is_active",
+                    entity_byname=("widget1",),
+                    alternative_name="Base",
+                    value=value,
+                    type=value_type,
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="my_class",
+                    parameter_definition_name="is_active",
+                    entity_byname=("widget2",),
+                    alternative_name="Base",
+                    value=value,
+                    type=value_type,
+                )
+            )
             db_map.commit_session("Add test data to see if this crashes.")
             entity_names = {entity["id"]: entity["name"] for entity in db_map.query(db_map.wide_entity_sq)}
             alternative_names = {
@@ -585,27 +633,35 @@ class TestDatabaseMapping(unittest.TestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_parameter_value_list_item(name="booleans"))
             value, value_type = to_database(True)
-            self._assert_success(db_map.add_list_value_item(parameter_value_list_name="booleans", value=value, type=value_type, index=0))
+            self._assert_success(
+                db_map.add_list_value_item(parameter_value_list_name="booleans", value=value, type=value_type, index=0)
+            )
             self._assert_success(db_map.add_entity_class_item(name="Widget"))
-            self._assert_success(db_map.add_parameter_definition_item(
-                name="is_active",
-                entity_class_name="Widget",
-                parameter_value_list_name="booleans",
-                default_value=value,
-                default_type=value_type,
-            ))
+            self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="is_active",
+                    entity_class_name="Widget",
+                    parameter_value_list_name="booleans",
+                    default_value=value,
+                    default_type=value_type,
+                )
+            )
             self._assert_success(db_map.add_entity_class_item(name="Gadget"))
-            self._assert_success(db_map.add_parameter_definition_item(
-                name="is_active",
-                entity_class_name="Gadget",
-                parameter_value_list_name="booleans",
-                default_value=value,
-                default_type=value_type,
-            ))
+            self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="is_active",
+                    entity_class_name="Gadget",
+                    parameter_value_list_name="booleans",
+                    default_value=value,
+                    default_type=value_type,
+                )
+            )
             self._assert_success(db_map.add_entity_class_item(name="NoIsActiveDefault"))
-            self._assert_success(db_map.add_parameter_definition_item(
-                name="is_active", entity_class_name="NoIsActiveDefault", parameter_value_list_name="booleans"
-            ))
+            self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="is_active", entity_class_name="NoIsActiveDefault", parameter_value_list_name="booleans"
+                )
+            )
             db_map.commit_session("Add test data to see if this crashes")
             active_by_defaults = {
                 entity_class["name"]: entity_class["active_by_default"]

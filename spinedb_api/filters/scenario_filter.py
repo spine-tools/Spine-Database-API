@@ -211,6 +211,12 @@ def _ext_entity_sq(db_map, state):
                 db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id,
             )
         )
+        .filter(
+            or_(
+                db_map.entity_alternative_sq.c.alternative_id == None,
+                db_map.entity_alternative_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id,
+            )
+        )
     ).subquery()
 
 
