@@ -659,6 +659,7 @@ class MappedItemBase(dict):
         self._status = Status.committed
         self._removal_source = None
         self._status_when_removed = None
+        self._status_when_committed = None
         self._backup = None
         self.public_item = PublicItem(self._db_map, self)
 
@@ -1115,6 +1116,7 @@ class MappedItemBase(dict):
 
     def commit(self, commit_id):
         """Sets this item as committed with the given commit id."""
+        self._status_when_committed = self._status
         self._status = Status.committed
         if commit_id:
             self["commit_id"] = commit_id
@@ -1193,7 +1195,14 @@ class MappedItemBase(dict):
     def detach(self):
         """Detaches this item whose id now belongs to a different item after an external commit."""
         self["id"].unresolve()
-        # TODO: Update item's status.
+        # TODO: Test if the below works...
+        if self.is_committed():
+            self._status = self._status_when_committed
+        if self._status == Status.to_update:
+            self._status = Status.to_add
+        elif self._status == Status.to_remove:
+            self._status = Status.committed
+            self._status_when_removed = Status.to_add
 
 
 class PublicItem:
