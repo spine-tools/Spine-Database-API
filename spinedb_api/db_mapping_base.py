@@ -556,7 +556,7 @@ class _MappedTable(dict):
             self.purged = True
             for current_item in self.valid_values():
                 self.remove_unique(current_item)
-                current_item.cascade_remove(source=self.wildcard_item)
+                current_item.cascade_remove()
             return self.wildcard_item
         self.remove_unique(item)
         item.cascade_remove()
@@ -567,7 +567,7 @@ class _MappedTable(dict):
             self.purged = False
             for current_item in self.values():
                 self.add_unique(current_item)
-                current_item.cascade_restore(source=self.wildcard_item)
+                current_item.cascade_restore()
             return self.wildcard_item
         current_item = self.find_item({"id": id_})
         if current_item:
