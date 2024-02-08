@@ -819,16 +819,15 @@ class MappedItemBase(dict):
         Returns:
             str or None: unresolved reference's key if any.
         """
-        return next(self._invalid_keys(), None)
+        return next(self._resolve_refs(), None)
 
     # TODO: Maybe rename this method to reflect its more important task now of replacing fields with TempIds
-    def _invalid_keys(self):
-        """Goes through the ``_references`` class attribute and returns the keys of the ones
-        that cannot be resolved.
-        Also, replace fields referring to db-ids with TempIds.
+    def _resolve_refs(self):
+        """Goes through the ``_references`` class attribute and tries to resolve them.
+        If successful, replace source fields referring to db-ids with the reference TempId.
 
         Yields:
-            str: unresolved keys if any.
+            str: the source field of any unresolved reference.
         """
         for src_key, (ref_type, ref_key) in self._references.items():
             try:
@@ -981,7 +980,7 @@ class MappedItemBase(dict):
             return False
         self._to_remove = False
         self._corrupted = False
-        for _ in self._invalid_keys():  # This sets self._to_remove and self._corrupted
+        for _ in self._resolve_refs():  # This sets self._to_remove and self._corrupted
             pass
         if self._to_remove:
             self.cascade_remove()
