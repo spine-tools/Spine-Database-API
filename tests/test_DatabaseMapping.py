@@ -280,7 +280,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             )
             entity_metadata.update(entity_byname=("entity_2",))
             self.assertEqual(
-                entity_metadata.extended(),
+                entity_metadata._extended(),
                 {
                     "entity_class_name": "my_class",
                     "entity_byname": ("entity_2",),
@@ -367,7 +367,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             )
             value_metadata.update(parameter_definition_name="y")
             self.assertEqual(
-                value_metadata.extended(),
+                value_metadata._extended(),
                 {
                     "entity_class_name": "my_class",
                     "entity_byname": ("my_entity",),
@@ -533,7 +533,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.commit_session("Add class.")
             classes = db_map.get_entity_class_items()
             self.assertEqual(len(classes), 1)
-            self.assertNotIn("commit_id", classes[0].extended())
+            self.assertNotIn("commit_id", classes[0]._extended())
 
     def test_committing_superclass_subclass_items_doesnt_add_commit_ids_to_them(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -543,7 +543,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.commit_session("Add class hierarchy.")
             classes = db_map.get_superclass_subclass_items()
             self.assertEqual(len(classes), 1)
-            self.assertNotIn("commit_id", classes[0].extended())
+            self.assertNotIn("commit_id", classes[0]._extended())
 
     def test_committing_entity_group_items_doesnt_add_commit_ids_to_them(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -558,7 +558,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.commit_session("Add entity group.")
             groups = db_map.get_entity_group_items()
             self.assertEqual(len(groups), 1)
-            self.assertNotIn("commit_id", groups[0].extended())
+            self.assertNotIn("commit_id", groups[0]._extended())
 
     def test_commit_parameter_value_coincidentally_called_is_active(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -2088,7 +2088,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         items, intgr_error_log = self._db_map.update_object_classes(
             {"id": 1, "name": "octopus"}, {"id": 2, "name": "god"}
         )
-        ids = {x["id"] for x in items}
+        ids = {x.resolve()["id"] for x in items}
         self._db_map.commit_session("test commit")
         sq = self._db_map.object_class_sq
         object_classes = {x.id: x.name for x in self._db_map.query(sq).filter(sq.c.id.in_(ids))}
@@ -2101,7 +2101,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         self._db_map.add_object_classes({"id": 1, "name": "fish"})
         self._db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1}, {"id": 2, "name": "dory", "class_id": 1})
         items, intgr_error_log = self._db_map.update_objects({"id": 1, "name": "klaus"}, {"id": 2, "name": "squidward"})
-        ids = {x["id"] for x in items}
+        ids = {x.resolve()["id"] for x in items}
         self._db_map.commit_session("test commit")
         sq = self._db_map.object_sq
         objects = {x.id: x.name for x in self._db_map.query(sq).filter(sq.c.id.in_(ids))}
@@ -2115,7 +2115,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         self._db_map.add_objects({"id": 1, "name": "nemo", "class_id": 1})
         self._db_map.commit_session("update")
         items, intgr_error_log = self._db_map.update_objects({"id": 1, "name": "klaus"})
-        ids = {x["id"] for x in items}
+        ids = {x.resolve()["id"] for x in items}
         self._db_map.commit_session("test commit")
         sq = self._db_map.object_sq
         objects = {x.id: x.name for x in self._db_map.query(sq).filter(sq.c.id.in_(ids))}
@@ -2133,7 +2133,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         items, intgr_error_log = self._db_map.update_wide_relationship_classes(
             {"id": 3, "name": "god__octopus"}, {"id": 4, "name": "octopus__dog"}
         )
-        ids = {x["id"] for x in items}
+        ids = {x.resolve()["id"] for x in items}
         self._db_map.commit_session("test commit")
         sq = self._db_map.wide_relationship_class_sq
         rel_clss = {x.id: x.name for x in self._db_map.query(sq).filter(sq.c.id.in_(ids))}
@@ -2146,7 +2146,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         _ = import_functions.import_relationship_classes(self._db_map, (("my_class", ("object_class_1",)),))
         self._db_map.commit_session("Add test data")
         items, errors = self._db_map.update_wide_relationship_classes({"id": 2, "name": "renamed"})
-        updated_ids = {x["id"] for x in items}
+        updated_ids = {x.resolve()["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(updated_ids, {2})
         self._db_map.commit_session("Update data.")
@@ -2184,7 +2184,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         items, intgr_error_log = self._db_map.update_wide_relationships(
             {"id": 4, "name": "nemo__scooby", "class_id": 3, "object_id_list": [1, 3], "object_class_id_list": [1, 2]}
         )
-        ids = {x["id"] for x in items}
+        ids = {x.resolve()["id"] for x in items}
         self._db_map.commit_session("test commit")
         sq = self._db_map.wide_relationship_sq
         rels = {
@@ -2207,7 +2207,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         import_functions.import_relationships(self._db_map, (("my_class", ("object_11", "object_21")),))
         self._db_map.commit_session("Add test data")
         items, errors = self._db_map.update_wide_relationships({"id": 4, "name": "renamed", "object_id_list": [2, 3]})
-        updated_ids = {x["id"] for x in items}
+        updated_ids = {x.resolve()["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(updated_ids, {4})
         self._db_map.commit_session("Update data.")
@@ -2225,7 +2225,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         )
         self._db_map.commit_session("Populate with initial data.")
         items, errors = self._db_map.update_parameter_values({"id": 1, "value": b"something else"})
-        updated_ids = {x["id"] for x in items}
+        updated_ids = {x.resolve()["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(updated_ids, {1})
         self._db_map.commit_session("Update data.")
@@ -2257,7 +2257,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         import_functions.import_object_parameters(self._db_map, (("object_class1", "parameter1"),))
         self._db_map.commit_session("Populate with initial data.")
         items, errors = self._db_map.update_parameter_definitions({"id": 1, "name": "parameter2"})
-        updated_ids = {x["id"] for x in items}
+        updated_ids = {x.resolve()["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(updated_ids, {1})
         self._db_map.commit_session("Update data.")
@@ -2273,7 +2273,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         items, errors = self._db_map.update_parameter_definitions(
             {"id": 1, "name": "my_parameter", "parameter_value_list_id": 1}
         )
-        updated_ids = {x["id"] for x in items}
+        updated_ids = {x.resolve()["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(updated_ids, {1})
         self._db_map.commit_session("Update data.")
@@ -2373,7 +2373,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         items, errors = self._db_map.update_ext_entity_metadata(
             *[{"id": 1, "metadata_name": "key 2", "metadata_value": "metadata value 2"}]
         )
-        ids = {x["id"] for x in items}
+        ids = {x.resolve()["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1})
         self._db_map.remove_unused_metadata()
@@ -2479,7 +2479,7 @@ class TestDatabaseMappingUpdate(unittest.TestCase):
         import_functions.import_metadata(self._db_map, ('{"title": "My metadata."}',))
         self._db_map.commit_session("Add test data.")
         items, errors = self._db_map.update_metadata(*({"id": 1, "name": "author", "value": "Prof. T. Est"},))
-        ids = {x["id"] for x in items}
+        ids = {x.resolve()["id"] for x in items}
         self.assertEqual(errors, [])
         self.assertEqual(ids, {1})
         self._db_map.commit_session("Update data")
@@ -3228,7 +3228,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 entity_items = db_map.get_entity_items()
                 self.assertEqual(len(entity_items), 2)
                 self.assertEqual(
-                    entity_items[0].extended(),
+                    entity_items[0]._extended(),
                     {
                         "id": 1,
                         "name": "other_entity",
@@ -3246,7 +3246,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     },
                 )
                 self.assertEqual(
-                    entity_items[1].extended(),
+                    entity_items[1]._extended(),
                     {
                         "id": 2,
                         "name": "filler",
@@ -3267,7 +3267,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self.assertEqual(len(value_items), 2)
                 self.assertTrue(removed_item.is_committed())
                 self.assertEqual(
-                    value_items[0].extended(),
+                    value_items[0]._extended(),
                     {
                         "alternative_id": 1,
                         "alternative_name": "Base",
@@ -3292,7 +3292,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     },
                 )
                 self.assertEqual(
-                    value_items[1].extended(),
+                    value_items[1]._extended(),
                     {
                         "alternative_id": 1,
                         "alternative_name": "Base",
@@ -3525,7 +3525,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 values = db_map.get_parameter_value_items()
                 self.assertEqual(len(values), 1)
                 self.assertEqual(
-                    values[0].extended(),
+                    values[0]._extended(),
                     {
                         "id": -2,
                         "entity_class_name": "my_class",

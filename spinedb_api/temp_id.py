@@ -35,7 +35,8 @@ class TempId(int):
         return int(self)
 
     def __repr__(self):
-        return f"TempId({self._item_type}, {super().__repr__()})"
+        resolved_to = f" - resolved to {self._db_id}" if self._db_id is not None else ""
+        return f"TempId({self._item_type}, {super().__repr__()}{resolved_to})"
 
     def add_resolve_callback(self, callback):
         self._resolve_callbacks.append(callback)

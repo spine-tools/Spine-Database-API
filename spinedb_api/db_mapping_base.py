@@ -1181,7 +1181,9 @@ class MappedItemBase(dict):
                         self._invalidate_ref(ref_type, {ref_key: x})
                 else:
                     self._invalidate_ref(ref_type, {ref_key: src_val})
+        id_ = self["id"]
         super().update(other)
+        self["id"] = id_
         if self._asdict() == self._backup:
             self._status = Status.committed
 
@@ -1242,7 +1244,7 @@ class PublicItem:
     def _asdict(self):
         return self._mapped_item._asdict()
 
-    def extended(self):
+    def _extended(self):
         return self._mapped_item._extended()
 
     def update(self, **kwargs):
