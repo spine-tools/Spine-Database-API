@@ -526,11 +526,11 @@ class _MappedTable(dict):
             tuple(MappedItem,bool): A mapped item and whether it needs to be added to the unique key values dict.
         """
         mapped_item = self._find_item_by_unique_key(item, fetch=False, valid_only=False)
-        if mapped_item and (is_db_clean or mapped_item.is_equal_in_db(item)):
+        if mapped_item and (is_db_clean or self._same_item(mapped_item, item)):
             mapped_item.force_id(item["id"])
             return mapped_item, False
         mapped_item = self.get(item["id"])
-        if mapped_item and (is_db_clean or mapped_item.is_equal_in_db(item)):
+        if mapped_item and (is_db_clean or self._same_item(mapped_item.db_equivalent(), item)):
             return mapped_item, False
         conflicting_item = self.get(item["id"])
         if conflicting_item is not None:
@@ -540,6 +540,17 @@ class _MappedTable(dict):
             # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
             mapped_item.cascade_remove(source=self.wildcard_item)
         return mapped_item, True
+
+    def _same_item(self, mapped_item, db_item):
+        """Whether the two given items have the same unique keys.
+
+        Args:
+            mapped_item (MappedItemBase): an item in the in-memory mapping
+            db_item (dict): an item just fetched from the DB
+        """
+        db_item = self._db_map.make_item(self._item_type, **db_item)
+        db_item.polish()
+        return dict(mapped_item.unique_key_values()) == dict(db_item.unique_key_values())
 
     def check_fields(self, item, valid_types=()):
         factory = self._db_map.item_factory(self._item_type)
@@ -789,23 +800,17 @@ class MappedItemBase(dict):
             or self.fields.get(key, {}).get("optional", False)  # Ignore mandatory fields that are None
         )
 
-    def is_equal_in_db(self, other):
-        """Returns whether this item and other are the same in the DB.
-
-        Args:
-            other (dict)
+    def db_equivalent(self):
+        """The equivalent of this item in the DB.
 
         Returns:
-            bool
+            MappedItemBase
         """
         if self.status == Status.to_update:
-            this = self._db_map.make_item(self._item_type, **self.backup)
-            this.polish()
-        else:
-            this = self
-        other = self._db_map.make_item(self._item_type, **other)
-        other.polish()
-        return dict(this.unique_key_values()) == dict(other.unique_key_values())
+            db_item = self._db_map.make_item(self._item_type, **self.backup)
+            db_item.polish()
+            return db_item
+        return self
 
     def first_invalid_key(self):
         """Goes through the ``_references`` class attribute and returns the key of the first reference
