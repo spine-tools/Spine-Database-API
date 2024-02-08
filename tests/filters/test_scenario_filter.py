@@ -99,6 +99,25 @@ class TestScenarioFilterInMemory(unittest.TestCase):
             self.assertEqual(entities[0]["name"], "visible")
             self.assertEqual(entities[1]["name"], "visible")
 
+    def test_filter_entity_that_is_not_active_in_scenario(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_alternative_item(name="alt"))
+            self._assert_success(db_map.add_scenario_item(name="scen"))
+            self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="scen", alternative_name="Base", rank=0)
+            )
+            self._assert_success(db_map.add_entity_class_item(name="Gadget", active_by_default=False))
+            self._assert_success(db_map.add_entity_item(name="fork", entity_class_name="Gadget"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_byname=("fork",), entity_class_name="Gadget", alternative_name="alt", active=True
+                )
+            )
+            db_map.commit_session("Add test data.")
+            apply_filter_stack(db_map, [scenario_filter_config("scen")])
+            entities = db_map.query(db_map.wide_entity_sq).all()
+            self.assertEqual(len(entities), 0)
+
 
 class TestScenarioFilter(unittest.TestCase):
     _db_url = None
