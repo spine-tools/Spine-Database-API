@@ -443,9 +443,9 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             entities = db_map.fetch_more("entity")
             self.assertEqual([(x["entity_class_name"], x["name"]) for x in entities], [("Widget", "gadget")])
 
-    def test_has_external_commits_returns_false_initially(self):
+    def test_has_external_commits_returns_true_initially(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self.assertFalse(db_map.has_external_commits())
+            self.assertTrue(db_map.has_external_commits())
 
     def test_has_external_commits_returns_true_when_another_db_mapping_has_made_commits(self):
         with TemporaryDirectory() as temp_dir:

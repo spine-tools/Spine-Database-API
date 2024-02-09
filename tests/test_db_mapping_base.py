@@ -28,8 +28,8 @@ class TestDBMapping(DatabaseMappingBase):
             return MappedItemBase
         raise RuntimeError(f"unknown item_type '{item_type}'")
 
-    def has_external_commits(self):
-        return False
+    def _query_commit_count(self):
+        return -1
 
     def _make_query(self, _item_type, **kwargs):
         return None

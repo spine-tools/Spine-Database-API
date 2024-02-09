@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
+from multiprocessing import RLock
 from enum import Enum, unique, auto
 from difflib import SequenceMatcher
 from .temp_id import TempId, resolve
@@ -36,13 +37,15 @@ class DatabaseMappingBase:
     This class is not meant to be used directly. Instead, you should subclass it to fit your particular DB schema.
 
     When subclassing, you need to implement :meth:`item_types`, :meth:`item_factory`, :meth:`_make_sq`,
-    and :meth:`has_external_commits`.
+    and :meth:`_query_commit_count`.
     """
 
     def __init__(self):
         self.closed = False
         self._mapped_tables = {}
-        self._fetched = set()
+        self._fetched = {}
+        self._locks = {}
+        self._commit_count = None
         item_types = self.item_types()
         self._sorted_item_types = []
         while item_types:
@@ -129,11 +132,11 @@ class DatabaseMappingBase:
         """
         raise NotImplementedError()
 
-    def has_external_commits(self):
-        """Tests whether the database has had commits from other sources than this mapping.
+    def _query_commit_count(self):
+        """Returns the number of rows in the commit table in the DB.
 
         Returns:
-            bool: True if database has external commits, False otherwise
+            int
         """
         raise NotImplementedError()
 
@@ -155,13 +158,12 @@ class DatabaseMappingBase:
         Returns:
             list
         """
-        if self.has_external_commits():
-            self._refresh()
+        real_commit_count = self._query_commit_count()
         dirty_items = []
         purged_item_types = {x for x in self.item_types() if self.mapped_table(x).purged}
         self._add_descendants(purged_item_types)
         for item_type in self._sorted_item_types:
-            self.do_fetch_all(item_type)  # To fix conflicts in add_item_from_db
+            self.do_fetch_all(item_type, commit_count=real_commit_count)  # To fix conflicts in add_item_from_db
             mapped_table = self.mapped_table(item_type)
             to_add = []
             to_update = []
@@ -238,7 +240,7 @@ class DatabaseMappingBase:
         self._add_descendants(item_types)
         for item_type in item_types:
             self._mapped_tables.pop(item_type, None)
-            self._fetched.discard(item_type)
+            self._fetched.pop(item_type, None)
 
     def reset_purging(self):
         """Resets purging status for all item types.
@@ -288,12 +290,13 @@ class DatabaseMappingBase:
         chunk = self._get_next_chunk(item_type, offset, limit, **kwargs)
         if not chunk:
             return []
-        is_db_dirty = self.has_external_commits()
+        real_commit_count = self._query_commit_count()
+        is_db_dirty = self._get_commit_count() != real_commit_count
         if is_db_dirty:
+            # We need to fetch the most recent references because their ids might have changed in the DB
             for ref_type in self.item_factory(item_type).ref_types():
                 if ref_type != item_type:
-                    self._fetched.discard(ref_type)
-                    self.do_fetch_all(ref_type)
+                    self.do_fetch_all(ref_type, commit_count=real_commit_count)
         mapped_table = self.mapped_table(item_type)
         items = []
         new_items = []
@@ -309,10 +312,31 @@ class DatabaseMappingBase:
             mapped_table.add_unique(item)
         return items
 
-    def do_fetch_all(self, item_type):
-        if item_type not in self._fetched:
-            self._fetched.add(item_type)
-            self.do_fetch_more(item_type, offset=0, limit=None)
+    def _get_commit_count(self):
+        """Returns current commit count.
+
+        Returns:
+            int
+        """
+        if self._commit_count is None:
+            self._commit_count = self._query_commit_count()
+        return self._commit_count
+
+    def do_fetch_all(self, item_type, commit_count=None):
+        """Fetches all items of given type, but only once for each commit_count.
+        In other words, the second time this method is called with the same commit_count, it does nothing.
+        If not specified, commit_count defaults to the result of self._get_commit_count().
+
+        Args:
+            item_type (str)
+            commit_count (int,optional)
+        """
+        if commit_count is None:
+            commit_count = self._get_commit_count()
+        with self._locks.setdefault(item_type, RLock()):
+            if self._fetched.get(item_type, -1) < commit_count:
+                self._fetched[item_type] = commit_count
+                self.do_fetch_more(item_type, offset=0, limit=None)
 
 
 class _MappedTable(dict):

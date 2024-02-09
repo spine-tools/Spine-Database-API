@@ -178,7 +178,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
-        self._commit_count = self._query_commit_count()
 
     def __enter__(self):
         return self
@@ -647,7 +646,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
         for item_type in item_types:
             item_type = self.real_item_type(item_type)
-            self.do_fetch_all(item_type)
+            self.do_fetch_more(item_type)
 
     def query(self, *args, **kwargs):
         """Returns a :class:`~spinedb_api.query.Query` object to execute against the mapped DB.
@@ -729,7 +728,11 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._refresh()
 
     def has_external_commits(self):
-        """See base class."""
+        """Tests whether the database has had commits from other sources than this mapping.
+
+        Returns:
+            bool: True if database has external commits, False otherwise
+        """
         return self._commit_count != self._query_commit_count()
 
     def close(self):
