@@ -590,9 +590,9 @@ def _get_scenario_alternatives_for_import(db_map, data):
             some_added = False
             for pred, succ in list(succ_by_pred.items()):
                 if succ in alternative_name_list:
-                    i = alternative_name_list.index(succ)
                     if pred in alternative_name_list:
                         alternative_name_list.remove(pred)
+                    i = alternative_name_list.index(succ)
                     alternative_name_list.insert(i, pred)
                     del succ_by_pred[pred]
                     some_added = True

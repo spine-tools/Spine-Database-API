@@ -1351,6 +1351,29 @@ class TestImportScenarioAlternative(unittest.TestCase):
         scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 3, "alternative2": 1, "alternative3": 2}})
 
+    def test_import_inconsistent_scenario_alternatives(self):
+        import_data(self._db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2", "alternative3"])
+        count, errors = import_scenario_alternatives(
+            self._db_map,
+            [["scenario", "alternative3", "alternative1"], ["scenario", "alternative1"]],
+        )
+        self.assertFalse(errors)
+        self.assertEqual(count, 2)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative3": 1}})
+        count, errors = import_scenario_alternatives(
+            self._db_map,
+            [
+                ["scenario", "alternative3", "alternative2"],
+                ["scenario", "alternative2", "alternative1"],
+                ["scenario", "alternative1"],
+            ],
+        )
+        self.assertFalse(errors)
+        self.assertEqual(count, 2)
+        scenario_alternatives = self.scenario_alternatives()
+        self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 3, "alternative2": 2, "alternative3": 1}})
+
     def scenario_alternatives(self):
         self._db_map.commit_session("test")
         scenario_alternative_qry = (
