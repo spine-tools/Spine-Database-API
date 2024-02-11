@@ -505,7 +505,7 @@ class _MappedTable(dict):
         item = self._make_and_add_item(item)
         if self.purged:
             # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
-            item.cascade_remove(source=self.wildcard_item)
+            item.cascade_remove()
         return item, True
 
     def check_fields(self, item, valid_types=()):
