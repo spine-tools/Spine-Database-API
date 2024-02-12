@@ -371,7 +371,9 @@ class _MappedTable(dict):
         return super().get(id_, default)
 
     def _new_id(self):
-        return TempId(self._item_type, self._temp_id_by_db_id)
+        temp_id = TempId(self._item_type)
+        temp_id.set_id_map(self._temp_id_by_db_id)
+        return temp_id
 
     def _unique_key_value_to_id(self, key, value, fetch=True):
         """Returns the id that has the given value for the given unique key, or None.

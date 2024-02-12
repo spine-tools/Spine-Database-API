@@ -13,16 +13,19 @@
 class TempId(int):
     _next_id = {}
 
-    def __new__(cls, item_type, _id_map):
+    def __new__(cls, item_type):
         id_ = cls._next_id.setdefault(item_type, -1)
         cls._next_id[item_type] -= 1
         return super().__new__(cls, id_)
 
-    def __init__(self, item_type, id_map):
+    def __init__(self, item_type):
         super().__init__()
         self._item_type = item_type
-        self._id_map = id_map
+        self._id_map = {}
         self._db_id = None
+
+    def set_id_map(self, id_map):
+        self._id_map = id_map
 
     @property
     def db_id(self):
