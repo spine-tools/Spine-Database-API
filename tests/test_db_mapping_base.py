@@ -28,6 +28,9 @@ class TestDBMapping(DatabaseMappingBase):
             return MappedItemBase
         raise RuntimeError(f"unknown item_type '{item_type}'")
 
+    def _query_commit_count(self):
+        return -1
+
     def _make_query(self, _item_type, **kwargs):
         return None
 
@@ -37,11 +40,11 @@ class TestDBMappingBase(unittest.TestCase):
         db_map = TestDBMapping()
         mapped_table = db_map.mapped_table("cutlery")
         item = mapped_table.add_item({})
-        self.assertTrue(item.is_id_valid)
+        self.assertTrue(item.has_valid_id)
         self.assertIn("id", item)
         id_ = item["id"]
         db_map._rollback()
-        self.assertFalse(item.is_id_valid)
+        self.assertFalse(item.has_valid_id)
         self.assertEqual(item["id"], id_)
 
 
@@ -52,9 +55,9 @@ class TestMappedTable(unittest.TestCase):
         item = mapped_table.add_item({})
         id_ = item["id"]
         db_map._rollback()
-        self.assertFalse(item.is_id_valid)
+        self.assertFalse(item.has_valid_id)
         mapped_table.add_item(item)
-        self.assertTrue(item.is_id_valid)
+        self.assertTrue(item.has_valid_id)
         self.assertNotEqual(item["id"], id_)
 
 
@@ -62,21 +65,21 @@ class TestMappedItemBase(unittest.TestCase):
     def test_id_is_valid_initially(self):
         db_map = TestDBMapping()
         item = MappedItemBase(db_map, "cutlery")
-        self.assertTrue(item.is_id_valid)
+        self.assertTrue(item.has_valid_id)
 
     def test_id_can_be_invalidated(self):
         db_map = TestDBMapping()
         item = MappedItemBase(db_map, "cutlery")
         item.invalidate_id()
-        self.assertFalse(item.is_id_valid)
+        self.assertFalse(item.has_valid_id)
 
     def test_setting_new_id_validates_it(self):
         db_map = TestDBMapping()
         item = MappedItemBase(db_map, "cutlery")
         item.invalidate_id()
-        self.assertFalse(item.is_id_valid)
+        self.assertFalse(item.has_valid_id)
         item["id"] = 23
-        self.assertTrue(item.is_id_valid)
+        self.assertTrue(item.has_valid_id)
 
 
 if __name__ == '__main__':

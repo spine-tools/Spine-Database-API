@@ -1342,10 +1342,7 @@ class TestImportScenarioAlternative(unittest.TestCase):
         self.assertEqual(count, 2)
         scenario_alternatives = self.scenario_alternatives()
         self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative2": 1}})
-        count, errors = import_scenario_alternatives(
-            self._db_map,
-            [["scenario", "alternative3", "alternative1"]],
-        )
+        count, errors = import_scenario_alternatives(self._db_map, [["scenario", "alternative3", "alternative1"]])
         self.assertFalse(errors)
         self.assertEqual(count, 2)
         scenario_alternatives = self.scenario_alternatives()

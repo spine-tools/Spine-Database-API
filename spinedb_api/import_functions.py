@@ -623,14 +623,14 @@ def _get_list_values_for_import(db_map, data, unparse_value):
         index = index_by_list_name.get(list_name)
         if index is None:
             current_list = db_map.mapped_table("parameter_value_list").find_item({"name": list_name})
-            index = max(
-                (
-                    x["index"]
-                    for x in db_map.mapped_table("list_value").valid_values()
-                    if x["parameter_value_list_id"] == current_list["id"]
-                ),
-                default=-1,
-            )
+            list_value_idx_by_val_typ = {
+                (x["value"], x["type"]): x["index"]
+                for x in db_map.mapped_table("list_value").valid_values()
+                if x["parameter_value_list_id"] == current_list["id"]
+            }
+            if (value, type_) in list_value_idx_by_val_typ:
+                continue
+            index = max((idx for idx in list_value_idx_by_val_typ.values()), default=-1)
         index += 1
         index_by_list_name[list_name] = index
         yield {"parameter_value_list_name": list_name, "value": value, "type": type_, "index": index}

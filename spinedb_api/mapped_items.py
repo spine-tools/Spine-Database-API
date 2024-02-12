@@ -47,8 +47,8 @@ class CommitItem(MappedItemBase):
         'date': {'type': str, 'value': 'Date and time of the commit in ISO 8601 format.'},
         'user': {'type': str, 'value': 'Username of the committer.'},
     }
-
     _unique_keys = (("date",),)
+    is_protected = True
 
     def commit(self, commit_id):
         raise RuntimeError("Commits are created automatically when session is committed.")

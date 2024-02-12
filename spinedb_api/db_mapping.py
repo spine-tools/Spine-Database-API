@@ -175,11 +175,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._metadata = MetaData(self.engine)
         self._metadata.reflect()
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
-        self.closed = False
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
-        self._commit_count = self.query(self.commit_sq).count()
 
     def __enter__(self):
         return self
@@ -192,7 +190,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     @staticmethod
     def item_types():
-        return [x for x in DatabaseMapping._sq_name_by_item_type if item_factory(x).fields]
+        return [x for x in DatabaseMapping._sq_name_by_item_type if not item_factory(x).is_protected]
 
     @staticmethod
     def all_item_types():
@@ -201,6 +199,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     @staticmethod
     def item_factory(item_type):
         return item_factory(item_type)
+
+    def _query_commit_count(self):
+        return self.query(self.commit_sq).count()
 
     def _make_sq(self, item_type):
         sq_name = self._sq_name_by_item_type[item_type]
@@ -358,10 +359,11 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
         mapped_table.check_fields(kwargs, valid_types=(type(None),))
-        item = mapped_table.find_item(kwargs, fetch=fetch)
-        if not item:
-            return {}
-        if skip_removed and not item.is_valid():
+        item = mapped_table.find_item(kwargs)
+        if not item and fetch:
+            self.do_fetch_more(item_type, offset=0, limit=None, **kwargs)
+            item = mapped_table.find_item(kwargs)
+        if not item or (skip_removed and not item.is_valid()):
             return {}
         return item.public_item
 
@@ -382,7 +384,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         mapped_table = self.mapped_table(item_type)
         mapped_table.check_fields(kwargs, valid_types=(type(None),))
         if fetch:
-            self.do_fetch_all(item_type, **kwargs)
+            self.do_fetch_more(item_type, offset=0, limit=None, **kwargs)
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
         return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
 
@@ -645,7 +647,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
         for item_type in item_types:
             item_type = self.real_item_type(item_type)
-            self.do_fetch_all(item_type)
+            self.do_fetch_more(item_type)
 
     def query(self, *args, **kwargs):
         """Returns a :class:`~spinedb_api.query.Query` object to execute against the mapped DB.
@@ -712,7 +714,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             if self._memory:
                 self._memory_dirty = True
             transformation_info = compatibility_transformations(connection)
-        self._commit_count = self.query(self.commit_sq).count()
+        self._commit_count = self._query_commit_count()
         return transformation_info
 
     def rollback_session(self):
@@ -732,7 +734,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             bool: True if database has external commits, False otherwise
         """
-        return self._commit_count != self.query(self.commit_sq).count()
+        return self._commit_count != self._query_commit_count()
 
     def close(self):
         """Closes this DB mapping. This is only needed if you're keeping a long-lived session.

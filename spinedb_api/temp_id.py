@@ -13,15 +13,15 @@
 class TempId(int):
     _next_id = {}
 
-    def __new__(cls, item_type):
+    def __new__(cls, item_type, _id_map):
         id_ = cls._next_id.setdefault(item_type, -1)
         cls._next_id[item_type] -= 1
         return super().__new__(cls, id_)
 
-    def __init__(self, item_type):
+    def __init__(self, item_type, id_map):
         super().__init__()
         self._item_type = item_type
-        self._resolve_callbacks = []
+        self._id_map = id_map
         self._db_id = None
 
     @property
@@ -29,21 +29,23 @@ class TempId(int):
         return self._db_id
 
     def __eq__(self, other):
+        # FIXME: Can we avoid this?
         return super().__eq__(other) or (self._db_id is not None and other == self._db_id)
 
     def __hash__(self):
+        # FIXME: Can we avoid this?
         return int(self)
 
     def __repr__(self):
-        return f"TempId({self._item_type}, {super().__repr__()})"
-
-    def add_resolve_callback(self, callback):
-        self._resolve_callbacks.append(callback)
+        resolved_to = f" resolved to {self._db_id}" if self._db_id is not None else ""
+        return f"TempId({self._item_type}, {super().__repr__()}){resolved_to}"
 
     def resolve(self, db_id):
         self._db_id = db_id
-        while self._resolve_callbacks:
-            self._resolve_callbacks.pop(0)(db_id)
+        self._id_map[db_id] = self
+
+    def unresolve(self):
+        self._db_id = None
 
 
 def resolve(value):

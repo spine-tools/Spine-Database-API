@@ -49,7 +49,6 @@ This is particularly useful in high-concurrency scenarios.
 The server is started using :func:`closing_spine_db_server`.
 To control the order of writing you need to provide a queue, that you would obtain by calling :func:`db_server_manager`.
 
-
 The below example illustrates most of the functionality of the module.
 We create two DB servers targeting the same DB, and set the second to write before the first
 (via the ``ordering`` argument to :func:`closing_spine_db_server`).
@@ -76,7 +75,9 @@ Only after the second writes, the first one also writes and the program finishes
     with db_server_manager() as mngr_queue:
         first_ordering = {"id": "second_before_first", "current": "first", "precursors": {"second"}, "part_count": 1}
         second_ordering = {"id": "second_before_first", "current": "second", "precursors": set(), "part_count": 1}
-        with closing_spine_db_server(db_url, server_manager_queue=mngr_queue, ordering=first_ordering) as first_server_url:
+        with closing_spine_db_server(
+            db_url, server_manager_queue=mngr_queue, ordering=first_ordering
+        ) as first_server_url:
             with closing_spine_db_server(
                 db_url, server_manager_queue=mngr_queue, ordering=second_ordering
             ) as second_server_url:
