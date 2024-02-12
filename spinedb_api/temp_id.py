@@ -11,21 +11,14 @@
 
 
 class TempId(int):
-    _next_id = {}
+    def __new__(cls, value, *args):
+        return super().__new__(cls, value)
 
-    def __new__(cls, item_type):
-        id_ = cls._next_id.setdefault(item_type, -1)
-        cls._next_id[item_type] -= 1
-        return super().__new__(cls, id_)
-
-    def __init__(self, item_type):
+    def __init__(self, _value, item_type, id_map):
         super().__init__()
         self._item_type = item_type
-        self._id_map = {}
-        self._db_id = None
-
-    def set_id_map(self, id_map):
         self._id_map = id_map
+        self._db_id = None
 
     @property
     def db_id(self):
@@ -33,7 +26,11 @@ class TempId(int):
 
     def __eq__(self, other):
         # FIXME: Can we avoid this?
-        return super().__eq__(other) or (self._db_id is not None and other == self._db_id)
+        if super().__eq__(other):
+            return True
+        if self._db_id is not None:
+            return other == self._db_id
+        return False
 
     def __hash__(self):
         # FIXME: Can we avoid this?

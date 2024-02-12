@@ -356,6 +356,7 @@ class _MappedTable(dict):
         self._item_type = item_type
         self._ids_by_unique_key_value = {}
         self._temp_id_by_db_id = {}
+        self._next_id = -1
         self.wildcard_item = MappedItemBase(self._db_map, self._item_type, id=Asterisk)
 
     @property
@@ -371,9 +372,9 @@ class _MappedTable(dict):
         return super().get(id_, default)
 
     def _new_id(self):
-        temp_id = TempId(self._item_type)
-        temp_id.set_id_map(self._temp_id_by_db_id)
-        return temp_id
+        id_ = self._next_id
+        self._next_id -= 1
+        return TempId(id_, self._item_type, self._temp_id_by_db_id)
 
     def _unique_key_value_to_id(self, key, value, fetch=True):
         """Returns the id that has the given value for the given unique key, or None.
