@@ -3481,6 +3481,22 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 entities = db_map.query(db_map.wide_entity_sq).all()
                 self.assertEqual(len(entities), 2)
 
+    def test_db_items_prevail_if_mapped_items_are_committed(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="my_class"))
+                db_map.commit_session("Add some data")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.purge_items("entity_class")
+                db_map.commit_session("Purge all")
+                with DatabaseMapping(url) as shadow_db_map:
+                    self._assert_success(shadow_db_map.add_entity_class_item(name="my_class"))
+                    shadow_db_map.commit_session("Add same class")
+                entity_class_item = db_map.get_entity_class_item(name="my_class")
+                self.assertTrue(entity_class_item)
+                self.assertEqual(entity_class_item["name"], "my_class")
+
 
 if __name__ == "__main__":
     unittest.main()

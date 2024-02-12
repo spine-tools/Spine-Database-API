@@ -106,6 +106,8 @@ class DatabaseMappingBase:
         sq = self._make_sq(item_type)
         qry = self.query(sq)
         for key, value in kwargs.items():
+            if isinstance(value, tuple):
+                continue
             if hasattr(sq.c, key):
                 qry = qry.filter(getattr(sq.c, key) == value)
             elif key in self.item_factory(item_type)._external_fields:
@@ -175,6 +177,7 @@ class DatabaseMappingBase:
                     to_update.append(item)
             if item_type in purged_item_types:
                 to_remove.append(mapped_table.wildcard_item)
+                to_remove.extend(mapped_table.values())
             else:
                 for item in mapped_table.values():
                     _ = item.is_valid()
@@ -305,6 +308,8 @@ class DatabaseMappingBase:
             item, new = mapped_table.add_item_from_db(x, not is_db_dirty)
             if new:
                 new_items.append(item)
+            else:
+                item.reset_state()
             items.append(item)
         # Once all items are added, add the unique key values
         # Otherwise items that refer to other items that come later in the query will be seen as corrupted
@@ -366,13 +371,7 @@ class _MappedTable(dict):
         return super().get(id_, default)
 
     def _new_id(self):
-        temp_id = TempId(self._item_type)
-
-        def _callback(db_id):
-            self._temp_id_by_db_id[db_id] = temp_id
-
-        temp_id.add_resolve_callback(_callback)
-        return temp_id
+        return TempId(self._item_type, self._temp_id_by_db_id)
 
     def _unique_key_value_to_id(self, key, value, fetch=True):
         """Returns the id that has the given value for the given unique key, or None.
@@ -672,6 +671,7 @@ class MappedItemBase(dict):
     """
     _private_fields = set()
     """A set with fields that should be ignored in validations."""
+    is_protected = False
 
     def __init__(self, db_map, item_type, **kwargs):
         """
@@ -687,7 +687,6 @@ class MappedItemBase(dict):
         self.update_callbacks = set()
         self.remove_callbacks = set()
         self._has_valid_id = True
-        self._to_remove = False
         self._removed = False
         self._corrupted = False
         self._valid = None
@@ -697,6 +696,17 @@ class MappedItemBase(dict):
         self._status_when_committed = None
         self._backup = None
         self.public_item = PublicItem(self._db_map, self)
+
+    def reset_state(self):
+        """Called when an equivalent item is fetched from the DB.
+
+        If this item is already committed, we assume the one from the DB is newer so we reset the state.
+        Otherwise we assume *this* is newer and do nothing.
+        """
+        if self.is_committed():
+            self._removed = False
+            self._corrupted = False
+            self._valid = None
 
     @classmethod
     def ref_types(cls):
@@ -843,34 +853,32 @@ class MappedItemBase(dict):
         Returns:
             str or None: unresolved reference's key if any.
         """
-        return next(self._resolve_refs(), None)
+        return next((src_key for src_key, ref in self._resolve_refs() if not ref), None)
 
-    # TODO: Maybe rename this method to reflect its more important task now of replacing fields with TempIds
     def _resolve_refs(self):
         """Goes through the ``_references`` class attribute and tries to resolve them.
         If successful, replace source fields referring to db-ids with the reference TempId.
 
         Yields:
-            str: the source field of any unresolved reference.
+            tuple(str,MappedItem or None): the source field and resolved ref.
         """
         for src_key, (ref_type, ref_key) in self._references.items():
             try:
                 src_val = self[src_key]
             except KeyError:
-                yield src_key
+                yield src_key, None
             else:
                 if isinstance(src_val, tuple):
                     refs = tuple(self._get_ref(ref_type, {ref_key: x}) for x in src_val)
-                    if not all(refs):
-                        yield src_key
-                    elif ref_key == "id":
+                    if all(refs) and ref_key == "id":
                         self[src_key] = tuple(ref["id"] for ref in refs)
+                    for ref in refs:
+                        yield src_key, ref
                 else:
                     ref = self._get_ref(ref_type, {ref_key: src_val})
-                    if not self._get_ref(ref_type, {ref_key: src_val}):
-                        yield src_key
-                    elif ref_key == "id":
+                    if ref and ref_key == "id":
                         self[src_key] = ref["id"]
+                    yield src_key, ref
 
     @classmethod
     def unique_values_for_item(cls, item, skip_keys=()):
@@ -954,7 +962,6 @@ class MappedItemBase(dict):
         """Collects a reference from the in-memory mapping.
         Adds this item to the reference's list of referrers if strong is True;
         or weak referrers if strong is False.
-        Sets the self._corrupted and self._removed flags appropriately.
 
         Args:
             ref_type (str): The reference's type
@@ -967,13 +974,9 @@ class MappedItemBase(dict):
         mapped_table = self._db_map.mapped_table(ref_type)
         ref = mapped_table.find_item(key_val, fetch=True)
         if not ref:
-            if strong:
-                self._corrupted = True
             return {}
         if strong:
             ref.add_referrer(self)
-            if ref.removed:
-                self._to_remove = True
         else:
             ref.add_weak_referrer(self)
             if ref.removed:
@@ -1002,11 +1005,9 @@ class MappedItemBase(dict):
             return self._valid
         if self._removed or self._corrupted:
             return False
-        self._to_remove = False
-        self._corrupted = False
-        for _ in self._resolve_refs():  # This sets self._to_remove and self._corrupted
-            pass
-        if self._to_remove:
+        refs = [ref for _, ref in self._resolve_refs()]
+        self._corrupted = not all(refs)
+        if any(ref and ref.removed for ref in refs):
             self.cascade_remove()
         self._valid = not self._removed and not self._corrupted
         return self._valid
@@ -1090,7 +1091,6 @@ class MappedItemBase(dict):
             raise RuntimeError("invalid status for item being removed")
         self._removal_source = source
         self._removed = True
-        self._to_remove = False
         self._valid = None
         # First remove referrers, then this
         for referrer in self._referrers.values():

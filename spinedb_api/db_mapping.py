@@ -190,7 +190,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     @staticmethod
     def item_types():
-        return [x for x in DatabaseMapping._sq_name_by_item_type if item_factory(x).fields]
+        return [x for x in DatabaseMapping._sq_name_by_item_type if not item_factory(x).is_protected]
 
     @staticmethod
     def all_item_types():
@@ -359,10 +359,11 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
         mapped_table.check_fields(kwargs, valid_types=(type(None),))
-        item = mapped_table.find_item(kwargs, fetch=fetch)
-        if not item:
-            return {}
-        if skip_removed and not item.is_valid():
+        item = mapped_table.find_item(kwargs)
+        if not item and fetch:
+            self.do_fetch_more(item_type, offset=0, limit=None, **kwargs)
+            item = mapped_table.find_item(kwargs)
+        if not item or (skip_removed and not item.is_valid()):
             return {}
         return item.public_item
 
