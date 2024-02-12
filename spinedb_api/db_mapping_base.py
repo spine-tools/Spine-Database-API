@@ -29,6 +29,7 @@ class Status(Enum):
     to_update = auto()
     to_remove = auto()
     added_and_removed = auto()
+    compromised = auto()
 
 
 class DatabaseMappingBase:
@@ -222,7 +223,13 @@ class DatabaseMappingBase:
 
     def _refresh(self):
         """Clears fetch progress, so the DB is queried again."""
+        if self._commit_count == self._query_commit_count():
+            return
         self._fetched.clear()
+        for item_type in self.item_types():
+            mapped_table = self.mapped_table(item_type)
+            for item in mapped_table.values():
+                item.handle_refresh()
 
     def _check_item_type(self, item_type):
         if item_type not in self.all_item_types():
@@ -309,7 +316,7 @@ class DatabaseMappingBase:
             if new:
                 new_items.append(item)
             else:
-                item.reset_state()
+                item.handle_refetch()
             items.append(item)
         # Once all items are added, add the unique key values
         # Otherwise items that refer to other items that come later in the query will be seen as corrupted
@@ -560,7 +567,7 @@ class _MappedTable(dict):
             return mapped_item, False
         conflicting_item = self.get(item["id"])
         if conflicting_item is not None:
-            conflicting_item.detach()
+            conflicting_item.handle_id_steal()
         mapped_item = self._make_and_add_item(item)
         if self.purged:
             # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
@@ -700,16 +707,27 @@ class MappedItemBase(dict):
         self._backup = None
         self.public_item = PublicItem(self._db_map, self)
 
-    def reset_state(self):
+    def handle_refetch(self):
         """Called when an equivalent item is fetched from the DB.
 
-        If this item is already committed, we assume the one from the DB is newer so we reset the state.
-        Otherwise we assume *this* is newer and do nothing.
+        1. If this item is compromised, then mark it as committed.
+        2. If this item is committed, then assume the one from the DB is newer and reset the state.
+           Otherwise assume *this* is newer and do nothing.
         """
+        if self.status == Status.compromised:
+            self.status = Status.committed
         if self.is_committed():
             self._removed = False
             self._corrupted = False
             self._valid = None
+
+    def handle_refresh(self):
+        """Called when the mapping is refreshed.
+
+        If this item is committed, then set it as compromised.
+        """
+        if self.status == Status.committed:
+            self.status = Status.compromised
 
     @classmethod
     def ref_types(cls):
@@ -1004,6 +1022,8 @@ class MappedItemBase(dict):
         Returns:
             bool
         """
+        if self.status == Status.compromised:
+            return False
         if self._valid is not None:
             return self._valid
         if self._removed or self._corrupted:
@@ -1223,8 +1243,8 @@ class MappedItemBase(dict):
         if self.status == Status.to_add:
             self.status = Status.committed
 
-    def detach(self):
-        """Detaches this item whose id now belongs to a different item after an external commit."""
+    def handle_id_steal(self):
+        """Called when a new item is fetched from the DB with this item's id."""
         self["id"].unresolve()
         # TODO: Test if the below works...
         if self.is_committed():

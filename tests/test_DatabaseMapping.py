@@ -3216,7 +3216,6 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         )
                     )
                     shadow_db_map.commit_session("Add entities.")
-                db_map.refresh_session()
                 entity_items = db_map.get_entity_items()
                 self.assertEqual(len(entity_items), 2)
                 unique_values = {(x["name"], x["entity_class_name"]) for x in entity_items}
@@ -3496,6 +3495,24 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 entity_class_item = db_map.get_entity_class_item(name="my_class")
                 self.assertTrue(entity_class_item)
                 self.assertEqual(entity_class_item["name"], "my_class")
+
+    def test_remove_items_then_refresh(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="my_class"))
+                self._assert_success(db_map.add_entity_class_item(name="new_class"))
+                db_map.commit_session("Add some data")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.fetch_all("entity_class")
+                with DatabaseMapping(url) as shadow_db_map:
+                    shadow_db_map.purge_items("entity_class")
+                    self._assert_success(shadow_db_map.add_entity_class_item(name="new_class"))
+                    shadow_db_map.commit_session("Purge then add new class back")
+                db_map.refresh_session()
+                entity_class_names = [x["name"] for x in db_map.get_entity_class_items()]
+                self.assertIn("new_class", entity_class_names)
+                self.assertNotIn("my_class", entity_class_names)
 
 
 if __name__ == "__main__":
