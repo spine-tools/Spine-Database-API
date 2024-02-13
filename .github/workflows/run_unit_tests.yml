@@ -4,7 +4,12 @@ name: Unit tests
 
 # Run workflow on every push
 on:
-  push
+  push:
+    paths:
+      - "**.py"
+      - "requirements.txt"
+      - "pyproject.toml"
+      - ".github/workflows/*.yml"
 
 jobs:
   unit-tests:
@@ -36,10 +41,10 @@ jobs:
         PYTHONUTF8: 1
       run: |
         python -m pip install --upgrade pip
-        pip install .[dev]
+        python -m pip install .[dev]
     - name: List packages
       run:
-        pip list
+        python -m pip list
     - name: Run tests
       env: 
         QT_QPA_PLATFORM: offscreen
@@ -49,3 +54,82 @@ jobs:
       uses: codecov/codecov-action@v4
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  toolbox-unit-tests:
+    name: Spine Toolbox unit tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: [3.8]
+        os: [ubuntu-22.04]
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: spine-tools/Spine-Toolbox
+        fetch-depth: 0
+        # Temporarily fetch the 0.8-dev branch until everything is merged to master
+        ref: 0.8-dev
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install additional packages for Linux
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y libegl1
+    - name: Install dependencies
+      env:
+        PYTHONUTF8: 1
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+    - name: List packages
+      run:
+        python -m pip list
+    - name: Install python3 kernelspecs
+      run: |
+        python -m pip install ipykernel
+        python -m ipykernel install --user
+    - name: Run tests
+      run: |
+        if [ "$RUNNER_OS" != "Windows" ]; then
+          export QT_QPA_PLATFORM=offscreen
+        fi
+        python -m unittest discover --verbose
+      shell: bash
+  toolbox-execution-tests:
+    name: Spine Toolbox execution tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [3.8]
+        os: [ubuntu-22.04]
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: spine-tools/Spine-Toolbox
+        # Temporarily fetch the 0.8-dev branch until everything is merged to master
+        ref: 0.8-dev
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install additional packages for Linux
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y libegl1
+    - name: Install dependencies
+      env:
+        PYTHONUTF8: 1
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+    - name: List packages
+      run:
+        python -m pip list
+    - name: Run tests
+      run:
+        python -m unittest discover --pattern execution_test.py --verbose
