@@ -792,7 +792,7 @@ class SuperclassSubclassItem(MappedItemBase):
     _internal_fields = {"superclass_id": (("superclass_name",), "id"), "subclass_id": (("subclass_name",), "id")}
 
     def _subclass_entities(self):
-        return self._db_map.get_items("entity", class_id=self["subclass_id"])
+        return self._db_map.get_items("entity", class_id=self["subclass_id"], fetch=False)
 
     def check_mutability(self):
         if self._subclass_entities():

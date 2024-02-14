@@ -432,7 +432,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             alternatives = db_map.fetch_more("alternative")
             expected = [{"id": 1, "name": "Base", "description": "Base alternative", "commit_id": 1}]
-            self.assertEqual([a._asdict() for a in alternatives], expected)
+            self.assertEqual([a.resolve() for a in alternatives], expected)
 
     def test_fetch_more_after_commit_and_refresh(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -3117,7 +3117,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 items = db_map.get_items("entity")
                 self.assertEqual(len(items), 1)
                 self.assertEqual(
-                    items[0]._asdict(),
+                    items[0].resolve(),
                     {
                         "id": 1,
                         "name": "my_entity",

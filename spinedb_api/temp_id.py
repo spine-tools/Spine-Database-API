@@ -9,13 +9,13 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
+import uuid
 
-class TempId(int):
-    def __new__(cls, value, *args):
-        return super().__new__(cls, value)
 
-    def __init__(self, _value, item_type, id_map):
+class TempId:
+    def __init__(self, item_type, id_map):
         super().__init__()
+        self._id = uuid.uuid4()
         self._item_type = item_type
         self._id_map = id_map
         self._db_id = None
@@ -24,21 +24,15 @@ class TempId(int):
     def db_id(self):
         return self._db_id
 
-    def __eq__(self, other):
-        # FIXME: Can we avoid this?
-        if super().__eq__(other):
-            return True
-        if self._db_id is not None:
-            return other == self._db_id
-        return False
-
-    def __hash__(self):
-        # FIXME: Can we avoid this?
-        return int(self)
-
     def __repr__(self):
         resolved_to = f" resolved to {self._db_id}" if self._db_id is not None else ""
-        return f"TempId({self._item_type}, {super().__repr__()}){resolved_to}"
+        return f"TempId({self._item_type}){resolved_to}"
+
+    def __eq__(self, other):
+        return isinstance(other, TempId) and other._item_type == self._item_type and other._id == self._id
+
+    def __hash__(self):
+        return hash((self._item_type, self._id))
 
     def resolve(self, db_id):
         self._db_id = db_id
@@ -49,6 +43,8 @@ class TempId(int):
 
 
 def resolve(value):
+    if isinstance(value, tuple):
+        return tuple(resolve(v) for v in value)
     if isinstance(value, dict):
         return {k: resolve(v) for k, v in value.items()}
     if isinstance(value, TempId):
