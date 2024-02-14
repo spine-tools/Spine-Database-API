@@ -3496,7 +3496,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self.assertTrue(entity_class_item)
                 self.assertEqual(entity_class_item["name"], "my_class")
 
-    def test_remove_items_then_refresh(self):
+    def test_remove_items_then_refresh_then_readd(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
             with DatabaseMapping(url, create=True) as db_map:
@@ -3513,6 +3513,26 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 entity_class_names = [x["name"] for x in db_map.get_entity_class_items()]
                 self.assertIn("new_class", entity_class_names)
                 self.assertNotIn("my_class", entity_class_names)
+
+    def test_remove_items_then_refresh_then_readd2(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="xxx"))
+                self._assert_success(db_map.add_entity_class_item(name="yyy"))
+                self._assert_success(db_map.add_entity_class_item(name="zzz"))
+                db_map.commit_session("Add some data")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.fetch_all("entity_class")
+                with DatabaseMapping(url) as shadow_db_map:
+                    shadow_db_map.purge_items("entity_class")
+                    self._assert_success(shadow_db_map.add_entity_class_item(name="zzz"))
+                    self._assert_success(shadow_db_map.add_entity_class_item(name="www"))
+                    shadow_db_map.commit_session("Purge then add one old class and one new class")
+                db_map.refresh_session()
+                entity_class_names = [x["name"] for x in db_map.get_entity_class_items()]
+                self.assertEqual(len(entity_class_names), 2)
+                self.assertEqual(set(entity_class_names), {"zzz", "www"})
 
 
 if __name__ == "__main__":
