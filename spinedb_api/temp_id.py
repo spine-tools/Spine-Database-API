@@ -34,6 +34,9 @@ class TempId:
     def __hash__(self):
         return hash((self._item_type, self._id))
 
+    def __lt__(self, other):
+        return self._id < other._id
+
     def resolve(self, db_id):
         self._db_id = db_id
         self._id_map[db_id] = self
