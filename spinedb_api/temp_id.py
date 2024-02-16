@@ -31,6 +31,12 @@ class TempId:
     def __eq__(self, other):
         return isinstance(other, TempId) and other._item_type == self._item_type and other._id == self._id
 
+    def __gt__(self, other):
+        return isinstance(other, TempId) and other._item_type == self._item_type and self._id > other._id
+
+    def __lt__(self, other):
+        return isinstance(other, TempId) and other._item_type == self._item_type and self._id < other._id
+
     def __hash__(self):
         return hash((self._item_type, self._id))
 
