@@ -98,8 +98,8 @@ class DiffDatabaseMapping(
         if self.committing:
             try:
                 self._update_and_insert_items(tablename, items_for_update, items_for_insert)
-                self._mark_as_dirty(tablename, dirty_ids)
                 self.updated_item_id[tablename].update(dirty_ids)
+                self._mark_as_dirty(tablename, dirty_ids)
             except DBAPIError as e:
                 msg = f"DBAPIError while updating {tablename} items: {e.orig.args}"
                 raise SpineDBAPIError(msg)
