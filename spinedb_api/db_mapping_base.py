@@ -109,6 +109,7 @@ class DatabaseMappingBase:
         for key, value in kwargs.items():
             if isinstance(value, tuple):
                 continue
+            value = resolve(value)
             if hasattr(sq.c, key):
                 qry = qry.filter(getattr(sq.c, key) == value)
             elif key in self.item_factory(item_type)._external_fields:
