@@ -498,8 +498,7 @@ class DatabaseMappingBase:
         attr_names = set(attr for tablename in tablenames for attr in self._get_table_to_sq_attr().get(tablename, []))
         for attr_name in attr_names:
             setattr(self, attr_name, None)
-        tablenames = list(tablenames)
-        for tablename in tablenames:
+        for tablename in list(self.cache):
             if self.cache.pop(tablename, None):
                 self._do_advance_cache_query(tablename)
 
