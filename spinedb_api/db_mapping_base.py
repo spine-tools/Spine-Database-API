@@ -182,7 +182,7 @@ class DatabaseMappingBase:
                 to_remove.extend(mapped_table.values())
             else:
                 for item in mapped_table.values():
-                    _ = item.is_valid()
+                    item.validate()
                     if item.status == Status.to_remove:
                         to_remove.append(item)
             if to_add or to_update or to_remove:
@@ -696,7 +696,6 @@ class MappedItemBase(dict):
         self.remove_callbacks = set()
         self._has_valid_id = True
         self._removed = False
-        self._corrupted = False
         self._valid = None
         self._status = Status.committed
         self._removal_source = None
@@ -716,7 +715,6 @@ class MappedItemBase(dict):
             self.status = Status.committed
         if self.is_committed():
             self._removed = False
-            self._corrupted = False
             self._valid = None
 
     def handle_refresh(self):
@@ -878,7 +876,7 @@ class MappedItemBase(dict):
 
     def _resolve_refs(self):
         """Goes through the ``_references`` class attribute and tries to resolve them.
-        If successful, replace source fields referring to db-ids with the reference TempId.
+        If successful, replace source fields referring to db-ids with the reference's TempId.
 
         Yields:
             tuple(str,MappedItem or None): the source field and resolved ref.
@@ -1024,16 +1022,18 @@ class MappedItemBase(dict):
         """
         if self.status == Status.compromised:
             return False
-        if self._valid is not None:
-            return self._valid
-        if self._removed or self._corrupted:
-            return False
-        refs = [ref for _, ref in self._resolve_refs()]
-        self._corrupted = not all(refs)
-        if any(ref and ref.removed for ref in refs):
-            self.cascade_remove()
-        self._valid = not self._removed and not self._corrupted
+        self.validate()
         return self._valid
+
+    def validate(self):
+        """Resolves all references and checks if the item is valid.
+        The item is valid if it's not removed, has all of its references, and none of them is removed."""
+        if self._valid is not None:
+            return
+        refs = [ref for _, ref in self._resolve_refs()]
+        self._valid = not self._removed and all(ref and not ref.removed for ref in refs)
+        if not self._valid:
+            self.cascade_remove()
 
     def add_referrer(self, referrer):
         """Adds a strong referrer to this item. Strong referrers are removed, updated and restored
@@ -1089,6 +1089,7 @@ class MappedItemBase(dict):
         else:
             raise RuntimeError("invalid status for item being restored")
         self._removed = False
+        self._valid = None
         # First restore this, then referrers
         obsolete = set()
         for callback in list(self.restore_callbacks):
@@ -1281,6 +1282,9 @@ class PublicItem:
 
     def get(self, key, default=None):
         return self._mapped_item.get(key, default)
+
+    def validate(self):
+        self._mapped_item.validate()
 
     def is_valid(self):
         return self._mapped_item.is_valid()
