@@ -126,6 +126,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         db_url,
         username=None,
         upgrade=False,
+        backup_url="",
         codename=None,
         create=False,
         apply_filters=True,
@@ -139,6 +140,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             username (str, optional): A user name. If not given, it gets replaced by the string `anon`.
             upgrade (bool, optional): Whether the DB at the given `url` should be upgraded to the most recent
                 version.
+            backup_url (str, optional): A URL to backup the DB before upgrading.
             codename (str, optional): A name to identify this object in your application.
             create (bool, optional): Whether to create a new Spine DB at the given `url` if it's not already one.
             apply_filters (bool, optional): Whether to apply filters in the `url`'s query segment.
@@ -165,7 +167,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._memory = memory
         self._memory_dirty = False
         self._original_engine = self.create_engine(
-            self.sa_url, upgrade=upgrade, create=create, sqlite_timeout=sqlite_timeout
+            self.sa_url, create=create, upgrade=upgrade, backup_url=backup_url, sqlite_timeout=sqlite_timeout
         )
         # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
         self.engine = create_engine("sqlite://", poolclass=NullPool) if self._memory else self._original_engine
@@ -219,7 +221,63 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return hashing.hexdigest()
 
     @staticmethod
-    def create_engine(sa_url, upgrade=False, create=False, sqlite_timeout=1800):
+    def get_upgrade_db_prompt_data(url, create=False):
+        """Returns data to prompt the user what to do if the DB at the given url is not the latest version.
+        If it is, then returns None.
+
+        Args:
+            url (str)
+            create (bool,optional)
+
+        Returns:
+            str: The title of the prompt
+            str: The text of the prompt
+            dict: Mapping different options, to kwargs to pass to DatabaseMapping constructor in order to apply them
+            dict or None: Mapping different options, to additional notes
+            int or None: The preferred option if any
+        """
+        sa_url = make_url(url)
+        try:
+            DatabaseMapping.create_engine(sa_url, create=create)
+            return None
+        except SpineDBVersionError as v_err:
+            if v_err.upgrade_available:
+                title = "Incompatible database version"
+                text = (
+                    f"The database at <br><center>'{sa_url}'</center><br> is at revision <b>{v_err.current}</b> "
+                    f"and needs to be upgraded to revision <b>{v_err.expected}</b> "
+                    "in order to be used with the current version of Spine."
+                    "<p><b>WARNING</b>: After the upgrade, the database may no longer be used with previous versions."
+                )
+                if sa_url.drivername == "sqlite":
+                    folder_name, file_name = os.path.split(sa_url.database)
+                    file_name, _ = os.path.splitext(file_name)
+                else:
+                    folder_name = os.path.expanduser("~")
+                    file_name = sa_url.database
+                database = os.path.join(folder_name, file_name + "." + v_err.current)
+                backup_url = URL("sqlite", database=database)
+                option_to_kwargs = {
+                    "Do not upgrade": {},
+                    "Just upgrade": dict(upgrade=True),
+                    "Backup and upgrade": dict(upgrade=True, backup_url=backup_url),
+                }
+                notes = {"Backup and upgrade": f"The backup will be written at '{backup_url}'"}
+                preferred = 2
+            else:
+                title = "Unsupported database version"
+                text = (
+                    f"The database at <br><center>'{sa_url}'</center><br> is at revision <b>{v_err.current}</b> "
+                    f"while this version of Spine supports revisions up to <b>{v_err.expected}</b>."
+                    "<p>Please upgrade Spine to use this database."
+                )
+                option_to_kwargs = {}
+                notes = None
+                preferred = None
+            return title, text, option_to_kwargs, notes, preferred
+
+    @staticmethod
+    def create_engine(sa_url, create=False, upgrade=False, backup_url="", sqlite_timeout=1800):
         if sa_url.drivername == "sqlite":
             connect_args = {'timeout': sqlite_timeout}
         else:
@@ -264,6 +322,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                             url=sa_url, current=current, expected=head, upgrade_available=False
                         ) from None
                     raise SpineDBVersionError(url=sa_url, current=current, expected=head)
+                if backup_url:
+                    dst_engine = create_engine(backup_url)
+                    copy_database_bind(dst_engine, engine)
 
                 # Upgrade function
                 def upgrade_to_head(rev, context):

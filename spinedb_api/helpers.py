@@ -272,7 +272,7 @@ def copy_database_bind(dest_bind, source_bind, overwrite=True, upgrade=False, on
         try:
             dest_bind.execute(ins, data)
         except IntegrityError as e:
-            warnings.warn("Skipping table {0}: {1}".format(source_table.name, e.orig.args))
+            warnings.warn(f"Skipping table {source_table.name}: {e.orig.args}")
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
