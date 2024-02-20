@@ -256,7 +256,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                     folder_name = os.path.expanduser("~")
                     file_name = sa_url.database
                 database = os.path.join(folder_name, file_name + "." + v_err.current)
-                backup_url = URL("sqlite", database=database)
+                backup_url = str(URL("sqlite", database=database))
                 option_to_kwargs = {
                     "Backup and upgrade": dict(upgrade=True, backup_url=backup_url),
                     "Just upgrade": dict(upgrade=True),
@@ -294,7 +294,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         config.set_main_option("script_location", "spinedb_api:alembic")
         script = ScriptDirectory.from_config(config)
         head = script.get_current_head()
-        with engine.connect() as connection:
+        with engine.begin() as connection:
+            if sa_url.drivername == "sqlite":
+                connection.execute("BEGIN IMMEDIATE")
+            # TODO: Do other dialects need to lock?
             migration_context = MigrationContext.configure(connection)
             try:
                 current = migration_context.get_current_revision()
