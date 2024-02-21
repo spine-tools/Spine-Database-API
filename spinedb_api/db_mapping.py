@@ -45,7 +45,7 @@ from .query import Query
 from .compatibility import compatibility_transformations
 from .helpers import (
     _create_first_spine_database,
-    create_new_spine_database,
+    create_new_spine_database_from_bind,
     compare_schemas,
     model_meta,
     copy_database_bind,
@@ -290,10 +290,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 f"Could not connect to '{sa_url}': {str(e)}. "
                 f"Please make sure that '{sa_url}' is a valid sqlalchemy URL."
             ) from None
-        config = Config()
-        config.set_main_option("script_location", "spinedb_api:alembic")
-        script = ScriptDirectory.from_config(config)
-        head = script.get_current_head()
         with engine.begin() as connection:
             if sa_url.drivername == "sqlite":
                 connection.execute("BEGIN IMMEDIATE")
@@ -313,7 +309,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                             "Unable to determine db revision. "
                             f"Please check that\n\n\t{sa_url}\n\nis the URL of a valid Spine db."
                         )
-                    return create_new_spine_database(sa_url)
+                    create_new_spine_database_from_bind(connection)
+                    return engine
+            config = Config()
+            config.set_main_option("script_location", "spinedb_api:alembic")
+            script = ScriptDirectory.from_config(config)
+            head = script.get_current_head()
             if current != head:
                 if not upgrade:
                     try:

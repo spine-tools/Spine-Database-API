@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ General helper functions. """
+
 import os
 import json
 import warnings
@@ -621,21 +622,25 @@ def create_new_spine_database(db_url):
         engine = create_engine(db_url)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
+    create_new_spine_database_from_bind(engine)
+    return engine
+
+
+def create_new_spine_database_from_bind(bind):
     # Drop existing tables. This is a Spine db now...
-    meta = MetaData(engine)
+    meta = MetaData(bind)
     meta.reflect()
     meta.drop_all()
     # Create new tables
     meta = create_spine_metadata()
     version = get_head_alembic_version()
     try:
-        meta.create_all(engine)
-        engine.execute("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
-        engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
-        engine.execute(f"INSERT INTO alembic_version VALUES ('{version}')")
+        meta.create_all(bind)
+        bind.execute("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
+        bind.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
+        bind.execute(f"INSERT INTO alembic_version VALUES ('{version}')")
     except DatabaseError as e:
         raise SpineDBAPIError(f"Unable to create Spine database: {e}") from None
-    return engine
 
 
 def _create_first_spine_database(db_url):
