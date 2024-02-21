@@ -39,7 +39,7 @@ def upgrade():
         class_table.update().where(class_table.c.id == sa.bindparam("target_id")).values(active_by_default=True)
     )
     conn.execute(update_statement, [{"target_id": class_id} for class_id in dimensional_class_ids])
-    convert_tool_feature_method_to_active_by_default(conn)
+    convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_feature_method=True)
 
 
 def downgrade():

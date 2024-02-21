@@ -15,12 +15,13 @@
 import sqlalchemy as sa
 
 
-def convert_tool_feature_method_to_active_by_default(conn):
+def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_feature_method):
     """Transforms default parameter values into active_by_default values, whenever the former are used in a tool filter
     to control entity activity.
 
     Args:
         conn (Connection)
+        use_existing_tool_feature_method (Bool): Whether to use existing tool/feature/method definitions.
 
     Returns:
         tuple: list of entity classes to add, update and ids to remove
@@ -29,23 +30,26 @@ def convert_tool_feature_method_to_active_by_default(conn):
     meta.reflect()
     lv_table = meta.tables["list_value"]
     pd_table = meta.tables["parameter_definition"]
-    try:
-        # Compute list-value id by parameter definition id for all features and methods
-        tfm_table = meta.tables["tool_feature_method"]
-        tf_table = meta.tables["tool_feature"]
-        f_table = meta.tables["feature"]
-        lv_id_by_pdef_id = {
-            x["parameter_definition_id"]: x["id"]
-            for x in conn.execute(
-                sa.select([lv_table.c.id, f_table.c.parameter_definition_id])
-                .where(tfm_table.c.parameter_value_list_id == lv_table.c.parameter_value_list_id)
-                .where(tfm_table.c.method_index == lv_table.c.index)
-                .where(tf_table.c.id == tfm_table.c.tool_feature_id)
-                .where(f_table.c.id == tf_table.c.feature_id)
-            )
-        }
-    except KeyError:
-        # It's a new DB without tool/feature/method
+    if use_existing_tool_feature_method:
+        try:
+            # Compute list-value id by parameter definition id for all features and methods
+            tfm_table = meta.tables["tool_feature_method"]
+            tf_table = meta.tables["tool_feature"]
+            f_table = meta.tables["feature"]
+            lv_id_by_pdef_id = {
+                x["parameter_definition_id"]: x["id"]
+                for x in conn.execute(
+                    sa.select([lv_table.c.id, f_table.c.parameter_definition_id])
+                    .where(tfm_table.c.parameter_value_list_id == lv_table.c.parameter_value_list_id)
+                    .where(tfm_table.c.method_index == lv_table.c.index)
+                    .where(tf_table.c.id == tfm_table.c.tool_feature_id)
+                    .where(f_table.c.id == tf_table.c.feature_id)
+                )
+            }
+        except KeyError:
+            use_existing_tool_feature_method = False
+    if not use_existing_tool_feature_method:
+        # It's a new DB without tool/feature/method or we don't want to use them...
         # we take 'is_active' as feature and JSON "yes" and true as methods
         lv_id_by_pdef_id = {
             x["parameter_definition_id"]: x["id"]
@@ -100,12 +104,13 @@ def convert_tool_feature_method_to_active_by_default(conn):
     return [], updated_items, []
 
 
-def convert_tool_feature_method_to_entity_alternative(conn):
+def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_feature_method):
     """Transforms parameter_value rows into entity_alternative rows, whenever the former are used in a tool filter
     to control entity activity.
 
     Args:
         conn (Connection)
+        use_existing_tool_feature_method (Bool): Whether to use existing tool/feature/method definitions.
 
     Returns:
         list: entity_alternative items to add
@@ -117,23 +122,26 @@ def convert_tool_feature_method_to_entity_alternative(conn):
     ea_table = meta.tables["entity_alternative"]
     lv_table = meta.tables["list_value"]
     pv_table = meta.tables["parameter_value"]
-    try:
-        # Compute list-value id by parameter definition id for all features and methods
-        tfm_table = meta.tables["tool_feature_method"]
-        tf_table = meta.tables["tool_feature"]
-        f_table = meta.tables["feature"]
-        lv_id_by_pdef_id = {
-            x["parameter_definition_id"]: x["id"]
-            for x in conn.execute(
-                sa.select([lv_table.c.id, f_table.c.parameter_definition_id])
-                .where(tfm_table.c.parameter_value_list_id == lv_table.c.parameter_value_list_id)
-                .where(tfm_table.c.method_index == lv_table.c.index)
-                .where(tf_table.c.id == tfm_table.c.tool_feature_id)
-                .where(f_table.c.id == tf_table.c.feature_id)
-            )
-        }
-    except KeyError:
-        # It's a new DB without tool/feature/method
+    if use_existing_tool_feature_method:
+        try:
+            # Compute list-value id by parameter definition id for all features and methods
+            tfm_table = meta.tables["tool_feature_method"]
+            tf_table = meta.tables["tool_feature"]
+            f_table = meta.tables["feature"]
+            lv_id_by_pdef_id = {
+                x["parameter_definition_id"]: x["id"]
+                for x in conn.execute(
+                    sa.select([lv_table.c.id, f_table.c.parameter_definition_id])
+                    .where(tfm_table.c.parameter_value_list_id == lv_table.c.parameter_value_list_id)
+                    .where(tfm_table.c.method_index == lv_table.c.index)
+                    .where(tf_table.c.id == tfm_table.c.tool_feature_id)
+                    .where(f_table.c.id == tf_table.c.feature_id)
+                )
+            }
+        except KeyError:
+            use_existing_tool_feature_method = False
+    if not use_existing_tool_feature_method:
+        # It's a new DB without tool/feature/method or we don't want to use them...
         # we take 'is_active' as feature and JSON "yes" and true as methods
         pd_table = meta.tables["parameter_definition"]
         lv_id_by_pdef_id = {
@@ -198,7 +206,9 @@ def compatibility_transformations(connection):
         tuple(list, list): list of tuples (tablename, (items_added, items_updated, ids_removed)), and
             list of strings indicating the changes
     """
-    ea_items_added, ea_items_updated, pval_ids_removed = convert_tool_feature_method_to_entity_alternative(connection)
+    ea_items_added, ea_items_updated, pval_ids_removed = convert_tool_feature_method_to_entity_alternative(
+        connection, use_existing_tool_feature_method=False
+    )
     transformations = []
     info = []
     if ea_items_added or ea_items_updated:
@@ -207,7 +217,9 @@ def compatibility_transformations(connection):
         transformations.append(("parameter_value", ((), (), pval_ids_removed)))
     if ea_items_added or ea_items_updated or pval_ids_removed:
         info.append("Convert entity activity control using tool/feature/method into entity_alternative")
-    _, ec_items_updated, _ = convert_tool_feature_method_to_active_by_default(connection)
+    _, ec_items_updated, _ = convert_tool_feature_method_to_active_by_default(
+        connection, use_existing_tool_feature_method=False
+    )
     if ec_items_updated:
         transformations.append(("entity_class", ((), ec_items_updated, ())))
     return transformations, info
