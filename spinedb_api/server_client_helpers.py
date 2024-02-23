@@ -13,6 +13,7 @@
 import json
 from .exception import SpineDBAPIError
 from .db_mapping_base import PublicItem
+from .temp_id import TempId
 
 # Encode decode server messages
 _START_OF_TAIL = '\u001f'  # Unit separator
@@ -68,6 +69,8 @@ class _TailJSONEncoder(json.JSONEncoder):
             return str(o)
         if isinstance(o, PublicItem):
             return o._extended()
+        if isinstance(o, TempId):
+            return o.private_id
         return super().default(o)
 
     @property

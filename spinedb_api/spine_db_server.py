@@ -411,9 +411,12 @@ class _DBWorker:
         return dict(result=export_data(self._db_map, parse_value=_parse_value, **kwargs))
 
     def _do_call_method(self, method_name, *args, **kwargs):
-        method = getattr(self._db_map, method_name)
-        result = method(*args, **kwargs)
-        return dict(result=result)
+        try:
+            method = getattr(self._db_map, method_name)
+            result = method(*args, **kwargs)
+            return dict(result=result)
+        except Exception as err:
+            return dict(error=str(err))
 
     def _do_clear_filters(self):
         self._db_map.restore_entity_sq_maker()
