@@ -882,22 +882,27 @@ class MappedItemBase(dict):
             tuple(str,MappedItem or None): the source field and resolved ref.
         """
         for src_key, (ref_type, ref_key) in self._references.items():
-            try:
-                src_val = self[src_key]
-            except KeyError:
-                yield src_key, None
+            ref = self._get_full_ref(src_key, ref_type, ref_key)
+            if isinstance(ref, tuple):
+                for r in ref:
+                    yield src_key, r
             else:
-                if isinstance(src_val, tuple):
-                    refs = tuple(self._get_ref(ref_type, {ref_key: x}) for x in src_val)
-                    if all(refs) and ref_key == "id":
-                        self[src_key] = tuple(ref["id"] for ref in refs)
-                    for ref in refs:
-                        yield src_key, ref
-                else:
-                    ref = self._get_ref(ref_type, {ref_key: src_val})
-                    if ref and ref_key == "id":
-                        self[src_key] = ref["id"]
-                    yield src_key, ref
+                yield src_key, ref
+
+    def _get_full_ref(self, src_key, ref_type, ref_key, strong=True):
+        try:
+            src_val = self[src_key]
+        except KeyError:
+            return {}
+        if isinstance(src_val, tuple):
+            ref = tuple(self._get_ref(ref_type, {ref_key: x}, strong=strong) for x in src_val)
+            if all(ref) and ref_key == "id":
+                self[src_key] = tuple(r["id"] for r in ref)
+            return ref
+        ref = self._get_ref(ref_type, {ref_key: src_val}, strong=strong)
+        if ref and ref_key == "id":
+            self[src_key] = ref["id"]
+        return ref
 
     @classmethod
     def unique_values_for_item(cls, item, skip_keys=()):
@@ -1184,14 +1189,14 @@ class MappedItemBase(dict):
 
     def __getitem__(self, key):
         """Overridden to return references."""
-        source_target_key_tuple = self._external_fields.get(key)
-        if source_target_key_tuple:
-            source_key, target_key = source_target_key_tuple
+        source_and_target_key = self._external_fields.get(key)
+        if source_and_target_key:
+            source_key, target_key = source_and_target_key
             ref_type, ref_key = self._references[source_key]
-            source_val = self[source_key]
-            if isinstance(source_val, tuple):
-                return tuple(self._get_ref(ref_type, {ref_key: x}).get(target_key) for x in source_val)
-            return self._get_ref(ref_type, {ref_key: source_val}).get(target_key)
+            ref = self._get_full_ref(source_key, ref_type, ref_key)
+            if isinstance(ref, tuple):
+                return tuple(r.get(target_key) for r in ref)
+            return ref.get(target_key)
         return super().__getitem__(key)
 
     def __setitem__(self, key, value):
