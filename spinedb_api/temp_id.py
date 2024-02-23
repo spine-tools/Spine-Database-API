@@ -9,16 +9,22 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-import uuid
-
 
 class TempId:
-    def __init__(self, item_type, id_map):
+    _next_id = {}
+
+    def __init__(self, item_type, temp_id_lookup):
         super().__init__()
-        self._id = uuid.uuid4()
+        self._id = self._next_id.get(item_type, -1)
+        self._next_id[item_type] = self._id - 1
         self._item_type = item_type
-        self._id_map = id_map
+        self._temp_id_lookup = temp_id_lookup
         self._db_id = None
+        self._temp_id_lookup[self._id] = self
+
+    @property
+    def private_id(self):
+        return self._id
 
     @property
     def db_id(self):
@@ -41,10 +47,15 @@ class TempId:
         return hash((self._item_type, self._id))
 
     def resolve(self, db_id):
+        self.unresolve()
         self._db_id = db_id
-        self._id_map[db_id] = self
+        self._temp_id_lookup[db_id] = self
 
     def unresolve(self):
+        if self._db_id is None:
+            return
+        if self._temp_id_lookup[self._db_id] is self:
+            del self._temp_id_lookup[self._db_id]
         self._db_id = None
 
 

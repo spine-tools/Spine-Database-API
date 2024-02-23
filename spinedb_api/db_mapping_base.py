@@ -363,7 +363,7 @@ class _MappedTable(dict):
         self._db_map = db_map
         self._item_type = item_type
         self._ids_by_unique_key_value = {}
-        self._temp_id_by_db_id = {}
+        self._temp_id_lookup = {}
         self.wildcard_item = MappedItemBase(self._db_map, self._item_type, id=Asterisk)
 
     @property
@@ -375,11 +375,11 @@ class _MappedTable(dict):
         self.wildcard_item.status = Status.to_remove if purged else Status.committed
 
     def get(self, id_, default=None):
-        id_ = self._temp_id_by_db_id.get(id_, id_)
+        id_ = self._temp_id_lookup.get(id_, id_)
         return super().get(id_, default)
 
     def _new_id(self):
-        return TempId(self._item_type, self._temp_id_by_db_id)
+        return TempId(self._item_type, self._temp_id_lookup)
 
     def _unique_key_value_to_id(self, key, value, fetch=True):
         """Returns the id that has the given value for the given unique key, or None.
