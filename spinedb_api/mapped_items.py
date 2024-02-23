@@ -489,9 +489,7 @@ class ParameterDefinitionItem(ParameterItemBase):
         if key == "parameter_value_list_id":
             return dict.get(self, key)
         if key == "parameter_value_list_name":
-            return self._get_ref("parameter_value_list", {"id": self["parameter_value_list_id"]}, strong=False).get(
-                "name"
-            )
+            return self._get_full_ref("parameter_value_list_id", "parameter_value_list", "id", strong=False).get("name")
         if key in ("default_value", "default_type"):
             list_value_id = self["list_value_id"]
             if list_value_id is not None:
