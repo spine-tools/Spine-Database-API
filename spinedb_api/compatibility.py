@@ -80,10 +80,11 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
     # where active_by_default is True if the value of 'is_active' is the one from the tool_feature_method specification
     entity_class_items_to_update = {
         x["entity_class_id"]: {
-            "active_by_default": x["list_value_id"] == lv_id_by_pdef_id[x["parameter_definition_id"]],
+            "active_by_default": False
+            if x["list_value_id"] is None
+            else x["list_value_id"] == lv_id_by_pdef_id[x["parameter_definition_id"]],
         }
         for x in is_active_default_vals
-        if x["list_value_id"] is not None
     }
     updated_items = []
     entity_class_table = meta.tables["entity_class"]
