@@ -26,19 +26,12 @@ def upgrade():
             ),
         )
     conn = op.get_bind()
-    session = sa.orm.sessionmaker(bind=conn)()
     metadata = sa.MetaData()
     metadata.reflect(bind=conn)
-    dimension_table = metadata.tables["entity_class_dimension"]
-    dimensional_class_ids = {row.entity_class_id for row in session.query(dimension_table)}
-    if not dimensional_class_ids:
-        return
     metadata.reflect(bind=conn)
     class_table = metadata.tables["entity_class"]
-    update_statement = (
-        class_table.update().where(class_table.c.id == sa.bindparam("target_id")).values(active_by_default=True)
-    )
-    conn.execute(update_statement, [{"target_id": class_id} for class_id in dimensional_class_ids])
+    update_statement = class_table.update().values(active_by_default=True)
+    conn.execute(update_statement)
     convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_feature_method=True)
 
 
