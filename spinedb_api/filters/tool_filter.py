@@ -17,6 +17,7 @@ from functools import partial
 from uuid import uuid4
 from sqlalchemy import and_, or_, case, func, Table, Column, ForeignKey
 from ..exception import SpineDBAPIError
+from sqlalchemy.orm import Session
 
 
 TOOL_FILTER_TYPE = "tool_filter"
@@ -228,18 +229,21 @@ def _make_method_filter(tool_feature_method_sq, parameter_value_sq, parameter_de
     # Filter passes if either:
     # 1) parameter definition is not a feature for the tool
     # 2) method is not specified
-    # 3) value is equal to method
-    # 4) value is not specified, but default value is equal to method
+    # 3) value is contained in the listed values of the method
+    # 4) value is not specified, but default value is contained in the listed values of the method
+
+    method_value_id_list = Session().query(tool_feature_method_sq.c.method_list_value_id).subquery()
+
     return case(
         [
             (
                 or_(
                     tool_feature_method_sq.c.parameter_definition_id.is_(None),
                     tool_feature_method_sq.c.method_list_value_id.is_(None),
-                    parameter_value_sq.c.list_value_id == tool_feature_method_sq.c.method_list_value_id,
+                    parameter_value_sq.c.list_value_id.in_(method_value_id_list),
                     and_(
                         parameter_value_sq.c.value.is_(None),
-                        parameter_definition_sq.c.list_value_id == tool_feature_method_sq.c.method_list_value_id,
+                        parameter_definition_sq.c.list_value_id.in_(method_value_id_list),
                     ),
                 ),
                 True,
