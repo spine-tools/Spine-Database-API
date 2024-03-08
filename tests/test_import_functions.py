@@ -36,7 +36,7 @@ from spinedb_api.import_functions import (
     import_relationship_parameter_value_metadata,
     import_data,
 )
-from spinedb_api.parameter_value import from_database
+from spinedb_api.parameter_value import from_database, dump_db_value, TimeSeriesFixedResolution
 
 
 def assert_import_equivalent(test, obs, exp, strict=True):
@@ -1134,6 +1134,51 @@ class TestImportParameterValue(unittest.TestCase):
         self.assertEqual(count, 0)
         self.assertEqual(len(errors), 1)
         db_map.close()
+
+    def test_unparse_value_imports_fields_correctly(self):
+        with DatabaseMapping("sqlite:///", create=True) as db_map:
+            data = {
+                'entity_classes': [('A', (), None, None, False)],
+                'entities': [('A', 'aa', None)],
+                'parameter_definitions': [('A', 'test1', None, None, None)],
+                'parameter_values': [(
+                    'A',
+                    'aa',
+                    'test1',
+                    {
+                        'type': 'time_series',
+                        'index': {
+                            'start': '2000-01-01 00:00:00',
+                            'resolution': '1h',
+                            'ignore_year': False,
+                            'repeat': False
+                        },
+                        'data': [0.0, 1.0, 2.0, 4.0, 8.0, 0.0]
+                    },
+                    'Base'
+                )],
+                'alternatives': [('Base', 'Base alternative')]}
+
+            count, errors = import_data(db_map, **data, unparse_value=dump_db_value)
+            self.assertEqual(errors, [])
+            self.assertEqual(count, 4)
+            db_map.commit_session("add test data")
+            value = db_map.query(db_map.entity_parameter_value_sq).one()
+            self.assertEqual(value.type, "time_series")
+            self.assertEqual(value.parameter_name, "test1")
+            self.assertEqual(value.alternative_name, "Base")
+            self.assertEqual(value.entity_class_name, "A")
+            self.assertEqual(value.entity_name, "aa")
+
+            time_series = from_database(value.value, value.type)
+            expected_result = TimeSeriesFixedResolution(
+                '2000-01-01 00:00:00',
+                '1h',
+                [0.0, 1.0, 2.0, 4.0, 8.0, 0.0],
+                False,
+                False
+            )
+            self.assertEqual(time_series, expected_result)
 
 
 class TestImportParameterValueList(unittest.TestCase):
