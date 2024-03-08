@@ -13,14 +13,19 @@
 class TempId:
     _next_id = {}
 
-    def __init__(self, item_type, temp_id_lookup):
+    def __init__(self, id_, item_type, temp_id_lookup=None):
         super().__init__()
-        self._id = self._next_id.get(item_type, -1)
-        self._next_id[item_type] = self._id - 1
+        self._id = id_
         self._item_type = item_type
-        self._temp_id_lookup = temp_id_lookup
+        self._temp_id_lookup = temp_id_lookup if temp_id_lookup is not None else {}
         self._db_id = None
         self._temp_id_lookup[self._id] = self
+
+    @staticmethod
+    def new_unique(item_type, temp_id_lookup):
+        id_ = TempId._next_id.get(item_type, -1)
+        TempId._next_id[item_type] = id_ - 1
+        return TempId(id_, item_type, temp_id_lookup)
 
     @property
     def private_id(self):
