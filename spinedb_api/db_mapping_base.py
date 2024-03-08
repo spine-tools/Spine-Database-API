@@ -379,7 +379,7 @@ class _MappedTable(dict):
         return super().get(id_, default)
 
     def _new_id(self):
-        return TempId(self._item_type, self._temp_id_lookup)
+        return TempId.new_unique(self._item_type, self._temp_id_lookup)
 
     def _unique_key_value_to_id(self, key, value, fetch=True):
         """Returns the id that has the given value for the given unique key, or None.
