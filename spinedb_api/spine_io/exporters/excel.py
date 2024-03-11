@@ -58,13 +58,13 @@ class ExcelWriterWithPreamble(ExcelWriter):
         class_name = title_key["entity_class_name"]
         if table_name.endswith(",group"):
             return {"sheet_type": "object_group", "class_name": class_name}
-        object_class_id_list = title_key.get("object_class_id_list")
-        if object_class_id_list is None:
+        dimension_id_list = title_key.get("dimension_id_list")
+        if dimension_id_list is None:
             entity_type = "object"
-            entity_dim_count = 1
+            entity_dim_count = 0
         else:
             entity_type = "relationship"
-            entity_dim_count = len(object_class_id_list.split(","))
+            entity_dim_count = len(dimension_id_list.split(","))
         preamble = {
             "sheet_type": "entity",
             "entity_type": entity_type,
@@ -73,7 +73,7 @@ class ExcelWriterWithPreamble(ExcelWriter):
         }
         td = title_key.get("type_and_dimensions")
         if td is not None:
-            preamble["value_type"] = td[0]
+            preamble["value_type"] = td[0] if td[0] else "single_value"
             preamble["index_dim_count"] = td[1]
         return preamble
 
