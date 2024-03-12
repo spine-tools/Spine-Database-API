@@ -745,11 +745,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         return Query(self.engine, *args)
 
-    def commit_session(self, comment):
+    def commit_session(self, comment, apply_compatibility_transforms=True):
         """Commits the changes from the in-memory mapping to the database.
 
         Args:
             comment (str): commit message
+            apply_compatibility_transforms (bool): if True, apply compatibility transforms
 
         Returns:
             tuple(list, list): compatibility transformations
@@ -777,7 +778,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 self._do_add_items(connection, tablename, *to_add)
             if self._memory:
                 self._memory_dirty = True
-            transformation_info = compatibility_transformations(connection)
+            transformation_info = compatibility_transformations(connection, apply=apply_compatibility_transforms)
         self._commit_count = self._query_commit_count()
         return transformation_info
 
