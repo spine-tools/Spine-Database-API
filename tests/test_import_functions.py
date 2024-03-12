@@ -1141,23 +1141,26 @@ class TestImportParameterValue(unittest.TestCase):
                 'entity_classes': [('A', (), None, None, False)],
                 'entities': [('A', 'aa', None)],
                 'parameter_definitions': [('A', 'test1', None, None, None)],
-                'parameter_values': [(
-                    'A',
-                    'aa',
-                    'test1',
-                    {
-                        'type': 'time_series',
-                        'index': {
-                            'start': '2000-01-01 00:00:00',
-                            'resolution': '1h',
-                            'ignore_year': False,
-                            'repeat': False
+                'parameter_values': [
+                    (
+                        'A',
+                        'aa',
+                        'test1',
+                        {
+                            'type': 'time_series',
+                            'index': {
+                                'start': '2000-01-01 00:00:00',
+                                'resolution': '1h',
+                                'ignore_year': False,
+                                'repeat': False,
+                            },
+                            'data': [0.0, 1.0, 2.0, 4.0, 8.0, 0.0],
                         },
-                        'data': [0.0, 1.0, 2.0, 4.0, 8.0, 0.0]
-                    },
-                    'Base'
-                )],
-                'alternatives': [('Base', 'Base alternative')]}
+                        'Base',
+                    )
+                ],
+                'alternatives': [('Base', 'Base alternative')],
+            }
 
             count, errors = import_data(db_map, **data, unparse_value=dump_db_value)
             self.assertEqual(errors, [])
@@ -1172,11 +1175,7 @@ class TestImportParameterValue(unittest.TestCase):
 
             time_series = from_database(value.value, value.type)
             expected_result = TimeSeriesFixedResolution(
-                '2000-01-01 00:00:00',
-                '1h',
-                [0.0, 1.0, 2.0, 4.0, 8.0, 0.0],
-                False,
-                False
+                '2000-01-01 00:00:00', '1h', [0.0, 1.0, 2.0, 4.0, 8.0, 0.0], False, False
             )
             self.assertEqual(time_series, expected_result)
 

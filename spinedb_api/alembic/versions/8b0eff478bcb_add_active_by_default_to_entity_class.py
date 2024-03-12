@@ -32,7 +32,7 @@ def upgrade():
     class_table = metadata.tables["entity_class"]
     update_statement = class_table.update().values(active_by_default=True)
     conn.execute(update_statement)
-    convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_feature_method=True)
+    convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_feature_method=True, apply=True)
 
 
 def downgrade():

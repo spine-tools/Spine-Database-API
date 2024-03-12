@@ -15,13 +15,14 @@
 import sqlalchemy as sa
 
 
-def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_feature_method):
+def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_feature_method, apply):
     """Transforms default parameter values into active_by_default values, whenever the former are used in a tool filter
     to control entity activity.
 
     Args:
         conn (Connection)
-        use_existing_tool_feature_method (Bool): Whether to use existing tool/feature/method definitions.
+        use_existing_tool_feature_method (bool): Whether to use existing tool/feature/method definitions.
+        apply (bool): if True, apply the transformations
 
     Returns:
         tuple: list of entity classes to add, update and ids to remove
@@ -90,7 +91,8 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
     entity_class_table = meta.tables["entity_class"]
     update_statement = entity_class_table.update()
     for class_id, update in entity_class_items_to_update.items():
-        conn.execute(update_statement.where(entity_class_table.c.id == class_id), update)
+        if apply:
+            conn.execute(update_statement.where(entity_class_table.c.id == class_id), update)
         update["id"] = class_id
         updated_items.append(update)
     parameter_definitions_to_update = (
@@ -99,19 +101,21 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
     update_statement = pd_table.update()
     for definition_id in parameter_definitions_to_update:
         update = {"default_value": None, "default_type": None}
-        conn.execute(update_statement.where(pd_table.c.id == definition_id), update)
+        if apply:
+            conn.execute(update_statement.where(pd_table.c.id == definition_id), update)
         update["id"] = definition_id
         updated_items.append(update)
     return [], updated_items, []
 
 
-def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_feature_method):
+def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_feature_method, apply):
     """Transforms parameter_value rows into entity_alternative rows, whenever the former are used in a tool filter
     to control entity activity.
 
     Args:
         conn (Connection)
-        use_existing_tool_feature_method (Bool): Whether to use existing tool/feature/method definitions.
+        use_existing_tool_feature_method (bool): Whether to use existing tool/feature/method definitions.
+        apply (bool):
 
     Returns:
         list: entity_alternative items to add
@@ -184,31 +188,33 @@ def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_fe
         for key in set(new_ea_items) & set(current_ea_ids)
     ]
     pval_ids_to_remove = [x["id"] for x in is_active_pvals]
-    if ea_items_to_add:
-        conn.execute(ea_table.insert(), ea_items_to_add)
-    ea_update = ea_table.update()
-    for item in ea_items_to_update:
-        conn.execute(ea_update.where(ea_table.c.id == item["id"]), {"active": item["active"]})
-    # Delete pvals 499 at a time to avoid too many sql variables
-    size = 499
-    for i in range(0, len(pval_ids_to_remove), size):
-        ids = pval_ids_to_remove[i : i + size]
-        conn.execute(pv_table.delete().where(pv_table.c.id.in_(ids)))
+    if apply:
+        if ea_items_to_add:
+            conn.execute(ea_table.insert(), ea_items_to_add)
+        ea_update = ea_table.update()
+        for item in ea_items_to_update:
+            conn.execute(ea_update.where(ea_table.c.id == item["id"]), {"active": item["active"]})
+        # Delete pvals 499 at a time to avoid too many sql variables
+        size = 499
+        for i in range(0, len(pval_ids_to_remove), size):
+            ids = pval_ids_to_remove[i : i + size]
+            conn.execute(pv_table.delete().where(pv_table.c.id.in_(ids)))
     return ea_items_to_add, ea_items_to_update, set(pval_ids_to_remove)
 
 
-def compatibility_transformations(connection):
+def compatibility_transformations(connection, apply=True):
     """Refits any data having an old format and returns changes made.
 
     Args:
         connection (Connection)
+        apply (bool): if True, apply the transformations
 
     Returns:
         tuple(list, list): list of tuples (tablename, (items_added, items_updated, ids_removed)), and
             list of strings indicating the changes
     """
     ea_items_added, ea_items_updated, pval_ids_removed = convert_tool_feature_method_to_entity_alternative(
-        connection, use_existing_tool_feature_method=False
+        connection, use_existing_tool_feature_method=False, apply=apply
     )
     transformations = []
     info = []
@@ -219,7 +225,7 @@ def compatibility_transformations(connection):
     if ea_items_added or ea_items_updated or pval_ids_removed:
         info.append("Convert entity activity control using tool/feature/method into entity_alternative")
     _, ec_items_updated, _ = convert_tool_feature_method_to_active_by_default(
-        connection, use_existing_tool_feature_method=False
+        connection, use_existing_tool_feature_method=False, apply=apply
     )
     if ec_items_updated:
         transformations.append(("entity_class", ((), ec_items_updated, ())))

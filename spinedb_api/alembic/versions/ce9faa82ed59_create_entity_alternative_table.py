@@ -47,7 +47,7 @@ def upgrade():
         op.drop_table('next_id')
     except sa.exc.OperationalError:
         pass
-    convert_tool_feature_method_to_entity_alternative(op.get_bind(), use_existing_tool_feature_method=True)
+    convert_tool_feature_method_to_entity_alternative(op.get_bind(), use_existing_tool_feature_method=True, apply=True)
 
 
 def downgrade():
