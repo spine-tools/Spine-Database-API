@@ -26,6 +26,7 @@ from spinedb_api.parameter_value import (
     convert_containers_to_maps,
     convert_leaf_maps_to_specialized_containers,
     convert_map_to_table,
+    deep_copy_value,
     duration_to_relativedelta,
     relativedelta_to_duration,
     from_database,
@@ -1002,6 +1003,74 @@ class TestParameterValue(unittest.TestCase):
         map2 = Map(["c", "d"], [3.2, 2.3])
         nested_map = Map(["A", "B"], [map1, map2])
         self.assertEqual(nested_map, {"A": {"a": -3.2, "b": -2.3}, "B": {"c": 3.2, "d": 2.3}})
+
+    def test_deep_copy_value_for_scalars(self):
+        x = 1.0
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        x = "y"
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        x = Duration("3h")
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        self.assertIsNot(x, copy_of_x)
+        x = DateTime("2024-03-25T15:58:33")
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        self.assertIsNot(x, copy_of_x)
+
+    def test_deep_copy_for_arrays(self):
+        x = Array([], value_type=float, index_name="floaters")
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        self.assertIsNot(x, copy_of_x)
+        x = Array(["1", "2", "3"], index_name="number likes")
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        self.assertIsNot(x, copy_of_x)
+
+    def test_deep_copy_time_pattern(self):
+        x = TimePattern(["M1-12"], [2.3], index_name="moments")
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        self.assertIsNot(x, copy_of_x)
+
+    def test_deep_copy_time_series_fixed_resolution(self):
+        x = TimeSeriesFixedResolution(
+            "2024-03-25T16:08:23", "4h", [2.3, 23.0, 5.0], ignore_year=True, repeat=True, index_name="my times"
+        )
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        self.assertIsNot(x, copy_of_x)
+
+    def test_deep_copy_time_series_variable_resolution(self):
+        x = TimeSeriesVariableResolution(
+            ["2024-03-25T16:10:23", "2024-04-26T16:11:23"],
+            [2.3, 23.0],
+            ignore_year=True,
+            repeat=True,
+            index_name="your times",
+        )
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        self.assertIsNot(x, copy_of_x)
+
+    def test_deep_copy_map(self):
+        x = Map([], [], index_type=str, index_name="first i")
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        self.assertIsNot(x, copy_of_x)
+        x = Map(["T1", "T2"], [2.3, 23.0], index_name="our times")
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        self.assertIsNot(x, copy_of_x)
+        leaf = Map(["t1"], [2.3], index_name="inner")
+        x = Map(["T1"], [leaf], index_name="outer")
+        copy_of_x = deep_copy_value(x)
+        self.assertEqual(x, copy_of_x)
+        self.assertIsNot(x, copy_of_x)
+        self.assertIsNot(x.get_value("T1"), copy_of_x.get_value("T1"))
 
 
 if __name__ == "__main__":

@@ -1494,6 +1494,10 @@ class Map(IndexedValue):
             return NotImplemented
         return other._indexes == self._indexes and other._values == self._values and self.index_name == other.index_name
 
+    @property
+    def index_type(self):
+        return self._index_type
+
     def is_nested(self):
         """Whether any of the values is also a map.
 
@@ -1727,3 +1731,54 @@ def split_value_and_type(value_and_type):
     except (TypeError, json.JSONDecodeError):
         parsed = value_and_type
     return dump_db_value(parsed)
+
+
+def deep_copy_value(value):
+    """Copies a value.
+    The operation is deep meaning that nested Maps will be copied as well.
+
+    :meta private:
+
+    Args:
+        value (Any): value to copy
+
+    Returns:
+        Any: deep-copied value
+    """
+    if isinstance(value, (Number, str)):
+        return value
+    if isinstance(value, Array):
+        return Array(value.values, value.value_type, value.index_name)
+    if isinstance(value, DateTime):
+        return DateTime(value)
+    if isinstance(value, Duration):
+        return Duration(value)
+    if isinstance(value, Map):
+        return deep_copy_map(value)
+    if isinstance(value, TimePattern):
+        return TimePattern(value.indexes.copy(), value.values.copy(), value.index_name)
+    if isinstance(value, TimeSeriesFixedResolution):
+        return TimeSeriesFixedResolution(
+            value.start, value.resolution, value.values.copy(), value.ignore_year, value.repeat, value.index_name
+        )
+    if isinstance(value, TimeSeriesVariableResolution):
+        return TimeSeriesVariableResolution(
+            value.indexes.copy(), value.values.copy(), value.ignore_year, value.repeat, value.index_name
+        )
+    raise ValueError("unknown value")
+
+
+def deep_copy_map(value):
+    """Deep copies a Map value.
+
+    :meta private:
+
+    Args:
+        value (Map): Map to copy
+
+    Returns:
+        Map: deep-copied Map
+    """
+    xs = value.indexes.copy()
+    ys = [deep_copy_value(y) for y in value.values]
+    return Map(xs, ys, index_type=value.index_type, index_name=value.index_name)
