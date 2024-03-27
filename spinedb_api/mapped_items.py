@@ -11,7 +11,7 @@
 ######################################################################################################################
 
 from operator import itemgetter
-
+import time
 from .helpers import name_from_elements
 from .parameter_value import to_database, from_database, ParameterValueFormatError
 from .db_mapping_base import MappedItemBase
@@ -380,16 +380,21 @@ class ParsedValueBase(MappedItemBase):
         return super().__getitem__(key)
 
     def _something_to_update(self, other):
-        other = other.copy()
         if self._value_key in other and self._type_key in other:
-            try:
-                other_parsed_value = from_database(other[self._value_key], other[self._type_key])
-                if self.parsed_value != other_parsed_value:
-                    return True
-                _ = other.pop(self._value_key, None)
-                _ = other.pop(self._type_key, None)
-            except ParameterValueFormatError:
-                pass
+            other_value_type = other[self._type_key]
+            if self.type != other_value_type:
+                return True
+            other_value = other[self._value_key]
+            if self.value != other_value:
+                try:
+                    other_parsed_value = from_database(other_value, other_value_type)
+                    if self.parsed_value != other_parsed_value:
+                        return True
+                    other = other.copy()
+                    _ = other.pop(self._value_key, None)
+                    _ = other.pop(self._type_key, None)
+                except ParameterValueFormatError:
+                    pass
         return super()._something_to_update(other)
 
 
