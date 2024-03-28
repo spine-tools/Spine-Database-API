@@ -17,3 +17,4 @@
 /htmlcov
 
 spinedb_api/version.py
+benchmarks/*.json
