@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Functions for creating import mappings from dicts.
-
-"""
+""" Functions for creating import mappings from dicts. """
 from .import_mapping import (
     Position,
     EntityClassMapping,

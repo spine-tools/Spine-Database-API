@@ -22,9 +22,11 @@ from .helpers import remove_credentials_from_url
 def purge_url(url, purge_settings, logger=None):
     """Removes all items of selected types from the database at a given URL.
 
+    Purges everything if ``purge_settings`` is None.
+
     Args:
         url (str): database URL
-        purge_settings (dict): mapping from item type to a boolean indicating whether to remove them or not
+        purge_settings (dict, optional): mapping from item type to a boolean indicating whether to remove them or not
         logger (LoggerInterface, optional): logger
 
     Returns:
@@ -45,9 +47,11 @@ def purge_url(url, purge_settings, logger=None):
 def purge(db_map, purge_settings, logger=None):
     """Removes all items of selected types from a database.
 
+    Purges everything if ``purge_settings`` is None.
+
     Args:
         db_map (DatabaseMapping): target database mapping
-        purge_settings (dict): mapping from item type to a boolean indicating whether to remove them or not
+        purge_settings (dict, optional): mapping from item type to a boolean indicating whether to remove them or not
         logger (LoggerInterface): logger
 
     Returns:
