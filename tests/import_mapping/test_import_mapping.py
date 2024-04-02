@@ -10,15 +10,13 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for import Mappings.
-
-"""
+""" Unit tests for import Mappings. """
 import unittest
 from unittest.mock import Mock
 from spinedb_api.exception import InvalidMapping
 from spinedb_api.mapping import Position, to_dict as mapping_to_dict, unflatten
 from spinedb_api.import_mapping.import_mapping import (
+    default_import_mapping,
     ImportMapping,
     EntityClassMapping,
     EntityMapping,
@@ -2081,6 +2079,22 @@ class TestIsPivoted(unittest.TestCase):
     def test_returns_false_when_position_is_header_and_is_leaf(self):
         mapping = unflatten([AlternativeMapping(0), ParameterValueMapping(Position.header)])
         self.assertFalse(mapping.is_pivoted())
+
+
+class TestDefaultMappings(unittest.TestCase):
+    def test_mappings_are_hidden(self):
+        map_types = (
+            "EntityClass",
+            "Alternative",
+            "Scenario",
+            "ScenarioAlternative",
+            "EntityGroup",
+            "ParameterValueList",
+        )
+        for map_type in map_types:
+            root = default_import_mapping(map_type)
+            flattened = root.flatten()
+            self.assertTrue(all(m.position == Position.hidden for m in flattened))
 
 
 if __name__ == "__main__":

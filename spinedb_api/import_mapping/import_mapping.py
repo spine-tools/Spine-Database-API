@@ -9,10 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Contains import mappings for database items such as entities, entity classes and parameter values.
-
-"""
+""" Contains import mappings for database items such as entities, entity classes and parameter values. """
 
 from distutils.util import strtobool
 from enum import auto, Enum, unique
@@ -858,6 +855,94 @@ class ToolMapping(ImportMapping):
         tool = state[ImportKey.TOOL_NAME] = str(source_data)
         if self.child is None:
             mapped_data.setdefault("tools", set()).add(tool)
+
+
+def default_import_mapping(map_type):
+    """Creates default mappings for given map type.
+
+    Args:
+        map_type (str): map type
+
+    Returns:
+        ImportMapping: root mapping of desired type
+    """
+    make_root_mapping = {
+        "EntityClass": _default_entity_class_mapping,
+        "Alternative": _default_alternative_mapping,
+        "Scenario": _default_scenario_mapping,
+        "ScenarioAlternative": _default_scenario_alternative_mapping,
+        "EntityGroup": _default_entity_group_mapping,
+        "ParameterValueList": _default_parameter_value_list_mapping,
+    }[map_type]
+    return make_root_mapping()
+
+
+def _default_entity_class_mapping():
+    """Creates default entity class mappings.
+
+    Returns:
+        EntityClassMapping: root mapping
+    """
+    root_mapping = EntityClassMapping(Position.hidden)
+    object_mapping = root_mapping.child = EntityMapping(Position.hidden)
+    object_mapping.child = EntityMetadataMapping(Position.hidden)
+    return root_mapping
+
+
+def _default_alternative_mapping():
+    """Creates default alternative mappings.
+
+    Returns:
+        AlternativeMapping: root mapping
+    """
+    root_mapping = AlternativeMapping(Position.hidden)
+    return root_mapping
+
+
+def _default_scenario_mapping():
+    """Creates default scenario mappings.
+
+    Returns:
+        ScenarioMapping: root mapping
+    """
+    root_mapping = ScenarioMapping(Position.hidden)
+    root_mapping.child = ScenarioActiveFlagMapping(Position.hidden)
+    return root_mapping
+
+
+def _default_scenario_alternative_mapping():
+    """Creates default scenario alternative mappings.
+
+    Returns:
+        ScenarioAlternativeMapping: root mapping
+    """
+    root_mapping = ScenarioMapping(Position.hidden)
+    scen_alt_mapping = root_mapping.child = ScenarioAlternativeMapping(Position.hidden)
+    scen_alt_mapping.child = ScenarioBeforeAlternativeMapping(Position.hidden)
+    return root_mapping
+
+
+def _default_entity_group_mapping():
+    """Creates default entity group mappings.
+
+    Returns:
+        EntityClassMapping: root mapping
+    """
+    root_mapping = EntityClassMapping(Position.hidden)
+    object_mapping = root_mapping.child = EntityMapping(Position.hidden)
+    object_mapping.child = EntityGroupMapping(Position.hidden)
+    return root_mapping
+
+
+def _default_parameter_value_list_mapping():
+    """Creates default parameter value list mappings.
+
+    Returns:
+        ParameterValueListMapping: root mapping
+    """
+    root_mapping = ParameterValueListMapping(Position.hidden)
+    root_mapping.child = ParameterValueListValueMapping(Position.hidden)
+    return root_mapping
 
 
 def from_dict(serialized):
