@@ -149,7 +149,7 @@ class ImportMapping(Mapping):
             if error:
                 return error
         if isinstance(self.position, int) and self.position >= len(header) > 0:
-            msg = f"Column ref {self.position + 1} is out of range for the source table \"{table_name}\""
+            msg = f'Column ref {self.position + 1} is out of range for the source table "{table_name}"'
             return msg
         return ""
 
@@ -206,7 +206,7 @@ class ImportMapping(Mapping):
                 msg = f"'{self.value}' is not a valid index in header '{source_header}'"
                 raise InvalidMappingComponent(msg)
         if isinstance(self.position, int) and self.position >= column_count > 0:
-            msg = f"Column ref {self.position + 1} is out of range for the source table \"{table_name}\""
+            msg = f'Column ref {self.position + 1} is out of range for the source table "{table_name}"'
             raise InvalidMappingComponent(msg)
 
     def _polish_for_preview(self, source_header):

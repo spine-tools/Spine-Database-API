@@ -86,9 +86,9 @@ class TestIntegrationImportData(unittest.TestCase):
         rel_parameters = [["example_rel_class", "rel_parameter"]]  # 1 item
         object_p_values = [["example_class", "example_object", "example_parameter", 3.14]]  # 1 item
         rel_p_values = [["example_rel_class", ["example_object", "other_object"], "rel_parameter", 2.718]]  # 1
-        alternatives = [['example_alternative', 'An example']]
-        scenarios = [['example_scenario', True, 'An example']]
-        scenario_alternatives = [['example_scenario', 'example_alternative']]
+        alternatives = [["example_alternative", "An example"]]
+        scenarios = [["example_scenario", True, "An example"]]
+        scenario_alternatives = [["example_scenario", "example_alternative"]]
 
         num_imports, errors = import_data(
             db_map,
@@ -807,7 +807,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.commit_session("test")
         pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
         value = from_database(pv.value, pv.type)
-        self.assertEqual(['2000-01-01T01:00:00', '2000-01-01T02:00:00'], [str(x) for x in value.indexes])
+        self.assertEqual(["2000-01-01T01:00:00", "2000-01-01T02:00:00"], [str(x) for x in value.indexes])
         self.assertEqual([1.0, 2.0], list(value.values))
         db_map.close()
 
@@ -824,7 +824,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.commit_session("test")
         pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
         value = from_database(pv.value, pv.type)
-        self.assertEqual(['2000-01-01T02:00:00', '2000-01-01T03:00:00'], [str(x) for x in value.indexes])
+        self.assertEqual(["2000-01-01T02:00:00", "2000-01-01T03:00:00"], [str(x) for x in value.indexes])
         self.assertEqual([3.0, 4.0], list(value.values))
         db_map.close()
 
@@ -842,7 +842,7 @@ class TestImportParameterValue(unittest.TestCase):
         pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
         value = from_database(pv.value, pv.type)
         self.assertEqual(
-            ['2000-01-01T01:00:00', '2000-01-01T02:00:00', '2000-01-01T03:00:00'], [str(x) for x in value.indexes]
+            ["2000-01-01T01:00:00", "2000-01-01T02:00:00", "2000-01-01T03:00:00"], [str(x) for x in value.indexes]
         )
         self.assertEqual([1.0, 3.0, 4.0], list(value.values))
         db_map.close()
@@ -868,10 +868,10 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.commit_session("test")
         pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
         map_ = from_database(pv.value, pv.type)
-        self.assertEqual(['xxx'], [str(x) for x in map_.indexes])
-        ts = map_.get_value('xxx')
+        self.assertEqual(["xxx"], [str(x) for x in map_.indexes])
+        ts = map_.get_value("xxx")
         self.assertEqual(
-            ['2000-01-01T01:00:00', '2000-01-01T02:00:00', '2000-01-01T03:00:00'], [str(x) for x in ts.indexes]
+            ["2000-01-01T01:00:00", "2000-01-01T02:00:00", "2000-01-01T03:00:00"], [str(x) for x in ts.indexes]
         )
         self.assertEqual([1.0, 3.0, 4.0], list(ts.values))
         db_map.close()
@@ -1138,28 +1138,28 @@ class TestImportParameterValue(unittest.TestCase):
     def test_unparse_value_imports_fields_correctly(self):
         with DatabaseMapping("sqlite:///", create=True) as db_map:
             data = {
-                'entity_classes': [('A', (), None, None, False)],
-                'entities': [('A', 'aa', None)],
-                'parameter_definitions': [('A', 'test1', None, None, None)],
-                'parameter_values': [
+                "entity_classes": [("A", (), None, None, False)],
+                "entities": [("A", "aa", None)],
+                "parameter_definitions": [("A", "test1", None, None, None)],
+                "parameter_values": [
                     (
-                        'A',
-                        'aa',
-                        'test1',
+                        "A",
+                        "aa",
+                        "test1",
                         {
-                            'type': 'time_series',
-                            'index': {
-                                'start': '2000-01-01 00:00:00',
-                                'resolution': '1h',
-                                'ignore_year': False,
-                                'repeat': False,
+                            "type": "time_series",
+                            "index": {
+                                "start": "2000-01-01 00:00:00",
+                                "resolution": "1h",
+                                "ignore_year": False,
+                                "repeat": False,
                             },
-                            'data': [0.0, 1.0, 2.0, 4.0, 8.0, 0.0],
+                            "data": [0.0, 1.0, 2.0, 4.0, 8.0, 0.0],
                         },
-                        'Base',
+                        "Base",
                     )
                 ],
-                'alternatives': [('Base', 'Base alternative')],
+                "alternatives": [("Base", "Base alternative")],
             }
 
             count, errors = import_data(db_map, **data, unparse_value=dump_db_value)
@@ -1175,7 +1175,7 @@ class TestImportParameterValue(unittest.TestCase):
 
             time_series = from_database(value.value, value.type)
             expected_result = TimeSeriesFixedResolution(
-                '2000-01-01 00:00:00', '1h', [0.0, 1.0, 2.0, 4.0, 8.0, 0.0], False, False
+                "2000-01-01 00:00:00", "1h", [0.0, 1.0, 2.0, 4.0, 8.0, 0.0], False, False
             )
             self.assertEqual(time_series, expected_result)
 
@@ -1360,16 +1360,16 @@ class TestImportScenarioAlternative(unittest.TestCase):
         self.assertEqual(count, 0)
 
     def test_import_scenario_alternatives_in_arbitrary_order(self):
-        count, errors = import_scenarios(self._db_map, [('A (1)', False, '')])
+        count, errors = import_scenarios(self._db_map, [("A (1)", False, "")])
         self.assertEqual(errors, [])
         self.assertEqual(count, 1)
         count, errors = import_alternatives(
-            self._db_map, [('Base', 'Base alternative'), ('b', ''), ('c', ''), ('d', '')]
+            self._db_map, [("Base", "Base alternative"), ("b", ""), ("c", ""), ("d", "")]
         )
         self.assertEqual(errors, [])
         self.assertEqual(count, 3)
         count, errors = import_scenario_alternatives(
-            self._db_map, [('A (1)', 'c', 'd'), ('A (1)', 'd', None), ('A (1)', 'Base', 'b'), ('A (1)', 'b', 'c')]
+            self._db_map, [("A (1)", "c", "d"), ("A (1)", "d", None), ("A (1)", "Base", "b"), ("A (1)", "b", "c")]
         )
         self.assertEqual(errors, [])
         self.assertEqual(count, 4)
@@ -1481,13 +1481,13 @@ class TestImportMetadata(unittest.TestCase):
         self.assertEqual(count, 2)
         self.assertFalse(errors)
         self.assertEqual(len(metadata), 2)
-        self.assertIn(('contributors', "{'name': 'John'}"), metadata)
-        self.assertIn(('contributors', "{'name': 'Charly'}"), metadata)
+        self.assertIn(("contributors", "{'name': 'John'}"), metadata)
+        self.assertIn(("contributors", "{'name': 'Charly'}"), metadata)
         db_map.close()
 
     def test_import_unformatted_metadata(self):
         db_map = create_db_map()
-        count, errors = import_metadata(db_map, ['not a JSON object'])
+        count, errors = import_metadata(db_map, ["not a JSON object"])
         db_map.commit_session("test")
         metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
         self.assertEqual(count, 1)
@@ -1527,10 +1527,10 @@ class TestImportEntityMetadata(unittest.TestCase):
             (x.entity_name, x.metadata_name, x.metadata_value) for x in db_map.query(db_map.ext_entity_metadata_sq)
         ]
         self.assertEqual(len(metadata), 4)
-        self.assertIn(('object1', 'co-author', 'John'), metadata)
-        self.assertIn(('object1', 'age', '90'), metadata)
-        self.assertIn(('object1', 'co-author', 'Charly'), metadata)
-        self.assertIn(('object1', 'age', '17'), metadata)
+        self.assertIn(("object1", "co-author", "John"), metadata)
+        self.assertIn(("object1", "age", "90"), metadata)
+        self.assertIn(("object1", "co-author", "Charly"), metadata)
+        self.assertIn(("object1", "age", "17"), metadata)
         db_map.close()
 
     def test_import_relationship_metadata(self):
@@ -1548,10 +1548,10 @@ class TestImportEntityMetadata(unittest.TestCase):
         db_map.commit_session("test")
         metadata = [(x.metadata_name, x.metadata_value) for x in db_map.query(db_map.ext_entity_metadata_sq)]
         self.assertEqual(len(metadata), 4)
-        self.assertIn(('co-author', 'John'), metadata)
-        self.assertIn(('age', '90'), metadata)
-        self.assertIn(('co-author', 'Charly'), metadata)
-        self.assertIn(('age', '17'), metadata)
+        self.assertIn(("co-author", "John"), metadata)
+        self.assertIn(("age", "90"), metadata)
+        self.assertIn(("co-author", "Charly"), metadata)
+        self.assertIn(("age", "17"), metadata)
         db_map.close()
 
 

@@ -82,5 +82,5 @@ class TestMappedItemBase(unittest.TestCase):
         self.assertTrue(item.has_valid_id)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

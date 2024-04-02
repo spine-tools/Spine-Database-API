@@ -41,13 +41,13 @@ class TestNameFromDimensions(unittest.TestCase):
 
 class TestCreateNewSpineEngine(unittest.TestCase):
     def test_same_schema(self):
-        engine1 = create_new_spine_database('sqlite://')
-        engine2 = create_new_spine_database('sqlite://')
+        engine1 = create_new_spine_database("sqlite://")
+        engine2 = create_new_spine_database("sqlite://")
         self.assertTrue(compare_schemas(engine1, engine2))
 
     def test_different_schema(self):
-        engine1 = create_new_spine_database('sqlite://')
-        engine2 = create_new_spine_database('sqlite://')
+        engine1 = create_new_spine_database("sqlite://")
+        engine2 = create_new_spine_database("sqlite://")
         engine2.execute("drop table entity")
         self.assertFalse(compare_schemas(engine1, engine2))
 

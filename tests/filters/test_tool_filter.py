@@ -217,5 +217,5 @@ class TestToolEntityFilter(unittest.TestCase):
         self.assertTrue("node1" not in pval_object_names)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -626,13 +626,13 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(value.index_name, "x")
 
     def test_from_database_Map_nested_maps(self):
-        database_value = b'''
+        database_value = b"""
         {
              "index_type": "duration",
               "data":[["1 hour", {"type": "map",
                                   "index_type": "date_time",
                                   "data": {"2020-01-01T12:00": {"type":"duration", "data":"3 hours"}}}]]
-        }'''
+        }"""
         value = from_database(database_value, type_="map")
         self.assertEqual(value.indexes, [Duration("1 hour")])
         nested_map = value.values[0]
@@ -641,14 +641,14 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(nested_map.values, [Duration("3 hours")])
 
     def test_from_database_Map_with_TimeSeries_values(self):
-        database_value = b'''
+        database_value = b"""
         {
              "index_type": "duration",
               "data":[["1 hour", {"type": "time_series",
                                   "data": [["2020-01-01T12:00", -3.0], ["2020-01-02T12:00", -9.3]]
                                  }
                      ]]
-        }'''
+        }"""
         value = from_database(database_value, type_="map")
         self.assertEqual(value.indexes, [Duration("1 hour")])
         self.assertEqual(
@@ -657,21 +657,21 @@ class TestParameterValue(unittest.TestCase):
         )
 
     def test_from_database_Map_with_Array_values(self):
-        database_value = b'''
+        database_value = b"""
         {
              "index_type": "duration",
               "data":[["1 hour", {"type": "array", "data": [-3.0, -9.3]}]]
-        }'''
+        }"""
         value = from_database(database_value, type_="map")
         self.assertEqual(value.indexes, [Duration("1 hour")])
         self.assertEqual(value.values, [Array([-3.0, -9.3])])
 
     def test_from_database_Map_with_TimePattern_values(self):
-        database_value = b'''
+        database_value = b"""
         {
              "index_type": "float",
               "data":[["2.3", {"type": "time_pattern", "data": {"M1-2": -9.3, "M3-12": -3.9}}]]
-        }'''
+        }"""
         value = from_database(database_value, type_="map")
         self.assertEqual(value.indexes, [2.3])
         self.assertEqual(value.values, [TimePattern(["M1-2", "M3-12"], [-9.3, -3.9])])

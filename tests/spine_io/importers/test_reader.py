@@ -39,5 +39,5 @@ class TestSourceConnection(unittest.TestCase):
         self.assertEqual(errors, ["error in iterator"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

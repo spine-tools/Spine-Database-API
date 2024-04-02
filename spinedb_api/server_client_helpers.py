@@ -16,15 +16,15 @@ from .db_mapping_base import PublicItem
 from .temp_id import TempId
 
 # Encode decode server messages
-_START_OF_TAIL = '\u001f'  # Unit separator
-_START_OF_ADDRESS = '\u0091'  # Private Use 1
-_ADDRESS_SEP = ':'
+_START_OF_TAIL = "\u001f"  # Unit separator
+_START_OF_ADDRESS = "\u0091"  # Private Use 1
+_ADDRESS_SEP = ":"
 
 
 class ReceiveAllMixing:
     _ENCODING = "utf-8"
     _BUFF_SIZE = 4096
-    _EOT = '\u0004'  # End of transmission
+    _EOT = "\u0004"  # End of transmission
     _BEOT = _EOT.encode(_ENCODING)
     """End of message character"""
 

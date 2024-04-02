@@ -822,9 +822,9 @@ class TestExportMapping(unittest.TestCase):
         element1_mapping = relationship_mapping.child = ElementMapping(4)
         element1_mapping.child = ElementMapping(5)
         expected = [
-            ['rc1', 'oc1', '', 'o11__', 'o11', ''],
-            ['rc2', 'oc2', 'oc1', 'o21__o11', 'o21', 'o11'],
-            ['rc2', 'oc2', 'oc1', 'o21__o12', 'o21', 'o12'],
+            ["rc1", "oc1", "", "o11__", "o11", ""],
+            ["rc2", "oc2", "oc1", "o21__o11", "o21", "o11"],
+            ["rc2", "oc2", "oc1", "o21__o12", "o21", "o12"],
         ]
         self.assertEqual(list(rows(relationship_class_mapping, db_map)), expected)
         db_map.close()

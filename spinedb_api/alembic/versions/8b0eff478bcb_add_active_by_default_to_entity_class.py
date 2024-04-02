@@ -12,8 +12,8 @@ import sqlalchemy.orm
 from spinedb_api.compatibility import convert_tool_feature_method_to_active_by_default
 
 # revision identifiers, used by Alembic.
-revision = '8b0eff478bcb'
-down_revision = '5385f063bef2'
+revision = "8b0eff478bcb"
+down_revision = "5385f063bef2"
 branch_labels = None
 depends_on = None
 

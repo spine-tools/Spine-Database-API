@@ -171,7 +171,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         )
         # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
         self.engine = create_engine("sqlite://", poolclass=NullPool) if self._memory else self._original_engine
-        listen(self.engine, 'close', self._receive_engine_close)
+        listen(self.engine, "close", self._receive_engine_close)
         if self._memory:
             copy_database_bind(self.engine, self._original_engine)
         self._metadata = MetaData(self.engine)
@@ -278,7 +278,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     @staticmethod
     def create_engine(sa_url, create=False, upgrade=False, backup_url="", sqlite_timeout=1800):
         if sa_url.drivername == "sqlite":
-            connect_args = {'timeout': sqlite_timeout}
+            connect_args = {"timeout": sqlite_timeout}
         else:
             connect_args = {}
         try:
@@ -894,7 +894,7 @@ def _add_convenience_methods(node):
 
     def _kwargs(fields):
         def type_(f_dict):
-            return f_dict['type'].__name__ + (', optional' if f_dict.get('optional', False) else '')
+            return f_dict["type"].__name__ + (", optional" if f_dict.get("optional", False) else "")
 
         return f"\n{padding}".join(
             [f"{f_name} ({type_(f_dict)}): {f_dict['value']}" for f_name, f_dict in fields.items()]

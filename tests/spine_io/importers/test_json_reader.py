@@ -41,5 +41,5 @@ class TestJSONConnector(unittest.TestCase):
         self.assertEqual(rows, [["a", 1], ["b", "c", 2]])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

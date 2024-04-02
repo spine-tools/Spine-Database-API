@@ -19,7 +19,7 @@ fileConfig(config.config_file_name)
 # for 'autogenerate' support
 import sys
 
-sys.path = ['', '..'] + sys.path[1:]
+sys.path = ["", ".."] + sys.path[1:]
 from spinedb_api.helpers import create_spine_metadata
 
 target_metadata = create_spine_metadata()

@@ -87,5 +87,5 @@ class TestWrite(unittest.TestCase):
         self.assertEqual(writer.tables, {None: [["class2", "obj6"]]})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

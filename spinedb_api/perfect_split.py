@@ -55,7 +55,7 @@ def perfect_split(input_urls, intersection_url, diff_urls):
     if intersection_data:
         db_map_intersection = DatabaseMapping(intersection_url)
         import_data(db_map_intersection, **intersection_data)
-        all_db_names = ', '.join(db_names.values())
+        all_db_names = ", ".join(db_names.values())
         db_map_intersection.commit_session(f"Add intersection of {all_db_names}")
         db_map_intersection.connection.close()
     lookup = _make_lookup(intersection_data)
@@ -65,7 +65,7 @@ def perfect_split(input_urls, intersection_url, diff_urls):
         _add_references(diff_data, lookup)
         import_data(diff_db_map, **diff_data)
         db_name = db_names[input_url]
-        other_db_names = ', '.join([name for url, name in db_names.items() if url != input_url])
+        other_db_names = ", ".join([name for url, name in db_names.items() if url != input_url])
         diff_db_map.commit_session(f"Add differences between {db_name} and {other_db_names}")
         diff_db_map.close()
 

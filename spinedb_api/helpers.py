@@ -131,7 +131,7 @@ def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
 
 class group_concat(FunctionElement):
     type = String()
-    name = 'group_concat'
+    name = "group_concat"
 
 
 def _parse_group_concat_clauses(clauses):
