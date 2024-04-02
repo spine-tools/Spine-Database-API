@@ -16,6 +16,7 @@ but those functions and methods are pending deprecation.
 
 ### Changed
 
+- Python 3.12 is now supported.
 - Objects and relationships have been replaced by *entities*.
   Zero-dimensional entities correspond to objects while multidimensional entities to relationships.
 

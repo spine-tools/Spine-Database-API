@@ -11,8 +11,9 @@
 ######################################################################################################################
 """ Contains import mappings for database items such as entities, entity classes and parameter values. """
 
-from distutils.util import strtobool
 from enum import auto, Enum, unique
+
+from spinedb_api.helpers import string_to_bool
 from spinedb_api.mapping import Mapping, Position, unflatten, is_pivoted
 from spinedb_api.exception import InvalidMappingComponent
 
@@ -808,7 +809,7 @@ class ScenarioActiveFlagMapping(ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         scenario = state[ImportKey.SCENARIO_NAME]
-        active = bool(strtobool(str(source_data)))
+        active = string_to_bool(str(source_data))
         mapped_data.setdefault("scenarios", set()).add((scenario, active))
 
 

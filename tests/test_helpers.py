@@ -20,6 +20,7 @@ from spinedb_api.helpers import (
     name_from_dimensions,
     name_from_elements,
     remove_credentials_from_url,
+    string_to_bool,
 )
 
 
@@ -73,6 +74,27 @@ class TestGetHeadAlembicVersion(unittest.TestCase):
     def test_returns_latest_version(self):
         # This test must be updated each time new migration script is added.
         self.assertEqual(get_head_alembic_version(), "8b0eff478bcb")
+
+
+class TestStringToBool(unittest.TestCase):
+    def test_truths(self):
+        self.assertTrue(string_to_bool("yes"))
+        self.assertTrue(string_to_bool("YES"))
+        self.assertTrue(string_to_bool("y"))
+        self.assertTrue(string_to_bool("true"))
+        self.assertTrue(string_to_bool("t"))
+        self.assertTrue(string_to_bool("1"))
+
+    def test_falses(self):
+        self.assertFalse(string_to_bool("NO"))
+        self.assertFalse(string_to_bool("no"))
+        self.assertFalse(string_to_bool("n"))
+        self.assertFalse(string_to_bool("false"))
+        self.assertFalse(string_to_bool("f"))
+        self.assertFalse(string_to_bool("0"))
+
+    def test_raises_value_error(self):
+        self.assertRaises(ValueError, string_to_bool, "no truth in this")
 
 
 if __name__ == "__main__":

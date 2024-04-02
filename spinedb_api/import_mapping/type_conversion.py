@@ -10,13 +10,11 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Type conversion functions.
-
-"""
+""" Type conversion functions. """
 
 import re
-from distutils.util import strtobool
+
+from spinedb_api.helpers import string_to_bool
 from spinedb_api.parameter_value import DateTime, Duration, ParameterValueFormatError
 
 
@@ -81,7 +79,7 @@ class BooleanConvertSpec(ConvertSpec):
     RETURN_TYPE = bool
 
     def __call__(self, value):
-        return self.RETURN_TYPE(strtobool(str(value)))
+        return self.RETURN_TYPE(string_to_bool(str(value)))
 
 
 class IntegerSequenceDateTimeConvertSpec(ConvertSpec):
