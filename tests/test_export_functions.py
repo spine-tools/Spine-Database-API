@@ -148,5 +148,5 @@ class TestExportFunctions(unittest.TestCase):
             self.assertEqual(exported["scenario_alternatives"], [("scenario", "alternative", None)])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

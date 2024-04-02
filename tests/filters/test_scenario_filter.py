@@ -552,5 +552,5 @@ def _build_data_with_single_scenario(db_map, commit=True):
         db_map.commit_session("Add test data.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

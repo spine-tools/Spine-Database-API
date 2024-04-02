@@ -31,5 +31,5 @@ class TestExecutionFilter(unittest.TestCase):
             self.assertEqual(scenarios, {"low_on_steam", "wasting_my_time"})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

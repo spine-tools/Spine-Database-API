@@ -679,7 +679,7 @@ def _array_from_database(value_dict):
     try:
         data = [value_type(x) for x in value_dict["data"]]
     except (TypeError, ParameterValueFormatError) as error:
-        raise ParameterValueFormatError(f'Failed to read values for Array: {error}')
+        raise ParameterValueFormatError(f"Failed to read values for Array: {error}")
     else:
         index_name = value_dict.get("index_name", Array.DEFAULT_INDEX_NAME)
         return Array(data, value_type, index_name)
@@ -877,11 +877,11 @@ class _Indexes(np.ndarray):
         if obj is None:
             return
         # pylint: disable=attribute-defined-outside-init
-        self.position_lookup = getattr(obj, 'position_lookup', {})
+        self.position_lookup = getattr(obj, "position_lookup", {})
 
     def __setitem__(self, position, index):
         old_index = self.__getitem__(position)
-        self.position_lookup[index] = self.position_lookup.pop(old_index, '')
+        self.position_lookup[index] = self.position_lookup.pop(old_index, "")
         super().__setitem__(position, index)
 
     def __eq__(self, other):
@@ -1019,7 +1019,7 @@ class IndexedValue(ParameterValue):
         if not isinstance(other, type(self)):
             return self
         new_indexes = np.unique(np.concatenate((self.indexes, other.indexes)))
-        new_indexes.sort(kind='mergesort')
+        new_indexes.sort(kind="mergesort")
         _merge = lambda value, other: other if value is None else merge_parsed(value, other)
         new_values = [_merge(self.get_value(index), other.get_value(index)) for index in new_indexes]
         self.indexes = new_indexes

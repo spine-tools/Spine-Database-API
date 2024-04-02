@@ -38,14 +38,14 @@ def item_factory(item_type):
     }.get(item_type, MappedItemBase)
 
 
-_ENTITY_BYNAME_VALUE = 'A tuple with the entity name as single element if the entity is zero-dimensional, or the element names if the entity is multi-dimensional.'
+_ENTITY_BYNAME_VALUE = "A tuple with the entity name as single element if the entity is zero-dimensional, or the element names if the entity is multi-dimensional."
 
 
 class CommitItem(MappedItemBase):
     fields = {
-        'comment': {'type': str, 'value': 'A comment describing the commit.'},
-        'date': {'type': str, 'value': 'Date and time of the commit in ISO 8601 format.'},
-        'user': {'type': str, 'value': 'Username of the committer.'},
+        "comment": {"type": str, "value": "A comment describing the commit."},
+        "date": {"type": str, "value": "Date and time of the commit in ISO 8601 format."},
+        "user": {"type": str, "value": "Username of the committer."},
     }
     _unique_keys = (("date",),)
     is_protected = True
@@ -56,20 +56,20 @@ class CommitItem(MappedItemBase):
 
 class EntityClassItem(MappedItemBase):
     fields = {
-        'name': {'type': str, 'value': 'The class name.'},
-        'dimension_name_list': {
-            'type': tuple,
-            'value': 'The dimension names for a multi-dimensional class.',
-            'optional': True,
+        "name": {"type": str, "value": "The class name."},
+        "dimension_name_list": {
+            "type": tuple,
+            "value": "The dimension names for a multi-dimensional class.",
+            "optional": True,
         },
-        'description': {'type': str, 'value': 'The class description.', 'optional': True},
-        'display_icon': {
-            'type': int,
-            'value': 'An integer representing an icon within your application.',
-            'optional': True,
+        "description": {"type": str, "value": "The class description.", "optional": True},
+        "display_icon": {
+            "type": int,
+            "value": "An integer representing an icon within your application.",
+            "optional": True,
         },
-        'display_order': {'type': int, 'value': 'Not in use at the moment.', 'optional': True},
-        'hidden': {'type': int, 'value': 'Not in use at the moment.', 'optional': True},
+        "display_order": {"type": int, "value": "Not in use at the moment.", "optional": True},
+        "hidden": {"type": int, "value": "Not in use at the moment.", "optional": True},
         "active_by_default": {
             "type": bool,
             "value": "Default activity for the entity alternatives of the class.",
@@ -121,15 +121,15 @@ class EntityClassItem(MappedItemBase):
 
 class EntityItem(MappedItemBase):
     fields = {
-        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
-        'name': {'type': str, 'value': 'The entity name.'},
-        'element_name_list': {'type': tuple, 'value': 'The element names if the entity is multi-dimensional.'},
-        'entity_byname': {
-            'type': tuple,
-            'value': 'A tuple with the entity name as single element if the entity is zero-dimensional,'
-            'or the element names if it is multi-dimensional.',
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "name": {"type": str, "value": "The entity name."},
+        "element_name_list": {"type": tuple, "value": "The element names if the entity is multi-dimensional."},
+        "entity_byname": {
+            "type": tuple,
+            "value": "A tuple with the entity name as single element if the entity is zero-dimensional,"
+            "or the element names if it is multi-dimensional.",
         },
-        'description': {'type': str, 'value': 'The entity description.', 'optional': True},
+        "description": {"type": str, "value": "The entity description.", "optional": True},
     }
 
     _defaults = {"description": None}
@@ -263,9 +263,9 @@ class EntityItem(MappedItemBase):
 
 class EntityGroupItem(MappedItemBase):
     fields = {
-        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
-        'group_name': {'type': str, 'value': 'The group entity name.'},
-        'member_name': {'type': str, 'value': 'The member entity name.'},
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "group_name": {"type": str, "value": "The group entity name."},
+        "member_name": {"type": str, "value": "The member entity name."},
     }
     _unique_keys = (("entity_class_name", "group_name", "member_name"),)
     _references = {
@@ -303,16 +303,16 @@ class EntityGroupItem(MappedItemBase):
 
 class EntityAlternativeItem(MappedItemBase):
     fields = {
-        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
-        'entity_byname': {
-            'type': tuple,
-            'value': _ENTITY_BYNAME_VALUE,
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "entity_byname": {
+            "type": tuple,
+            "value": _ENTITY_BYNAME_VALUE,
         },
-        'alternative_name': {'type': str, 'value': 'The alternative name.'},
-        'active': {
-            'type': bool,
-            'value': 'Whether the entity is active in the alternative - defaults to True.',
-            'optional': True,
+        "alternative_name": {"type": str, "value": "The alternative name."},
+        "active": {
+            "type": bool,
+            "value": "Whether the entity is active in the alternative - defaults to True.",
+            "optional": True,
         },
     }
     _defaults = {"active": True}
@@ -452,16 +452,16 @@ class ParameterItemBase(ParsedValueBase):
 
 class ParameterDefinitionItem(ParameterItemBase):
     fields = {
-        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
-        'name': {'type': str, 'value': 'The parameter name.'},
-        'default_value': {'type': bytes, 'value': 'The default value.', 'optional': True},
-        'default_type': {'type': str, 'value': 'The default value type.', 'optional': True},
-        'parameter_value_list_name': {
-            'type': str,
-            'value': 'The parameter value list name if any.',
-            'optional': True,
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "name": {"type": str, "value": "The parameter name."},
+        "default_value": {"type": bytes, "value": "The default value.", "optional": True},
+        "default_type": {"type": str, "value": "The default value type.", "optional": True},
+        "parameter_value_list_name": {
+            "type": str,
+            "value": "The parameter value list name if any.",
+            "optional": True,
         },
-        'description': {'type': str, 'value': 'The parameter description.', 'optional': True},
+        "description": {"type": str, "value": "The parameter description.", "optional": True},
     }
     _defaults = {"description": None, "default_value": None, "default_type": None, "parameter_value_list_id": None}
     _unique_keys = (("entity_class_name", "name"),)
@@ -526,15 +526,15 @@ class ParameterDefinitionItem(ParameterItemBase):
 
 class ParameterValueItem(ParameterItemBase):
     fields = {
-        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
-        'parameter_definition_name': {'type': str, 'value': 'The parameter name.'},
-        'entity_byname': {
-            'type': tuple,
-            'value': _ENTITY_BYNAME_VALUE,
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "parameter_definition_name": {"type": str, "value": "The parameter name."},
+        "entity_byname": {
+            "type": tuple,
+            "value": _ENTITY_BYNAME_VALUE,
         },
-        'value': {'type': bytes, 'value': 'The value.'},
-        'type': {'type': str, 'value': 'The value type.', 'optional': True},
-        'alternative_name': {'type': str, 'value': "The alternative name - defaults to 'Base'.", 'optional': True},
+        "value": {"type": bytes, "value": "The value."},
+        "type": {"type": str, "value": "The value type.", "optional": True},
+        "alternative_name": {"type": str, "value": "The alternative name - defaults to 'Base'.", "optional": True},
     }
     _unique_keys = (("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),)
     _references = {
@@ -596,16 +596,16 @@ class ParameterValueItem(ParameterItemBase):
 
 
 class ParameterValueListItem(MappedItemBase):
-    fields = {'name': {'type': str, 'value': 'The parameter value list name.'}}
+    fields = {"name": {"type": str, "value": "The parameter value list name."}}
     _unique_keys = (("name",),)
 
 
 class ListValueItem(ParsedValueBase):
     fields = {
-        'parameter_value_list_name': {'type': str, 'value': 'The parameter value list name.'},
-        'value': {'type': bytes, 'value': 'The value.'},
-        'type': {'type': str, 'value': 'The value type.', 'optional': True},
-        'index': {'type': int, 'value': 'The value index.', 'optional': True},
+        "parameter_value_list_name": {"type": str, "value": "The parameter value list name."},
+        "value": {"type": bytes, "value": "The value."},
+        "type": {"type": str, "value": "The value type.", "optional": True},
+        "index": {"type": int, "value": "The value index.", "optional": True},
     }
     _unique_keys = (("parameter_value_list_name", "value_and_type"), ("parameter_value_list_name", "index"))
     _references = {"parameter_value_list_id": ("parameter_value_list", "id")}
@@ -629,8 +629,8 @@ class ListValueItem(ParsedValueBase):
 
 class AlternativeItem(MappedItemBase):
     fields = {
-        'name': {'type': str, 'value': 'The alternative name.'},
-        'description': {'type': str, 'value': 'The alternative description.', 'optional': True},
+        "name": {"type": str, "value": "The alternative name."},
+        "description": {"type": str, "value": "The alternative description.", "optional": True},
     }
     _defaults = {"description": None}
     _unique_keys = (("name",),)
@@ -638,9 +638,9 @@ class AlternativeItem(MappedItemBase):
 
 class ScenarioItem(MappedItemBase):
     fields = {
-        'name': {'type': str, 'value': 'The scenario name.'},
-        'description': {'type': str, 'value': 'The scenario description.', 'optional': True},
-        'active': {'type': bool, 'value': 'Not in use at the moment.', 'optional': True},
+        "name": {"type": str, "value": "The scenario name."},
+        "description": {"type": str, "value": "The scenario description.", "optional": True},
+        "active": {"type": bool, "value": "Not in use at the moment.", "optional": True},
     }
     _defaults = {"active": False, "description": None}
     _unique_keys = (("name",),)
@@ -665,9 +665,9 @@ class ScenarioItem(MappedItemBase):
 
 class ScenarioAlternativeItem(MappedItemBase):
     fields = {
-        'scenario_name': {'type': str, 'value': 'The scenario name.'},
-        'alternative_name': {'type': str, 'value': 'The alternative name.'},
-        'rank': {'type': int, 'value': 'The rank - higher has precedence.'},
+        "scenario_name": {"type": str, "value": "The scenario name."},
+        "alternative_name": {"type": str, "value": "The alternative name."},
+        "rank": {"type": int, "value": "The rank - higher has precedence."},
     }
     _unique_keys = (("scenario_name", "alternative_name"), ("scenario_name", "rank"))
     _references = {"scenario_id": ("scenario", "id"), "alternative_id": ("alternative", "id")}
@@ -693,18 +693,18 @@ class ScenarioAlternativeItem(MappedItemBase):
 
 class MetadataItem(MappedItemBase):
     fields = {
-        'name': {'type': str, 'value': 'The metadata entry name.'},
-        'value': {'type': str, 'value': 'The metadata entry value.'},
+        "name": {"type": str, "value": "The metadata entry name."},
+        "value": {"type": str, "value": "The metadata entry value."},
     }
     _unique_keys = (("name", "value"),)
 
 
 class EntityMetadataItem(MappedItemBase):
     fields = {
-        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
-        'entity_byname': {'type': tuple, 'value': _ENTITY_BYNAME_VALUE},
-        'metadata_name': {'type': str, 'value': 'The metadata entry name.'},
-        'metadata_value': {'type': str, 'value': 'The metadata entry value.'},
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "entity_byname": {"type": tuple, "value": _ENTITY_BYNAME_VALUE},
+        "metadata_name": {"type": str, "value": "The metadata entry name."},
+        "metadata_value": {"type": str, "value": "The metadata entry value."},
     }
     _unique_keys = (("entity_class_name", "entity_byname", "metadata_name", "metadata_value"),)
     _references = {
@@ -732,15 +732,15 @@ class EntityMetadataItem(MappedItemBase):
 
 class ParameterValueMetadataItem(MappedItemBase):
     fields = {
-        'entity_class_name': {'type': str, 'value': 'The entity class name.'},
-        'parameter_definition_name': {'type': str, 'value': 'The parameter name.'},
-        'entity_byname': {
-            'type': tuple,
-            'value': _ENTITY_BYNAME_VALUE,
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "parameter_definition_name": {"type": str, "value": "The parameter name."},
+        "entity_byname": {
+            "type": tuple,
+            "value": _ENTITY_BYNAME_VALUE,
         },
-        'alternative_name': {'type': str, 'value': 'The alternative name.'},
-        'metadata_name': {'type': str, 'value': 'The metadata entry name.'},
-        'metadata_value': {'type': str, 'value': 'The metadata entry value.'},
+        "alternative_name": {"type": str, "value": "The alternative name."},
+        "metadata_name": {"type": str, "value": "The metadata entry name."},
+        "metadata_value": {"type": str, "value": "The metadata entry value."},
     }
     _unique_keys = (
         (
@@ -779,8 +779,8 @@ class ParameterValueMetadataItem(MappedItemBase):
 
 class SuperclassSubclassItem(MappedItemBase):
     fields = {
-        'superclass_name': {'type': str, 'value': 'The superclass name.'},
-        'subclass_name': {'type': str, 'value': 'The subclass name.'},
+        "superclass_name": {"type": str, "value": "The superclass name."},
+        "subclass_name": {"type": str, "value": "The subclass name."},
     }
     _unique_keys = (("subclass_name",),)
     _references = {"superclass_id": ("entity_class", "id"), "subclass_id": ("entity_class", "id")}

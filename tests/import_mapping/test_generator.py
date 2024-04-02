@@ -70,11 +70,11 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                'alternatives': {'Base'},
-                'entity_classes': [('Object',)],
-                'parameter_values': [['Object', 'data', 'Parameter', Map(["T1", "T2"], [5.0, 99.0]), 'Base']],
-                'parameter_definitions': [('Object', 'Parameter')],
-                'entities': [('Object', 'data')],
+                "alternatives": {"Base"},
+                "entity_classes": [("Object",)],
+                "parameter_values": [["Object", "data", "Parameter", Map(["T1", "T2"], [5.0, 99.0]), "Base"]],
+                "parameter_definitions": [("Object", "Parameter")],
+                "entities": [("Object", "data")],
             },
         )
 
@@ -102,11 +102,11 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                'alternatives': {'Base'},
-                'entity_classes': [('Object',)],
-                'parameter_values': [['Object', 'data', 'Parameter', Map(["T1", "T2"], [5.0, 99.0]), 'Base']],
-                'parameter_definitions': [('Object', 'Parameter')],
-                'entities': [('Object', 'data')],
+                "alternatives": {"Base"},
+                "entity_classes": [("Object",)],
+                "parameter_values": [["Object", "data", "Parameter", Map(["T1", "T2"], [5.0, 99.0]), "Base"]],
+                "parameter_definitions": [("Object", "Parameter")],
+                "entities": [("Object", "data")],
             },
         )
 
@@ -134,10 +134,10 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                'entity_classes': [('klass',)],
-                'parameter_values': [['klass', 'kloss', 'Parameter_2', Map(["T1", "T2"], [2.3, 23.0])]],
-                'parameter_definitions': [('klass', 'Parameter_2')],
-                'entities': [('klass', 'kloss')],
+                "entity_classes": [("klass",)],
+                "parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
+                "parameter_definitions": [("klass", "Parameter_2")],
+                "entities": [("klass", "kloss")],
             },
         )
 
@@ -188,7 +188,7 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"base"},
-                'entity_classes': [("o",)],
+                "entity_classes": [("o",)],
                 "parameter_definitions": [("o", "parameter_name")],
                 "parameter_values": [],
                 "entities": [("o", "o1")],
@@ -224,7 +224,7 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"base"},
-                'entity_classes': [("o",), ("q",), ("o_to_q", ("o", "q"))],
+                "entity_classes": [("o",), ("q",), ("o_to_q", ("o", "q"))],
                 "entities": [
                     ("o", "o1"),
                     ("q", "q1"),
@@ -268,7 +268,7 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                'entity_classes': [("klass",)],
+                "entity_classes": [("klass",)],
                 "parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
                 "parameter_definitions": [("klass", "Parameter_2")],
                 "entities": [("klass", "kloss")],
@@ -296,7 +296,7 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                'entity_classes': [("klass",)],
+                "entity_classes": [("klass",)],
                 "parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], ["2.3", "23.0"])]],
                 "parameter_definitions": [("klass", "Parameter_2")],
                 "entities": [("klass", "kloss")],
@@ -326,7 +326,7 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                'entity_classes': [("klass",)],
+                "entity_classes": [("klass",)],
                 "parameter_values": [["klass", "kloss", "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
                 "parameter_definitions": [("klass", "Parameter_2")],
                 "entities": [("klass", "kloss")],
@@ -359,7 +359,7 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"Base"},
-                'entity_classes': [("class",)],
+                "entity_classes": [("class",)],
                 "parameter_values": [
                     ["class", "object_1", "param", Array([-1.1, 1.1]), "Base"],
                     ["class", "object_2", "param", Array([2.3, -2.3]), "Base"],
@@ -395,7 +395,7 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"Base"},
-                'entity_classes': [("Gadget",)],
+                "entity_classes": [("Gadget",)],
                 "parameter_values": [
                     ["Gadget", "object_1", "data", Array([-1.1, 1.1]), "Base"],
                     ["Gadget", "object_2", "data", Array([2.3, -2.3]), "Base"],
@@ -443,5 +443,5 @@ class TestGetMappedData(unittest.TestCase):
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

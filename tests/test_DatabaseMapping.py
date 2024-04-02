@@ -991,22 +991,22 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         self._db_map.close()
 
     def create_object_classes(self):
-        obj_classes = ['class1', 'class2']
+        obj_classes = ["class1", "class2"]
         import_functions.import_object_classes(self._db_map, obj_classes)
         return obj_classes
 
     def create_objects(self):
-        objects = [('class1', 'obj11'), ('class1', 'obj12'), ('class2', 'obj21')]
+        objects = [("class1", "obj11"), ("class1", "obj12"), ("class2", "obj21")]
         import_functions.import_objects(self._db_map, objects)
         return objects
 
     def create_relationship_classes(self):
-        relationship_classes = [('rel1', ['class1']), ('rel2', ['class1', 'class2'])]
+        relationship_classes = [("rel1", ["class1"]), ("rel2", ["class1", "class2"])]
         import_functions.import_relationship_classes(self._db_map, relationship_classes)
         return relationship_classes
 
     def create_relationships(self):
-        relationships = [('rel1', ['obj11']), ('rel2', ['obj11', 'obj21'])]
+        relationships = [("rel1", ["obj11"]), ("rel2", ["obj11", "obj21"])]
         import_functions.import_relationships(self._db_map, relationships)
         return relationships
 
@@ -1181,8 +1181,8 @@ class TestDatabaseMappingQueries(unittest.TestCase):
     def test_entity_parameter_definition_sq_with_multiple_relationship_classes_but_single_parameter(self):
         self.create_object_classes()
         self.create_relationship_classes()
-        obj_parameter_definitions = [('class1', 'par1a'), ('class1', 'par1b')]
-        rel_parameter_definitions = [('rel1', 'rpar1a')]
+        obj_parameter_definitions = [("class1", "par1a"), ("class1", "par1b")]
+        rel_parameter_definitions = [("rel1", "rpar1a")]
         import_functions.import_object_parameters(self._db_map, obj_parameter_definitions)
         import_functions.import_relationship_parameters(self._db_map, rel_parameter_definitions)
         self._db_map.commit_session("test")
@@ -1198,18 +1198,18 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         self.create_objects()
         self.create_relationship_classes()
         self.create_relationships()
-        obj_parameter_definitions = [('class1', 'par1a'), ('class1', 'par1b'), ('class2', 'par2a')]
-        rel_parameter_definitions = [('rel1', 'rpar1a'), ('rel2', 'rpar2a')]
+        obj_parameter_definitions = [("class1", "par1a"), ("class1", "par1b"), ("class2", "par2a")]
+        rel_parameter_definitions = [("rel1", "rpar1a"), ("rel2", "rpar2a")]
         import_functions.import_object_parameters(self._db_map, obj_parameter_definitions)
         import_functions.import_relationship_parameters(self._db_map, rel_parameter_definitions)
         object_parameter_values = [
-            ('class1', 'obj11', 'par1a', 123),
-            ('class1', 'obj11', 'par1b', 333),
-            ('class2', 'obj21', 'par2a', 'empty'),
+            ("class1", "obj11", "par1a", 123),
+            ("class1", "obj11", "par1b", 333),
+            ("class2", "obj21", "par2a", "empty"),
         ]
         _, errors = import_functions.import_object_parameter_values(self._db_map, object_parameter_values)
         self.assertFalse(errors)
-        relationship_parameter_values = [('rel1', ['obj11'], 'rpar1a', 1.1), ('rel2', ['obj11', 'obj21'], 'rpar2a', 42)]
+        relationship_parameter_values = [("rel1", ["obj11"], "rpar1a", 1.1), ("rel2", ["obj11", "obj21"], "rpar2a", 42)]
         _, errors = import_functions.import_relationship_parameter_values(self._db_map, relationship_parameter_values)
         self.assertFalse(errors)
         self._db_map.commit_session("test")
@@ -1222,7 +1222,7 @@ class TestDatabaseMappingQueries(unittest.TestCase):
             if row.object_name:  # This is an object parameter
                 self.assertEqual(row.object_name, par_val[1])
             else:  # This is a relationship parameter
-                self.assertEqual(row.object_name_list, ','.join(par_val[1]))
+                self.assertEqual(row.object_name_list, ",".join(par_val[1]))
             self.assertEqual(row.parameter_name, par_val[2])
             self.assertEqual(from_database(row.value, row.type), par_val[3])
 
@@ -3006,11 +3006,11 @@ class TestDatabaseMappingCommitMixin(unittest.TestCase):
 
 
 class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
-    @unittest.skipIf(os.name == 'nt', "Needs fixing")
+    @unittest.skipIf(os.name == "nt", "Needs fixing")
     def test_concurrent_commit_threading(self):
         self._do_test_concurrent_commit(threading.Thread)
 
-    @unittest.skipIf(os.name == 'nt', "Needs fixing")
+    @unittest.skipIf(os.name == "nt", "Needs fixing")
     def test_concurrent_commit_multiprocessing(self):
         self._do_test_concurrent_commit(multiprocessing.Process)
 

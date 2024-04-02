@@ -15,8 +15,8 @@ from spinedb_api.exception import SpineIntegrityError
 
 
 # revision identifiers, used by Alembic.
-revision = '989fccf80441'
-down_revision = '0c7d199ae915'
+revision = "989fccf80441"
+down_revision = "0c7d199ae915"
 branch_labels = None
 depends_on = None
 

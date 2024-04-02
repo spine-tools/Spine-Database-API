@@ -170,5 +170,5 @@ class TestAlternativeFilterWithoutDatabase(unittest.TestCase):
         self.assertEqual(config, {"type": "alternative_filter", "alternatives": ["alt:er:na:ti:ve", "alternative2"]})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

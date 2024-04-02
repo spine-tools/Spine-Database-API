@@ -103,5 +103,5 @@ class TestPurgeUrl(unittest.TestCase):
             self.assertFalse(db_map.get_items("entity_class"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

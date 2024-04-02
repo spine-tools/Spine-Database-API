@@ -57,9 +57,9 @@ class TestConvertFunctions(unittest.TestCase):
         param_def_mapping.flatten()[-1].position = 1
         mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
         expected = {
-            'entity_classes': [('a',)],
-            'entities': [('a', 'obj')],
-            'parameter_definitions': [('a', 'param', 1.2)],
+            "entity_classes": [("a",)],
+            "entities": [("a", "obj")],
+            "parameter_definitions": [("a", "param", 1.2)],
         }
         self.assertEqual(mapped_data, expected)
 
@@ -76,9 +76,9 @@ class TestConvertFunctions(unittest.TestCase):
         param_def_mapping.flatten()[-1].position = 1
         mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
         expected = {
-            'entity_classes': [('a',)],
-            'entities': [('a', 'obj')],
-            'parameter_definitions': [('a', 'param', '1111.2222')],
+            "entity_classes": [("a",)],
+            "entities": [("a", "obj")],
+            "parameter_definitions": [("a", "param", "1111.2222")],
         }
         self.assertEqual(mapped_data, expected)
 
@@ -95,9 +95,9 @@ class TestConvertFunctions(unittest.TestCase):
         param_def_mapping.flatten()[-1].position = 1
         mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
         expected = {
-            'entity_classes': [('a',)],
-            'entities': [('a', 'obj')],
-            'parameter_definitions': [('a', 'param', False)],
+            "entity_classes": [("a",)],
+            "entities": [("a", "obj")],
+            "parameter_definitions": [("a", "param", False)],
         }
         self.assertEqual(mapped_data, expected)
 
@@ -193,42 +193,42 @@ class TestImportMappingIO(unittest.TestCase):
         mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
         d = mapping_to_dict(mapping)
         types = [m["map_type"] for m in d]
-        expected = ['EntityClass', 'Entity', 'EntityMetadata']
+        expected = ["EntityClass", "Entity", "EntityMetadata"]
         self.assertEqual(types, expected)
 
     def test_relationship_class_mapping(self):
         mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
         d = mapping_to_dict(mapping)
         types = [m["map_type"] for m in d]
-        expected = ['EntityClass', 'Dimension', 'Entity', 'Element', 'EntityMetadata']
+        expected = ["EntityClass", "Dimension", "Entity", "Element", "EntityMetadata"]
         self.assertEqual(types, expected)
 
     def test_object_group_mapping(self):
         mapping = import_mapping_from_dict({"map_type": "ObjectGroup"})
         d = mapping_to_dict(mapping)
         types = [m["map_type"] for m in d]
-        expected = ['EntityClass', 'Entity', 'EntityGroup']
+        expected = ["EntityClass", "Entity", "EntityGroup"]
         self.assertEqual(types, expected)
 
     def test_alternative_mapping(self):
         mapping = import_mapping_from_dict({"map_type": "Alternative"})
         d = mapping_to_dict(mapping)
         types = [m["map_type"] for m in d]
-        expected = ['Alternative']
+        expected = ["Alternative"]
         self.assertEqual(types, expected)
 
     def test_scenario_mapping(self):
         mapping = import_mapping_from_dict({"map_type": "Scenario"})
         d = mapping_to_dict(mapping)
         types = [m["map_type"] for m in d]
-        expected = ['Scenario', 'ScenarioActiveFlag']
+        expected = ["Scenario", "ScenarioActiveFlag"]
         self.assertEqual(types, expected)
 
     def test_scenario_alternative_mapping(self):
         mapping = import_mapping_from_dict({"map_type": "ScenarioAlternative"})
         d = mapping_to_dict(mapping)
         types = [m["map_type"] for m in d]
-        expected = ['Scenario', 'ScenarioAlternative', 'ScenarioBeforeAlternative']
+        expected = ["Scenario", "ScenarioAlternative", "ScenarioBeforeAlternative"]
         self.assertEqual(types, expected)
 
     def test_tool_mapping(self):
@@ -247,7 +247,7 @@ class TestImportMappingIO(unittest.TestCase):
         mapping = import_mapping_from_dict({"map_type": "ParameterValueList"})
         d = mapping_to_dict(mapping)
         types = [m["map_type"] for m in d]
-        expected = ['ParameterValueList', 'ParameterValueListValue']
+        expected = ["ParameterValueList", "ParameterValueListValue"]
         self.assertEqual(types, expected)
 
 
@@ -262,13 +262,13 @@ class TestImportMappingLegacy(unittest.TestCase):
         mapping = import_mapping_from_dict(mapping)
         out = mapping_to_dict(mapping)
         expected = [
-            {'map_type': 'EntityClass', 'position': 0},
-            {'map_type': 'Entity', 'position': 1},
-            {'map_type': 'EntityMetadata', 'position': 'hidden'},
-            {'map_type': 'ParameterDefinition', 'position': 2},
-            {'map_type': 'Alternative', 'position': 'hidden'},
-            {'map_type': 'ParameterValueMetadata', 'position': 'hidden'},
-            {'map_type': 'ParameterValue', 'position': 3},
+            {"map_type": "EntityClass", "position": 0},
+            {"map_type": "Entity", "position": 1},
+            {"map_type": "EntityMetadata", "position": "hidden"},
+            {"map_type": "ParameterDefinition", "position": 2},
+            {"map_type": "Alternative", "position": "hidden"},
+            {"map_type": "ParameterValueMetadata", "position": "hidden"},
+            {"map_type": "ParameterValue", "position": 3},
         ]
         self.assertEqual(out, expected)
 
@@ -277,9 +277,9 @@ class TestImportMappingLegacy(unittest.TestCase):
         mapping = import_mapping_from_dict(mapping)
         out = mapping_to_dict(mapping)
         expected = [
-            {'map_type': 'EntityClass', 'position': 0},
-            {'map_type': 'Entity', 'position': 1},
-            {'map_type': 'EntityMetadata', 'position': 'hidden'},
+            {"map_type": "EntityClass", "position": 0},
+            {"map_type": "Entity", "position": 1},
+            {"map_type": "EntityMetadata", "position": "hidden"},
         ]
         self.assertEqual(out, expected)
 
@@ -288,9 +288,9 @@ class TestImportMappingLegacy(unittest.TestCase):
         mapping = import_mapping_from_dict(mapping)
         out = mapping_to_dict(mapping)
         expected = [
-            {'map_type': 'EntityClass', 'position': 'hidden', 'value': 'cls'},
-            {'map_type': 'Entity', 'position': 'hidden', 'value': 'obj'},
-            {'map_type': 'EntityMetadata', 'position': 'hidden'},
+            {"map_type": "EntityClass", "position": "hidden", "value": "cls"},
+            {"map_type": "Entity", "position": "hidden", "value": "obj"},
+            {"map_type": "EntityMetadata", "position": "hidden"},
         ]
         self.assertEqual(out, expected)
 
@@ -305,17 +305,17 @@ class TestImportMappingLegacy(unittest.TestCase):
         mapping = import_mapping_from_dict(mapping)
         out = mapping_to_dict(mapping)
         expected = [
-            {'map_type': 'EntityClass', 'position': 'hidden', 'value': 'unit__node'},
-            {'map_type': 'Dimension', 'position': 0},
-            {'map_type': 'Dimension', 'position': 1},
-            {'map_type': 'Entity', 'position': 'hidden'},
-            {'map_type': 'Element', 'position': 0},
-            {'map_type': 'Element', 'position': 1},
-            {'map_type': 'EntityMetadata', 'position': 'hidden'},
-            {'map_type': 'ParameterDefinition', 'position': 'hidden', 'value': 'pname'},
-            {'map_type': 'Alternative', 'position': 'hidden'},
-            {'map_type': 'ParameterValueMetadata', 'position': 'hidden'},
-            {'map_type': 'ParameterValue', 'position': 2},
+            {"map_type": "EntityClass", "position": "hidden", "value": "unit__node"},
+            {"map_type": "Dimension", "position": 0},
+            {"map_type": "Dimension", "position": 1},
+            {"map_type": "Entity", "position": "hidden"},
+            {"map_type": "Element", "position": 0},
+            {"map_type": "Element", "position": 1},
+            {"map_type": "EntityMetadata", "position": "hidden"},
+            {"map_type": "ParameterDefinition", "position": "hidden", "value": "pname"},
+            {"map_type": "Alternative", "position": "hidden"},
+            {"map_type": "ParameterValueMetadata", "position": "hidden"},
+            {"map_type": "ParameterValue", "position": 2},
         ]
         self.assertEqual(out, expected)
 
@@ -329,13 +329,13 @@ class TestImportMappingLegacy(unittest.TestCase):
         mapping = import_mapping_from_dict(mapping)
         out = mapping_to_dict(mapping)
         expected = [
-            {'map_type': 'EntityClass', 'position': 'hidden', 'value': 'unit__node'},
-            {'map_type': 'Dimension', 'position': 'hidden', 'value': 'cls'},
-            {'map_type': 'Dimension', 'position': 0},
-            {'map_type': 'Entity', 'position': 'hidden'},
-            {'map_type': 'Element', 'position': 'hidden', 'value': 'obj'},
-            {'map_type': 'Element', 'position': 0},
-            {'map_type': 'EntityMetadata', 'position': 'hidden'},
+            {"map_type": "EntityClass", "position": "hidden", "value": "unit__node"},
+            {"map_type": "Dimension", "position": "hidden", "value": "cls"},
+            {"map_type": "Dimension", "position": 0},
+            {"map_type": "Entity", "position": "hidden"},
+            {"map_type": "Element", "position": "hidden", "value": "obj"},
+            {"map_type": "Element", "position": 0},
+            {"map_type": "EntityMetadata", "position": "hidden"},
         ]
         self.assertEqual(out, expected)
 
@@ -354,18 +354,18 @@ class TestImportMappingLegacy(unittest.TestCase):
         mapping = import_mapping_from_dict(mapping)
         out = mapping_to_dict(mapping)
         expected = [
-            {'map_type': 'EntityClass', 'position': 'hidden', 'value': 'unit__node'},
-            {'map_type': 'Dimension', 'position': 'hidden'},
-            {'map_type': 'Entity', 'position': 'hidden'},
-            {'map_type': 'Element', 'position': 'hidden'},
-            {'map_type': 'EntityMetadata', 'position': 'hidden'},
-            {'map_type': 'ParameterDefinition', 'position': 'hidden', 'value': 'pname'},
-            {'map_type': 'Alternative', 'position': 'hidden'},
-            {'map_type': 'ParameterValueMetadata', 'position': 'hidden'},
-            {'map_type': 'ParameterValueType', 'position': 'hidden', 'value': 'array'},
-            {'map_type': 'IndexName', 'position': 'hidden'},
-            {'map_type': 'ParameterValueIndex', 'position': 'hidden', 'value': 'dim'},
-            {'map_type': 'ExpandedValue', 'position': 2},
+            {"map_type": "EntityClass", "position": "hidden", "value": "unit__node"},
+            {"map_type": "Dimension", "position": "hidden"},
+            {"map_type": "Entity", "position": "hidden"},
+            {"map_type": "Element", "position": "hidden"},
+            {"map_type": "EntityMetadata", "position": "hidden"},
+            {"map_type": "ParameterDefinition", "position": "hidden", "value": "pname"},
+            {"map_type": "Alternative", "position": "hidden"},
+            {"map_type": "ParameterValueMetadata", "position": "hidden"},
+            {"map_type": "ParameterValueType", "position": "hidden", "value": "array"},
+            {"map_type": "IndexName", "position": "hidden"},
+            {"map_type": "ParameterValueIndex", "position": "hidden", "value": "dim"},
+            {"map_type": "ExpandedValue", "position": 2},
         ]
         self.assertEqual(out, expected)
 
@@ -386,9 +386,9 @@ class TestImportMappingLegacy(unittest.TestCase):
         mapping = import_mapping_from_dict(mapping)
         out = mapping_to_dict(mapping)
         expected = [
-            {'map_type': 'EntityClass', 'position': 0},
-            {'map_type': 'Entity', 'position': 1},
-            {'map_type': 'EntityGroup', 'position': 2},
+            {"map_type": "EntityClass", "position": 0},
+            {"map_type": "Entity", "position": 1},
+            {"map_type": "EntityGroup", "position": 2},
         ]
         self.assertEqual(out, expected)
 
@@ -396,7 +396,7 @@ class TestImportMappingLegacy(unittest.TestCase):
         mapping = {"map_type": "Alternative", "name": 0}
         mapping = import_mapping_from_dict(mapping)
         out = mapping_to_dict(mapping)
-        expected = [{'map_type': 'Alternative', 'position': 0}]
+        expected = [{"map_type": "Alternative", "position": 0}]
         self.assertEqual(out, expected)
 
     def test_Scenario_to_dict_from_dict(self):
@@ -404,8 +404,8 @@ class TestImportMappingLegacy(unittest.TestCase):
         mapping = import_mapping_from_dict(mapping)
         out = mapping_to_dict(mapping)
         expected = [
-            {'map_type': 'Scenario', 'position': 0},
-            {'map_type': 'ScenarioActiveFlag', 'position': 'hidden', 'value': 'false'},
+            {"map_type": "Scenario", "position": 0},
+            {"map_type": "ScenarioActiveFlag", "position": "hidden", "value": "false"},
         ]
         self.assertEqual(out, expected)
 
@@ -419,9 +419,9 @@ class TestImportMappingLegacy(unittest.TestCase):
         mapping = import_mapping_from_dict(mapping)
         out = mapping_to_dict(mapping)
         expected = [
-            {'map_type': 'Scenario', 'position': 0},
-            {'map_type': 'ScenarioAlternative', 'position': 1},
-            {'map_type': 'ScenarioBeforeAlternative', 'position': 2},
+            {"map_type": "Scenario", "position": 0},
+            {"map_type": "ScenarioAlternative", "position": 1},
+            {"map_type": "ScenarioBeforeAlternative", "position": 2},
         ]
         self.assertEqual(out, expected)
 
@@ -461,10 +461,10 @@ class TestImportMappingLegacy(unittest.TestCase):
         parameter_mapping = parameter_value_mapping_from_dict(mapping_dict)
         out = mapping_to_dict(parameter_mapping)
         expected = [
-            {'map_type': 'ParameterValueType', 'position': 'hidden', 'value': 'map', 'compress': True},
-            {'map_type': 'IndexName', 'position': 'hidden'},
-            {'map_type': 'ParameterValueIndex', 'position': 'fifth column'},
-            {'map_type': 'ExpandedValue', 'position': -24},
+            {"map_type": "ParameterValueType", "position": "hidden", "value": "map", "compress": True},
+            {"map_type": "IndexName", "position": "hidden"},
+            {"map_type": "ParameterValueIndex", "position": "fifth column"},
+            {"map_type": "ExpandedValue", "position": -24},
         ]
         self.assertEqual(out, expected)
 
@@ -479,14 +479,14 @@ class TestImportMappingLegacy(unittest.TestCase):
         out = mapping_to_dict(parameter_mapping)
         expected = [
             {
-                'map_type': 'ParameterValueType',
-                'position': 'hidden',
-                'value': 'time_series',
-                'options': {'repeat': True, 'ignore_year': False, 'fixed_resolution': False},
+                "map_type": "ParameterValueType",
+                "position": "hidden",
+                "value": "time_series",
+                "options": {"repeat": True, "ignore_year": False, "fixed_resolution": False},
             },
-            {'map_type': 'IndexName', 'position': 'hidden'},
-            {'map_type': 'ParameterValueIndex', 'position': 'fifth column'},
-            {'map_type': 'ExpandedValue', 'position': -24},
+            {"map_type": "IndexName", "position": "hidden"},
+            {"map_type": "ParameterValueIndex", "position": "fifth column"},
+            {"map_type": "ExpandedValue", "position": -24},
         ]
         self.assertEqual(out, expected)
 

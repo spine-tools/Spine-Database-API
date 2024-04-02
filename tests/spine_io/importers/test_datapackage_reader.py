@@ -93,5 +93,5 @@ def test_datapackage(rows):
         yield package_path
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

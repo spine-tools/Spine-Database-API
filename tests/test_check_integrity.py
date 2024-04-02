@@ -27,21 +27,21 @@ def _val_dict(val):
 class TestCheckIntegrity(unittest.TestCase):
     def setUp(self):
         self.data = [
-            (bool, (b'"TRUE"', b'"FALSE"', b'"T"', b'"True"', b'"False"'), (b'true', b'false')),
-            (int, (b'32', b'3.14'), (b'42', b'-2')),
+            (bool, (b'"TRUE"', b'"FALSE"', b'"T"', b'"True"', b'"False"'), (b"true", b"false")),
+            (int, (b"32", b"3.14"), (b"42", b"-2")),
             (str, (b'"FOO"', b'"bar"'), (b'"foo"', b'"Bar"', b'"BAZ"')),
         ]
         self.value_type = {bool: 1, int: 2, str: 3}
         self.db_map = DatabaseMapping("sqlite://", create=True)
-        self.db_map.add_items("entity_class", {"id": 1, 'name': 'cat'})
+        self.db_map.add_items("entity_class", {"id": 1, "name": "cat"})
         self.db_map.add_items(
             "entity",
-            {"id": 1, 'name': 'Tom', "class_id": 1},
-            {"id": 2, 'name': 'Felix', "class_id": 1},
-            {"id": 3, 'name': 'Jansson', "class_id": 1},
+            {"id": 1, "name": "Tom", "class_id": 1},
+            {"id": 2, "name": "Felix", "class_id": 1},
+            {"id": 3, "name": "Jansson", "class_id": 1},
         )
         self.db_map.add_items(
-            "parameter_value_list", {"id": 1, 'name': 'list1'}, {"id": 2, 'name': 'list2'}, {"id": 3, 'name': 'list3'}
+            "parameter_value_list", {"id": 1, "name": "list1"}, {"id": 2, "name": "list2"}, {"id": 3, "name": "list3"}
         )
         self.db_map.add_items(
             "list_value",
@@ -55,21 +55,21 @@ class TestCheckIntegrity(unittest.TestCase):
         )
         self.db_map.add_items(
             "parameter_definition",
-            {"id": 1, 'name': 'par1', 'entity_class_id': 1, 'parameter_value_list_id': 1},
-            {"id": 2, 'name': 'par2', 'entity_class_id': 1, 'parameter_value_list_id': 2},
-            {"id": 3, 'name': 'par3', 'entity_class_id': 1, 'parameter_value_list_id': 3},
+            {"id": 1, "name": "par1", "entity_class_id": 1, "parameter_value_list_id": 1},
+            {"id": 2, "name": "par2", "entity_class_id": 1, "parameter_value_list_id": 2},
+            {"id": 3, "name": "par3", "entity_class_id": 1, "parameter_value_list_id": 3},
         )
 
     @staticmethod
     def get_item(id_: int, val: bytes, entity_id: int):
         return {
-            'id': 1,
-            'parameter_definition_id': id_,
-            'entity_class_id': 1,
-            'entity_id': entity_id,
-            'value': val,
-            'type': None,
-            'alternative_id': 1,
+            "id": 1,
+            "parameter_definition_id": id_,
+            "entity_class_id": 1,
+            "entity_id": entity_id,
+            "value": val,
+            "type": None,
+            "alternative_id": 1,
         }
 
     def test_parameter_values_and_default_values_with_list_references(self):
@@ -81,7 +81,7 @@ class TestCheckIntegrity(unittest.TestCase):
                     item = self.get_item(id_, value, 1)
                     _, errors = self.db_map.add_items("parameter_value", item)
                     self.assertEqual(len(errors), 1)
-                    parsed_value = json.loads(value.decode('utf8'))
+                    parsed_value = json.loads(value.decode("utf8"))
                     if isinstance(parsed_value, Number):
                         parsed_value = float(parsed_value)
                     self.assertEqual(errors[0], f"value {parsed_value} of par{id_} for ('Tom',) is not in list{id_}")
