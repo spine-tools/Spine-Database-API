@@ -65,7 +65,6 @@ SUPPORTED_DIALECTS = {
 UNSUPPORTED_DIALECTS = {
     "mssql": "pyodbc",
     "postgresql": "psycopg2",
-    "oracle": "cx_oracle",
 }
 
 naming_convention = {
