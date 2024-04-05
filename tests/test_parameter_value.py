@@ -1005,6 +1005,9 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(nested_map, {"A": {"a": -3.2, "b": -2.3}, "B": {"c": 3.2, "d": 2.3}})
 
     def test_deep_copy_value_for_scalars(self):
+        x = None
+        copy_of_x = deep_copy_value(x)
+        self.assertIsNone(copy_of_x)
         x = 1.0
         copy_of_x = deep_copy_value(x)
         self.assertEqual(x, copy_of_x)
