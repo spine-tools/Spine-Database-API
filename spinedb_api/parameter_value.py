@@ -1745,7 +1745,7 @@ def deep_copy_value(value):
     Returns:
         Any: deep-copied value
     """
-    if isinstance(value, (Number, str)):
+    if isinstance(value, (Number, str)) or value is None:
         return value
     if isinstance(value, Array):
         return Array(value.values, value.value_type, value.index_name)
