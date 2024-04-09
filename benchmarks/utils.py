@@ -1,32 +1,33 @@
 import datetime
 import math
+from typing import Sequence
 from spinedb_api import __version__, DateTime, Map
 
 
-def build_sizeable_map():
+def build_map(size: int) -> Map:
     start = datetime.datetime(year=2024, month=1, day=1)
-    root_xs = []
-    root_ys = []
-    i_max = 10
-    j_max = 10
-    k_max = 10
-    total = i_max * j_max * k_max
-    for i in range(i_max):
-        root_xs.append(DateTime(start + datetime.timedelta(hours=i)))
-        leaf_xs = []
-        leaf_ys = []
-        for j in range(j_max):
-            leaf_xs.append(DateTime(start + datetime.timedelta(hours=j)))
-            xs = []
-            ys = []
-            for k in range(k_max):
-                xs.append(DateTime(start + datetime.timedelta(hours=k)))
-                x = float(k + k_max * j + j_max * i) / total
-                ys.append(math.sin(x * math.pi / 2.0) + (x * j) ** 2 + x * i)
-            leaf_ys.append(Map(xs, ys))
-        root_ys.append(Map(leaf_xs, leaf_ys))
-    return Map(root_xs, root_ys)
+    xs = []
+    ys = []
+    for i in range(size):
+        xs.append(DateTime(start + datetime.timedelta(hours=i)))
+        x = i / size
+        ys.append(math.sin(x * math.pi / 2.0) + x)
+    return Map(xs, ys)
 
 
-def run_file_name():
+def build_even_map(shape: Sequence[int] = (10, 10, 10)) -> Map:
+    if not shape:
+        return Map([], [], index_type=DateTime)
+    if len(shape) == 1:
+        return build_map(shape[0])
+    xs = []
+    ys = []
+    for i in range(shape[0]):
+        start = datetime.datetime(year=2024, month=1, day=1)
+        xs.append(DateTime(start + datetime.timedelta(hours=i)))
+        ys.append(build_even_map(shape[1:]))
+    return Map(xs, ys)
+
+
+def run_file_name() -> str:
     return f"benchmark-{__version__}.json"
