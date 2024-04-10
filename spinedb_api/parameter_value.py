@@ -389,9 +389,12 @@ def _break_dictionary(data):
 def _datetime_from_database(value):
     """Converts a datetime database value into a DateTime object."""
     try:
-        stamp = dateutil.parser.parse(value)
+        stamp = datetime.fromisoformat(value)
     except ValueError:
-        raise ParameterValueFormatError(f'Could not parse datetime from "{value}"')
+        try:
+            stamp = dateutil.parser.parse(value)
+        except ValueError:
+            raise ParameterValueFormatError(f'Could not parse datetime from "{value}"')
     return DateTime(stamp)
 
 
@@ -517,9 +520,12 @@ def _time_series_from_single_column(value_dict):
             duration = str(duration) + _TIME_SERIES_PLAIN_INDEX_UNIT
         relativedeltas.append(duration_to_relativedelta(duration))
     try:
-        start = dateutil.parser.parse(start)
+        start = datetime.fromisoformat(start)
     except ValueError:
-        raise ParameterValueFormatError(f'Could not decode start value "{start}"')
+        try:
+            start = dateutil.parser.parse(start)
+        except ValueError:
+            raise ParameterValueFormatError(f'Could not decode start value "{start}"')
     values = np.array(value_dict["data"])
     return TimeSeriesFixedResolution(
         start, relativedeltas, values, ignore_year, repeat, value_dict.get("index_name", "")
@@ -744,9 +750,12 @@ class DateTime(ParameterValue):
             value = datetime(year=2000, month=1, day=1)
         elif isinstance(value, str):
             try:
-                value = dateutil.parser.parse(value)
+                value = datetime.fromisoformat(value)
             except ValueError:
-                raise ParameterValueFormatError(f'Could not parse datetime from "{value}"')
+                try:
+                    value = dateutil.parser.parse(value)
+                except ValueError:
+                    raise ParameterValueFormatError(f'Could not parse datetime from "{value}"')
         elif isinstance(value, DateTime):
             value = copy(value._value)
         elif not isinstance(value, datetime):
@@ -1348,9 +1357,12 @@ class TimeSeriesFixedResolution(TimeSeries):
         """
         if isinstance(start, str):
             try:
-                self._start = dateutil.parser.parse(start)
+                self._start = datetime.fromisoformat(start)
             except ValueError:
-                raise ParameterValueFormatError(f'Cannot parse start time "{start}"')
+                try:
+                    self._start = dateutil.parser.parse(start)
+                except ValueError:
+                    raise ParameterValueFormatError(f'Cannot parse start time "{start}"')
         elif isinstance(start, np.datetime64):
             self._start = start.tolist()
         else:

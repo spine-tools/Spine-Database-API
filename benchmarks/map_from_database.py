@@ -13,7 +13,7 @@ def value_from_database(loops, db_value, value_type):
     for _ in range(loops):
         start = time.perf_counter()
         from_database(db_value, value_type)
-        duration += (time.perf_counter() - start)
+        duration += time.perf_counter() - start
     return duration
 
 
