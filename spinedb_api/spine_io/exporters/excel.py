@@ -60,14 +60,11 @@ class ExcelWriterWithPreamble(ExcelWriter):
             return {"sheet_type": "object_group", "class_name": class_name}
         dimension_id_list = title_key.get("dimension_id_list")
         if dimension_id_list is None:
-            entity_type = "object"
             entity_dim_count = 0
         else:
-            entity_type = "relationship"
             entity_dim_count = len(dimension_id_list.split(","))
         preamble = {
             "sheet_type": "entity",
-            "entity_type": entity_type,
             "class_name": class_name,
             "entity_dim_count": entity_dim_count,
         }
