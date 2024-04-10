@@ -22,5 +22,5 @@ Benchmarks from e.g. different commits/branches can be compared by
 python -mpyperf compare_to <benchmark file 1.json> <benchmark file 2.json>
 ```
 
-Check the [`pyperf` documentation]((https://pyperf.readthedocs.io/en/latest/index.html))
+Check the [`pyperf` documentation](https://pyperf.readthedocs.io/en/latest/index.html)
 for further things you can do with it.

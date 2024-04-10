@@ -5,7 +5,7 @@ the default value is somewhat complex Map and the update does not change anythin
 import time
 import pyperf
 from spinedb_api import DatabaseMapping, to_database
-from benchmarks.utils import build_sizeable_map, run_file_name
+from benchmarks.utils import build_even_map, run_file_name
 
 
 def update_default_value(loops, db_map, value, value_type):
@@ -24,7 +24,7 @@ def update_default_value(loops, db_map, value, value_type):
 
 
 def run_benchmark():
-    value, value_type = to_database(build_sizeable_map())
+    value, value_type = to_database(build_even_map())
     with DatabaseMapping("sqlite://", create=True) as db_map:
         db_map.add_entity_class_item(name="Object")
         db_map.add_parameter_definition_item(
@@ -32,7 +32,7 @@ def run_benchmark():
         )
         runner = pyperf.Runner()
         benchmark = runner.bench_time_func(
-            "update_parameter_definition_item[Map,Map]", update_default_value, db_map, value, value_type, inner_loops=10
+            "update_parameter_definition_item[Map,Map]", update_default_value, db_map, value, value_type
         )
     pyperf.add_runs(run_file_name(), benchmark)
 
