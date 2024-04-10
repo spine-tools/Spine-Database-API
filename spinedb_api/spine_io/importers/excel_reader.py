@@ -241,19 +241,16 @@ def _get_header(ws, header_row, index_dim_count):
 
 def _create_entity_mappings(metadata, header, index_dim_count):
     class_name = metadata["class_name"]
-    entity_type = metadata["entity_type"]
+    entity_dim_count = int(metadata["entity_dim_count"])
     map_dict = {"name": class_name}
     ent_alt_map_type = "row" if index_dim_count else "column"
-    if entity_type == "object":
+    if entity_dim_count == 0:
         map_dict["map_type"] = "ObjectClass"
         map_dict["objects"] = {"map_type": ent_alt_map_type, "reference": 0}
-    elif entity_type == "relationship":
-        entity_dim_count = int(metadata["entity_dim_count"])
+    else:
         map_dict["map_type"] = "RelationshipClass"
         map_dict["object_classes"] = header[:entity_dim_count]
         map_dict["objects"] = [{"map_type": ent_alt_map_type, "reference": i} for i in range(entity_dim_count)]
-    else:
-        return None, None
     value_type = metadata.get("value_type")
     if value_type is not None:
         value = {"value_type": value_type}
