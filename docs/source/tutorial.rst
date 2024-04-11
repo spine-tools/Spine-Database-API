@@ -25,7 +25,7 @@ To create a :class:`.DatabaseMapping`, we just pass the URL of the DB to the cla
     import spinedb_api as api
     from spinedb_api import DatabaseMapping
 
-    url = "mysql://spine_db"  # The URL of an existing Spine DB
+    url = "mysql+pymysql://spine_db"  # The URL of an existing Spine DB
 
     with DatabaseMapping(url) as db_map:
         # Do something with db_map
@@ -55,7 +55,8 @@ We can remediate this by creating a SQLite DB (which is just a file in your syst
 
 The above will create a file called ``first.sqlite`` in your current working directoy.
 Note that we pass the keyword argument ``create=True`` to :class:`.DatabaseMapping` to explicitly say
-that we want the DB to be created at the given URL.
+that we want the DB to be created at the given URL
+if it does not exists already.
 
 .. note::
 
@@ -151,9 +152,9 @@ Now let's retrieve our parameter value::
         alternative_name="Base"
     )
 
-We use :func:`.from_database` to convert the value and type from the parameter value into our original value::
+We can use the ``"parsed_value"`` field to access our original value::
 
-    nemo_color = api.from_database(nemo_color_item["value"], nemo_color_item["type"])
+    nemo_color = nemo_color_item["parsed_value"]
     assert nemo_color == "mainly orange"
 
 To retrieve all the items of a given type, we use :meth:`~.DatabaseMapping.get_items`::

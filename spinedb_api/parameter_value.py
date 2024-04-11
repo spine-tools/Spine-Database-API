@@ -40,7 +40,7 @@ For example, to write a Python object into a parameter value in the DB::
 
     # Create the Python object
     parsed_value = TimeSeriesFixedResolution(
-        datetime("2023-01-01T00:00"),   # start
+        "2023-01-01T00:00",             # start
         "1D",                           # resolution
         [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], # values
         ignore_year=False,
@@ -60,7 +60,7 @@ For example, to write a Python object into a parameter value in the DB::
         )
         db_map.commit_session("Tom is living one day at a time")
 
-Similarly, to read a parameter value from the DB into a Python object::
+The value can be accessed as a Python object using the ``parsed_value`` field::
 
     # Get the parameter_value from the DB
     with DatabaseMapping(url) as db_map:
@@ -70,11 +70,15 @@ Similarly, to read a parameter value from the DB into a Python object::
             parameter_definition_name="number_of_lives",
             alternative_name="Base",
         )
+    value = pval_item["parsed_value"]
+
+In the rare case where a manual conversion from a DB value to Python object is needed,
+use :func:`.from_database`::
+
     # Obtain value and type
     value, type_ = pval_item["value"], pval_item["type"]
-    # Translate value and type to a Python object
+    # Translate value and type to a Python object manually
     parsed_value = from_database(value, type_)
-
 """
 
 from collections.abc import Sequence
