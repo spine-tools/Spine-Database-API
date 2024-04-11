@@ -20,7 +20,7 @@ def build_datetimes(count: int) -> Sequence[DateTime]:
         datetimes.append(DateTime(datetime.datetime(year, month, day, hour)))
         hour += 1
         if hour == 24:
-            hour = 1
+            hour = 0
             day += 1
             if day == 29:
                 day = 1
@@ -43,8 +43,8 @@ def value_from_database(loops: int, db_values_and_types: Sequence[Tuple[Any, str
 
 def run_benchmark():
     file_name = run_file_name()
-    runner = pyperf.Runner()
-    inner_loops = 100
+    runner = pyperf.Runner(loops=10)
+    inner_loops = 1000
     db_values_and_types = [to_database(x) for x in build_datetimes(inner_loops)]
     benchmark = runner.bench_time_func(
         "from_database[DateTime]", value_from_database, db_values_and_types, inner_loops=inner_loops
