@@ -19,7 +19,7 @@ import socket
 from sqlalchemy.engine.url import URL
 from .server_client_helpers import ReceiveAllMixing, encode, decode
 
-client_version = 6
+client_version = 7
 
 
 class SpineDBClient(ReceiveAllMixing):
