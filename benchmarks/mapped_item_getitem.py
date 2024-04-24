@@ -7,7 +7,6 @@ import time
 from typing import Dict
 from spinedb_api import DatabaseMapping
 from spinedb_api.db_mapping_base import PublicItem
-from benchmarks.utils import run_file_name
 
 
 def use_subscript_operator(loops: int, items: PublicItem, field: Dict):
@@ -20,7 +19,7 @@ def use_subscript_operator(loops: int, items: PublicItem, field: Dict):
     return duration
 
 
-def run_benchmark():
+def run_benchmark(file_name):
     runner = pyperf.Runner()
     inner_loops = 1000
     object_class_names = [str(i) for i in range(inner_loops)]
@@ -52,11 +51,11 @@ def run_benchmark():
             inner_loops=inner_loops,
         ),
     ]
-    file_name = run_file_name()
-    for benchmark in benchmarks:
-        if benchmark is not None:
-            pyperf.add_runs(file_name, benchmark)
+    if file_name:
+        for benchmark in benchmarks:
+            if benchmark is not None:
+                pyperf.add_runs(file_name, benchmark)
 
 
 if __name__ == "__main__":
-    run_benchmark()
+    run_benchmark("")

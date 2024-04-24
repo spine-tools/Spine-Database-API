@@ -1,7 +1,7 @@
 import datetime
 import math
 from typing import Sequence
-from spinedb_api import __version__, DateTime, Map
+from spinedb_api import DateTime, Map
 
 
 def build_map(size: int) -> Map:
@@ -27,7 +27,3 @@ def build_even_map(shape: Sequence[int] = (10, 10, 10)) -> Map:
         xs.append(DateTime(start + datetime.timedelta(hours=i)))
         ys.append(build_even_map(shape[1:]))
     return Map(xs, ys)
-
-
-def run_file_name() -> str:
-    return f"benchmark-{__version__}.json"

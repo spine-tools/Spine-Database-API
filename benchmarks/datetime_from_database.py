@@ -7,7 +7,6 @@ import time
 from typing import Any, Sequence, Tuple
 import pyperf
 from spinedb_api import DateTime, from_database, to_database
-from benchmarks.utils import run_file_name
 
 
 def build_datetimes(count: int) -> Sequence[DateTime]:
@@ -41,16 +40,16 @@ def value_from_database(loops: int, db_values_and_types: Sequence[Tuple[Any, str
     return duration
 
 
-def run_benchmark():
-    file_name = run_file_name()
+def run_benchmark(file_name):
     runner = pyperf.Runner(loops=10)
     inner_loops = 1000
     db_values_and_types = [to_database(x) for x in build_datetimes(inner_loops)]
     benchmark = runner.bench_time_func(
         "from_database[DateTime]", value_from_database, db_values_and_types, inner_loops=inner_loops
     )
-    pyperf.add_runs(file_name, benchmark)
+    if file_name:
+        pyperf.add_runs(file_name, benchmark)
 
 
 if __name__ == "__main__":
-    run_benchmark()
+    run_benchmark("")

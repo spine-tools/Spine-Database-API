@@ -5,7 +5,7 @@ This benchmark tests the performance of reading a Map type value from database.
 import time
 import pyperf
 from spinedb_api import from_database, to_database
-from benchmarks.utils import build_even_map, run_file_name
+from benchmarks.utils import build_even_map
 
 
 def value_from_database(loops, db_value, value_type):
@@ -17,8 +17,7 @@ def value_from_database(loops, db_value, value_type):
     return duration
 
 
-def run_benchmark():
-    file_name = run_file_name()
+def run_benchmark(file_name):
     runner = pyperf.Runner(loops=3)
     runs = {
         "value_from_database[Map(10, 10, 100)]": {"dimensions": (10, 10, 100)},
@@ -32,9 +31,9 @@ def run_benchmark():
             db_value,
             value_type,
         )
-        if benchmark is not None:
+        if file_name and benchmark is not None:
             pyperf.add_runs(file_name, benchmark)
 
 
 if __name__ == "__main__":
-    run_benchmark()
+    run_benchmark("")

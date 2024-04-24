@@ -6,7 +6,7 @@ the update changes the default value from None to a somewhat complex Map.
 import time
 import pyperf
 from spinedb_api import DatabaseMapping, to_database
-from benchmarks.utils import build_even_map, run_file_name
+from benchmarks.utils import build_even_map
 
 
 def update_default_value(loops, db_map, first_db_value, first_value_type, second_db_value, second_value_type):
@@ -27,7 +27,7 @@ def update_default_value(loops, db_map, first_db_value, first_value_type, second
     return total_time
 
 
-def run_benchmark():
+def run_benchmark(file_name: str):
     first_value, first_type = to_database(None)
     second_value, second_type = to_database(build_even_map())
     with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -45,8 +45,8 @@ def run_benchmark():
             second_value,
             second_type,
         )
-    pyperf.add_runs(run_file_name(), benchmark)
+    pyperf.add_runs(file_name, benchmark)
 
 
 if __name__ == "__main__":
-    run_benchmark()
+    run_benchmark("")
