@@ -36,21 +36,19 @@ To install the latest development version use the Git repository url:
 ## Building the documentation
 
 Source files for the documentation can be found in `docs/source` directory. In order to 
-build the HTML docs, you need to install the additional documentation building requirements
+build the HTML docs, you need to install the developer dependencies
 by running:
 
-    $ pip install -r dev-requirements.txt 
+    $ pip install -r dev-requirements.txt
 
 This installs Sphinx (among other things), which is required in building the documentation.
 When Sphinx is installed, you can build the HTML pages from the source files by running:
 
-    > docs\make.bat html
+    > bin\build_doc.bat
     
 or
 
-    $ pushd docs
-    $ make html
-    $ popd
+    $ bin/build_doc.py
     
 depending on your operating system.        
  
