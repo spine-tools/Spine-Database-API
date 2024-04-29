@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -16,8 +17,10 @@ Contains DataPackageConnector class.
 import threading
 from itertools import chain
 
+import tabulator.exceptions
 from datapackage import Package
 from .reader import SourceConnection
+from ...exception import ConnectorError
 
 
 class DataPackageConnector(SourceConnection):
@@ -97,16 +100,21 @@ class DataPackageConnector(SourceConnection):
         if not self._datapackage:
             return iter([]), []
 
+        def iterator(r):
+            try:
+                yield from (item for row, item in enumerate(r.iter(cast=False)) if row != max_rows)
+            except tabulator.exceptions.TabulatorException as error:
+                raise ConnectorError(str(error)) from error
+
         has_header = options.get("has_header", True)
         for resource in self._datapackage.resources:
             with self._resource_name_lock:
                 if resource.name is None:
                     resource.infer()
             if table == resource.name:
-                iterator = (item for row, item in enumerate(resource.iter(cast=False)) if row != max_rows)
                 if has_header:
                     header = resource.schema.field_names
-                    return iterator, header
-                return chain([resource.headers], iterator), None
+                    return iterator(resource), header
+                return chain([resource.headers], iterator(resource)), None
         # table not found
         return iter([]), []

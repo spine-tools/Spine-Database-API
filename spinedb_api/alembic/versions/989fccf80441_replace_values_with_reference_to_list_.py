@@ -9,18 +9,14 @@ from alembic import op
 from sqlalchemy import MetaData
 from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.orm import sessionmaker
-from spinedb_api.check_functions import (
-    replace_default_values_with_list_references,
-    replace_parameter_values_with_list_references,
-)
-from spinedb_api.parameter_value import from_database
+from spinedb_api.parameter_value import dump_db_value, from_database, ParameterValueFormatError
 from spinedb_api.helpers import group_concat
 from spinedb_api.exception import SpineIntegrityError
 
 
 # revision identifiers, used by Alembic.
-revision = '989fccf80441'
-down_revision = '0c7d199ae915'
+revision = "989fccf80441"
+down_revision = "0c7d199ae915"
 branch_labels = None
 depends_on = None
 
@@ -71,3 +67,51 @@ def upgrade():
 
 def downgrade():
     pass
+
+
+def replace_default_values_with_list_references(item, parameter_value_lists, list_values):
+    parameter_value_list_id = item.get("parameter_value_list_id")
+    return _replace_values_with_list_references(
+        "parameter_definition", item, parameter_value_list_id, parameter_value_lists, list_values
+    )
+
+
+def replace_parameter_values_with_list_references(item, parameter_definitions, parameter_value_lists, list_values):
+    parameter_definition_id = item["parameter_definition_id"]
+    parameter_definition = parameter_definitions[parameter_definition_id]
+    parameter_value_list_id = parameter_definition["parameter_value_list_id"]
+    return _replace_values_with_list_references(
+        "parameter_value", item, parameter_value_list_id, parameter_value_lists, list_values
+    )
+
+
+def _replace_values_with_list_references(item_type, item, parameter_value_list_id, parameter_value_lists, list_values):
+    if parameter_value_list_id is None:
+        return False
+    if parameter_value_list_id not in parameter_value_lists:
+        raise SpineIntegrityError("Parameter value list not found.")
+    value_id_list = parameter_value_lists[parameter_value_list_id]
+    if value_id_list is None:
+        raise SpineIntegrityError("Parameter value list is empty!")
+    value_key, type_key = {
+        "parameter_value": ("value", "type"),
+        "parameter_definition": ("default_value", "default_type"),
+    }[item_type]
+    value = dict.get(item, value_key)
+    value_type = dict.get(item, type_key)
+    try:
+        parsed_value = from_database(value, value_type)
+    except ParameterValueFormatError as err:
+        raise SpineIntegrityError(f"Invalid {value_key} '{value}': {err}") from None
+    if parsed_value is None:
+        return False
+    list_value_id = next((id_ for id_ in value_id_list if list_values.get(id_) == parsed_value), None)
+    if list_value_id is None:
+        valid_values = ", ".join(f"{dump_db_value(list_values.get(id_))[0].decode('utf8')!r}" for id_ in value_id_list)
+        raise SpineIntegrityError(
+            f"Invalid {value_key} '{parsed_value}' - it should be one from the parameter value list: {valid_values}."
+        )
+    item[value_key] = str(list_value_id).encode("UTF8")
+    item[type_key] = "list_value_ref"
+    item["list_value_id"] = list_value_id
+    return True

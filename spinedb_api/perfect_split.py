@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Toolbox is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -10,8 +11,7 @@
 ######################################################################################################################
 
 """
-Functions for the perfect db split.
-
+This module provides the :func:`perfect_split` function.
 """
 from .db_mapping import DatabaseMapping
 from .export_functions import export_data
@@ -19,12 +19,12 @@ from .import_functions import import_data
 
 
 def perfect_split(input_urls, intersection_url, diff_urls):
-    """Splits dbs into disjoint subsets.
+    """Splits DBs into disjoint subsets.
 
     Args:
-        input_urls (list(str)): List of urls to split
-        intersection_url (str): A url to store the data common to all input urls
-        diff_urls (list(str)): List of urls to store the differences of each input with respect to the intersection.
+        input_urls (list(str)): List of urls of DBs to split.
+        intersection_url (str): The url of a DB to store the data common to all input DBs (i.e., their intersection).
+        diff_urls (list(str)): List of urls of DBs to store the differences between each input and the intersection.
     """
     diff_url_lookup = dict(zip(input_urls, diff_urls))
     input_data_sets = {}
@@ -33,7 +33,7 @@ def perfect_split(input_urls, intersection_url, diff_urls):
         input_db_map = DatabaseMapping(input_url)
         input_data_sets[input_url] = export_data(input_db_map)
         db_names[input_url] = input_db_map.codename
-        input_db_map.connection.close()
+        input_db_map.close()
     intersection_data = {}
     input_data_set_iter = iter(input_data_sets)
     left_url = next(iter(input_data_set_iter))
@@ -55,7 +55,7 @@ def perfect_split(input_urls, intersection_url, diff_urls):
     if intersection_data:
         db_map_intersection = DatabaseMapping(intersection_url)
         import_data(db_map_intersection, **intersection_data)
-        all_db_names = ', '.join(db_names.values())
+        all_db_names = ", ".join(db_names.values())
         db_map_intersection.commit_session(f"Add intersection of {all_db_names}")
         db_map_intersection.connection.close()
     lookup = _make_lookup(intersection_data)
@@ -65,9 +65,9 @@ def perfect_split(input_urls, intersection_url, diff_urls):
         _add_references(diff_data, lookup)
         import_data(diff_db_map, **diff_data)
         db_name = db_names[input_url]
-        other_db_names = ', '.join([name for url, name in db_names.items() if url != input_url])
+        other_db_names = ", ".join([name for url, name in db_names.items() if url != input_url])
         diff_db_map.commit_session(f"Add differences between {db_name} and {other_db_names}")
-        diff_db_map.connection.close()
+        diff_db_map.close()
 
 
 def _make_lookup(data):

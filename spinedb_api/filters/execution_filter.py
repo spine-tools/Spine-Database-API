@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -28,7 +29,7 @@ def apply_execution_filter(db_map, execution):
     Replaces the import alternative in ``db_map`` with a dedicated alternative for an execution.
 
     Args:
-        db_map (DatabaseMappingBase): a database map to alter
+        db_map (DatabaseMapping): a database map to alter
         execution (dict): execution descriptor
     """
     state = _ExecutionFilterState(db_map, execution)
@@ -54,7 +55,7 @@ def execution_filter_from_dict(db_map, config):
     Applies execution filter to given database map.
 
     Args:
-        db_map (DatabaseMappingBase): target database map
+        db_map (DatabaseMapping): target database map
         config (dict): execution filter configuration
     """
     apply_execution_filter(db_map, config["execution"])
@@ -116,21 +117,24 @@ class _ExecutionFilterState:
     def __init__(self, db_map, execution):
         """
         Args:
-            db_map (DatabaseMappingBase): database the state applies to
+            db_map (DatabaseMapping): database the state applies to
             execution (dict): execution descriptor
         """
         self.original_create_import_alternative = db_map._create_import_alternative
         self.execution_item, self.scenarios, self.timestamp = self._parse_execution_descriptor(execution)
 
-    def _parse_execution_descriptor(self, execution):
-        """Raises ``SpineDBAPIError`` if descriptor not good.
+    @staticmethod
+    def _parse_execution_descriptor(execution):
+        """Parses data from execution descriptor.
 
         Args:
             execution (dict): execution descriptor
 
         Returns:
-            str: the execution item
-            list: scenarios
+            tuple: execution item name, list of scenario names, timestamp string
+
+        Raises:
+            SpineDBAPIError: raised when execution descriptor is invalid
         """
         try:
             execution_item = execution["execution_item"]
@@ -143,12 +147,12 @@ class _ExecutionFilterState:
         return execution_item, scenarios, timestamp
 
 
-def _create_import_alternative(db_map, state, cache=None):
+def _create_import_alternative(db_map, state):
     """
     Creates an alternative to use as default for all import operations on the given db_map.
 
     Args:
-        db_map (DatabaseMappingBase): database the state applies to
+        db_map (DatabaseMapping): database the state applies to
         state (_ExecutionFilterState): a state bound to ``db_map``
     """
     execution_item = state.execution_item
@@ -156,17 +160,12 @@ def _create_import_alternative(db_map, state, cache=None):
     timestamp = state.timestamp
     sep = "__" if scenarios else ""
     db_map._import_alternative_name = f"{'_'.join(scenarios)}{sep}{execution_item}@{timestamp}"
-    alt_ids, _ = db_map.add_alternatives({"name": db_map._import_alternative_name}, return_dups=True)
-    db_map._import_alternative_id = next(iter(alt_ids))
-    scenarios = [{"name": scenario} for scenario in scenarios]
-    scen_ids, _ = db_map.add_scenarios(*scenarios, return_dups=True)
-    for scen_id in scen_ids:
-        max_rank = (
-            db_map.query(func.max(db_map.scenario_alternative_sq.c.rank))
-            .filter(db_map.scenario_alternative_sq.c.scenario_id == scen_id)
-            .scalar()
-        )
-        rank = max_rank + 1 if max_rank else 1
-        db_map.add_scenario_alternatives(
-            {"scenario_id": scen_id, "alternative_id": db_map._import_alternative_id, "rank": rank}
+    db_map.add_item("alternative", name=db_map._import_alternative_name)
+    for scen_name in scenarios:
+        db_map.add_item("scenario", name=scen_name)
+    for scen_name in scenarios:
+        scen = db_map.get_item("scenario", name=scen_name)
+        rank = len(scen["sorted_scenario_alternatives"]) + 1  # ranks are 1-based
+        db_map.add_item(
+            "scenario_alternative", scenario_name=scen_name, alternative_name=db_map._import_alternative_name, rank=rank
         )

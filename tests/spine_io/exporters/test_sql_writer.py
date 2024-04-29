@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -27,12 +28,12 @@ from spinedb_api import (
     import_object_parameter_values,
 )
 from spinedb_api.mapping import Position, unflatten
-from spinedb_api.export_mapping import object_export
+from spinedb_api.export_mapping import entity_export
 from spinedb_api.export_mapping.export_mapping import (
     AlternativeMapping,
     FixedValueMapping,
-    ObjectClassMapping,
-    ObjectMapping,
+    EntityClassMapping,
+    EntityMapping,
     ParameterDefinitionMapping,
     ParameterValueMapping,
 )
@@ -53,7 +54,7 @@ class TestSqlWriter(unittest.TestCase):
         out_path = Path(self._temp_dir.name, "out.sqlite")
         writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, settings)
-        db_map.connection.close()
+        db_map.close()
         self.assertTrue(out_path.exists())
 
     def test_write_header_only(self):
@@ -63,14 +64,14 @@ class TestSqlWriter(unittest.TestCase):
         root_mapping = unflatten(
             [
                 FixedValueMapping(Position.table_name, "table 1"),
-                ObjectClassMapping(0, header="classes"),
-                ObjectMapping(1, header="objects"),
+                EntityClassMapping(0, header="classes"),
+                EntityMapping(1, header="objects"),
             ]
         )
         out_path = Path(self._temp_dir.name, "out.sqlite")
         writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, root_mapping)
-        db_map.connection.close()
+        db_map.close()
         self.assertTrue(out_path.exists())
         engine = create_engine("sqlite:///" + str(out_path))
         connection = engine.connect()
@@ -95,14 +96,14 @@ class TestSqlWriter(unittest.TestCase):
         root_mapping = unflatten(
             [
                 FixedValueMapping(Position.table_name, "table 1"),
-                ObjectClassMapping(0, header="classes"),
-                ObjectMapping(1, header="objects"),
+                EntityClassMapping(0, header="classes"),
+                EntityMapping(1, header="objects"),
             ]
         )
         out_path = Path(self._temp_dir.name, "out.sqlite")
         writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, root_mapping)
-        db_map.connection.close()
+        db_map.close()
         self.assertTrue(out_path.exists())
         engine = create_engine("sqlite:///" + str(out_path))
         connection = engine.connect()
@@ -131,8 +132,8 @@ class TestSqlWriter(unittest.TestCase):
         root_mapping = unflatten(
             [
                 FixedValueMapping(Position.table_name, "table 1"),
-                ObjectClassMapping(0, header="classes"),
-                ObjectMapping(1, header="objects"),
+                EntityClassMapping(0, header="classes"),
+                EntityMapping(1, header="objects"),
                 ParameterDefinitionMapping(2, header="parameters"),
                 AlternativeMapping(Position.hidden),
                 ParameterValueMapping(3, header="values"),
@@ -141,7 +142,7 @@ class TestSqlWriter(unittest.TestCase):
         out_path = Path(self._temp_dir.name, "out.sqlite")
         writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, root_mapping)
-        db_map.connection.close()
+        db_map.close()
         self.assertTrue(out_path.exists())
         engine = create_engine("sqlite:///" + str(out_path))
         connection = engine.connect()
@@ -171,8 +172,8 @@ class TestSqlWriter(unittest.TestCase):
         root_mapping = unflatten(
             [
                 FixedValueMapping(Position.table_name, "table 1"),
-                ObjectClassMapping(0, header="classes"),
-                ObjectMapping(1, header="objects"),
+                EntityClassMapping(0, header="classes"),
+                EntityMapping(1, header="objects"),
                 ParameterDefinitionMapping(2, header="parameters"),
                 AlternativeMapping(Position.hidden),
                 ParameterValueMapping(3, header="values"),
@@ -181,7 +182,7 @@ class TestSqlWriter(unittest.TestCase):
         out_path = Path(self._temp_dir.name, "out.sqlite")
         writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, root_mapping)
-        db_map.connection.close()
+        db_map.close()
         self.assertTrue(out_path.exists())
         engine = create_engine("sqlite:///" + str(out_path))
         connection = engine.connect()
@@ -206,17 +207,17 @@ class TestSqlWriter(unittest.TestCase):
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"), ("oc", "q1")))
         db_map.commit_session("Add test data.")
-        root_mapping1 = object_export(Position.table_name, 0)
+        root_mapping1 = entity_export(Position.table_name, 0)
         root_mapping1.child.header = "objects"
         root_mapping1.child.filter_re = "o1"
-        root_mapping2 = object_export(Position.table_name, 0)
+        root_mapping2 = entity_export(Position.table_name, 0)
         root_mapping2.child.header = "objects"
         root_mapping2.child.filter_re = "q1"
         out_path = Path(self._temp_dir.name, "out.sqlite")
         writer = SqlWriter(str(out_path), overwrite_existing=True)
         write(db_map, writer, root_mapping1)
         write(db_map, writer, root_mapping2)
-        db_map.connection.close()
+        db_map.close()
         self.assertTrue(out_path.exists())
         engine = create_engine("sqlite:///" + str(out_path))
         connection = engine.connect()
@@ -252,11 +253,11 @@ class TestSqlWriter(unittest.TestCase):
             out_connection.execute(object_table.insert(), objects="initial_object")
         finally:
             out_connection.close()
-        root_mapping = object_export(Position.table_name, 0)
+        root_mapping = entity_export(Position.table_name, 0)
         root_mapping.child.header = "objects"
         writer = SqlWriter(str(out_path), overwrite_existing=False)
         write(db_map, writer, root_mapping)
-        db_map.connection.close()
+        db_map.close()
         self.assertTrue(out_path.exists())
         engine = create_engine("sqlite:///" + str(out_path))
         connection = engine.connect()

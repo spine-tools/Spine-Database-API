@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -9,13 +10,11 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Type conversion functions.
-
-"""
+""" Type conversion functions. """
 
 import re
-from distutils.util import strtobool
+
+from spinedb_api.helpers import string_to_bool
 from spinedb_api.parameter_value import DateTime, Duration, ParameterValueFormatError
 
 
@@ -80,7 +79,7 @@ class BooleanConvertSpec(ConvertSpec):
     RETURN_TYPE = bool
 
     def __call__(self, value):
-        return self.RETURN_TYPE(strtobool(str(value)))
+        return self.RETURN_TYPE(string_to_bool(str(value)))
 
 
 class IntegerSequenceDateTimeConvertSpec(ConvertSpec):

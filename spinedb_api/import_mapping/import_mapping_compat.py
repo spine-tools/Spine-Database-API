@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -9,20 +10,14 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Functions for creating import mappings from dicts.
-
-"""
+""" Functions for creating import mappings from dicts. """
 from .import_mapping import (
     Position,
-    ObjectClassMapping,
-    RelationshipClassMapping,
-    RelationshipClassObjectClassMapping,
-    ObjectMapping,
-    ObjectMetadataMapping,
-    RelationshipMapping,
-    RelationshipObjectMapping,
-    RelationshipMetadataMapping,
+    EntityClassMapping,
+    DimensionMapping,
+    EntityMapping,
+    EntityMetadataMapping,
+    ElementMapping,
     ParameterDefinitionMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueTypeMapping,
@@ -38,16 +33,7 @@ from .import_mapping import (
     ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
     ScenarioBeforeAlternativeMapping,
-    ToolMapping,
-    FeatureEntityClassMapping,
-    FeatureParameterDefinitionMapping,
-    ToolFeatureEntityClassMapping,
-    ToolFeatureParameterDefinitionMapping,
-    ToolFeatureRequiredFlagMapping,
-    ToolFeatureMethodEntityClassMapping,
-    ToolFeatureMethodParameterDefinitionMapping,
-    ToolFeatureMethodMethodMapping,
-    ObjectGroupMapping,
+    EntityGroupMapping,
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     from_dict as mapping_from_dict,
@@ -87,17 +73,17 @@ def import_mapping_from_dict(map_dict):
         "Alternative": _alternative_mapping_from_dict,
         "Scenario": _scenario_mapping_from_dict,
         "ScenarioAlternative": _scenario_alternative_mapping_from_dict,
-        "Tool": _tool_mapping_from_dict,
-        "Feature": _feature_mapping_from_dict,
-        "ToolFeature": _tool_feature_mapping_from_dict,
-        "ToolFeatureMethod": _tool_feature_method_mapping_from_dict,
         "ObjectGroup": _object_group_mapping_from_dict,
         "ParameterValueList": _parameter_value_list_mapping_from_dict,
     }
     from_dict = legacy_mapping_from_dict.get(map_type)
     if from_dict is not None:
         return from_dict(map_dict)
-    raise ValueError(f'invalid "map_type" value, expected any of {", ".join(legacy_mapping_from_dict)}, got {map_type}')
+    obsolete_types = ("Tool", "Feature", "ToolFeature", "ToolFeatureMethod")
+    invalid = "obsolete" if map_type in obsolete_types else "unknown"
+    raise ValueError(
+        f'{invalid} "map_type" value, expected any of {", ".join(legacy_mapping_from_dict)}, got {map_type}'
+    )
 
 
 def _parameter_value_list_mapping_from_dict(map_dict):
@@ -144,58 +130,6 @@ def _scenario_alternative_mapping_from_dict(map_dict):
     return root_mapping
 
 
-def _tool_mapping_from_dict(map_dict):
-    name = map_dict.get("name")
-    skip_columns = map_dict.get("skip_columns", [])
-    read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = ToolMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    return root_mapping
-
-
-def _feature_mapping_from_dict(map_dict):
-    entity_class_name = map_dict.get("entity_class_name")
-    parameter_definition_name = map_dict.get("parameter_definition_name")
-    skip_columns = map_dict.get("skip_columns", [])
-    read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = FeatureEntityClassMapping(
-        *_pos_and_val(entity_class_name), skip_columns=skip_columns, read_start_row=read_start_row
-    )
-    root_mapping.child = FeatureParameterDefinitionMapping(*_pos_and_val(parameter_definition_name))
-    return root_mapping
-
-
-def _tool_feature_mapping_from_dict(map_dict):
-    name = map_dict.get("name")
-    entity_class_name = map_dict.get("entity_class_name")
-    parameter_definition_name = map_dict.get("parameter_definition_name")
-    required = map_dict.get("required", "false")
-    skip_columns = map_dict.get("skip_columns", [])
-    read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = ToolMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    root_mapping.child = ent_class_mapping = ToolFeatureEntityClassMapping(*_pos_and_val(entity_class_name))
-    ent_class_mapping.child = param_def_mapping = ToolFeatureParameterDefinitionMapping(
-        *_pos_and_val(parameter_definition_name)
-    )
-    param_def_mapping.child = ToolFeatureRequiredFlagMapping(*_pos_and_val(required))
-    return root_mapping
-
-
-def _tool_feature_method_mapping_from_dict(map_dict):
-    name = map_dict.get("name")
-    entity_class_name = map_dict.get("entity_class_name")
-    parameter_definition_name = map_dict.get("parameter_definition_name")
-    method = map_dict.get("method")
-    skip_columns = map_dict.get("skip_columns", [])
-    read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = ToolMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    root_mapping.child = ent_class_mapping = ToolFeatureMethodEntityClassMapping(*_pos_and_val(entity_class_name))
-    ent_class_mapping.child = param_def_mapping = ToolFeatureMethodParameterDefinitionMapping(
-        *_pos_and_val(parameter_definition_name)
-    )
-    param_def_mapping.child = ToolFeatureMethodMethodMapping(*_pos_and_val(method))
-    return root_mapping
-
-
 def _object_class_mapping_from_dict(map_dict):
     name = map_dict.get("name")
     objects = map_dict.get("objects", map_dict.get("object"))
@@ -203,9 +137,9 @@ def _object_class_mapping_from_dict(map_dict):
     parameters = map_dict.get("parameters")
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = ObjectClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    object_mapping = root_mapping.child = ObjectMapping(*_pos_and_val(objects))
-    object_metadata_mapping = object_mapping.child = ObjectMetadataMapping(*_pos_and_val(object_metadata))
+    root_mapping = EntityClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
+    object_mapping = root_mapping.child = EntityMapping(*_pos_and_val(objects))
+    object_metadata_mapping = object_mapping.child = EntityMetadataMapping(*_pos_and_val(object_metadata))
     object_metadata_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
 
@@ -214,12 +148,12 @@ def _object_group_mapping_from_dict(map_dict):
     name = map_dict.get("name")
     groups = map_dict.get("groups")
     members = map_dict.get("members")
-    import_objects = map_dict.get("import_objects", False)
+    import_entities = map_dict.get("import_objects", False)
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = ObjectClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    object_mapping = root_mapping.child = ObjectMapping(*_pos_and_val(groups))
-    object_mapping.child = ObjectGroupMapping(*_pos_and_val(members), import_objects=import_objects)
+    root_mapping = EntityClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
+    object_mapping = root_mapping.child = EntityMapping(*_pos_and_val(groups))
+    object_mapping.child = EntityGroupMapping(*_pos_and_val(members), import_entities=import_entities)
     return root_mapping
 
 
@@ -233,26 +167,22 @@ def _relationship_class_mapping_from_dict(map_dict):
         object_classes = [None]
     relationship_metadata = map_dict.get("relationship_metadata")
     parameters = map_dict.get("parameters")
-    import_objects = map_dict.get("import_objects", False)
+    import_entities = map_dict.get("import_objects", False)
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
-    root_mapping = RelationshipClassMapping(
-        *_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row
-    )
+    root_mapping = EntityClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
     parent_mapping = root_mapping
     for klass in object_classes:
-        class_mapping = RelationshipClassObjectClassMapping(*_pos_and_val(klass))
+        class_mapping = DimensionMapping(*_pos_and_val(klass))
         parent_mapping.child = class_mapping
         parent_mapping = class_mapping
-    relationship_mapping = parent_mapping.child = RelationshipMapping(Position.hidden, value="relationship")
+    relationship_mapping = parent_mapping.child = EntityMapping(Position.hidden)
     parent_mapping = relationship_mapping
     for obj in objects:
-        object_mapping = RelationshipObjectMapping(*_pos_and_val(obj), import_objects=import_objects)
+        object_mapping = ElementMapping(*_pos_and_val(obj), import_entities=import_entities)
         parent_mapping.child = object_mapping
         parent_mapping = object_mapping
-    relationship_metadata_mapping = parent_mapping.child = RelationshipMetadataMapping(
-        *_pos_and_val(relationship_metadata)
-    )
+    relationship_metadata_mapping = parent_mapping.child = EntityMetadataMapping(*_pos_and_val(relationship_metadata))
     relationship_metadata_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
 

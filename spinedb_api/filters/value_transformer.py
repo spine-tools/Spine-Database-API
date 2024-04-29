@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -16,7 +17,7 @@ Provides a database query manipulator that applies mathematical transformations 
 from functools import partial
 from numbers import Number
 from sqlalchemy import case, literal, Integer, LargeBinary, String
-from sqlalchemy.sql.expression import label, select, cast, union_all
+from sqlalchemy.sql.expression import select, cast, union_all
 
 from ..exception import SpineDBAPIError
 from ..helpers import LONGTEXT_LENGTH
@@ -31,7 +32,7 @@ def apply_value_transform_to_parameter_value_sq(db_map, instructions):
     Applies renaming to parameter definition subquery.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         instructions (dict): mapping from entity class name to mapping from parameter name to list of
             instructions
     """
@@ -59,7 +60,7 @@ def value_transformer_from_dict(db_map, config):
     Applies value transformer manipulator to given database map.
 
     Args:
-        db_map (DatabaseMappingBase): target database map
+        db_map (DatabaseMapping): target database map
         config (dict): transformer configuration
     """
     apply_value_transform_to_parameter_value_sq(db_map, config["instructions"])
@@ -120,7 +121,7 @@ class _ValueTransformerState:
     def __init__(self, db_map, instructions):
         """
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             instructions (dict): mapping from entity class name to parameter name to list of instructions
         """
         self.original_parameter_value_sq = db_map.parameter_value_sq
@@ -131,7 +132,7 @@ class _ValueTransformerState:
         """Transforms applicable parameter values for caching.
 
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             instructions (dict): mapping from entity class name to parameter name to list of instructions
 
         Returns:
@@ -164,7 +165,7 @@ def _make_parameter_value_transforming_sq(db_map, state):
     Returns subquery which applies transformations to parameter values.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_ValueTransformerState): state
 
     Returns:
@@ -188,28 +189,12 @@ def _make_parameter_value_transforming_sq(db_map, state):
     temp_sq = union_all(*statements).alias("transformed_values")
     new_value = case([(temp_sq.c.transformed_value != None, temp_sq.c.transformed_value)], else_=subquery.c.value)
     new_type = case([(temp_sq.c.transformed_type != None, temp_sq.c.transformed_type)], else_=subquery.c.type)
-    object_class_case = case(
-        [(db_map.entity_class_sq.c.type_id == db_map.object_class_type, subquery.c.entity_class_id)], else_=None
-    )
-    rel_class_case = case(
-        [(db_map.entity_class_sq.c.type_id == db_map.relationship_class_type, subquery.c.entity_class_id)], else_=None
-    )
-    object_entity_case = case(
-        [(db_map.entity_sq.c.type_id == db_map.object_entity_type, subquery.c.entity_id)], else_=None
-    )
-    rel_entity_case = case(
-        [(db_map.entity_sq.c.type_id == db_map.relationship_entity_type, subquery.c.entity_id)], else_=None
-    )
     parameter_value_sq = (
         db_map.query(
             subquery.c.id.label("id"),
             subquery.c.parameter_definition_id,
             subquery.c.entity_class_id,
             subquery.c.entity_id,
-            label("object_class_id", object_class_case),
-            label("relationship_class_id", rel_class_case),
-            label("object_id", object_entity_case),
-            label("relationship_id", rel_entity_case),
             new_value.label("value"),
             new_type.label("type"),
             subquery.c.list_value_id,

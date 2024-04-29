@@ -3,6 +3,7 @@
 /.idea/
 /docs/build/
 /docs/source/autoapi/
+/docs/source/db_mapping_schema.rst
 
 # Setuptools distribution folder.
 /build/
@@ -16,3 +17,4 @@
 /htmlcov
 
 spinedb_api/version.py
+benchmarks/*.json

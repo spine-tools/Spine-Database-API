@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -16,9 +17,9 @@ import os.path
 from tempfile import TemporaryDirectory
 import unittest
 from openpyxl import load_workbook
-from spinedb_api import DiffDatabaseMapping, import_object_classes, import_objects
+from spinedb_api import DatabaseMapping, import_object_classes, import_objects
 from spinedb_api.mapping import Position
-from spinedb_api.export_mapping import object_export
+from spinedb_api.export_mapping import entity_export
 from spinedb_api.spine_io.exporters.writer import write
 from spinedb_api.spine_io.exporters.excel_writer import ExcelWriter
 
@@ -31,8 +32,8 @@ class TestExcelWriter(unittest.TestCase):
         self._temp_dir.cleanup()
 
     def test_write_empty_database(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
-        root_mapping = object_export(0, 1)
+        db_map = DatabaseMapping("sqlite://", create=True)
+        root_mapping = entity_export(0, 1)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping)
@@ -41,14 +42,14 @@ class TestExcelWriter(unittest.TestCase):
         sheet = workbook["Sheet1"]
         self.assertEqual(sheet.calculate_dimension(), "A1:A1")
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def test_write_single_object_class_and_object(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        root_mapping = object_export(0, 1)
+        root_mapping = entity_export(0, 1)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping)
@@ -57,14 +58,14 @@ class TestExcelWriter(unittest.TestCase):
         expected = [["oc", "o1"]]
         self.check_sheet(workbook, "Sheet1", expected)
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def test_write_to_existing_sheet(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("Sheet1",))
         import_objects(db_map, (("Sheet1", "o1"), ("Sheet1", "o2")))
         db_map.commit_session("Add test data.")
-        root_mapping = object_export(Position.table_name, 0)
+        root_mapping = entity_export(Position.table_name, 0)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping)
@@ -73,14 +74,14 @@ class TestExcelWriter(unittest.TestCase):
         expected = [["o1"], ["o2"]]
         self.check_sheet(workbook, "Sheet1", expected)
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def test_write_to_named_sheets(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", ("oc2")))
         import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21")))
         db_map.commit_session("Add test data.")
-        root_mapping = object_export(Position.table_name, 1)
+        root_mapping = entity_export(Position.table_name, 1)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping)
@@ -91,15 +92,15 @@ class TestExcelWriter(unittest.TestCase):
         expected = [[None, "o21"]]
         self.check_sheet(workbook, "oc2", expected)
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def test_append_to_anonymous_table(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        root_mapping1 = object_export(0, 1)
-        root_mapping2 = object_export(0, 1)
+        root_mapping1 = entity_export(0, 1)
+        root_mapping2 = entity_export(0, 1)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping1, root_mapping2)
@@ -108,15 +109,15 @@ class TestExcelWriter(unittest.TestCase):
         expected = [["oc", "o1"], ["oc", "o1"]]
         self.check_sheet(workbook, "Sheet1", expected)
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def test_append_to_named_table(self):
-        db_map = DiffDatabaseMapping("sqlite://", create=True)
+        db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_objects(db_map, (("oc", "o1"),))
         db_map.commit_session("Add test data.")
-        root_mapping1 = object_export(Position.table_name, 0)
-        root_mapping2 = object_export(Position.table_name, 0)
+        root_mapping1 = entity_export(Position.table_name, 0)
+        root_mapping2 = entity_export(Position.table_name, 0)
         path = os.path.join(self._temp_dir.name, "test.xlsx")
         writer = ExcelWriter(path)
         write(db_map, writer, root_mapping1, root_mapping2)
@@ -125,7 +126,7 @@ class TestExcelWriter(unittest.TestCase):
         expected = [["o1"], ["o1"]]
         self.check_sheet(workbook, "oc", expected)
         workbook.close()
-        db_map.connection.close()
+        db_map.close()
 
     def check_sheet(self, workbook, sheet_name, expected):
         """

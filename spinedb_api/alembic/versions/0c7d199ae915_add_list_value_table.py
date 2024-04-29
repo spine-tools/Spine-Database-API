@@ -12,8 +12,8 @@ from sqlalchemy.orm import sessionmaker
 from spinedb_api.helpers import LONGTEXT_LENGTH
 
 # revision identifiers, used by Alembic.
-revision = '0c7d199ae915'
-down_revision = '7d0b467f2f4e'
+revision = "0c7d199ae915"
+down_revision = "7d0b467f2f4e"
 branch_labels = None
 depends_on = None
 
@@ -36,14 +36,14 @@ def upgrade():
         with op.batch_alter_table("next_id") as batch_op:
             batch_op.add_column(sa.Column("list_value_id", sa.Integer, server_default=sa.null()))
     op.create_table(
-        'list_value',
-        sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('parameter_value_list_id', sa.Integer, sa.ForeignKey("parameter_value_list.id"), nullable=False),
-        sa.Column('index', sa.Integer, nullable=False),
-        sa.Column('type', sa.String(255)),
-        sa.Column('value', sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()),
-        sa.Column('commit_id', sa.Integer, sa.ForeignKey("commit.id")),
-        sa.UniqueConstraint('parameter_value_list_id', 'index'),
+        "list_value",
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("parameter_value_list_id", sa.Integer, sa.ForeignKey("parameter_value_list.id"), nullable=False),
+        sa.Column("index", sa.Integer, nullable=False),
+        sa.Column("type", sa.String(255)),
+        sa.Column("value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()),
+        sa.Column("commit_id", sa.Integer, sa.ForeignKey("commit.id")),
+        sa.UniqueConstraint("parameter_value_list_id", "index"),
     )
     # NOTE: At some point, by mistake, we modified ``helpers.create_new_spine_database`` by specifying a name for the fk
     # that refers parameter_value_list in tool_feature_method. But since this was just a mistake, we didn't provide a
@@ -55,22 +55,22 @@ def upgrade():
         x["name"]
         for x in sa.inspect(conn).get_foreign_keys("tool_feature_method")
         if x["referred_table"] == "parameter_value_list"
-        and x["referred_columns"] == ['id', 'value_index']
-        and x["constrained_columns"] == ['parameter_value_list_id', 'method_index']
+        and x["referred_columns"] == ["id", "value_index"]
+        and x["constrained_columns"] == ["parameter_value_list_id", "method_index"]
     )
     with op.batch_alter_table("tool_feature_method") as batch_op:
-        batch_op.drop_constraint(fk_name, type_='foreignkey')
+        batch_op.drop_constraint(fk_name, type_="foreignkey")
     with op.batch_alter_table("parameter_value_list") as batch_op:
-        batch_op.drop_column('value_index')
-        batch_op.drop_column('value')
+        batch_op.drop_column("value_index")
+        batch_op.drop_column("value")
     with op.batch_alter_table("tool_feature_method") as batch_op:
         batch_op.create_foreign_key(
             None,
-            'list_value',
-            ['parameter_value_list_id', 'method_index'],
-            ['parameter_value_list_id', 'index'],
-            onupdate='CASCADE',
-            ondelete='CASCADE',
+            "list_value",
+            ["parameter_value_list_id", "method_index"],
+            ["parameter_value_list_id", "index"],
+            onupdate="CASCADE",
+            ondelete="CASCADE",
         )
     # Add rescued data
     pvl_items = list({x.id: {"id": x.id, "name": x.name, "commit_id": x.commit_id} for x in pvl}.values())

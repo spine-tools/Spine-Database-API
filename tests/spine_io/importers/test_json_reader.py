@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -40,5 +41,5 @@ class TestJSONConnector(unittest.TestCase):
         self.assertEqual(rows, [["a", 1], ["b", "c", 2]])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

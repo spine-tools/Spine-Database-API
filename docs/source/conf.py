@@ -14,6 +14,7 @@
 #
 import os
 import sys
+from spinedb_api import DatabaseMapping
 
 root_path = os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir)
 sys.path.insert(0, os.path.abspath(root_path))
@@ -51,7 +52,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
     'recommonmark',
-    'autoapi.extension'
+    'autoapi.extension',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -85,14 +86,91 @@ exclude_patterns = []
 pygments_style = 'sphinx'
 
 # Settings for Sphinx AutoAPI
+autoapi_options = ['members', 'show-module-summary', 'show-inheritance']
 autoapi_python_class_content = "both"
 autoapi_add_toctree_entry = True
 autoapi_root = "autoapi"
 autoapi_dirs = ['../../spinedb_api']  # package to be documented
 autoapi_ignore = [
     '*/spinedb_api/alembic/*',
+    '*/spinedb_api/export_mapping/*',
+    '*/spinedb_api/import_mapping/*',
+    '*/spinedb_api/spine_io/*',
+    '*/spinedb_api/compatibility*',
+    '*/spinedb_api/exception*',
+    '*/spinedb_api/export_functions*',
+    '*/spinedb_api/helpers*',
+    '*/spinedb_api/mapping*',
+    '*/spinedb_api/perfect_split*',
+    '*/spinedb_api/purge*',
+    '*/spinedb_api/query*',
+    '*/spinedb_api/spine_db_client*',
+    '*/spinedb_api/spine_db_server*',
 ]  # ignored modules
-autoapi_keep_files=True
+
+
+def _spine_item_types():
+    return ", ".join([f"``{x}``" for x in DatabaseMapping.item_types()])
+
+
+def _process_docstring(app, what, name, obj, options, lines):
+    if any(":meta private:" in line for line in lines):
+        lines.clear()
+    # Expand <spine_item_types>
+    for k, line in enumerate(lines):
+        if "<spine_item_types>" in line:
+            lines[k] = line.replace("<spine_item_types>", _spine_item_types())
+
+
+def _db_mapping_schema_lines():
+    def type_(f_dict):
+        return f_dict['type'].__name__ + (', optional' if f_dict.get('optional', False) else '')
+
+    lines = [
+        ".. _db_mapping_schema:",
+        "",
+        "DB mapping schema",
+        "=================",
+        "",
+        "The DB mapping schema is a close cousin of the Spine DB schema with some extra flexibility, "
+        "like the ability to specify references by name rather than by numerical id.",
+        "",
+        f"The schema defines the following item types: {_spine_item_types()}. "
+        "As you can see, these follow the names of some of the tables in the Spine DB schema.",
+        "",
+        "The following subsections provide all the details you need to know about the different item types, namely, "
+        "their fields, values, and unique keys.",
+        "",
+    ]
+    for item_type in DatabaseMapping.item_types():
+        factory = DatabaseMapping.item_factory(item_type)
+        lines.extend([item_type, len(item_type) * "-", ""])
+        lines.extend(
+            [
+                ".. list-table:: Fields and values",
+                "   :header-rows: 1",
+                "",
+                "   * - field",
+                "     - type",
+                "     - value",
+            ]
+        )
+        for f_name, f_dict in factory.fields.items():
+            lines.extend([f"   * - {f_name}", f"     - {type_(f_dict)}", f"     - {f_dict['value']}"])
+        lines.append("")
+        lines.extend([".. list-table:: Unique keys", "   :header-rows: 0", ""])
+        for f_names in factory._unique_keys:
+            f_names = ", ".join(f_names)
+            lines.append(f"   * - {f_names}")
+        lines.append("")
+    return lines
+
+
+def setup(sphinx):
+    sphinx.connect("autodoc-process-docstring", _process_docstring)
+    with open(os.path.join(os.path.dirname(__file__), "db_mapping_schema.rst"), "w") as f:
+        for line in _db_mapping_schema_lines():
+            f.write(line + "\n")
 
 
 # -- Options for HTML output -------------------------------------------------

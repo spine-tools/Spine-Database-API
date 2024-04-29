@@ -14,8 +14,8 @@ from sqlalchemy.orm import sessionmaker
 
 
 # revision identifiers, used by Alembic.
-revision = '1e4997105288'
-down_revision = 'fbb540efbf15'
+revision = "1e4997105288"
+down_revision = "fbb540efbf15"
 branch_labels = None
 depends_on = None
 
@@ -34,14 +34,14 @@ def upgrade():
     pvl_items = _get_pvl_items(session, Base)
     # Alter tables
     with op.batch_alter_table("parameter_definition") as batch_op:
-        batch_op.drop_column('data_type')
+        batch_op.drop_column("data_type")
         batch_op.drop_column("default_value")
         batch_op.add_column(sa.Column("default_value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()))
-        batch_op.add_column(sa.Column('default_type', sa.String(length=255), nullable=True))
+        batch_op.add_column(sa.Column("default_type", sa.String(length=255), nullable=True))
     with op.batch_alter_table("parameter_value") as batch_op:
         batch_op.drop_column("value")
         batch_op.add_column(sa.Column("value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()))
-        batch_op.add_column(sa.Column('type', sa.String(length=255), nullable=True))
+        batch_op.add_column(sa.Column("type", sa.String(length=255), nullable=True))
     with op.batch_alter_table("parameter_value_list") as batch_op:
         batch_op.drop_column("value")
         batch_op.add_column(sa.Column("value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()))

@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -10,8 +11,7 @@
 ######################################################################################################################
 
 """
-Contains the SpineDBClient class.
-
+This module defines the :class:`SpineDBClient` class.
 """
 
 from urllib.parse import urlparse
@@ -19,48 +19,77 @@ import socket
 from sqlalchemy.engine.url import URL
 from .server_client_helpers import ReceiveAllMixing, encode, decode
 
-client_version = 6
+client_version = 7
 
 
 class SpineDBClient(ReceiveAllMixing):
     def __init__(self, server_address):
-        """
+        """Enables sending requests to a Spine DB server.
+
         Args:
-            server_address (tuple(str,int)): hostname and port
+            server_address (tuple(str,int)): the hostname and port where the server is listening.
         """
         self._server_address = server_address
         self.request = None
 
     @classmethod
     def from_server_url(cls, url):
+        """Creates a client from a server's URL.
+
+        Args:
+            url (str, URL): the URL where the server is listening.
+        """
         parsed = urlparse(url)
         if parsed.scheme != "http":
             raise ValueError(f"unable to create client, invalid server url {url}")
         return cls((parsed.hostname, parsed.port))
 
     def get_db_url(self):
-        """
+        """Returns the URL of the target Spine DB - the one the server is set to communicate with.
+
         Returns:
-            str: The underlying db url from the server
+            str
         """
         return self._send("get_db_url")
 
     def db_checkin(self):
+        """Blocks until all the servers that need to write to the same DB before this one
+        have reported all their writes."""
         return self._send("db_checkin")
 
     def db_checkout(self):
+        """Reports one write for this server."""
         return self._send("db_checkout")
 
     def cancel_db_checkout(self):
+        """Reverts the last write report for this server."""
         return self._send("cancel_db_checkout")
 
     def import_data(self, data, comment):
+        """Imports data to the DB using :func:`~spinedb_api.import_functions.import_data` and commits the changes.
+
+        Args:
+            data (dict): to be splatted into keyword arguments to :func:`~spinedb_api.import_functions.import_data`
+            comment (str): a commit message.
+        """
         return self._send("import_data", args=(data, comment))
 
     def export_data(self, **kwargs):
+        """Exports data from the DB using :func:`~spinedb_api.export_functions.export_data`.
+
+        Args:
+            **kwargs: keyword arguments passed to :func:`~spinedb_api.import_functions.export_data`
+        """
         return self._send("export_data", kwargs=kwargs)
 
     def call_method(self, method_name, *args, **kwargs):
+        """Calls a method from :class:`~spinedb_api.db_mapping.DatabaseMapping`.
+
+        Args:
+            method_name (str): the name of the method to call.
+            *args: positional arguments passed to the method call.
+            **kwargs: keyword arguments passed to the method call.
+        """
         return self._send("call_method", args=(method_name, *args), kwargs=kwargs)
 
     def open_db_map(self, db_url, upgrade, memory):
@@ -93,16 +122,6 @@ class SpineDBClient(ReceiveAllMixing):
 
 
 def get_db_url_from_server(url):
-    """Returns the underlying db url associated with the given url, if it's a server url.
-    Otherwise, it assumes it's the url of DB and returns it unaltered.
-    Used by ``DatabaseMappingBase()``.
-
-    Args:
-        url (str, URL): a url, either from a Spine DB or from a Spine DB server.
-
-    Returns:
-        str
-    """
     if isinstance(url, URL):
         return url
     parsed = urlparse(url)
