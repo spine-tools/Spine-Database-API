@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -10,8 +11,7 @@
 ######################################################################################################################
 
 """
-Classes to handle exceptions while using the Spine database API.
-
+Spine DB API exceptions.
 """
 
 
@@ -50,33 +50,6 @@ class SpineDBVersionError(SpineDBAPIError):
         self.upgrade_available = upgrade_available
 
 
-class SpineTableNotFoundError(SpineDBAPIError):
-    """Can't find one of the tables."""
-
-    def __init__(self, table, url=None):
-        super().__init__(msg="Table(s) '{}' couldn't be mapped from the database at '{}'.".format(table, url))
-        self.table = table
-
-
-class RecordNotFoundError(SpineDBAPIError):
-    """Can't find one record in one of the tables."""
-
-    def __init__(self, table, name=None, id=None):
-        super().__init__(msg="Unable to find item in table '{}'.".format(table))
-        self.table = table
-        self.name = name
-        self.id = id
-
-
-class ParameterValueError(SpineDBAPIError):
-    """The value given for a parameter does not fit the datatype."""
-
-    def __init__(self, value, data_type):
-        super().__init__(msg="The value {} does not fit the datatype '{}'.".format(value, data_type))
-        self.value = value
-        self.data_type = data_type
-
-
 class ParameterValueFormatError(SpineDBAPIError):
     """
     Failure in encoding/decoding a parameter value.
@@ -91,7 +64,7 @@ class ParameterValueFormatError(SpineDBAPIError):
 
 class InvalidMapping(SpineDBAPIError):
     """
-    Failure in import/export mapping
+    Failure in import/export mapping.
     """
 
     def __init__(self, msg):
@@ -103,3 +76,7 @@ class InvalidMappingComponent(InvalidMapping):
         super().__init__(msg)
         self.rank = rank
         self.key = key
+
+
+class ConnectorError(SpineDBAPIError):
+    """Failure in import/export connector."""

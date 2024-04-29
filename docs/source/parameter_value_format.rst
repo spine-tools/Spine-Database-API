@@ -1,6 +1,16 @@
+.. _parameter_value_format:
+
+
 **********************
 Parameter value format
 **********************
+
+.. note::
+
+   Client code should almost never convert parameter values to JSON and back manually.
+   For most cases, JSON should be considered an implementation detail.
+   Clients should rather use :func:`.to_database` and :func:`.from_database` which shield
+   from abrupt changes in the database representation.
 
 Parameter values are specified using JSON in the ``value`` field of the ``parameter_value`` table.
 This document describes the JSON specification for parameter values of special type
@@ -101,6 +111,9 @@ where the accepted values are the following:
 
 The ``data`` property must be a JSON object mapping time periods to values.
 
+A time-pattern may have an additional property, ``index_name``.
+``index_name`` must be a JSON string. If not specified, a default name 'p' will be used.
+
 Example
 ~~~~~~~
 
@@ -133,7 +146,7 @@ Accepted values for the ``data`` property are the following:
   In this case it is assumed that the time-series begins at the first hour of *any* year,
   has a resolution of one hour, and repeats cyclically until the *end* of time.
 
-In case of time-series, the specification may have one additional property, ``index``.
+In case of time-series, the specification may have two additional properties, ``index`` and ``index_name``.
 ``index`` must be a JSON object with the following properties, all of them optional:
 
 - ``start``: the *first* time-stamp, used in case ``data`` is a one-column array (ignored otherwise).
@@ -147,6 +160,8 @@ In case of time-series, the specification may have one additional property, ``in
   The default is ``false``, unless ``data`` is a one-column array and ``start`` is not given.
 - ``repeat``: a JSON boolean whether or not the time-series should repeat cyclically until the *end* of time.
   The default is ``false``, unless ``data`` is a one-column array and ``start`` is not given.
+
+``index_name`` must be a JSON string. If not specified, a default name 't' will be used.
 
 Examples
 ~~~~~~~~
@@ -202,6 +217,21 @@ One-column array with explicit (custom) indices:
      }
    }
 
+Two-column array with named indices:
+
+.. code-block:: json
+
+   {
+
+     "type": "time_series",
+     "data": [
+       ["2019-01-01T00:00", 1],
+       ["2019-01-01T00:30", 2],
+       ["2019-01-01T02:00", 8]
+     ],
+     "index_name": "Time stamps"
+   }
+
 Array
 -----
 
@@ -211,13 +241,17 @@ All values are of the same type which is specified by an optional ``value_type``
 If specified, ``value_type`` must be one of the following: ``float``, ``str``, ``duration``, or ``date_time``.
 If omitted, ``value_type`` defaults to ``float``
 
-The ``data`` property must be a JSON list. The elements depent on ``value_type``:
+The ``data`` property must be a JSON list. The elements depend on ``value_type``:
 
 - If ``value_type`` is ``float`` then all elements in ``data`` must be JSON numbers.
 - If ``value_type`` is ``str`` then all elements in ``data`` must be JSON strings.
 - If ``value_type`` is ``duration`` then all elements in ``data`` must be single extensions of time.
 - If ``value_type`` is ``date_time`` then all elements in ``data`` must be JSON strings
   in the `ISO8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ format.
+
+An array may have an additional property, ``index_name``.
+``index_name`` must be a JSON string. If not specified, a default name 'i' will be used.
+
 
 Examples
 ~~~~~~~~
@@ -240,6 +274,17 @@ An array of durations:
      "value_type": "duration",
      "data": ["3 months", "2Y", "4 minutes"]
    }
+
+An array of strings with index name:
+
+.. code-block:: json
+
+   {
+     "type": "array",
+     "data": ["one", "two"],
+     "index_name": "step"
+   }
+
 
 Map
 ---
@@ -268,6 +313,9 @@ The ``data`` property can be a JSON mapping with the following properties:
 
 Optionally, the ``data`` property can be a two-column JSON array
 where the first element is the key and the second the value.
+
+A map may have an additional property, ``index_name``.
+``index_name`` must be a JSON string. If not specified, a default name 'x' will be used.
 
 Examples
 ~~~~~~~~
@@ -321,12 +369,28 @@ Forecast time    Target time      Stochastic scenario Value
    {
      "type": "map",
      "index_type": "date_time",
+     "index_name": "Forecast time",
      "data": [
        ["2020-04-17T08:00",
-        {"type": "map", "index_type": "date_time", "data": [
-          ["2020-04-17T08:00", {"type": "map", "index_type": "float", "data": [[0, 23.0], [1, 5.5]]}],
-          ["2020-04-17T09:00", {"type": "map", "index_type": "float", "data": [[0, 24.0], [1, 6.6]]}],
-          ["2020-04-17T10:00", {"type": "map", "index_type": "float", "data": [[0, 25.0], [1, 7.7]]}]
+        {"type": "map", "index_type": "date_time", "index_name": "Target time", "data": [
+          [
+            "2020-04-17T08:00", {"type": "map",
+                                 "index_type": "float",
+                                 "index_name": "Stochastic scenario",
+                                 "data": [[0, 23.0], [1, 5.5]]}
+          ],
+          [
+            "2020-04-17T09:00", {"type": "map",
+                                 "index_type": "float",
+                                 "index_name": "Stochastic scenario",
+                                 "data": [[0, 24.0], [1, 6.6]]}
+          ],
+          [
+            "2020-04-17T10:00", {"type": "map",
+                                 "index_type": "float",
+                                 "index_name": "Stochastic scenario",
+                                 "data": [[0, 25.0], [1, 7.7]]}
+          ]
         ]}
        ]
      ]

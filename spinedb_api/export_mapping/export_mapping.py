@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -179,7 +180,7 @@ class ExportMapping(Mapping):
         The base class implementation just returns the same query without adding any new columns.
 
         Args:
-            db_map (DatabaseMappingBase)
+            db_map (DatabaseMapping)
             query (Alias or dict)
 
         Returns:
@@ -193,7 +194,7 @@ class ExportMapping(Mapping):
         The base class implementation just returns the same query without applying any new filters.
 
         Args:
-            db_map (DatabaseMappingBase)
+            db_map (DatabaseMapping)
             query (Alias or dict)
 
         Returns:
@@ -221,7 +222,7 @@ class ExportMapping(Mapping):
         """Builds and returns the query to run for this mapping hierarchy.
 
         Args:
-            db_map (DatabaseMappingBase)
+            db_map (DatabaseMapping)
             title_state (dict)
 
         Returns:
@@ -251,7 +252,7 @@ class ExportMapping(Mapping):
         """Builds and returns the query to get titles for this mapping hierarchy.
 
         Args:
-            db_map (DatabaseMappingBase): database mapping
+            db_map (DatabaseMapping): database mapping
 
         Returns:
             Alias: title query
@@ -275,7 +276,7 @@ class ExportMapping(Mapping):
         """Builds the header query for this mapping hierarchy.
 
         Args:
-            db_map (DatabaseMappingBase): database mapping
+            db_map (DatabaseMapping): database mapping
             title_state (dict): title state
             buddies (list of tuple): pairs of buddy mappings
 
@@ -286,7 +287,7 @@ class ExportMapping(Mapping):
         flat_buddies = [b for pair in buddies for b in pair]
         for _ in range(len(mappings)):
             m = mappings[-1]
-            if m.position == Position.header or m.position == Position.table_name or m in flat_buddies:
+            if m.position in (Position.header, Position.table_name) or m in flat_buddies:
                 break
             mappings.pop(-1)
         # Start with empty query
@@ -413,14 +414,14 @@ class ExportMapping(Mapping):
         """Yields rows issued by this mapping and its children combined.
 
         Args:
-            db_map (DatabaseMappingBase)
+            db_map (DatabaseMapping)
             title_state (dict)
 
         Returns:
             generator(dict)
         """
         qry = self._build_query(db_map, title_state)
-        for db_row in qry.yield_per(1000):
+        for db_row in qry:
             yield from self.get_rows_recursive(db_row)
 
     def has_titles(self):
@@ -498,21 +499,21 @@ class ExportMapping(Mapping):
         """Yields all titles, not necessarily unique, and associated state dictionaries.
 
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             limit (int, optional): yield only this many items
 
         Yields:
             tuple(str,dict): title, and associated title state dictionary
         """
         qry = self._build_title_query(db_map)
-        for db_row in qry.yield_per(1000):
+        for db_row in qry:
             yield from self.get_titles_recursive(db_row, limit=limit)
 
     def titles(self, db_map, limit=None):
         """Yields unique titles and associated state dictionaries.
 
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             limit (int, optional): yield only this many items
 
         Yields:
@@ -540,7 +541,7 @@ class ExportMapping(Mapping):
 
         Args:
             build_header_query (callable): a function that any mapping in the hierarchy can call to get the query
-            db_map (DatabaseMappingBase): database map
+            db_map (DatabaseMapping): database map
             title_state (dict): title state
             buddies (list of tuple): buddy mappings
 
@@ -557,7 +558,7 @@ class ExportMapping(Mapping):
             if buddy is not None:
                 query.rewind()
                 header[buddy.position] = next(
-                    (x for db_row in query for x in self._get_data_iterator(self._data(db_row))), ""
+                    (x for db_row in query for x in self._get_data_iterator(self._data(db_row)) if x), ""
                 )
         else:
             header[self.position] = self.header
@@ -567,14 +568,14 @@ class ExportMapping(Mapping):
         """Returns the header for this mapping.
 
         Args:
-            db_map (DatabaseMappingBase): database map
+            db_map (DatabaseMapping): database map
             title_state (dict): title state
             buddies (list of tuple): buddy mappings
 
         Returns
             dict: a mapping from column index to string header
         """
-        query = _Rewindable(self._build_header_query(db_map, title_state, buddies).yield_per(1000))
+        query = _Rewindable(self._build_header_query(db_map, title_state, buddies))
         return self.make_header_recursive(query, buddies)
 
 
@@ -624,71 +625,142 @@ class FixedValueMapping(ExportMapping):
         return None
 
 
-class ObjectClassMapping(ExportMapping):
-    """Maps object classes.
+class EntityClassMapping(ExportMapping):
+    """Maps entity classes.
 
     Can be used as the topmost mapping.
     """
 
-    MAP_TYPE = "ObjectClass"
+    MAP_TYPE = "EntityClass"
+
+    def __init__(self, position, value=None, header="", filter_re="", highlight_position=None):
+        super().__init__(position, value, header, filter_re)
+        self.highlight_position = highlight_position
 
     def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.object_class_sq.c.id.label("object_class_id"),
-            db_map.object_class_sq.c.name.label("object_class_name"),
+        query = query.add_columns(
+            db_map.wide_entity_class_sq.c.id.label("entity_class_id"),
+            db_map.wide_entity_class_sq.c.name.label("entity_class_name"),
+            db_map.wide_entity_class_sq.c.dimension_id_list.label("dimension_id_list"),
+            db_map.wide_entity_class_sq.c.dimension_name_list.label("dimension_name_list"),
         )
+        if self.highlight_position is not None:
+            query = query.add_columns(db_map.entity_class_dimension_sq.c.dimension_id.label("highlighted_dimension_id"))
+        return query
+
+    def filter_query(self, db_map, query):
+        if any(isinstance(m, (DimensionMapping, ElementMapping)) for m in self.flatten()):
+            query = query.filter(db_map.wide_entity_class_sq.c.dimension_id_list != None)
+        else:
+            query = query.filter(db_map.wide_entity_class_sq.c.dimension_id_list == None)
+        if self.highlight_position is not None:
+            query = query.outerjoin(
+                db_map.entity_class_dimension_sq,
+                db_map.entity_class_dimension_sq.c.entity_class_id == db_map.wide_entity_class_sq.c.id,
+            ).filter(db_map.entity_class_dimension_sq.c.position == self.highlight_position)
+        return query
 
     @staticmethod
     def name_field():
-        return "object_class_name"
+        return "entity_class_name"
 
     @staticmethod
     def id_field():
         # Use the class name here, for the sake of the standard excel export
-        return "object_class_name"
+        return "entity_class_name"
+
+    def query_parents(self, what):
+        if what == "dimension":
+            return -1
+        if what == "highlight_position":
+            return self.highlight_position
+        return super().query_parents(what)
+
+    def _title_state(self, db_row):
+        state = super()._title_state(db_row)
+        state["dimension_id_list"] = getattr(db_row, "dimension_id_list")
+        return state
+
+    def to_dict(self):
+        mapping_dict = super().to_dict()
+        if self.highlight_position is not None:
+            mapping_dict["highlight_position"] = self.highlight_position
+        return mapping_dict
+
+    @classmethod
+    def reconstruct(cls, position, value, header, filter_re, ignorable, mapping_dict):
+        highlight_position = mapping_dict.get("highlight_position")
+        mapping = cls(position, value, header, filter_re, highlight_position)
+        mapping.set_ignorable(ignorable)
+        return mapping
 
 
-class ObjectMapping(ExportMapping):
-    """Maps objects.
+class EntityMapping(ExportMapping):
+    """Maps entities.
 
-    Cannot be used as the topmost mapping; one of the parents must be :class:`ObjectClassMapping`.
+    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityClassMapping`.
     """
 
-    MAP_TYPE = "Object"
+    MAP_TYPE = "Entity"
 
     def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.object_sq.c.id.label("object_id"), db_map.object_sq.c.name.label("object_name"))
+        query = query.add_columns(
+            db_map.wide_entity_sq.c.id.label("entity_id"),
+            db_map.wide_entity_sq.c.name.label("entity_name"),
+            db_map.wide_entity_sq.c.element_id_list,
+            db_map.wide_entity_sq.c.element_name_list,
+        )
+        if self.query_parents("highlight_position") is not None:
+            query = query.add_columns(db_map.entity_element_sq.c.element_id.label("highlighted_element_id"))
+        return query
 
     def filter_query(self, db_map, query):
-        return query.outerjoin(db_map.object_sq, db_map.object_sq.c.class_id == db_map.object_class_sq.c.id)
+        query = query.outerjoin(
+            db_map.wide_entity_sq, db_map.wide_entity_sq.c.class_id == db_map.wide_entity_class_sq.c.id
+        )
+        if (highlight_position := self.query_parents("highlight_position")) is not None:
+            query = query.outerjoin(
+                db_map.entity_element_sq, db_map.entity_element_sq.c.entity_id == db_map.wide_entity_sq.c.id
+            ).filter(db_map.entity_element_sq.c.position == highlight_position)
+        return query
 
     @staticmethod
     def name_field():
-        return "object_name"
+        return "entity_name"
 
     @staticmethod
     def id_field():
-        return "object_id"
+        return "entity_id"
+
+    def query_parents(self, what):
+        if what == "dimension":
+            return -1
+        return super().query_parents(what)
+
+    def _title_state(self, db_row):
+        state = super()._title_state(db_row)
+        state["element_id_list"] = getattr(db_row, "element_id_list")
+        return state
 
     @staticmethod
     def is_buddy(parent):
-        return isinstance(parent, ObjectClassMapping)
+        return isinstance(parent, EntityClassMapping)
 
 
-class ObjectGroupMapping(ExportMapping):
-    """Maps object groups.
+class EntityGroupMapping(ExportMapping):
+    """Maps entity groups.
 
-    Cannot be used as the topmost mapping; one of the parents must be :class:`ObjectClassMapping`.
+    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityClassMapping`.
     """
 
-    MAP_TYPE = "ObjectGroup"
+    MAP_TYPE = "EntityGroup"
 
     def add_query_columns(self, db_map, query):
         return query.add_columns(db_map.ext_entity_group_sq.c.group_id, db_map.ext_entity_group_sq.c.group_name)
 
     def filter_query(self, db_map, query):
         return query.outerjoin(
-            db_map.ext_entity_group_sq, db_map.ext_entity_group_sq.c.class_id == db_map.object_class_sq.c.id
+            db_map.ext_entity_group_sq, db_map.ext_entity_group_sq.c.class_id == db_map.wide_entity_class_sq.c.id
         ).distinct()
 
     @staticmethod
@@ -701,123 +773,60 @@ class ObjectGroupMapping(ExportMapping):
 
     @staticmethod
     def is_buddy(parent):
-        return isinstance(parent, ObjectClassMapping)
+        return isinstance(parent, EntityClassMapping)
 
 
-class ObjectGroupObjectMapping(ExportMapping):
-    """Maps objects in object groups.
+class EntityGroupEntityMapping(ExportMapping):
+    """Maps entities in objectentity groups.
 
-    Cannot be used as the topmost mapping; one of the parents must be :class:`ObjectGroupMapping`.
+    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityGroupMapping`.
     """
 
-    MAP_TYPE = "ObjectGroupObject"
+    MAP_TYPE = "EntityGroupEntity"
 
     def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.object_sq.c.id.label("object_id"), db_map.object_sq.c.name.label("object_name"))
+        return query.add_columns(
+            db_map.wide_entity_sq.c.id.label("entity_id"), db_map.wide_entity_sq.c.name.label("entity_name")
+        )
 
     def filter_query(self, db_map, query):
-        return query.filter(db_map.ext_entity_group_sq.c.member_id == db_map.object_sq.c.id)
+        return query.filter(db_map.ext_entity_group_sq.c.member_id == db_map.wide_entity_sq.c.id)
 
     @staticmethod
     def name_field():
-        return "object_name"
+        return "entity_name"
 
     @staticmethod
     def id_field():
-        return "object_id"
+        return "entity_id"
 
     @staticmethod
     def is_buddy(parent):
-        return isinstance(parent, ObjectGroupMapping)
+        return isinstance(parent, EntityGroupMapping)
 
 
-class RelationshipClassMapping(ExportMapping):
-    """Maps relationships classes.
+class DimensionMapping(ExportMapping):
+    """Maps dimensions.
 
-    Can be used as the topmost mapping.
+    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityClassMapping`.
     """
 
-    MAP_TYPE = "RelationshipClass"
-
-    def __init__(self, position, value=None, header="", filter_re="", highlight_dimension=None):
-        super().__init__(position, value, header, filter_re)
-        self.highlight_dimension = highlight_dimension
-
-    def add_query_columns(self, db_map, query):
-        query = query.add_columns(
-            db_map.wide_relationship_class_sq.c.id.label("relationship_class_id"),
-            db_map.wide_relationship_class_sq.c.name.label("relationship_class_name"),
-            db_map.wide_relationship_class_sq.c.object_class_id_list,
-            db_map.wide_relationship_class_sq.c.object_class_name_list,
-        )
-        if self.highlight_dimension is not None:
-            query = query.add_columns(
-                db_map.ext_relationship_class_sq.c.object_class_id.label("highlighted_object_class_id")
-            )
-        return query
-
-    def filter_query(self, db_map, query):
-        if self.highlight_dimension is not None:
-            query = query.outerjoin(
-                db_map.ext_relationship_class_sq,
-                db_map.ext_relationship_class_sq.c.id == db_map.wide_relationship_class_sq.c.id,
-            ).filter(db_map.ext_relationship_class_sq.c.dimension == self.highlight_dimension)
-        return query
-
-    @staticmethod
-    def name_field():
-        return "relationship_class_name"
-
-    @staticmethod
-    def id_field():
-        # Use the class name here, for the sake of the standard excel export
-        return "relationship_class_name"
-
-    def query_parents(self, what):
-        if what == "dimension":
-            return -1
-        if what == "highlight_dimension":
-            return self.highlight_dimension
-        return super().query_parents(what)
-
-    def _title_state(self, db_row):
-        state = super()._title_state(db_row)
-        state["object_class_id_list"] = getattr(db_row, "object_class_id_list")
-        return state
-
-    def to_dict(self):
-        mapping_dict = super().to_dict()
-        if self.highlight_dimension is not None:
-            mapping_dict["highlight_dimension"] = self.highlight_dimension
-        return mapping_dict
-
-    @classmethod
-    def reconstruct(cls, position, value, header, filter_re, ignorable, mapping_dict):
-        highlight_dimension = mapping_dict.get("highlight_dimension")
-        mapping = cls(position, value, header, filter_re, highlight_dimension)
-        mapping.set_ignorable(ignorable)
-        return mapping
-
-
-class RelationshipClassObjectClassMapping(ExportMapping):
-    """Maps relationship class object classes.
-
-    Cannot be used as the topmost mapping; one of the parents must be :class:`RelationshipClassMapping`.
-    """
-
-    MAP_TYPE = "RelationshipClassObjectClass"
+    MAP_TYPE = "Dimension"
     _cached_dimension = None
 
     @staticmethod
     def name_field():
-        return "object_class_name_list"
+        return "dimension_name_list"
 
     @staticmethod
     def id_field():
-        return "object_class_id_list"
+        return "dimension_id_list"
 
     def _data(self, db_row):
-        data = super()._data(db_row).split(",")
+        dimension_name_list = super()._data(db_row)
+        if dimension_name_list is None:
+            return None
+        data = dimension_name_list.split(",")
         if self._cached_dimension is None:
             self._cached_dimension = self.query_parents("dimension")
         try:
@@ -832,82 +841,32 @@ class RelationshipClassObjectClassMapping(ExportMapping):
 
     @staticmethod
     def is_buddy(parent):
-        return isinstance(parent, RelationshipClassMapping)
+        return isinstance(parent, EntityClassMapping)
 
 
-class RelationshipMapping(ExportMapping):
-    """Maps relationships.
+class ElementMapping(ExportMapping):
+    """Maps elements.
 
-    Cannot be used as the topmost mapping; one of the parents must be :class:`RelationshipClassMapping`.
-    """
-
-    MAP_TYPE = "Relationship"
-
-    def add_query_columns(self, db_map, query):
-        query = query.add_columns(
-            db_map.wide_relationship_sq.c.id.label("relationship_id"),
-            db_map.wide_relationship_sq.c.name.label("relationship_name"),
-            db_map.wide_relationship_sq.c.object_id_list,
-            db_map.wide_relationship_sq.c.object_name_list,
-        )
-        if self.query_parents("highlight_dimension") is not None:
-            query = query.add_columns(db_map.ext_relationship_sq.c.object_id.label("highlighted_object_id"))
-        return query
-
-    def filter_query(self, db_map, query):
-        query = query.outerjoin(
-            db_map.wide_relationship_sq,
-            db_map.wide_relationship_sq.c.class_id == db_map.wide_relationship_class_sq.c.id,
-        )
-        if (highlight_dimension := self.query_parents("highlight_dimension")) is not None:
-            query = query.outerjoin(
-                db_map.ext_relationship_sq, db_map.ext_relationship_sq.c.id == db_map.wide_relationship_sq.c.id
-            ).filter(db_map.ext_relationship_sq.c.dimension == highlight_dimension)
-        return query
-
-    @staticmethod
-    def name_field():
-        return "relationship_name"
-
-    @staticmethod
-    def id_field():
-        return "relationship_id"
-
-    def query_parents(self, what):
-        if what != "dimension":
-            return super().query_parents(what)
-        return -1
-
-    def _title_state(self, db_row):
-        state = super()._title_state(db_row)
-        state["object_id_list"] = getattr(db_row, "object_id_list")
-        return state
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, RelationshipClassMapping)
-
-
-class RelationshipObjectMapping(ExportMapping):
-    """Maps relationship's objects.
-
-    Cannot be used as the topmost mapping; must have :class:`RelationshipClassMapping` and :class:`RelationshipMapping`
+    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping` and :class:`EntityMapping`
     as parents.
     """
 
-    MAP_TYPE = "RelationshipObject"
+    MAP_TYPE = "Element"
     _cached_dimension = None
 
     @staticmethod
     def name_field():
-        return "object_name_list"
+        return "element_name_list"
 
     @staticmethod
     def id_field():
-        return "object_id_list"
+        return "element_id_list"
 
     def _data(self, db_row):
-        data = super()._data(db_row).split(",")
+        element_name_list = super()._data(db_row)
+        if element_name_list is None:
+            return None
+        data = element_name_list.split(",")
         if self._cached_dimension is None:
             self._cached_dimension = self.query_parents("dimension")
         try:
@@ -922,7 +881,7 @@ class RelationshipObjectMapping(ExportMapping):
 
     @staticmethod
     def is_buddy(parent):
-        return isinstance(parent, RelationshipClassObjectClassMapping)
+        return isinstance(parent, DimensionMapping)
 
 
 class ParameterDefinitionMapping(ExportMapping):
@@ -940,24 +899,15 @@ class ParameterDefinitionMapping(ExportMapping):
         )
 
     def filter_query(self, db_map, query):
-        column_names = {c["name"] for c in query.column_descriptions}
-        if "object_class_id" in column_names:
+        if self.query_parents("highlight_position") is not None:
             return query.outerjoin(
                 db_map.parameter_definition_sq,
-                db_map.parameter_definition_sq.c.object_class_id == db_map.object_class_sq.c.id,
+                db_map.parameter_definition_sq.c.entity_class_id == db_map.entity_class_dimension_sq.c.dimension_id,
             )
-        if "relationship_class_id" in column_names:
-            if self.query_parents("highlight_dimension") is not None:
-                return query.outerjoin(
-                    db_map.parameter_definition_sq,
-                    db_map.parameter_definition_sq.c.object_class_id
-                    == db_map.ext_relationship_class_sq.c.object_class_id,
-                )
-            return query.outerjoin(
-                db_map.parameter_definition_sq,
-                db_map.parameter_definition_sq.c.relationship_class_id == db_map.wide_relationship_class_sq.c.id,
-            )
-        raise RuntimeError("Logic error: this code should be unreachable.")
+        return query.outerjoin(
+            db_map.parameter_definition_sq,
+            db_map.parameter_definition_sq.c.entity_class_id == db_map.wide_entity_class_sq.c.id,
+        )
 
     @staticmethod
     def name_field():
@@ -1061,7 +1011,7 @@ class ParameterDefaultValueIndexMapping(_MappingWithLeafMixin, ExportMapping):
     MAP_TYPE = "ParameterDefaultValueIndex"
 
     def add_query_columns(self, db_map, query):
-        if "default_value" in {c["name"] for c in query.column_descriptions}:
+        if "default_value" in set(query.column_names()):
             return query
         return query.add_columns(
             db_map.parameter_definition_sq.c.default_value, db_map.parameter_definition_sq.c.default_type
@@ -1121,7 +1071,7 @@ class ParameterValueMapping(ExportMapping):
     _selects_value = False
 
     def add_query_columns(self, db_map, query):
-        if "value" in {c["name"] for c in query.column_descriptions}:
+        if "value" in set(query.column_names()):
             return query
         self._selects_value = True
         return query.add_columns(db_map.parameter_value_sq.c.value, db_map.parameter_value_sq.c.type)
@@ -1129,29 +1079,19 @@ class ParameterValueMapping(ExportMapping):
     def filter_query(self, db_map, query):
         if not self._selects_value:
             return query
-        column_names = {c["name"] for c in query.column_descriptions}
-        if "object_id" in column_names:
+        if self.query_parents("highlight_position") is not None:
             return query.filter(
                 and_(
-                    db_map.parameter_value_sq.c.object_id == db_map.object_sq.c.id,
+                    db_map.parameter_value_sq.c.entity_id == db_map.entity_element_sq.c.element_id,
                     db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
                 )
             )
-        if "relationship_id" in column_names:
-            if self.query_parents("highlight_dimension") is not None:
-                return query.filter(
-                    and_(
-                        db_map.parameter_value_sq.c.object_id == db_map.ext_relationship_sq.c.object_id,
-                        db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
-                    )
-                )
-            return query.filter(
-                and_(
-                    db_map.parameter_value_sq.c.relationship_id == db_map.wide_relationship_sq.c.id,
-                    db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
-                )
+        return query.filter(
+            and_(
+                db_map.parameter_value_sq.c.entity_id == db_map.wide_entity_sq.c.id,
+                db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
             )
-        raise RuntimeError("Logic error: this code should be unreachable.")
+        )
 
     @staticmethod
     def name_field():
@@ -1166,7 +1106,7 @@ class ParameterValueMapping(ExportMapping):
 
     @staticmethod
     def is_buddy(parent):
-        return isinstance(parent, (ParameterDefinitionMapping, ObjectMapping, RelationshipMapping, AlternativeMapping))
+        return isinstance(parent, (ParameterDefinitionMapping, EntityMapping, AlternativeMapping))
 
 
 class ParameterValueTypeMapping(ParameterValueMapping):
@@ -1193,7 +1133,7 @@ class ParameterValueTypeMapping(ParameterValueMapping):
         pv = title_state.pop("type_and_dimensions", None)
         if pv is None:
             return query
-        if "value" not in {c["name"] for c in query.column_descriptions}:
+        if "value" not in set(query.column_names()):
             return query
         return _FilteredQuery(
             query, lambda db_row: (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type) == pv)
@@ -1340,9 +1280,12 @@ class AlternativeMapping(ExportMapping):
         )
 
     def filter_query(self, db_map, query):
-        if self.parent is None:
-            return query
-        return query.filter(db_map.alternative_sq.c.id == db_map.parameter_value_sq.c.alternative_id)
+        parent = self.parent
+        while parent is not None:
+            if isinstance(parent, ParameterDefinitionMapping):
+                return query.filter(db_map.alternative_sq.c.id == db_map.parameter_value_sq.c.alternative_id)
+            parent = parent.parent
+        return query
 
     @staticmethod
     def name_field():
@@ -1457,227 +1400,6 @@ class ScenarioBeforeAlternativeMapping(ExportMapping):
         return isinstance(parent, ScenarioAlternativeMapping)
 
 
-class FeatureEntityClassMapping(ExportMapping):
-    """Maps feature entity classes.
-
-    Can be used as the topmost mapping.
-    """
-
-    MAP_TYPE = "FeatureEntityClass"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.ext_feature_sq.c.entity_class_id, db_map.ext_feature_sq.c.entity_class_name)
-
-    @staticmethod
-    def name_field():
-        return "entity_class_name"
-
-    @staticmethod
-    def id_field():
-        return "entity_class_id"
-
-
-class FeatureParameterDefinitionMapping(ExportMapping):
-    """Maps feature parameter definitions.
-
-    Cannot be used as the topmost mapping; must have a :class:`FeatureEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "FeatureParameterDefinition"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.ext_feature_sq.c.parameter_definition_id, db_map.ext_feature_sq.c.parameter_definition_name
-        )
-
-    @staticmethod
-    def name_field():
-        return "parameter_definition_name"
-
-    @staticmethod
-    def id_field():
-        return "parameter_definition_id"
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, FeatureEntityClassMapping)
-
-
-class ToolMapping(ExportMapping):
-    """Maps tools.
-
-    Can be used as the topmost mapping.
-    """
-
-    MAP_TYPE = "Tool"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.tool_sq.c.id.label("tool_id"), db_map.tool_sq.c.name.label("tool_name"))
-
-    @staticmethod
-    def name_field():
-        return "tool_name"
-
-    @staticmethod
-    def id_field():
-        return "tool_id"
-
-
-class ToolFeatureEntityClassMapping(ExportMapping):
-    """Maps tool feature entity classes.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureEntityClass"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.ext_tool_feature_sq.c.entity_class_id, db_map.ext_tool_feature_sq.c.entity_class_name
-        )
-
-    def filter_query(self, db_map, query):
-        return query.outerjoin(db_map.ext_tool_feature_sq, db_map.ext_tool_feature_sq.c.tool_id == db_map.tool_sq.c.id)
-
-    @staticmethod
-    def name_field():
-        return "entity_class_name"
-
-    @staticmethod
-    def id_field():
-        return "entity_class_id"
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, ToolMapping)
-
-
-class ToolFeatureParameterDefinitionMapping(ExportMapping):
-    """Maps tool feature parameter definitions.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureParameterDefinition"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.ext_tool_feature_sq.c.parameter_definition_id, db_map.ext_tool_feature_sq.c.parameter_definition_name
-        )
-
-    @staticmethod
-    def name_field():
-        return "parameter_definition_name"
-
-    @staticmethod
-    def id_field():
-        return "parameter_definition_id"
-
-    @staticmethod
-    def is_buddy(parent):
-        return isinstance(parent, ToolFeatureEntityClassMapping)
-
-
-class ToolFeatureRequiredFlagMapping(ExportMapping):
-    """Maps tool feature required flags.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureRequiredFlag"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.ext_tool_feature_sq.c.required)
-
-    @staticmethod
-    def name_field():
-        return "required"
-
-    @staticmethod
-    def id_field():
-        return "required"
-
-
-class ToolFeatureMethodEntityClassMapping(ExportMapping):
-    """Maps tool feature method entity classes.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureMethodEntityClass"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.ext_tool_feature_sq.c.entity_class_id, db_map.ext_tool_feature_sq.c.entity_class_name
-        )
-
-    def filter_query(self, db_map, query):
-        return query.outerjoin(db_map.ext_tool_feature_sq, db_map.ext_tool_feature_sq.c.tool_id == db_map.tool_sq.c.id)
-
-    @staticmethod
-    def name_field():
-        return "entity_class_name"
-
-    @staticmethod
-    def id_field():
-        return "entity_class_id"
-
-
-class ToolFeatureMethodParameterDefinitionMapping(ExportMapping):
-    """Maps tool feature method parameter definitions.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureMethodEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureMethodParameterDefinition"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.ext_tool_feature_sq.c.parameter_definition_id, db_map.ext_tool_feature_sq.c.parameter_definition_name
-        )
-
-    @staticmethod
-    def name_field():
-        return "parameter_definition_name"
-
-    @staticmethod
-    def id_field():
-        return "parameter_definition_id"
-
-
-class ToolFeatureMethodMethodMapping(ExportMapping):
-    """Maps tool feature method methods.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureMethodEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureMethodMethod"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.ext_tool_feature_method_sq.c.method)
-
-    def filter_query(self, db_map, query):
-        return query.outerjoin(
-            db_map.ext_tool_feature_method_sq,
-            and_(
-                db_map.ext_tool_feature_method_sq.c.tool_id == db_map.ext_tool_feature_sq.c.tool_id,
-                db_map.ext_tool_feature_method_sq.c.feature_id == db_map.ext_tool_feature_sq.c.feature_id,
-            ),
-        )
-
-    @staticmethod
-    def name_field():
-        return "method"
-
-    @staticmethod
-    def id_field():
-        return "method"
-
-    def _data(self, db_row):
-        data = super()._data(db_row)
-        return from_database_to_single_value(data, None)
-
-
 class _DescriptionMappingBase(ExportMapping):
     """Maps descriptions."""
 
@@ -1724,9 +1446,6 @@ class _FilteredQuery:
         """
         self._query = query
         self._condition = condition
-
-    def yield_per(self, count):
-        return _FilteredQuery(self._query.yield_per(count), self._condition)
 
     def filter(self, *args, **kwargs):
         return _FilteredQuery(self._query.filter(*args, **kwargs), self._condition)
@@ -1819,16 +1538,16 @@ def from_dict(serialized):
             AlternativeDescriptionMapping,
             AlternativeMapping,
             DefaultValueIndexNameMapping,
+            DimensionMapping,
+            ElementMapping,
             ExpandedParameterDefaultValueMapping,
             ExpandedParameterValueMapping,
-            FeatureEntityClassMapping,
-            FeatureParameterDefinitionMapping,
             FixedValueMapping,
             IndexNameMapping,
-            ObjectClassMapping,
-            ObjectGroupMapping,
-            ObjectGroupObjectMapping,
-            ObjectMapping,
+            EntityClassMapping,
+            EntityGroupMapping,
+            EntityGroupEntityMapping,
+            EntityMapping,
             ParameterDefaultValueIndexMapping,
             ParameterDefaultValueMapping,
             ParameterDefaultValueTypeMapping,
@@ -1838,29 +1557,41 @@ def from_dict(serialized):
             ParameterValueListValueMapping,
             ParameterValueMapping,
             ParameterValueTypeMapping,
-            RelationshipClassMapping,
-            RelationshipClassObjectClassMapping,
-            RelationshipMapping,
-            RelationshipObjectMapping,
             ScenarioActiveFlagMapping,
             ScenarioAlternativeMapping,
             ScenarioBeforeAlternativeMapping,
             ScenarioDescriptionMapping,
             ScenarioMapping,
-            ToolMapping,
-            ToolFeatureEntityClassMapping,
-            ToolFeatureParameterDefinitionMapping,
-            ToolFeatureRequiredFlagMapping,
-            ToolFeatureMethodEntityClassMapping,
-            ToolFeatureMethodParameterDefinitionMapping,
+            # FIXME
+            # FeatureEntityClassMapping,
+            # FeatureParameterDefinitionMapping,
+            # ToolMapping,
+            # ToolFeatureEntityClassMapping,
+            # ToolFeatureParameterDefinitionMapping,
+            # ToolFeatureRequiredFlagMapping,
+            # ToolFeatureMethodEntityClassMapping,
+            # ToolFeatureMethodParameterDefinitionMapping,
         )
     }
-    # Legacy
-    mappings["ParameterIndex"] = ParameterValueIndexMapping
-    if any(m["map_type"] == "RelationshipClassObjectHighlightingMapping" for m in serialized):
-        _upgrade_legacy_object_highlighting_mapping(serialized)
+    legacy_mappings = {
+        "ParameterIndex": ParameterValueIndexMapping,
+        "ObjectClass": EntityClassMapping,
+        "ObjectGroup": EntityGroupMapping,
+        "ObjectGroupObject": EntityGroupEntityMapping,
+        "Object": EntityMapping,
+        "RelationshipClass": EntityClassMapping,
+        "RelationshipClassObjectClass": DimensionMapping,
+        "Relationship": EntityMapping,
+        "RelationshipObject": ElementMapping,
+        "RelationshipClassObjectHighlightingMapping": EntityClassMapping,
+        "RelationshipObjectHighlightingMapping": ElementMapping,
+    }
+    mappings.update(legacy_mappings)
     flattened = list()
     for mapping_dict in serialized:
+        if (highlight_position := mapping_dict.get("highlight_dimension")) is not None:
+            # legacy
+            mapping_dict["highlight_position"] = highlight_position
         position = mapping_dict["position"]
         if isinstance(position, str):
             position = Position(position)
@@ -1890,22 +1621,6 @@ def legacy_group_fn_from_dict(serialized):
         if group_fn is not None:
             return group_fn
     return NoGroup.NAME
-
-
-def _upgrade_legacy_object_highlighting_mapping(serialized):
-    """Upgrades legacy object highlighting mappings in place.
-
-    ``RelationshipClassObjectHighlightingMapping`` and ``RelationshipObjectHighlightingMapping``
-    have been replaced by a ``highlight_dimension`` argument in ``RelationshipClassObjectClassMapping``.
-
-    Args:
-        serialized (list of dict): serialized mappings
-    """
-    for mapping_dict in serialized:
-        if mapping_dict["map_type"] == "RelationshipClassObjectHighlightingMapping":
-            mapping_dict["map_type"] = RelationshipClassMapping.MAP_TYPE
-        elif mapping_dict["map_type"] == "RelationshipObjectHighlightingMapping":
-            mapping_dict["map_type"] = RelationshipMapping.MAP_TYPE
 
 
 def _expand_indexed_data(data, mapping):

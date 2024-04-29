@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -29,23 +30,21 @@ from spinedb_api import (
 )
 from spinedb_api.export_mapping import rows
 from spinedb_api.export_mapping.settings import (
-    relationship_export,
-    set_relationship_dimensions,
-    object_parameter_export,
+    entity_export,
+    set_entity_dimensions,
+    entity_parameter_value_export,
     set_parameter_dimensions,
-    relationship_parameter_default_value_export,
     set_parameter_default_value_dimensions,
-    object_parameter_default_value_export,
-    relationship_parameter_export,
-    relationship_object_parameter_default_value_export,
-    relationship_object_parameter_export,
+    entity_parameter_default_value_export,
+    entity_dimension_parameter_default_value_export,
+    entity_dimension_parameter_value_export,
 )
 from spinedb_api.export_mapping.export_mapping import (
     Position,
-    RelationshipClassMapping,
-    RelationshipClassObjectClassMapping,
-    RelationshipMapping,
-    RelationshipObjectMapping,
+    EntityClassMapping,
+    DimensionMapping,
+    EntityMapping,
+    ElementMapping,
     ExpandedParameterValueMapping,
     ParameterValueIndexMapping,
     IndexNameMapping,
@@ -59,7 +58,7 @@ from spinedb_api.export_mapping.export_mapping import (
 )
 
 
-class TestRelationshipParameterExport(unittest.TestCase):
+class TestEntityParameterExport(unittest.TestCase):
     def test_export_with_parameter_values(self):
         db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc1", "oc2"))
@@ -85,8 +84,8 @@ class TestRelationshipParameterExport(unittest.TestCase):
             ),
         )
         db_map.commit_session("Add test data.")
-        root_mapping = relationship_parameter_export(
-            object_positions=[-1, -2], value_position=-3, index_name_positions=[Position.hidden], index_positions=[0]
+        root_mapping = entity_parameter_value_export(
+            element_positions=[-1, -2], value_position=-3, index_name_positions=[Position.hidden], index_positions=[0]
         )
         expected = [
             [None, "o1", "o1"],
@@ -95,15 +94,15 @@ class TestRelationshipParameterExport(unittest.TestCase):
             [numpy.datetime64("2022-06-22T12:00:00"), -2.2, -4.4],
         ]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
-        db_map.connection.close()
+        db_map.close()
 
 
-class TestRelationshipObjectParameterDefaultValueExport(unittest.TestCase):
+class TestEntityClassDimensionParameterDefaultValueExport(unittest.TestCase):
     def setUp(self):
         self._db_map = DatabaseMapping("sqlite://", create=True)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_export_with_two_dimensions(self):
         import_object_classes(self._db_map, ("oc1", "oc2"))
@@ -113,26 +112,26 @@ class TestRelationshipObjectParameterDefaultValueExport(unittest.TestCase):
         import_relationship_classes(self._db_map, (("rc", ("oc1", "oc2")),))
         import_relationship_parameters(self._db_map, (("rc", "rc_p", "dummy"),))
         self._db_map.commit_session("Add test data.")
-        root_mapping = relationship_object_parameter_default_value_export(
-            relationship_class_position=0,
+        root_mapping = entity_dimension_parameter_default_value_export(
+            entity_class_position=0,
             definition_position=1,
-            object_class_positions=[2, 3],
+            dimension_positions=[2, 3],
             value_position=4,
             value_type_position=5,
             index_name_positions=None,
             index_positions=None,
-            highlight_dimension=0,
+            highlight_position=0,
         )
         expected = [["rc", "p11", "oc1", "oc2", 2.3, "single_value"], ["rc", "p12", "oc1", "oc2", 5.0, "single_value"]]
         self.assertEqual(list(rows(root_mapping, self._db_map)), expected)
 
 
-class TestRelationshipObjectParameterExport(unittest.TestCase):
+class TestEntityElementParameterExport(unittest.TestCase):
     def setUp(self):
         self._db_map = DatabaseMapping("sqlite://", create=True)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def test_export_with_two_dimensions(self):
         import_object_classes(self._db_map, ("oc1", "oc2"))
@@ -152,93 +151,93 @@ class TestRelationshipObjectParameterExport(unittest.TestCase):
         import_relationships(self._db_map, (("rc", ("o11", "o21")), ("rc", ("o12", "o21"))))
         import_relationship_parameter_values(self._db_map, (("rc", ("o11", "o21"), "rc_p", "dummy"),))
         self._db_map.commit_session("Add test data.")
-        root_mapping = relationship_object_parameter_export(
-            relationship_class_position=0,
+        root_mapping = entity_dimension_parameter_value_export(
+            entity_class_position=0,
             definition_position=1,
             value_list_position=Position.hidden,
-            relationship_position=2,
-            object_class_positions=[3, 4],
-            object_positions=[5, 6],
+            entity_position=2,
+            dimension_positions=[3, 4],
+            element_positions=[5, 6],
             alternative_position=7,
             value_type_position=8,
             value_position=9,
-            highlight_dimension=0,
+            highlight_position=0,
         )
-        set_relationship_dimensions(root_mapping, 2)
+        set_entity_dimensions(root_mapping, 2)
         expected = [
-            ["rc", "p11", "rc_o11__o21", "oc1", "oc2", "o11", "o21", "Base", "single_value", 2.3],
-            ["rc", "p11", "rc_o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -2.3],
-            ["rc", "p12", "rc_o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -5.0],
+            ["rc", "p11", "o11__o21", "oc1", "oc2", "o11", "o21", "Base", "single_value", 2.3],
+            ["rc", "p11", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -2.3],
+            ["rc", "p12", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -5.0],
         ]
         self.assertEqual(list(rows(root_mapping, self._db_map)), expected)
 
 
-class TestSetRelationshipDimensions(unittest.TestCase):
+class TestSetEntityDimensions(unittest.TestCase):
     def test_change_dimensions_from_zero_to_one(self):
-        mapping = relationship_export(0, 1)
+        mapping = entity_export(0, 1)
         self.assertEqual(mapping.count_mappings(), 2)
-        set_relationship_dimensions(mapping, 1)
+        set_entity_dimensions(mapping, 1)
         self.assertEqual(mapping.count_mappings(), 4)
         flattened = mapping.flatten()
         classes = [type(mapping) for mapping in flattened]
         self.assertEqual(
             classes,
             [
-                RelationshipClassMapping,
-                RelationshipClassObjectClassMapping,
-                RelationshipMapping,
-                RelationshipObjectMapping,
+                EntityClassMapping,
+                DimensionMapping,
+                EntityMapping,
+                ElementMapping,
             ],
         )
         positions = [mapping.position for mapping in flattened]
         self.assertEqual(positions, [0, Position.hidden, 1, Position.hidden])
 
     def test_change_dimension_from_one_to_zero(self):
-        mapping = relationship_export(0, 1, [2], [3])
+        mapping = entity_export(0, 1, [2], [3])
         self.assertEqual(mapping.count_mappings(), 4)
-        set_relationship_dimensions(mapping, 0)
+        set_entity_dimensions(mapping, 0)
         self.assertEqual(mapping.count_mappings(), 2)
         flattened = mapping.flatten()
         classes = [type(mapping) for mapping in flattened]
-        self.assertEqual(classes, [RelationshipClassMapping, RelationshipMapping])
+        self.assertEqual(classes, [EntityClassMapping, EntityMapping])
         positions = [mapping.position for mapping in flattened]
         self.assertEqual(positions, [0, 1])
 
     def test_increase_dimensions(self):
-        mapping = relationship_export(0, 1, [2], [3])
+        mapping = entity_export(0, 1, [2], [3])
         self.assertEqual(mapping.count_mappings(), 4)
-        set_relationship_dimensions(mapping, 2)
+        set_entity_dimensions(mapping, 2)
         self.assertEqual(mapping.count_mappings(), 6)
         flattened = mapping.flatten()
         classes = [type(mapping) for mapping in flattened]
         self.assertEqual(
             classes,
             [
-                RelationshipClassMapping,
-                RelationshipClassObjectClassMapping,
-                RelationshipClassObjectClassMapping,
-                RelationshipMapping,
-                RelationshipObjectMapping,
-                RelationshipObjectMapping,
+                EntityClassMapping,
+                DimensionMapping,
+                DimensionMapping,
+                EntityMapping,
+                ElementMapping,
+                ElementMapping,
             ],
         )
         positions = [mapping.position for mapping in flattened]
         self.assertEqual(positions, [0, 2, Position.hidden, 1, 3, Position.hidden])
 
     def test_decrease_dimensions(self):
-        mapping = relationship_export(0, 1, [2, 3], [4, 5])
+        mapping = entity_export(0, 1, [2, 3], [4, 5])
         self.assertEqual(mapping.count_mappings(), 6)
-        set_relationship_dimensions(mapping, 1)
+        set_entity_dimensions(mapping, 1)
         self.assertEqual(mapping.count_mappings(), 4)
         flattened = mapping.flatten()
         classes = [type(mapping) for mapping in flattened]
         self.assertEqual(
             classes,
             [
-                RelationshipClassMapping,
-                RelationshipClassObjectClassMapping,
-                RelationshipMapping,
-                RelationshipObjectMapping,
+                EntityClassMapping,
+                DimensionMapping,
+                EntityMapping,
+                ElementMapping,
             ],
         )
         positions = [mapping.position for mapping in flattened]
@@ -247,7 +246,7 @@ class TestSetRelationshipDimensions(unittest.TestCase):
 
 class TestSetParameterDimensions(unittest.TestCase):
     def test_set_dimensions_from_zero_to_one(self):
-        root_mapping = object_parameter_export()
+        root_mapping = entity_parameter_value_export()
         set_parameter_dimensions(root_mapping, 1)
         expected_types = [
             ExpandedParameterValueMapping,
@@ -259,7 +258,7 @@ class TestSetParameterDimensions(unittest.TestCase):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_default_value_dimensions_from_zero_to_one(self):
-        root_mapping = relationship_parameter_default_value_export()
+        root_mapping = entity_parameter_default_value_export()
         set_parameter_default_value_dimensions(root_mapping, 1)
         expected_types = [
             ExpandedParameterDefaultValueMapping,
@@ -271,21 +270,21 @@ class TestSetParameterDimensions(unittest.TestCase):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_dimensions_from_one_to_zero(self):
-        root_mapping = relationship_parameter_export(index_name_positions=[0], index_positions=[1])
+        root_mapping = entity_parameter_value_export(index_name_positions=[0], index_positions=[1])
         set_parameter_dimensions(root_mapping, 0)
         expected_types = [ParameterValueMapping, ParameterValueTypeMapping]
         for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_default_value_dimensions_from_one_to_zero(self):
-        root_mapping = object_parameter_default_value_export(index_name_positions=[0], index_positions=[1])
+        root_mapping = entity_parameter_default_value_export(index_name_positions=[0], index_positions=[1])
         set_parameter_default_value_dimensions(root_mapping, 0)
         expected_types = [ParameterDefaultValueMapping, ParameterDefaultValueTypeMapping]
         for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_dimensions_from_one_to_two(self):
-        root_mapping = relationship_parameter_export(index_name_positions=[0], index_positions=[1])
+        root_mapping = entity_parameter_value_export(index_name_positions=[0], index_positions=[1])
         set_parameter_dimensions(root_mapping, 2)
         expected_types = [
             ExpandedParameterValueMapping,
@@ -299,7 +298,7 @@ class TestSetParameterDimensions(unittest.TestCase):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_default_value_dimensions_from_one_to_two(self):
-        root_mapping = relationship_parameter_default_value_export(index_name_positions=[0], index_positions=[1])
+        root_mapping = entity_parameter_default_value_export(index_name_positions=[0], index_positions=[1])
         set_parameter_default_value_dimensions(root_mapping, 2)
         expected_types = [
             ExpandedParameterDefaultValueMapping,
@@ -313,7 +312,7 @@ class TestSetParameterDimensions(unittest.TestCase):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_dimensions_from_two_to_one(self):
-        root_mapping = relationship_parameter_export(index_name_positions=[0, 2], index_positions=[1, 3])
+        root_mapping = entity_parameter_value_export(index_name_positions=[0, 2], index_positions=[1, 3])
         set_parameter_dimensions(root_mapping, 1)
         expected_types = [
             ExpandedParameterValueMapping,
@@ -325,7 +324,7 @@ class TestSetParameterDimensions(unittest.TestCase):
             self.assertIsInstance(mapping, expected_type)
 
     def test_set_default_value_dimensions_from_two_to_one(self):
-        root_mapping = relationship_parameter_default_value_export(index_name_positions=[0, 2], index_positions=[1, 3])
+        root_mapping = entity_parameter_default_value_export(index_name_positions=[0, 2], index_positions=[1, 3])
         set_parameter_default_value_dimensions(root_mapping, 1)
         expected_types = [
             ExpandedParameterDefaultValueMapping,

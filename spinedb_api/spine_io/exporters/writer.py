@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -27,7 +28,7 @@ def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, ma
     Writes given mapping.
 
     Args:
-        db_map (DatabaseMappingBase): database map
+        db_map (DatabaseMapping): database map
         writer (Writer): target writer
         mappings (Mapping): root mappings
         empty_data_header (bool or Iterable of bool): True to write at least header rows even if there is no data,
@@ -130,7 +131,7 @@ def _new_table(writer, table_name, title_key):
     Args:
         writer (Writer): a writer
         table_name (str): table's name
-        title_key (dict,optional)
+        title_key (dict, optional)
 
     Yields:
         bool: whether or not the new table was successfully started

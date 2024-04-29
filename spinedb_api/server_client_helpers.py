@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -9,27 +10,21 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Helpers for server and client.
-
-"""
-
 import json
-from .import_functions import ImportErrorLogItem
 from .exception import SpineDBAPIError
+from .db_mapping_base import PublicItem
+from .temp_id import TempId
 
 # Encode decode server messages
-_START_OF_TAIL = '\u001f'  # Unit separator
-_START_OF_ADDRESS = '\u0091'  # Private Use 1
-_ADDRESS_SEP = ':'
+_START_OF_TAIL = "\u001f"  # Unit separator
+_START_OF_ADDRESS = "\u0091"  # Private Use 1
+_ADDRESS_SEP = ":"
 
 
 class ReceiveAllMixing:
-    """Provides _recvall, to read everything from a socket until the _EOT character is found."""
-
     _ENCODING = "utf-8"
     _BUFF_SIZE = 4096
-    _EOT = '\u0004'  # End of transmission
+    _EOT = "\u0004"  # End of transmission
     _BEOT = _EOT.encode(_ENCODING)
     """End of message character"""
 
@@ -52,7 +47,7 @@ class ReceiveAllMixing:
 class _TailJSONEncoder(json.JSONEncoder):
     """
     A custom JSON encoder that accummulates bytes objects into a tail.
-    The bytes object are encoded as a string pointing to the address in the tail.
+    Each bytes object is encoded as a string pointing to the address in the tail.
     """
 
     def __init__(self):
@@ -70,8 +65,12 @@ class _TailJSONEncoder(json.JSONEncoder):
             return address
         if isinstance(o, set):
             return list(o)
-        if isinstance(o, (SpineDBAPIError, ImportErrorLogItem)):
+        if isinstance(o, SpineDBAPIError):
             return str(o)
+        if isinstance(o, PublicItem):
+            return o._extended()
+        if isinstance(o, TempId):
+            return o.private_id
         return super().default(o)
 
     @property
@@ -81,7 +80,7 @@ class _TailJSONEncoder(json.JSONEncoder):
 
 def encode(o):
     """
-    Encodes given object (representing a server response) into a message with the following structure:
+    Encodes given object into a message to be sent via a socket, with the following structure:
 
         body | start of tail character | tail
 
@@ -90,10 +89,10 @@ def encode(o):
     See class:`_TailJSONEncoder`.
 
     Args:
-        o (any): A Python object representing a server response.
+        o (any): A Python object to encode.
 
     Returns:
-        bytes: A message to the client.
+        bytes: Encoded message.
     """
     encoder = _TailJSONEncoder()
     s = encoder.encode(o)
@@ -102,7 +101,7 @@ def encode(o):
 
 def decode(b):
     """
-    Decodes given message (representing a client request) into a Python object.
+    Decodes given message received via a socket into a Python object.
     The message must have the following structure:
 
         body | start of tail character | tail
@@ -111,10 +110,10 @@ def decode(b):
     from the tail.
 
     Args:
-        b (bytes): A message from the client.
+        b (bytes): A message to decode.
 
     Returns:
-        any: A Python object representing a client request.
+        any: Decoded object.
     """
     body, tail = b.split(_START_OF_TAIL.encode())
     o = json.loads(body)

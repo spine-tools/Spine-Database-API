@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -8,17 +9,13 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-General helper functions and classes.
-
-"""
+""" General helper functions. """
 
 import os
 import json
 import warnings
 from operator import itemgetter
-from urllib.parse import urlparse, urlunparse
+from itertools import groupby
 from sqlalchemy import (
     Boolean,
     BigInteger,
@@ -41,11 +38,12 @@ from sqlalchemy import (
     func,
     inspect,
     null,
+    true,
     select,
 )
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
+from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.sql.expression import FunctionElement, bindparam, cast
 from alembic.config import Config
@@ -54,18 +52,19 @@ from alembic.migration import MigrationContext
 from alembic.environment import EnvironmentContext
 from .exception import SpineDBAPIError, SpineDBVersionError
 
-# Supported dialects and recommended dbapi. Restricted to mysql and sqlite for now:
-# - sqlite works
-# - mysql is trying to work
 SUPPORTED_DIALECTS = {
     "mysql": "pymysql",
     "sqlite": "sqlite3",
 }
+"""Currently supported dialects and recommended dbapi."""
+
 
 UNSUPPORTED_DIALECTS = {
     "mssql": "pyodbc",
     "postgresql": "psycopg2",
 }
+"""Dialects and recommended dbapi that are not supported by DatabaseMapping but are supported by SqlAlchemy."""
+
 
 naming_convention = {
     "pk": "pk_%(table_name)s",
@@ -77,6 +76,32 @@ naming_convention = {
 model_meta = MetaData(naming_convention=naming_convention)
 
 LONGTEXT_LENGTH = 2 ** 32 - 1
+
+
+def name_from_elements(elements):
+    """Creates an entity name by combining element names.
+
+    Args:
+        elements (Sequence of str): element names
+
+    Returns:
+        str: entity name
+    """
+    if len(elements) == 1:
+        return elements[0] + "__"
+    return "__".join(elements)
+
+
+def name_from_dimensions(dimensions):
+    """Creates an entity class name by combining dimension names.
+
+    Args:
+        dimensions (Sequence of str): dimension names
+
+    Returns:
+        str: entity class name
+    """
+    return name_from_elements(dimensions)
 
 
 # NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
@@ -106,7 +131,7 @@ def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
 
 class group_concat(FunctionElement):
     type = String()
-    name = 'group_concat'
+    name = "group_concat"
 
 
 def _parse_group_concat_clauses(clauses):
@@ -154,8 +179,8 @@ def _parse_metadata(metadata):
         yield (key, str(value))
 
 
-def is_head(db_url, upgrade=False):
-    """Check whether or not db_url is head.
+def _is_head(db_url, upgrade=False):
+    """Check whether or not db_url is at the head revision.
 
     Args:
         db_url (str): database url
@@ -166,12 +191,6 @@ def is_head(db_url, upgrade=False):
 
 
 def is_head_engine(engine, upgrade=False):
-    """Check whether or not engine is head.
-
-    Args:
-        engine (Engine): database engine
-        upgrade (Bool): if True, upgrade db to head
-    """
     config = Config()
     config.set_main_option("script_location", "spinedb_api:alembic")
     script = ScriptDirectory.from_config(config)
@@ -198,8 +217,17 @@ def is_head_engine(engine, upgrade=False):
 
 
 def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tables=(), skip_tables=()):
-    """Copy the database from source_url into dest_url."""
-    if not is_head(source_url, upgrade=upgrade):
+    """Copy the database from one url to another.
+
+    Args:
+        dest_url (str): The destination url.
+        source_url (str): The source url.
+        overwrite (bool, optional): whether to overwrite the destination.
+        upgrade (bool, optional): whether to upgrade the source to the latest Spine schema revision.
+        only_tables (tuple, optional): If given, only these tables are copied.
+        skip_tables (tuple, optional): If given, these tables are skipped.
+    """
+    if not _is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)
     source_engine = create_engine(source_url)
     dest_engine = create_engine(dest_url)
@@ -245,7 +273,7 @@ def copy_database_bind(dest_bind, source_bind, overwrite=True, upgrade=False, on
         try:
             dest_bind.execute(ins, data)
         except IntegrityError as e:
-            warnings.warn("Skipping table {0}: {1}".format(source_table.name, e.orig.args))
+            warnings.warn(f"Skipping table {source_table.name}: {e.orig.args}")
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
@@ -257,21 +285,7 @@ def custom_generate_relationship(base, direction, return_fn, attrname, local_cls
     return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
 
 
-def is_unlocked(db_url, timeout=0):
-    """Return True if the SQLite db_url is unlocked, after waiting at most timeout seconds.
-    Otherwise return False."""
-    if not db_url.startswith("sqlite"):
-        return False
-    try:
-        engine = create_engine(db_url, connect_args={"timeout": timeout})
-        engine.execute("BEGIN IMMEDIATE")
-        return True
-    except OperationalError:
-        return False
-
-
 def compare_schemas(left_engine, right_engine):
-    """Whether or not the left and right engine have the same schema."""
     left_insp = inspect(left_engine)
     right_insp = inspect(right_engine)
     left_dict = schema_dict(left_insp)
@@ -300,6 +314,13 @@ def is_empty(db_url):
     if insp.get_table_names():
         return False
     return True
+
+
+def get_head_alembic_version():
+    config = Config()
+    config.set_main_option("script_location", "spinedb_api:alembic")
+    script = ScriptDirectory.from_config(config)
+    return script.get_current_head()
 
 
 def create_spine_metadata():
@@ -350,129 +371,83 @@ def create_spine_metadata():
         UniqueConstraint("scenario_id", "alternative_id"),
     )
     Table(
-        "entity_class_type",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("name", String(255), nullable=False),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-    )
-    Table(
-        "entity_type",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("name", String(255), nullable=False),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-    )
-    Table(
         "entity_class",
         meta,
         Column("id", Integer, primary_key=True),
-        Column(
-            "type_id",
-            Integer,
-            ForeignKey("entity_class_type.id", onupdate="CASCADE", ondelete="CASCADE"),
-            nullable=False,
-        ),
         Column("name", String(255), nullable=False),
         Column("description", Text(), server_default=null()),
         Column("display_order", Integer, server_default="99"),
         Column("display_icon", BigInteger, server_default=null()),
         Column("hidden", Integer, server_default="0"),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("id", "type_id"),
-        UniqueConstraint("type_id", "name"),
+        Column("active_by_default", Boolean(name="active_by_default"), server_default=false(), nullable=False),
     )
     Table(
-        "object_class",
+        "superclass_subclass",
         meta,
-        Column("entity_class_id", Integer, primary_key=True),
-        Column("type_id", Integer, nullable=False),
-        ForeignKeyConstraint(
-            ("entity_class_id", "type_id"), ("entity_class.id", "entity_class.type_id"), ondelete="CASCADE"
+        Column("id", Integer, primary_key=True),
+        Column(
+            "superclass_id",
+            Integer,
+            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
         ),
-        CheckConstraint("`type_id` = 1", name="type_id"),  # make sure object class can only have object type
+        Column(
+            "subclass_id",
+            Integer,
+            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
+            unique=True,
+        ),
     )
     Table(
-        "relationship_class",
-        meta,
-        Column("entity_class_id", Integer, primary_key=True),
-        Column("type_id", Integer, nullable=False),
-        ForeignKeyConstraint(
-            ("entity_class_id", "type_id"), ("entity_class.id", "entity_class.type_id"), ondelete="CASCADE"
-        ),
-        CheckConstraint("`type_id` = 2", name="type_id"),
-    )
-    Table(
-        "relationship_entity_class",
+        "entity_class_dimension",
         meta,
         Column(
             "entity_class_id",
             Integer,
-            ForeignKey("relationship_class.entity_class_id", onupdate="CASCADE", ondelete="CASCADE"),
+            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
             primary_key=True,
         ),
-        Column("dimension", Integer, primary_key=True),
-        Column("member_class_id", Integer, nullable=False),
-        Column("member_class_type_id", Integer, nullable=False),
-        UniqueConstraint("entity_class_id", "dimension", "member_class_id", name="uq_relationship_entity_class"),
-        ForeignKeyConstraint(("member_class_id", "member_class_type_id"), ("entity_class.id", "entity_class.type_id")),
-        CheckConstraint("`member_class_type_id` != 2", name="member_class_type_id"),
+        Column(
+            "dimension_id",
+            Integer,
+            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        Column("position", Integer, primary_key=True),
+        UniqueConstraint("entity_class_id", "dimension_id", "position", name="uq_entity_class_dimension"),
     )
     Table(
         "entity",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("type_id", Integer, ForeignKey("entity_type.id", onupdate="CASCADE", ondelete="CASCADE")),
         Column("class_id", Integer, ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE")),
         Column("name", String(255), nullable=False),
         Column("description", Text(), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("id", "class_id"),
-        UniqueConstraint("id", "type_id", "class_id"),
         UniqueConstraint("class_id", "name"),
     )
     Table(
-        "object",
-        meta,
-        Column("entity_id", Integer, primary_key=True),
-        Column("type_id", Integer, nullable=False),
-        ForeignKeyConstraint(("entity_id", "type_id"), ("entity.id", "entity.type_id"), ondelete="CASCADE"),
-        CheckConstraint("`type_id` = 1", name="type_id"),  # make sure object can only have object type
-    )
-    Table(
-        "relationship",
+        "entity_element",
         meta,
         Column("entity_id", Integer, primary_key=True),
         Column("entity_class_id", Integer, nullable=False),
-        Column("type_id", Integer, nullable=False),
-        UniqueConstraint("entity_id", "entity_class_id"),
-        ForeignKeyConstraint(("entity_id", "type_id"), ("entity.id", "entity.type_id"), ondelete="CASCADE"),
-        CheckConstraint("`type_id` = 2", name="type_id"),
-    )
-    Table(
-        "relationship_entity",
-        meta,
-        Column("entity_id", Integer, primary_key=True),
-        Column("entity_class_id", Integer, nullable=False),
-        Column("dimension", Integer, primary_key=True),
-        Column("member_id", Integer, nullable=False),
-        Column("member_class_id", Integer, nullable=False),
+        Column("element_id", Integer, nullable=False),
+        Column("dimension_id", Integer, nullable=False),
+        Column("position", Integer, primary_key=True),
         ForeignKeyConstraint(
-            ("member_id", "member_class_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
+            ("entity_id", "entity_class_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
         ),
         ForeignKeyConstraint(
-            ("entity_class_id", "dimension", "member_class_id"),
+            ("element_id", "dimension_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
+        ),
+        ForeignKeyConstraint(
+            ("entity_class_id", "dimension_id", "position"),
             (
-                "relationship_entity_class.entity_class_id",
-                "relationship_entity_class.dimension",
-                "relationship_entity_class.member_class_id",
+                "entity_class_dimension.entity_class_id",
+                "entity_class_dimension.dimension_id",
+                "entity_class_dimension.position",
             ),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        ForeignKeyConstraint(
-            ("entity_id", "entity_class_id"),
-            ("relationship.entity_id", "relationship.entity_class_id"),
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
@@ -491,6 +466,21 @@ def create_spine_metadata():
         ForeignKeyConstraint(
             ("member_id", "entity_class_id"), ("entity.id", "entity.class_id"), onupdate="CASCADE", ondelete="CASCADE"
         ),
+    )
+    Table(
+        "entity_alternative",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("entity_id", Integer, ForeignKey("entity.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False),
+        Column(
+            "alternative_id",
+            Integer,
+            ForeignKey("alternative.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        Column("active", Boolean(name="active"), server_default=true(), nullable=False),
+        Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("entity_id", "alternative_id"),
     )
     Table(
         "parameter_definition",
@@ -575,71 +565,6 @@ def create_spine_metadata():
         UniqueConstraint("parameter_value_list_id", "index"),
     )
     Table(
-        "tool",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("name", String(155), nullable=False),
-        Column("description", Text(), server_default=null()),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-    )
-    Table(
-        "feature",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("parameter_definition_id", Integer, nullable=False),
-        Column("parameter_value_list_id", Integer, nullable=False),
-        Column("description", Text(), server_default=null()),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("parameter_definition_id", "parameter_value_list_id"),
-        UniqueConstraint("id", "parameter_value_list_id"),
-        ForeignKeyConstraint(
-            ("parameter_definition_id", "parameter_value_list_id"),
-            ("parameter_definition.id", "parameter_definition.parameter_value_list_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-    )
-    Table(
-        "tool_feature",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("tool_id", Integer, ForeignKey("tool.id")),
-        Column("feature_id", Integer, nullable=False),
-        Column("parameter_value_list_id", Integer, nullable=False),
-        Column("required", Boolean(name="required"), server_default=false(), nullable=False),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("tool_id", "feature_id"),
-        UniqueConstraint("id", "parameter_value_list_id"),
-        ForeignKeyConstraint(
-            ("feature_id", "parameter_value_list_id"),
-            ("feature.id", "feature.parameter_value_list_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-    )
-    Table(
-        "tool_feature_method",
-        meta,
-        Column("id", Integer, primary_key=True),
-        Column("tool_feature_id", Integer, nullable=False),
-        Column("parameter_value_list_id", Integer, nullable=False),
-        Column("method_index", Integer),
-        Column("commit_id", Integer, ForeignKey("commit.id")),
-        UniqueConstraint("tool_feature_id", "method_index"),
-        ForeignKeyConstraint(
-            ("tool_feature_id", "parameter_value_list_id"),
-            ("tool_feature.id", "tool_feature.parameter_value_list_id"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-        ForeignKeyConstraint(
-            ("parameter_value_list_id", "method_index"),
-            ("list_value.parameter_value_list_id", "list_value.index"),
-            onupdate="CASCADE",
-            ondelete="CASCADE",
-        ),
-    )
-    Table(
         "metadata",
         meta,
         Column("id", Integer, primary_key=True),
@@ -685,27 +610,37 @@ def create_spine_metadata():
 
 
 def create_new_spine_database(db_url):
-    """Create a new Spine database at the given url."""
+    """Create a new Spine database at the given url.
+
+    Args:
+        db_url (str): The url.
+
+    Returns:
+        Engine
+    """
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args)) from None
+        raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
+    create_new_spine_database_from_bind(engine)
+    return engine
+
+
+def create_new_spine_database_from_bind(bind):
     # Drop existing tables. This is a Spine db now...
-    meta = MetaData(engine)
+    meta = MetaData(bind)
     meta.reflect()
     meta.drop_all()
     # Create new tables
     meta = create_spine_metadata()
+    version = get_head_alembic_version()
     try:
-        meta.create_all(engine)
-        engine.execute("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
-        engine.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
-        engine.execute("INSERT INTO entity_class_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
-        engine.execute("INSERT INTO entity_type VALUES (1, 'object', 1), (2, 'relationship', 1)")
-        engine.execute("INSERT INTO alembic_version VALUES ('989fccf80441')")
+        meta.create_all(bind)
+        bind.execute("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
+        bind.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
+        bind.execute(f"INSERT INTO alembic_version VALUES ('{version}')")
     except DatabaseError as e:
-        raise SpineDBAPIError("Unable to create Spine database: {}".format(e)) from None
-    return engine
+        raise SpineDBAPIError(f"Unable to create Spine database: {e}") from None
 
 
 def _create_first_spine_database(db_url):
@@ -715,7 +650,7 @@ def _create_first_spine_database(db_url):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args)) from None
+        raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     # Drop existing tables. This is a Spine db now...
     meta = MetaData(engine)
     meta.reflect()
@@ -857,18 +792,18 @@ def _create_first_spine_database(db_url):
     try:
         meta.create_all(engine)
     except DatabaseError as e:
-        raise SpineDBAPIError("Unable to create Spine database: {}".format(e.orig.args))
+        raise SpineDBAPIError(f"Unable to create Spine database: {e.orig.args}")
     return engine
 
 
-def forward_sweep(root, fn):
+def forward_sweep(root, fn, *args):
     """Recursively visit, using `get_children()`, the given sqlalchemy object.
     Apply `fn` on every visited node."""
     current = root
     parent = {}
     children = {current: iter(current.get_children(column_collections=False))}
     while True:
-        fn(current)
+        fn(current, *args)
         # Try and visit next children
         next_ = next(children[current], None)
         if next_ is not None:
@@ -888,35 +823,6 @@ def forward_sweep(root, fn):
         current = current_parent
         if current == root:
             break
-
-
-def get_relationship_entity_class_items(item, object_class_type):
-    return [
-        {
-            "entity_class_id": item["id"],
-            "dimension": dimension,
-            "member_class_id": object_class_id,
-            "member_class_type_id": object_class_type,
-        }
-        for dimension, object_class_id in enumerate(item["object_class_id_list"])
-    ]
-
-
-def get_relationship_entity_items(item, relationship_entity_type, object_entity_type):
-    return [
-        {
-            "entity_id": item["id"],
-            "type_id": relationship_entity_type,
-            "entity_class_id": item["class_id"],
-            "dimension": dimension,
-            "member_id": object_id,
-            "member_class_type_id": object_entity_type,
-            "member_class_id": object_class_id,
-        }
-        for dimension, (object_id, object_class_id) in enumerate(
-            zip(item["object_id_list"], item["object_class_id_list"])
-        )
-    ]
 
 
 def labelled_columns(table):
@@ -969,7 +875,39 @@ def remove_credentials_from_url(url):
     Returns:
         str: sanitized URL
     """
-    parsed = urlparse(url)
-    if parsed.username is None:
+    if "@" not in url:
         return url
-    return urlunparse(parsed._replace(netloc=parsed.netloc.partition("@")[-1]))
+    head, tail = url.rsplit("@", maxsplit=1)
+    scheme, credentials = head.split("://", maxsplit=1)
+    return scheme + "://" + tail
+
+
+def group_consecutive(list_of_numbers):
+    for _k, g in groupby(enumerate(sorted(list_of_numbers)), lambda x: x[0] - x[1]):
+        group = list(map(itemgetter(1), g))
+        yield group[0], group[-1]
+
+
+_TRUTHS = {s.casefold() for s in ("yes", "true", "y", "t", "1")}
+_FALSES = {s.casefold() for s in ("no", "false", "n", "f", "0")}
+
+
+def string_to_bool(string):
+    """Converts string to boolean.
+
+    Recognizes "yes", "true", "y", "t" and "1" as True, "no", "false", "n", "f" and "0" as False.
+    Case insensitive.
+    Raises Value error if value is not recognized.
+
+    Args:
+        string (str): string to convert
+
+    Returns:
+        bool: True or False
+    """
+    string = string.casefold()
+    if string in _TRUTHS:
+        return True
+    if string in _FALSES:
+        return False
+    raise ValueError(string)

@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -9,15 +10,15 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
+"""
+A package to interact with Spine DBs.
+"""
+
 from .db_mapping import DatabaseMapping
-from .diff_db_mapping import DiffDatabaseMapping
 from .exception import (
     SpineDBAPIError,
     SpineIntegrityError,
     SpineDBVersionError,
-    SpineTableNotFoundError,
-    RecordNotFoundError,
-    ParameterValueError,
     ParameterValueFormatError,
     InvalidMapping,
 )
@@ -27,27 +28,18 @@ from .helpers import (
     SUPPORTED_DIALECTS,
     create_new_spine_database,
     copy_database,
-    is_unlocked,
-    is_head,
     is_empty,
     forward_sweep,
     Asterisk,
 )
-from .check_functions import (
-    check_alternative,
-    check_scenario,
-    check_scenario_alternative,
-    check_object_class,
-    check_object,
-    check_wide_relationship_class,
-    check_wide_relationship,
-    check_parameter_definition,
-    check_parameter_value,
-    check_parameter_value_list,
-)
 from .import_functions import (
     import_alternatives,
     import_data,
+    import_entity_classes,
+    import_entities,
+    import_entity_alternatives,
+    import_parameter_definitions,
+    import_parameter_values,
     import_object_classes,
     import_objects,
     import_object_parameters,
@@ -59,10 +51,6 @@ from .import_functions import (
     import_relationships,
     import_scenarios,
     import_scenario_alternatives,
-    import_tools,
-    import_features,
-    import_tool_features,
-    import_tool_feature_methods,
     import_metadata,
     import_object_metadata,
     import_relationship_metadata,
@@ -71,23 +59,16 @@ from .import_functions import (
     get_data_for_import,
 )
 from .export_functions import (
-    export_alternatives,
     export_data,
-    export_object_classes,
-    export_object_groups,
-    export_object_parameters,
-    export_object_parameter_values,
-    export_objects,
-    export_relationship_classes,
-    export_relationship_parameter_values,
-    export_relationship_parameters,
-    export_relationships,
-    export_scenario_alternatives,
+    export_entity_classes,
+    export_entity_groups,
+    export_entities,
+    export_parameter_value_lists,
+    export_parameter_definitions,
+    export_parameter_values,
     export_scenarios,
-    export_tools,
-    export_features,
-    export_tool_features,
-    export_tool_feature_methods,
+    export_alternatives,
+    export_scenario_alternatives,
 )
 from .import_mapping.import_mapping_compat import import_mapping_from_dict
 from .import_mapping.generator import get_mapped_data
@@ -103,7 +84,6 @@ from .parameter_value import (
     Array,
     DateTime,
     Duration,
-    IndexedNumberArray,
     IndexedValue,
     Map,
     TimePattern,
@@ -114,7 +94,6 @@ from .parameter_value import (
 )
 from .filters.alternative_filter import apply_alternative_filter_to_parameter_value_sq
 from .filters.scenario_filter import apply_scenario_filter_to_subqueries
-from .filters.tool_filter import apply_tool_filter_to_entity_sq
 from .filters.execution_filter import apply_execution_filter
 from .filters.renamer import apply_renaming_to_parameter_definition_sq, apply_renaming_to_entity_class_sq
 from .filters.tools import (

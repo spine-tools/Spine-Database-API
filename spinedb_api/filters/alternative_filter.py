@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -26,7 +27,7 @@ def apply_alternative_filter_to_parameter_value_sq(db_map, alternatives):
     Replaces parameter value subquery properties in ``db_map`` such that they return only values of given alternatives.
 
     Args:
-        db_map (DatabaseMappingBase): a database map to alter
+        db_map (DatabaseMapping): a database map to alter
         alternatives (Iterable of str or int, optional): alternative names or ids;
     """
     state = _AlternativeFilterState(db_map, alternatives)
@@ -52,7 +53,7 @@ def alternative_filter_from_dict(db_map, config):
     Applies alternative filter to given database map.
 
     Args:
-        db_map (DatabaseMappingBase): target database map
+        db_map (DatabaseMapping): target database map
         config (dict): alternative filter configuration
     """
     apply_alternative_filter_to_parameter_value_sq(db_map, config["alternatives"])
@@ -99,7 +100,7 @@ def alternative_filter_shorthand_to_config(shorthand):
     Returns:
         dict: alternative filter configuration
     """
-    filter_type, separator, tokens = shorthand.partition(":'")
+    _filter_type, _separator, tokens = shorthand.partition(":'")
     alternatives = tokens.split("':'")
     alternatives[-1] = alternatives[-1][:-1]
     return alternative_filter_config(alternatives)
@@ -117,7 +118,7 @@ class _AlternativeFilterState:
     def __init__(self, db_map, alternatives):
         """
         Args:
-            db_map (DatabaseMappingBase): database the state applies to
+            db_map (DatabaseMapping): database the state applies to
             alternatives (Iterable of str or int): alternative names or ids;
         """
         self.original_parameter_value_sq = db_map.parameter_value_sq
@@ -129,7 +130,7 @@ class _AlternativeFilterState:
         Finds ids for given alternatives.
 
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             alternatives (Iterable): alternative names or ids
 
         Returns:
@@ -138,7 +139,7 @@ class _AlternativeFilterState:
         alternative_names = [name for name in alternatives if isinstance(name, str)]
         ids_from_db = (
             db_map.query(db_map.alternative_sq.c.id, db_map.alternative_sq.c.name)
-            .filter(db_map.in_(db_map.alternative_sq.c.name, alternative_names))
+            .filter(db_map.alternative_sq.c.name.in_(alternative_names))
             .all()
         )
         names_in_db = [i.name for i in ids_from_db]
@@ -148,9 +149,7 @@ class _AlternativeFilterState:
         ids = [i.id for i in ids_from_db]
         alternative_ids = [id_ for id_ in alternatives if isinstance(id_, int)]
         ids_from_db = (
-            db_map.query(db_map.alternative_sq.c.id)
-            .filter(db_map.in_(db_map.alternative_sq.c.id, alternative_ids))
-            .all()
+            db_map.query(db_map.alternative_sq.c.id).filter(db_map.alternative_sq.c.id.in_(alternative_ids)).all()
         )
         ids_in_db = [i.id for i in ids_from_db]
         if len(alternative_ids) != len(ids_from_db):
@@ -162,16 +161,16 @@ class _AlternativeFilterState:
 
 def _make_alternative_filtered_parameter_value_sq(db_map, state):
     """
-    Returns an alternative filtering subquery similar to :func:`DatabaseMappingBase.parameter_value_sq`.
+    Returns an alternative filtering subquery similar to :func:`DatabaseMapping.parameter_value_sq`.
 
-    This function can be used as replacement for parameter value subquery maker in :class:`DatabaseMappingBase`.
+    This function can be used as replacement for parameter value subquery maker in :class:`DatabaseMapping`.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_AlternativeFilterState): a state bound to ``db_map``
 
     Returns:
         Alias: a subquery for parameter value filtered by selected alternatives
     """
     subquery = state.original_parameter_value_sq
-    return db_map.query(subquery).filter(db_map.in_(subquery.c.alternative_id, state.alternatives)).subquery()
+    return db_map.query(subquery).filter(subquery.c.alternative_id.in_(state.alternatives)).subquery()

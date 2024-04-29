@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -18,9 +19,9 @@ from spinedb_api.export_mapping.export_mapping import (
     Position,
     AlternativeMapping,
     AlternativeDescriptionMapping,
-    ObjectClassMapping,
-    ObjectGroupMapping,
-    ObjectMapping,
+    EntityClassMapping,
+    EntityGroupMapping,
+    EntityMapping,
     FixedValueMapping,
     ScenarioMapping,
     ScenarioAlternativeMapping,
@@ -31,9 +32,7 @@ from spinedb_api.export_mapping.export_mapping import (
     ParameterValueTypeMapping,
     ParameterValueMapping,
     ExpandedParameterValueMapping,
-    RelationshipClassMapping,
-    RelationshipMapping,
-    RelationshipObjectMapping,
+    ElementMapping,
 )
 from ...parameter_value import from_database_to_dimension_count
 from .excel_writer import ExcelWriter
@@ -56,25 +55,22 @@ class ExcelWriterWithPreamble(ExcelWriter):
     def _make_preamble(table_name, title_key):
         if table_name in ("alternative", "scenario", "scenario_alternative"):
             return {"sheet_type": table_name}
-        class_name = title_key.get("object_class_name") or title_key.get("relationship_class_name")
+        class_name = title_key["entity_class_name"]
         if table_name.endswith(",group"):
             return {"sheet_type": "object_group", "class_name": class_name}
-        object_class_id_list = title_key.get("object_class_id_list")
-        if object_class_id_list is None:
-            entity_type = "object"
-            entity_dim_count = 1
+        dimension_id_list = title_key.get("dimension_id_list")
+        if dimension_id_list is None:
+            entity_dim_count = 0
         else:
-            entity_type = "relationship"
-            entity_dim_count = len(object_class_id_list.split(","))
+            entity_dim_count = len(dimension_id_list.split(","))
         preamble = {
             "sheet_type": "entity",
-            "entity_type": entity_type,
             "class_name": class_name,
             "entity_dim_count": entity_dim_count,
         }
         td = title_key.get("type_and_dimensions")
         if td is not None:
-            preamble["value_type"] = td[0]
+            preamble["value_type"] = td[0] if td[0] else "single_value"
             preamble["index_dim_count"] = td[1]
         return preamble
 
@@ -124,11 +120,11 @@ def _make_scenario_alternative_mapping():
 
 
 def _make_object_group_mappings(db_map):
-    for obj_grp in db_map.query(db_map.ext_entity_group_sq).group_by(db_map.ext_entity_group_sq.c.class_name):
-        root_mapping = ObjectClassMapping(Position.table_name, filter_re=obj_grp.class_name)
+    for obj_grp in db_map.query(db_map.ext_entity_group_sq).group_by(db_map.ext_entity_group_sq.c.entity_class_name):
+        root_mapping = EntityClassMapping(Position.table_name, filter_re=obj_grp.entity_class_name)
         group_mapping = root_mapping.child = FixedValueMapping(Position.table_name, value="group")
-        object_mapping = group_mapping.child = ObjectMapping(1, header="member")
-        object_mapping.child = ObjectGroupMapping(0, header="group")
+        object_mapping = group_mapping.child = EntityMapping(1, header="member")
+        object_mapping.child = EntityGroupMapping(0, header="group")
         yield root_mapping
 
 
@@ -154,9 +150,9 @@ def _make_indexed_parameter_value_mapping(alt_pos=-2, filter_re="array|time_patt
 
 
 def _make_object_mapping(object_class_name, pivoted=False):
-    root_mapping = ObjectClassMapping(Position.table_name, filter_re=f"^{object_class_name}$")
+    root_mapping = EntityClassMapping(Position.table_name, filter_re=f"^{object_class_name}$")
     pos = 0 if not pivoted else -1
-    root_mapping.child = ObjectMapping(pos, header=object_class_name)
+    root_mapping.child = EntityMapping(pos, header=object_class_name)
     return root_mapping
 
 
@@ -183,13 +179,13 @@ def _make_object_map_parameter_value_mapping(object_class_name, dim_count):
 
 
 def _make_relationship_mapping(relationship_class_name, object_class_name_list, pivoted=False):
-    root_mapping = RelationshipClassMapping(Position.table_name, filter_re=f"^{relationship_class_name}$")
-    relationship_mapping = root_mapping.child = RelationshipMapping(Position.hidden)
+    root_mapping = EntityClassMapping(Position.table_name, filter_re=f"^{relationship_class_name}$")
+    relationship_mapping = root_mapping.child = EntityMapping(Position.hidden)
     parent_mapping = relationship_mapping
-    for d, class_name in enumerate(object_class_name_list):
+    for d, entity_class_name in enumerate(object_class_name_list):
         if pivoted:
             d = -(d + 1)
-        object_mapping = parent_mapping.child = RelationshipObjectMapping(d, header=class_name)
+        object_mapping = parent_mapping.child = ElementMapping(d, header=entity_class_name)
         parent_mapping = object_mapping
     return root_mapping
 

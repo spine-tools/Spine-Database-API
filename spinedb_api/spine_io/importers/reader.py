@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -15,6 +16,8 @@ Contains a class template for a data source connector used in import ui.
 """
 
 from itertools import islice
+
+from spinedb_api.exception import ConnectorError, InvalidMappingComponent
 from spinedb_api.import_mapping.generator import get_mapped_data, identity
 from spinedb_api.import_mapping.import_mapping_compat import parse_named_mapping_spec
 from spinedb_api import DateTime, Duration, ParameterValueFormatError
@@ -150,7 +153,7 @@ class SourceConnection:
                     row_convert_fns,
                     unparse_value,
                 )
-            except ParameterValueFormatError as error:
+            except (ConnectorError, ParameterValueFormatError, InvalidMappingComponent) as error:
                 errors.append(str(error))
                 continue
             for key, value in data.items():

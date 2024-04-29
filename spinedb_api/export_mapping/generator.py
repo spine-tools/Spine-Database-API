@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -25,7 +26,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, group_f
 
     Args:
         root_mapping (Mapping): root export mapping
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         fixed_state (dict, optional): mapping state that fixes items
         empty_data_header (bool): True to yield at least header rows even if there is no data, False to yield nothing
         group_fn (str): group function name
@@ -98,7 +99,7 @@ def titles(root_mapping, db_map, limit=None):
 
     Args:
         root_mapping (Mapping): root export mapping
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
 
     Yield:
         tuple: title and title's fixed key

@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -8,23 +9,20 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Contains import mappings for database items such as entities, entity classes and parameter values.
+""" Contains import mappings for database items such as entities, entity classes and parameter values. """
 
-"""
-
-from distutils.util import strtobool
 from enum import auto, Enum, unique
+
+from spinedb_api.helpers import string_to_bool
 from spinedb_api.mapping import Mapping, Position, unflatten, is_pivoted
 from spinedb_api.exception import InvalidMappingComponent
 
 
 @unique
 class ImportKey(Enum):
-    CLASS_NAME = auto()
-    RELATIONSHIP_DIMENSION_COUNT = auto()
-    OBJECT_CLASS_NAME = auto()
-    OBJECT_NAME = auto()
+    DIMENSION_COUNT = auto()
+    ENTITY_CLASS_NAME = auto()
+    ENTITY_NAME = auto()
     GROUP_NAME = auto()
     MEMBER_NAME = auto()
     PARAMETER_NAME = auto()
@@ -34,40 +32,29 @@ class ImportKey(Enum):
     PARAMETER_DEFAULT_VALUE_INDEXES = auto()
     PARAMETER_VALUES = auto()
     PARAMETER_VALUE_INDEXES = auto()
-    RELATIONSHIP_CLASS_NAME = auto()
-    OBJECT_CLASS_NAMES = auto()
-    OBJECT_NAMES = auto()
+    DIMENSION_NAMES = auto()
+    ELEMENT_NAMES = auto()
     ALTERNATIVE_NAME = auto()
     SCENARIO_NAME = auto()
     SCENARIO_ALTERNATIVE = auto()
-    FEATURE = auto()
-    TOOL_NAME = auto()
-    TOOL_FEATURE = auto()
-    TOOL_FEATURE_METHOD = auto()
     PARAMETER_VALUE_LIST_NAME = auto()
 
     def __str__(self):
         name = {
             self.ALTERNATIVE_NAME.value: "Alternative names",
-            self.CLASS_NAME.value: "Class names",
-            self.OBJECT_CLASS_NAME.value: "Object class names",
-            self.OBJECT_NAME.value: "Object names",
+            self.ENTITY_CLASS_NAME.value: "Entity class names",
+            self.ENTITY_NAME.value: "Entity names",
             self.GROUP_NAME.value: "Group names",
             self.MEMBER_NAME.value: "Member names",
             self.PARAMETER_NAME.value: "Parameter names",
             self.PARAMETER_DEFINITION.value: "Parameter names",
             self.PARAMETER_DEFAULT_VALUE_INDEXES.value: "Parameter indexes",
             self.PARAMETER_VALUE_INDEXES.value: "Parameter indexes",
-            self.RELATIONSHIP_CLASS_NAME.value: "Relationship class names",
-            self.OBJECT_CLASS_NAMES.value: "Object class names",
-            self.OBJECT_NAMES.value: "Object names",
+            self.DIMENSION_NAMES.value: "Dimension names",
+            self.ELEMENT_NAMES.value: "Element names",
             self.PARAMETER_VALUE_LIST_NAME.value: "Parameter value lists",
             self.SCENARIO_NAME.value: "Scenario names",
             self.SCENARIO_ALTERNATIVE.value: "Alternative names",
-            self.TOOL_NAME.value: "Tool names",
-            self.FEATURE.value: "Entity class names",
-            self.TOOL_FEATURE.value: "Entity class names",
-            self.TOOL_FEATURE_METHOD.value: "Entity class names",
         }.get(self.value)
         if name is not None:
             return name
@@ -147,22 +134,44 @@ class ImportMapping(Mapping):
             raise ValueError(f"row must be >= 0 ({row})")
         self._read_start_row = row
 
-    def polish(self, table_name, source_header, for_preview=False):
+    def check_for_invalid_column_refs(self, header, table_name):
+        """Checks that the mappings column refs are not out of range for the source table
+
+        Args:
+            header (list): The header of the table as a list
+            table_name (str): The name of the source table
+
+        Returns:
+            str: Error message if a column ref exceeds the column count of the source table,
+            empty string otherwise
+        """
+        if self.child is not None:
+            error = self.child.check_for_invalid_column_refs(header, table_name)
+            if error:
+                return error
+        if isinstance(self.position, int) and self.position >= len(header) > 0:
+            msg = f'Column ref {self.position + 1} is out of range for the source table "{table_name}"'
+            return msg
+        return ""
+
+    def polish(self, table_name, source_header, column_count=0, for_preview=False):
         """Polishes the mapping before an import operation.
         'Expands' transient ``position`` and ``value`` attributes into their final value.
 
         Args:
             table_name (str)
             source_header (list(str))
+            column_count (int, optional)
+            for_preview (bool, optional)
         """
-        self._polish_for_import(table_name, source_header)
+        self._polish_for_import(table_name, source_header, column_count)
         if for_preview:
             self._polish_for_preview(source_header)
 
-    def _polish_for_import(self, table_name, source_header):
+    def _polish_for_import(self, table_name, source_header, column_count):
         # FIXME: Polish skip columns
         if self.child is not None:
-            self.child._polish_for_import(table_name, source_header)
+            self.child._polish_for_import(table_name, source_header, column_count)
         if isinstance(self.position, str):
             # Column mapping with string position, we need to find the index in the header
             try:
@@ -197,6 +206,9 @@ class ImportMapping(Mapping):
             except IndexError:
                 msg = f"'{self.value}' is not a valid index in header '{source_header}'"
                 raise InvalidMappingComponent(msg)
+        if isinstance(self.position, int) and self.position >= column_count > 0:
+            msg = f'Column ref {self.position + 1} is out of range for the source table "{table_name}"'
+            raise InvalidMappingComponent(msg)
 
     def _polish_for_preview(self, source_header):
         if self.position == Position.header and self.value is not None:
@@ -263,7 +275,7 @@ class ImportMapping(Mapping):
         if self.child is not None:
             self.child.import_row(source_row, state, mapped_data, errors=errors)
 
-    def _data(self, source_row):  # pylint: disable=arguments-differ
+    def _data(self, source_row):  # pylint: disable=arguments-renamed
         if source_row is None:
             return None
         return source_row[self.position]
@@ -314,21 +326,21 @@ class ImportMapping(Mapping):
         return mapping
 
 
-class ImportObjectsMixin:
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, filter_re="", import_objects=False):
+class ImportEntitiesMixin:
+    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, filter_re="", import_entities=False):
         super().__init__(position, value, skip_columns, read_start_row, filter_re)
-        self.import_objects = import_objects
+        self.import_entities = import_entities
 
     def to_dict(self):
         d = super().to_dict()
-        if self.import_objects:
-            d["import_objects"] = True
+        if self.import_entities:
+            d["import_entities"] = True
         return d
 
     @classmethod
     def reconstruct(cls, position, value, skip_columns, read_start_row, filter_re, mapping_dict):
-        import_objects = mapping_dict.get("import_objects", False)
-        mapping = cls(position, value, skip_columns, read_start_row, filter_re, import_objects)
+        import_entities = mapping_dict.get("import_entities", False)
+        mapping = cls(position, value, skip_columns, read_start_row, filter_re, import_entities)
         return mapping
 
 
@@ -358,158 +370,123 @@ class IndexedValueMixin:
         return mapping
 
 
-class ObjectClassMapping(ImportMapping):
-    """Maps object classes.
+class EntityClassMapping(ImportMapping):
+    """Maps entity classes.
 
     Can be used as the topmost mapping.
     """
 
-    MAP_TYPE = "ObjectClass"
+    MAP_TYPE = "EntityClass"
 
     def _import_row(self, source_data, state, mapped_data):
-        object_class_name = state[ImportKey.OBJECT_CLASS_NAME] = str(source_data)
-        object_classes = mapped_data.setdefault("object_classes", set())
-        object_classes.add(object_class_name)
+        dim_count = len([m for m in self.flatten() if isinstance(m, DimensionMapping)])
+        state[ImportKey.DIMENSION_COUNT] = dim_count
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME] = str(source_data)
+        dimension_names = state[ImportKey.DIMENSION_NAMES] = []
+        entity_classes = mapped_data.setdefault("entity_classes", {})
+        entity_classes[entity_class_name] = dimension_names
+        if dim_count:
+            raise KeyError(ImportKey.DIMENSION_NAMES)
 
 
-class ObjectMapping(ImportMapping):
-    """Maps objects.
+class EntityMapping(ImportMapping):
+    """Maps entities.
 
-    Cannot be used as the topmost mapping; one of the parents must be :class:`ObjectClassMapping`.
+    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityClassMapping`.
     """
 
-    MAP_TYPE = "Object"
+    MAP_TYPE = "Entity"
+
+    def import_row(self, source_row, state, mapped_data, errors=None):
+        state[ImportKey.ELEMENT_NAMES] = ()
+        super().import_row(source_row, state, mapped_data, errors=errors)
 
     def _import_row(self, source_data, state, mapped_data):
-        object_class_name = state[ImportKey.OBJECT_CLASS_NAME]
-        object_name = state[ImportKey.OBJECT_NAME] = str(source_data)
-        if isinstance(self.child, ObjectGroupMapping):
+        if state[ImportKey.DIMENSION_COUNT]:
+            return
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        entity_name = state[ImportKey.ENTITY_NAME] = str(source_data)
+        if isinstance(self.child, EntityGroupMapping):
             raise KeyError(ImportKey.MEMBER_NAME)
-        mapped_data.setdefault("objects", set()).add((object_class_name, object_name))
+        mapped_data.setdefault("entities", {})[entity_class_name, entity_name] = None
 
 
-class ObjectMetadataMapping(ImportMapping):
-    """Maps object metadata.
+class EntityMetadataMapping(ImportMapping):
+    """Maps entity metadata.
 
-    Cannot be used as the topmost mapping; must have :class:`ObjectClassMapping` and :class:`ObjectMapping` as parents.
+    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping` and :class:`EntityMapping` as parents.
     """
 
-    MAP_TYPE = "ObjectMetadata"
+    MAP_TYPE = "EntityMetadata"
 
     def _import_row(self, source_data, state, mapped_data):
         pass
 
 
-class ObjectGroupMapping(ImportObjectsMixin, ImportMapping):
-    """Maps object groups.
+class EntityGroupMapping(ImportEntitiesMixin, ImportMapping):
+    """Maps entity groups.
 
-    Cannot be used as the topmost mapping; must have :class:`ObjectClassMapping` and :class:`ObjectMapping` as parents.
+    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping` and :class:`EntityMapping` as parents.
     """
 
-    MAP_TYPE = "ObjectGroup"
+    MAP_TYPE = "EntityGroup"
 
     def _import_row(self, source_data, state, mapped_data):
-        object_class_name = state[ImportKey.OBJECT_CLASS_NAME]
-        group_name = state.get(ImportKey.OBJECT_NAME)
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        group_name = state.get(ImportKey.ENTITY_NAME)
         if group_name is None:
             raise KeyError(ImportKey.GROUP_NAME)
         member_name = str(source_data)
-        mapped_data.setdefault("object_groups", set()).add((object_class_name, group_name, member_name))
-        if self.import_objects:
-            objects = (object_class_name, group_name), (object_class_name, member_name)
-            mapped_data.setdefault("objects", set()).update(objects)
+        mapped_data.setdefault("entity_groups", set()).add((entity_class_name, group_name, member_name))
+        if self.import_entities:
+            entities = mapped_data.setdefault("entities", {})
+            entities[entity_class_name, group_name] = None
+            entities[entity_class_name, member_name] = None
         raise KeyFix(ImportKey.MEMBER_NAME)
 
 
-class RelationshipClassMapping(ImportMapping):
-    """Maps relationships classes.
+class DimensionMapping(ImportMapping):
+    """Maps dimensions.
 
-    Can be used as the topmost mapping.
+    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityClassMapping`.
     """
 
-    MAP_TYPE = "RelationshipClass"
+    MAP_TYPE = "Dimension"
 
     def _import_row(self, source_data, state, mapped_data):
-        dim_count = len([m for m in self.flatten() if isinstance(m, RelationshipClassObjectClassMapping)])
-        state[ImportKey.RELATIONSHIP_DIMENSION_COUNT] = dim_count
-        relationship_class_name = state[ImportKey.RELATIONSHIP_CLASS_NAME] = str(source_data)
-        object_class_names = state[ImportKey.OBJECT_CLASS_NAMES] = []
-        relationship_classes = mapped_data.setdefault("relationship_classes", dict())
-        relationship_classes[relationship_class_name] = object_class_names
-        raise KeyError(ImportKey.OBJECT_CLASS_NAMES)
+        _ = state[ImportKey.ENTITY_CLASS_NAME]
+        dimension_name = str(source_data)
+        state[ImportKey.DIMENSION_NAMES].append(dimension_name)
+        dimension_names = state[ImportKey.DIMENSION_NAMES]
+        if len(dimension_names) == state[ImportKey.DIMENSION_COUNT]:
+            raise KeyFix(ImportKey.DIMENSION_NAMES)
 
 
-class RelationshipClassObjectClassMapping(ImportMapping):
-    """Maps relationship class object classes.
+class ElementMapping(ImportEntitiesMixin, ImportMapping):
+    """Maps elements.
 
-    Cannot be used as the topmost mapping; one of the parents must be :class:`RelationshipClassMapping`.
-    """
-
-    MAP_TYPE = "RelationshipClassObjectClass"
-
-    def _import_row(self, source_data, state, mapped_data):
-        _ = state[ImportKey.RELATIONSHIP_CLASS_NAME]
-        object_class_names = state[ImportKey.OBJECT_CLASS_NAMES]
-        object_class_name = str(source_data)
-        object_class_names.append(object_class_name)
-        if len(object_class_names) == state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
-            raise KeyFix(ImportKey.OBJECT_CLASS_NAMES)
-
-
-class RelationshipMapping(ImportMapping):
-    """Maps relationships.
-
-    Cannot be used as the topmost mapping; one of the parents must be :class:`RelationshipClassMapping`.
-    """
-
-    MAP_TYPE = "Relationship"
-
-    def _import_row(self, source_data, state, mapped_data):
-        # Don't access state[ImportKey.RELATIONSHIP_CLASS_NAME], we don't want to catch errors here
-        # because this one's invisible.
-        state[ImportKey.OBJECT_NAMES] = []
-
-
-class RelationshipObjectMapping(ImportObjectsMixin, ImportMapping):
-    """Maps relationship's objects.
-
-    Cannot be used as the topmost mapping; must have :class:`RelationshipClassMapping` and :class:`RelationshipMapping`
+    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping` and :class:`EntityMapping`
     as parents.
     """
 
-    MAP_TYPE = "RelationshipObject"
+    MAP_TYPE = "Element"
 
     def _import_row(self, source_data, state, mapped_data):
-        relationship_class_name = state[ImportKey.RELATIONSHIP_CLASS_NAME]
-        object_class_names = state[ImportKey.OBJECT_CLASS_NAMES]
-        if len(object_class_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
-            raise KeyError(ImportKey.OBJECT_CLASS_NAMES)
-        object_names = state[ImportKey.OBJECT_NAMES]
-        object_name = str(source_data)
-        object_names.append(object_name)
-        if self.import_objects:
-            k = len(object_names) - 1
-            object_class_name = object_class_names[k]
-            mapped_data.setdefault("object_classes", set()).add(object_class_name)
-            mapped_data.setdefault("objects", set()).add((object_class_name, object_name))
-        if len(object_names) == state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
-            relationships = mapped_data.setdefault("relationships", set())
-            relationships.add((relationship_class_name, tuple(object_names)))
-            raise KeyFix(ImportKey.OBJECT_NAMES)
-        raise KeyError(ImportKey.OBJECT_NAMES)
-
-
-class RelationshipMetadataMapping(ImportMapping):
-    """Maps relationship metadata.
-
-    Cannot be used as the topmost mapping; must have :class:`RelationshipClassMapping`, a :class:`RelationshipMapping`
-    and one or more :class:`RelationshipObjectMapping` as parents.
-    """
-
-    MAP_TYPE = "RelationshipMetadata"
-
-    def _import_row(self, source_data, state, mapped_data):
-        pass
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        dimension_names = state[ImportKey.DIMENSION_NAMES]
+        if len(dimension_names) != state[ImportKey.DIMENSION_COUNT]:
+            raise KeyError(ImportKey.DIMENSION_NAMES)
+        element_name = str(source_data)
+        element_names = state[ImportKey.ELEMENT_NAMES] = state[ImportKey.ELEMENT_NAMES] + (element_name,)
+        if self.import_entities:
+            k = len(element_names) - 1
+            dimension_name = dimension_names[k]
+            mapped_data.setdefault("entity_classes", {}).update({dimension_name: ()})
+            mapped_data.setdefault("entities", {})[dimension_name, element_name] = None
+        if len(element_names) == state[ImportKey.DIMENSION_COUNT]:
+            mapped_data.setdefault("entities", {})[entity_class_name, tuple(element_names)] = None
+            raise KeyFix(ImportKey.ELEMENT_NAMES)
+        raise KeyError(ImportKey.ELEMENT_NAMES)
 
 
 class ParameterDefinitionMapping(ImportMapping):
@@ -521,23 +498,13 @@ class ParameterDefinitionMapping(ImportMapping):
     MAP_TYPE = "ParameterDefinition"
 
     def _import_row(self, source_data, state, mapped_data):
-        object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
-        if object_class_name is not None:
-            class_name = object_class_name
-            map_key = "object_parameters"
-        else:
-            relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
-            if relationship_class_name is not None:
-                class_name = relationship_class_name
-                map_key = "relationship_parameters"
-            else:
-                raise KeyError(ImportKey.CLASS_NAME)
+        entity_class_name = state.get(ImportKey.ENTITY_CLASS_NAME)
         parameter_name = state[ImportKey.PARAMETER_NAME] = str(source_data)
         definition_extras = state[ImportKey.PARAMETER_DEFINITION_EXTRAS] = []
-        parameter_definition_key = state[ImportKey.PARAMETER_DEFINITION] = class_name, parameter_name
+        parameter_definition_key = state[ImportKey.PARAMETER_DEFINITION] = entity_class_name, parameter_name
         default_values = state.get(ImportKey.PARAMETER_DEFAULT_VALUES)
         if default_values is None or parameter_definition_key not in default_values:
-            mapped_data.setdefault(map_key, dict())[parameter_definition_key] = definition_extras
+            mapped_data.setdefault("parameter_definitions", dict())[parameter_definition_key] = definition_extras
 
 
 class ParameterDefaultValueMapping(ImportMapping):
@@ -676,65 +643,35 @@ class ParameterValueMapping(ImportMapping):
         value = source_data
         if value == "":
             return
-        object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
-        relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
-        if object_class_name is not None:
-            class_name = object_class_name
-            entity_name = state[ImportKey.OBJECT_NAME]
-            map_key = "object_parameter_values"
-        elif relationship_class_name is not None:
-            object_names = state[ImportKey.OBJECT_NAMES]
-            if len(object_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
-                raise KeyError(ImportKey.OBJECT_NAMES)
-            class_name = relationship_class_name
-            entity_name = object_names
-            map_key = "relationship_parameter_values"
-        else:
-            raise KeyError(ImportKey.CLASS_NAME)
-        parameter_name = state[ImportKey.PARAMETER_NAME]
-        parameter_value = [class_name, entity_name, parameter_name, value]
-        alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
+        entity_class_name, entity_byname, parameter_name, alternative_name = _parameter_value_key(state)
+        parameter_value = [entity_class_name, entity_byname, parameter_name, value]
         if alternative_name is not None:
             parameter_value.append(alternative_name)
-        mapped_data.setdefault(map_key, list()).append(parameter_value)
+        mapped_data.setdefault("parameter_values", []).append(parameter_value)
 
 
 class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
     MAP_TYPE = "ParameterValueType"
 
     def _import_row(self, source_data, state, mapped_data):
-        parameter_name = state.get(ImportKey.PARAMETER_NAME)
-        if parameter_name is None:
+        if ImportKey.PARAMETER_NAME not in state:
             # Don't catch errors here, this one's invisible
             return
-        object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
+        key = _parameter_value_key(state)
         values = state.setdefault(ImportKey.PARAMETER_VALUES, {})
-        if object_class_name is not None:
-            class_name = object_class_name
-            entity_name = state[ImportKey.OBJECT_NAME]
-            map_key = "object_parameter_values"
-        else:
-            relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
-            if relationship_class_name is not None:
-                class_name = relationship_class_name
-                entity_name = tuple(state[ImportKey.OBJECT_NAMES])
-                map_key = "relationship_parameter_values"
-            else:
-                raise KeyError(ImportKey.CLASS_NAME)
-        alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
-        key = (class_name, entity_name, parameter_name, alternative_name)
         if key in values:
             return
+        entity_class_name, entity_byname, parameter_name, alternative_name = key
         value_type = str(source_data)
         value = values[key] = {"type": value_type}  # See import_mapping.generator._parameter_value_from_dict()
         if self.compress and value_type == "map":
             value["compress"] = self.compress
         if self.options and value_type == "time_series":
             value["options"] = self.options
-        parameter_value = [class_name, entity_name, parameter_name, value]
+        parameter_value = [entity_class_name, entity_byname, parameter_name, value]
         if alternative_name is not None:
             parameter_value.append(alternative_name)
-        mapped_data.setdefault(map_key, list()).append(parameter_value)
+        mapped_data.setdefault("parameter_values", []).append(parameter_value)
 
 
 class ParameterValueMetadataMapping(ImportMapping):
@@ -834,7 +771,7 @@ class ParameterValueListValueMapping(ImportMapping):
         if list_value == "":
             return
         value_list_name = state[ImportKey.PARAMETER_VALUE_LIST_NAME]
-        mapped_data.setdefault("parameter_value_lists", list()).append([value_list_name, list_value])
+        mapped_data.setdefault("parameter_value_lists", []).append([value_list_name, list_value])
 
 
 class AlternativeMapping(ImportMapping):
@@ -872,7 +809,7 @@ class ScenarioActiveFlagMapping(ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         scenario = state[ImportKey.SCENARIO_NAME]
-        active = bool(strtobool(str(source_data)))
+        active = string_to_bool(str(source_data))
         mapped_data.setdefault("scenarios", set()).add((scenario, active))
 
 
@@ -890,7 +827,7 @@ class ScenarioAlternativeMapping(ImportMapping):
             return
         scenario = state[ImportKey.SCENARIO_NAME]
         scen_alt = state[ImportKey.SCENARIO_ALTERNATIVE] = [scenario, alternative]
-        mapped_data.setdefault("scenario_alternatives", list()).append(scen_alt)
+        mapped_data.setdefault("scenario_alternatives", []).append(scen_alt)
 
 
 class ScenarioBeforeAlternativeMapping(ImportMapping):
@@ -921,122 +858,92 @@ class ToolMapping(ImportMapping):
             mapped_data.setdefault("tools", set()).add(tool)
 
 
-class FeatureEntityClassMapping(ImportMapping):
-    """Maps feature entity classes.
+def default_import_mapping(map_type):
+    """Creates default mappings for given map type.
 
-    Can be used as the topmost mapping.
+    Args:
+        map_type (str): map type
+
+    Returns:
+        ImportMapping: root mapping of desired type
     """
+    make_root_mapping = {
+        "EntityClass": _default_entity_class_mapping,
+        "Alternative": _default_alternative_mapping,
+        "Scenario": _default_scenario_mapping,
+        "ScenarioAlternative": _default_scenario_alternative_mapping,
+        "EntityGroup": _default_entity_group_mapping,
+        "ParameterValueList": _default_parameter_value_list_mapping,
+    }[map_type]
+    return make_root_mapping()
 
-    MAP_TYPE = "FeatureEntityClass"
 
-    def _import_row(self, source_data, state, mapped_data):
-        entity_class = str(source_data)
-        state[ImportKey.FEATURE] = [entity_class]
+def _default_entity_class_mapping():
+    """Creates default entity class mappings.
 
-
-class FeatureParameterDefinitionMapping(ImportMapping):
-    """Maps feature parameter definitions.
-
-    Cannot be used as the topmost mapping; must have a :class:`FeatureEntityClassMapping` as parent.
+    Returns:
+        EntityClassMapping: root mapping
     """
-
-    MAP_TYPE = "FeatureParameterDefinition"
-
-    def _import_row(self, source_data, state, mapped_data):
-        feature = state[ImportKey.FEATURE]
-        parameter = str(source_data)
-        feature.append(parameter)
-        mapped_data.setdefault("features", set()).add(tuple(feature))
+    root_mapping = EntityClassMapping(Position.hidden)
+    object_mapping = root_mapping.child = EntityMapping(Position.hidden)
+    object_mapping.child = EntityMetadataMapping(Position.hidden)
+    return root_mapping
 
 
-class ToolFeatureEntityClassMapping(ImportMapping):
-    """Maps tool feature entity classes.
+def _default_alternative_mapping():
+    """Creates default alternative mappings.
 
-    Cannot be used as the topmost mapping; must have :class:`ToolMapping` as parent.
+    Returns:
+        AlternativeMapping: root mapping
     """
-
-    MAP_TYPE = "ToolFeatureEntityClass"
-
-    def _import_row(self, source_data, state, mapped_data):
-        tool = state[ImportKey.TOOL_NAME]
-        entity_class = str(source_data)
-        tool_feature = [tool, entity_class]
-        state[ImportKey.TOOL_FEATURE] = tool_feature
-        mapped_data.setdefault("tool_features", list()).append(tool_feature)
+    root_mapping = AlternativeMapping(Position.hidden)
+    return root_mapping
 
 
-class ToolFeatureParameterDefinitionMapping(ImportMapping):
-    """Maps tool feature parameter definitions.
+def _default_scenario_mapping():
+    """Creates default scenario mappings.
 
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureEntityClassMapping` as parent.
+    Returns:
+        ScenarioMapping: root mapping
     """
-
-    MAP_TYPE = "ToolFeatureParameterDefinition"
-
-    def _import_row(self, source_data, state, mapped_data):
-        tool_feature = state[ImportKey.TOOL_FEATURE]
-        parameter = str(source_data)
-        tool_feature.append(parameter)
+    root_mapping = ScenarioMapping(Position.hidden)
+    root_mapping.child = ScenarioActiveFlagMapping(Position.hidden)
+    return root_mapping
 
 
-class ToolFeatureRequiredFlagMapping(ImportMapping):
-    """Maps tool feature required flags.
+def _default_scenario_alternative_mapping():
+    """Creates default scenario alternative mappings.
 
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureEntityClassMapping` as parent.
+    Returns:
+        ScenarioAlternativeMapping: root mapping
     """
-
-    MAP_TYPE = "ToolFeatureRequiredFlag"
-
-    def _import_row(self, source_data, state, mapped_data):
-        required = bool(strtobool(str(source_data)))
-        tool_feature = state[ImportKey.TOOL_FEATURE]
-        tool_feature.append(required)
+    root_mapping = ScenarioMapping(Position.hidden)
+    scen_alt_mapping = root_mapping.child = ScenarioAlternativeMapping(Position.hidden)
+    scen_alt_mapping.child = ScenarioBeforeAlternativeMapping(Position.hidden)
+    return root_mapping
 
 
-class ToolFeatureMethodEntityClassMapping(ImportMapping):
-    """Maps tool feature method entity classes.
+def _default_entity_group_mapping():
+    """Creates default entity group mappings.
 
-    Cannot be used as the topmost mapping; must have :class:`ToolMapping` as parent.
+    Returns:
+        EntityClassMapping: root mapping
     """
-
-    MAP_TYPE = "ToolFeatureMethodEntityClass"
-
-    def _import_row(self, source_data, state, mapped_data):
-        tool_name = state[ImportKey.TOOL_NAME]
-        entity_class = str(source_data)
-        tool_feature_method = [tool_name, entity_class]
-        state[ImportKey.TOOL_FEATURE_METHOD] = tool_feature_method
-        mapped_data.setdefault("tool_feature_methods", list()).append(tool_feature_method)
+    root_mapping = EntityClassMapping(Position.hidden)
+    object_mapping = root_mapping.child = EntityMapping(Position.hidden)
+    object_mapping.child = EntityGroupMapping(Position.hidden)
+    return root_mapping
 
 
-class ToolFeatureMethodParameterDefinitionMapping(ImportMapping):
-    """Maps tool feature method parameter definitions.
+def _default_parameter_value_list_mapping():
+    """Creates default parameter value list mappings.
 
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureMethodEntityClassMapping` as parent.
+    Returns:
+        ParameterValueListMapping: root mapping
     """
-
-    MAP_TYPE = "ToolFeatureMethodParameterDefinition"
-
-    def _import_row(self, source_data, state, mapped_data):
-        tool_feature_method = state[ImportKey.TOOL_FEATURE_METHOD]
-        parameter = str(source_data)
-        tool_feature_method.append(parameter)
-
-
-class ToolFeatureMethodMethodMapping(ImportMapping):
-    """Maps tool feature method methods.
-
-    Cannot be used as the topmost mapping; must have :class:`ToolFeatureMethodEntityClassMapping` as parent.
-    """
-
-    MAP_TYPE = "ToolFeatureMethodMethod"
-
-    def _import_row(self, source_data, state, mapped_data):
-        method = source_data
-        if method == "":
-            return
-        tool_feature_method = state[ImportKey.TOOL_FEATURE_METHOD]
-        tool_feature_method.append(method)
+    root_mapping = ParameterValueListMapping(Position.hidden)
+    root_mapping.child = ParameterValueListValueMapping(Position.hidden)
+    return root_mapping
 
 
 def from_dict(serialized):
@@ -1052,15 +959,12 @@ def from_dict(serialized):
     mappings = {
         klass.MAP_TYPE: klass
         for klass in (
-            ObjectClassMapping,
-            ObjectMapping,
-            ObjectMetadataMapping,
-            ObjectGroupMapping,
-            RelationshipClassMapping,
-            RelationshipClassObjectClassMapping,
-            RelationshipMapping,
-            RelationshipObjectMapping,
-            RelationshipMetadataMapping,
+            EntityClassMapping,
+            EntityMapping,
+            EntityMetadataMapping,
+            EntityGroupMapping,
+            DimensionMapping,
+            ElementMapping,
             ParameterDefinitionMapping,
             ParameterDefaultValueMapping,
             ParameterDefaultValueTypeMapping,
@@ -1080,19 +984,31 @@ def from_dict(serialized):
             ScenarioAlternativeMapping,
             ScenarioBeforeAlternativeMapping,
             ToolMapping,
-            FeatureEntityClassMapping,
-            FeatureParameterDefinitionMapping,
-            ToolFeatureEntityClassMapping,
-            ToolFeatureParameterDefinitionMapping,
-            ToolFeatureRequiredFlagMapping,
-            ToolFeatureMethodEntityClassMapping,
-            ToolFeatureMethodParameterDefinitionMapping,
-            ToolFeatureMethodMethodMapping,
+            # FIXME
+            # FeatureEntityClassMapping,
+            # FeatureParameterDefinitionMapping,
+            # ToolFeatureEntityClassMapping,
+            # ToolFeatureParameterDefinitionMapping,
+            # ToolFeatureRequiredFlagMapping,
+            # ToolFeatureMethodEntityClassMapping,
+            # ToolFeatureMethodParameterDefinitionMapping,
+            # ToolFeatureMethodMethodMapping,
         )
     }
-    # Legacy
-    mappings["ParameterIndex"] = ParameterValueIndexMapping
-    flattened = list()
+    legacy_mappings = {
+        "ParameterIndex": ParameterValueIndexMapping,
+        "ObjectClass": EntityClassMapping,
+        "Object": EntityMapping,
+        "ObjectMetadata": EntityMetadataMapping,
+        "ObjectGroup": EntityGroupMapping,
+        "RelationshipClass": EntityClassMapping,
+        "RelationshipClassObjectClass": DimensionMapping,
+        "Relationship": EntityMapping,
+        "RelationshipObject": ElementMapping,
+        "RelationshipMetadata": EntityMetadataMapping,
+    }
+    mappings.update(legacy_mappings)
+    flattened = []
     for mapping_dict in serialized:
         position = mapping_dict["position"]
         value = mapping_dict.get("value")
@@ -1101,6 +1017,9 @@ def from_dict(serialized):
         filter_re = mapping_dict.get("filter_re", "")
         if isinstance(position, str):
             position = Position(position)
+        if "import_objects" in mapping_dict:
+            # Legacy
+            mapping_dict["import_entities"] = mapping_dict.pop("import_objects")
         flattened.append(
             mappings[mapping_dict["map_type"]].reconstruct(
                 position, value, skip_columns, read_start_row, filter_re, mapping_dict
@@ -1119,24 +1038,19 @@ def _parameter_value_key(state):
         state (dict): import state
 
     Returns:
-        tuple of str: class name, entity name and parameter name
+        tuple of str: class name, entity byname, parameter name, and alternative name
     """
-    object_class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
-    if object_class_name is not None:
-        class_name = object_class_name
-        entity_name = state[ImportKey.OBJECT_NAME]
+    entity_class_name = state.get(ImportKey.ENTITY_CLASS_NAME)
+    if state.get(ImportKey.DIMENSION_COUNT):
+        element_names = state[ImportKey.ELEMENT_NAMES]
+        if len(element_names) != state[ImportKey.DIMENSION_COUNT]:
+            raise KeyError(ImportKey.ELEMENT_NAMES)
+        entity_byname = element_names
     else:
-        relationship_class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
-        if relationship_class_name is None:
-            raise KeyError(ImportKey.CLASS_NAME)
-        object_names = state[ImportKey.OBJECT_NAMES]
-        if len(object_names) != state[ImportKey.RELATIONSHIP_DIMENSION_COUNT]:
-            raise KeyError(ImportKey.OBJECT_NAMES)
-        class_name = relationship_class_name
-        entity_name = tuple(object_names)
+        entity_byname = state[ImportKey.ENTITY_NAME]
     parameter_name = state[ImportKey.PARAMETER_NAME]
     alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
-    return class_name, entity_name, parameter_name, alternative_name
+    return entity_class_name, entity_byname, parameter_name, alternative_name
 
 
 def _default_value_key(state):
@@ -1148,10 +1062,4 @@ def _default_value_key(state):
     Returns:
         tuple of str: class name and parameter name
     """
-    class_name = state.get(ImportKey.OBJECT_CLASS_NAME)
-    if class_name is None:
-        class_name = state.get(ImportKey.RELATIONSHIP_CLASS_NAME)
-        if class_name is None:
-            raise KeyError(ImportKey.CLASS_NAME)
-    parameter_name = state[ImportKey.PARAMETER_NAME]
-    return class_name, parameter_name
+    return state[ImportKey.ENTITY_CLASS_NAME], state[ImportKey.PARAMETER_NAME]

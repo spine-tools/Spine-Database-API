@@ -1,4 +1,4 @@
-..  spinedb_api tutorial
+..  spinedb_api front matter
     Created: 18.6.2018
 
 .. _SQLAlchemy: http://www.sqlalchemy.org/

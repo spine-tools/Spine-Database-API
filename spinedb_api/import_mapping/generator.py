@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -16,6 +17,7 @@ using ``import_functions.import_data()``
 """
 
 from copy import deepcopy
+from operator import itemgetter
 from .import_mapping_compat import import_mapping_from_dict
 from .import_mapping import ImportMapping, check_validity
 from ..mapping import Position
@@ -82,6 +84,7 @@ def get_mapped_data(
     rows = list(data_source)
     if not rows:
         return mapped_data, errors
+    column_count = len(max(rows, key=lambda x: len(x) if x else 0))
     if column_convert_fns is None:
         column_convert_fns = {}
     if row_convert_fns is None:
@@ -91,7 +94,7 @@ def get_mapped_data(
     for mapping in mappings:
         read_state = {}
         mapping = deepcopy(mapping)
-        mapping.polish(table_name, data_header)
+        mapping.polish(table_name, data_header, column_count)
         mapping_errors = check_validity(mapping)
         if mapping_errors:
             errors += mapping_errors
@@ -157,7 +160,8 @@ def get_mapped_data(
                 full_row = non_pivoted_row + unpivoted_row
                 full_row.append(row[column_pos])
                 mapping.import_row(full_row, read_state, mapped_data)
-    _make_relationship_classes(mapped_data)
+    _make_entity_classes(mapped_data)
+    _make_entities(mapped_data)
     _make_parameter_values(mapped_data, unparse_value)
     return mapped_data, errors
 
@@ -262,22 +266,30 @@ def _unpivot_rows(rows, data_header, pivoted, non_pivoted, pivoted_from_header, 
     return unpivoted_rows, pivoted_pos, non_pivoted_pos, unpivoted_column_pos
 
 
-def _make_relationship_classes(mapped_data):
-    rows = mapped_data.get("relationship_classes")
+def _make_entity_classes(mapped_data):
+    rows = mapped_data.get("entity_classes")
     if rows is None:
         return
-    full_rows = []
-    for class_name, object_classes in rows.items():
-        full_rows.append((class_name, object_classes))
-    mapped_data["relationship_classes"] = full_rows
+    rows = [(class_name, tuple(dimension_names)) for class_name, dimension_names in rows.items()]
+    rows.sort(key=itemgetter(1))
+    mapped_data["entity_classes"] = final_rows = []
+    for class_name, dimension_names in rows:
+        row = (class_name, tuple(dimension_names)) if dimension_names else (class_name,)
+        final_rows.append(row)
+
+
+def _make_entities(mapped_data):
+    rows = mapped_data.get("entities")
+    if rows is None:
+        return
+    mapped_data["entities"] = list(rows)
 
 
 def _make_parameter_values(mapped_data, unparse_value):
     value_pos = 3
-    for key in ("object_parameter_values", "relationship_parameter_values"):
-        rows = mapped_data.get(key)
-        if rows is None:
-            continue
+    key = "parameter_values"
+    rows = mapped_data.get(key)
+    if rows is not None:
         valued_rows = []
         for row in rows:
             raw_value = _make_value(row, value_pos)
@@ -289,10 +301,9 @@ def _make_parameter_values(mapped_data, unparse_value):
                 valued_rows.append(row)
         mapped_data[key] = valued_rows
     value_pos = 0
-    for key in ("object_parameters", "relationship_parameters"):
-        rows = mapped_data.get(key)
-        if rows is None:
-            continue
+    key = "parameter_definitions"
+    rows = mapped_data.get(key)
+    if rows is not None:
         full_rows = []
         for entity_definition, extras in rows.items():
             if extras:

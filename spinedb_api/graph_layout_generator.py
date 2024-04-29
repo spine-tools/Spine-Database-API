@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -10,10 +11,8 @@
 ######################################################################################################################
 
 """
-Contains the GraphLayoutGenerator class.
-
+This module defines the :class:`.GraphLayoutGenerator` class.
 """
-
 import math
 import numpy as np
 from numpy import atleast_1d as arr
@@ -21,7 +20,9 @@ from scipy.sparse.csgraph import dijkstra
 
 
 class GraphLayoutGenerator:
-    """Computes the layout for the Entity Graph View."""
+    """A class to build an optimised layout for an undirected graph.
+    This can help visualizing the Spine data structure of multi-dimensional entities.
+    """
 
     def __init__(
         self,
@@ -36,8 +37,27 @@ class GraphLayoutGenerator:
         preview_available=lambda x, y: None,
         layout_available=lambda x, y: None,
         layout_progressed=lambda iter: None,
-        message_available=lambda msg: None,
     ):
+        """
+        Args:
+            vertex_count (int): The number of vertices in the graph. Graph vertices will have indices 0, 1, 2, ...
+            src_inds (tuple, optional): The indices of the source vertices of each edge.
+            dst_inds (tuple, optional): The indices of the destination vertices of each edge.
+            spread (int, optional): the ideal edge length.
+            heavy_positions (dict, optional): a dictionary mapping vertex indices to another dictionary
+                with keys "x" and "y" specifying the position it should have in the generated layout.
+            max_iters (int, optional): the maximum numbers of iterations of the layout generation algorithm.
+            weight_exp (int, optional): The exponential decay rate of attraction between vertices. The higher this
+                number, the lesser the attraction between distant vertices.
+            is_stopped (function, optional): A function to call without arguments, that returns a boolean indicating
+                whether the layout generation process needs to be stopped.
+            preview_available (function, optional): A function to call after every iteration with two lists, x and y,
+                representing the current layout.
+            layout_available (function, optional): A function to call after the last iteration with two lists, x and y,
+                representing the final layout.
+            layout_progressed (function, optional): A function to call after each iteration with the current iteration
+                number.
+        """
         super().__init__()
         if vertex_count == 0:
             vertex_count = 1
@@ -55,10 +75,8 @@ class GraphLayoutGenerator:
         self._preview_available = preview_available
         self._layout_available = layout_available
         self._layout_progressed = layout_progressed
-        self._message_available = message_available
 
     def shortest_path_matrix(self):
-        """Returns the shortest-path matrix."""
         if not self.src_inds:
             # Graph with no edges, just vertices. Introduce fake pair of edges to help 'spreadness'.
             self.src_inds = [self.vertex_count, self.vertex_count]
@@ -73,17 +91,13 @@ class GraphLayoutGenerator:
             pass
         start = 0
         slices = []
-        iteration = 0
-        self._message_available("Step 1 of 2: Computing shortest-path matrix...")
         while start < self.vertex_count:
             if self._is_stopped():
                 return None
-            self._layout_progressed(iteration)
             stop = min(self.vertex_count, start + math.ceil(self.vertex_count / 10))
             slice_ = dijkstra(dist, directed=False, indices=range(start, stop))
             slices.append(slice_)
             start = stop
-            iteration += 1
         matrix = np.vstack(slices)
         # Remove infinites and zeros
         matrix[matrix == np.inf] = self.spread * self.vertex_count ** (0.5)
@@ -91,7 +105,6 @@ class GraphLayoutGenerator:
         return matrix
 
     def sets(self):
-        """Returns sets of vertex pairs indices."""
         sets = []
         for n in range(1, self.vertex_count):
             pairs = np.zeros((self.vertex_count - n, 2), int)  # pairs on diagonal n
@@ -107,14 +120,23 @@ class GraphLayoutGenerator:
         return sets
 
     def compute_layout(self):
-        """Computes and returns x and y coordinates for each vertex in the graph, using VSGD-MS."""
+        """Computes the layout using VSGD-MS and returns x and y coordinates for each vertex in the graph.
+
+        Returns:
+            tuple(list,list): x and y coordinates
+        """
+        if len(self.heavy_positions) == self.vertex_count:
+            x, y = zip(*[(pos["x"], pos["y"]) for pos in self.heavy_positions.values()])
+            self._layout_available(x, y)
+            return x, y
         if self.vertex_count <= 1:
             x, y = np.array([0.0]), np.array([0.0])
             self._layout_available(x, y)
-            return
+            return x, y
         matrix = self.shortest_path_matrix()
+        self._layout_progressed(1)
         if matrix is None:
-            return
+            return [], []
         mask = np.ones((self.vertex_count, self.vertex_count)) == 1 - np.tril(
             np.ones((self.vertex_count, self.vertex_count))
         )  # Upper triangular except diagonal
@@ -134,13 +156,13 @@ class GraphLayoutGenerator:
         minstep = 1 / np.max(weights[mask])
         lambda_ = np.log(minstep / maxstep) / (self.max_iters - 1)  # exponential decay of allowed adjustment
         sets = self.sets()  # construct sets of bus pairs
-        self._message_available("Step 2 of 2: Generating layout...")
+        self._layout_progressed(2)
         for iteration in range(self.max_iters):
             if self._is_stopped():
                 break
             x, y = layout[:, 0], layout[:, 1]
             self._preview_available(x, y)
-            self._layout_progressed(iteration)
+            self._layout_progressed(3 + iteration)
             # FIXME
             step = maxstep * np.exp(lambda_ * iteration)  # how big adjustments are allowed?
             rand_order = np.random.permutation(
@@ -159,3 +181,4 @@ class GraphLayoutGenerator:
                     layout[heavy_ind, :] = heavy_pos
         x, y = layout[:, 0], layout[:, 1]
         self._layout_available(x, y)
+        return x, y

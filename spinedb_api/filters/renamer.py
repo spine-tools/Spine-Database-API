@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -8,11 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Provides a database query manipulator that renames database items.
-
-"""
+""" Provides a database query manipulator that renames database items. """
 from functools import partial
 from sqlalchemy import case
 
@@ -28,7 +25,7 @@ def apply_renaming_to_entity_class_sq(db_map, name_map):
     Applies renaming to entity class subquery.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         name_map (dict): a map from old name to new name
     """
     state = _EntityClassRenamerState(db_map, name_map)
@@ -54,7 +51,7 @@ def entity_class_renamer_from_dict(db_map, config):
     Applies entity class renamer manipulator to given database map.
 
     Args:
-        db_map (DatabaseMappingBase): target database map
+        db_map (DatabaseMapping): target database map
         config (dict): renamer configuration
     """
     apply_renaming_to_entity_class_sq(db_map, config["name_map"])
@@ -98,7 +95,7 @@ def apply_renaming_to_parameter_definition_sq(db_map, name_map):
     Applies renaming to parameter definition subquery.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         name_map (dict): a map from old name to new name
     """
     state = _ParameterRenamerState(db_map, name_map)
@@ -124,7 +121,7 @@ def parameter_renamer_from_dict(db_map, config):
     Applies parameter renamer manipulator to given database map.
 
     Args:
-        db_map (DatabaseMappingBase): target database map
+        db_map (DatabaseMapping): target database map
         config (dict): renamer configuration
     """
     apply_renaming_to_parameter_definition_sq(db_map, config["name_map"])
@@ -168,7 +165,7 @@ class _EntityClassRenamerState:
     def __init__(self, db_map, name_map):
         """
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             name_map (dict): a mapping from original name to a new name.
         """
         name_map = {old: new for old, new in name_map.items() if old != new}
@@ -179,7 +176,7 @@ class _EntityClassRenamerState:
     def _ids(db_map, name_map):
         """
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             name_map (dict): a mapping from original name to a new name
 
         Returns:
@@ -197,7 +194,7 @@ def _make_renaming_entity_class_sq(db_map, state):
     Returns an entity class subquery which renames classes.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_EntityClassRenamerState):
 
     Returns:
@@ -210,13 +207,12 @@ def _make_renaming_entity_class_sq(db_map, state):
     new_class_name = case(cases, else_=subquery.c.name)  # if not in the name map, just keep the original name
     entity_class_sq = db_map.query(
         subquery.c.id,
-        subquery.c.type_id,
         new_class_name.label("name"),
         subquery.c.description,
         subquery.c.display_order,
         subquery.c.display_icon,
         subquery.c.hidden,
-        subquery.c.commit_id,
+        subquery.c.active_by_default,
     ).subquery()
     return entity_class_sq
 
@@ -225,7 +221,7 @@ class _ParameterRenamerState:
     def __init__(self, db_map, name_map):
         """
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             name_map (dict): mapping from entity class name to mapping from parameter name to new name
         """
         self.id_to_name = self._ids(db_map, name_map)
@@ -235,7 +231,7 @@ class _ParameterRenamerState:
     def _ids(db_map, name_map):
         """
         Args:
-            db_map (DatabaseMappingBase): a database map
+            db_map (DatabaseMapping): a database map
             name_map (dict): a mapping from original name to a new name
 
         Returns:
@@ -258,7 +254,7 @@ def _make_renaming_parameter_definition_sq(db_map, state):
     Returns an entity class subquery which renames parameters.
 
     Args:
-        db_map (DatabaseMappingBase): a database map
+        db_map (DatabaseMapping): a database map
         state (_ParameterRenamerState):
 
     Returns:
@@ -274,8 +270,6 @@ def _make_renaming_parameter_definition_sq(db_map, state):
         new_parameter_name.label("name"),
         subquery.c.description,
         subquery.c.entity_class_id,
-        subquery.c.object_class_id,
-        subquery.c.relationship_class_id,
         subquery.c.default_value,
         subquery.c.default_type,
         subquery.c.list_value_id,

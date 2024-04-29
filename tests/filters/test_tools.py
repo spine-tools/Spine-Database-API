@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -20,8 +21,7 @@ from spinedb_api import (
     append_filter_config,
     clear_filter_configs,
     DatabaseMapping,
-    DiffDatabaseMapping,
-    export_object_classes,
+    export_entity_classes,
     import_object_classes,
     pop_filter_configs,
 )
@@ -91,29 +91,29 @@ class TestApplyFilterStack(unittest.TestCase):
     def setUpClass(cls):
         cls._dir = TemporaryDirectory()
         cls._db_url.database = os.path.join(cls._dir.name, ".json")
-        db_map = DiffDatabaseMapping(cls._db_url, create=True)
+        db_map = DatabaseMapping(cls._db_url, create=True)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
-        db_map.connection.close()
+        db_map.close()
 
     def test_empty_stack(self):
         db_map = DatabaseMapping(self._db_url)
         try:
             apply_filter_stack(db_map, [])
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("object_class", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("object_class", (), None, None, False)])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
     def test_single_renaming_filter(self):
         db_map = DatabaseMapping(self._db_url)
         try:
             stack = [entity_class_renamer_config(object_class="renamed_once")]
             apply_filter_stack(db_map, stack)
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_once", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_once", (), None, None, False)])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
     def test_two_renaming_filters(self):
         db_map = DatabaseMapping(self._db_url)
@@ -123,10 +123,10 @@ class TestApplyFilterStack(unittest.TestCase):
                 entity_class_renamer_config(renamed_once="renamed_twice"),
             ]
             apply_filter_stack(db_map, stack)
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_twice", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_twice", (), None, None, False)])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
 
 class TestFilteredDatabaseMap(unittest.TestCase):
@@ -138,18 +138,18 @@ class TestFilteredDatabaseMap(unittest.TestCase):
     def setUpClass(cls):
         cls._dir = TemporaryDirectory()
         cls._db_url.database = os.path.join(cls._dir.name, "TestFilteredDatabaseMap.json")
-        db_map = DiffDatabaseMapping(cls._db_url, create=True)
+        db_map = DatabaseMapping(cls._db_url, create=True)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
-        db_map.connection.close()
+        db_map.close()
 
     def test_without_filters(self):
         db_map = DatabaseMapping(self._db_url, self._engine)
         try:
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("object_class", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("object_class", (), None, None, False)])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
     def test_single_renaming_filter(self):
         path = os.path.join(self._dir.name, "config.json")
@@ -158,10 +158,10 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         url = append_filter_config(str(self._db_url), path)
         db_map = DatabaseMapping(url, self._engine)
         try:
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_once", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_once", (), None, None, False)])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
     def test_two_renaming_filters(self):
         path1 = os.path.join(self._dir.name, "config1.json")
@@ -174,20 +174,20 @@ class TestFilteredDatabaseMap(unittest.TestCase):
         url = append_filter_config(url, path2)
         db_map = DatabaseMapping(url, self._engine)
         try:
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_twice", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_twice", (), None, None, False)])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
     def test_config_embedded_to_url(self):
         config = entity_class_renamer_config(object_class="renamed_once")
         url = append_filter_config(str(self._db_url), config)
         db_map = DatabaseMapping(url, self._engine)
         try:
-            object_classes = export_object_classes(db_map)
-            self.assertEqual(object_classes, [("renamed_once", None, None)])
+            object_classes = export_entity_classes(db_map)
+            self.assertEqual(object_classes, [("renamed_once", (), None, None, False)])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
 
 class TestAppendFilterConfig(unittest.TestCase):
@@ -306,8 +306,8 @@ class TestNameFromDict(unittest.TestCase):
         self.assertEqual(name_from_dict(config), "scenario_name")
 
     def test_get_tool_name(self):
-        config = filter_config("tool_filter", "tool_name")
-        self.assertEqual(name_from_dict(config), "tool_name")
+        with self.assertRaises(KeyError):
+            _ = filter_config("tool_filter", "tool_name")
 
     def test_returns_none_if_name_not_found(self):
         config = entity_class_renamer_config(name="rename")

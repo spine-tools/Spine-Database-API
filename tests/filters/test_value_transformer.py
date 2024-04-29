@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -17,10 +18,8 @@ from pathlib import Path
 import unittest
 from tempfile import TemporaryDirectory
 from sqlalchemy.engine.url import URL
-
 from spinedb_api import (
     DatabaseMapping,
-    DiffDatabaseMapping,
     import_object_classes,
     import_object_parameter_values,
     import_object_parameters,
@@ -108,17 +107,17 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
 
     def setUp(self):
         create_new_spine_database(self._db_url)
-        self._out_map = DiffDatabaseMapping(self._db_url)
+        self._out_db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
-        self._out_map.connection.close()
+        self._out_db_map.close()
 
     def test_negate_manipulator(self):
-        import_object_classes(self._out_map, ("class",))
-        import_object_parameters(self._out_map, (("class", "parameter"),))
-        import_objects(self._out_map, (("class", "object"),))
-        import_object_parameter_values(self._out_map, (("class", "object", "parameter", -2.3),))
-        self._out_map.commit_session("Add test data.")
+        import_object_classes(self._out_db_map, ("class",))
+        import_object_parameters(self._out_db_map, (("class", "parameter"),))
+        import_objects(self._out_db_map, (("class", "object"),))
+        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", -2.3),))
+        self._out_db_map.commit_session("Add test data.")
         instructions = {"class": {"parameter": [{"operation": "negate"}]}}
         config = value_transformer_config(instructions)
         url = append_filter_config(str(self._db_url), config)
@@ -127,15 +126,15 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
             values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
             self.assertEqual(values, [2.3])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
     def test_negate_manipulator_with_nested_map(self):
-        import_object_classes(self._out_map, ("class",))
-        import_object_parameters(self._out_map, (("class", "parameter"),))
-        import_objects(self._out_map, (("class", "object"),))
+        import_object_classes(self._out_db_map, ("class",))
+        import_object_parameters(self._out_db_map, (("class", "parameter"),))
+        import_objects(self._out_db_map, (("class", "object"),))
         value = Map(["A"], [Map(["1"], [2.3])])
-        import_object_parameter_values(self._out_map, (("class", "object", "parameter", value),))
-        self._out_map.commit_session("Add test data.")
+        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", value),))
+        self._out_db_map.commit_session("Add test data.")
         instructions = {"class": {"parameter": [{"operation": "negate"}]}}
         config = value_transformer_config(instructions)
         url = append_filter_config(str(self._db_url), config)
@@ -145,14 +144,14 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
             expected = Map(["A"], [Map(["1"], [-2.3])])
             self.assertEqual(values, [expected])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
     def test_multiply_manipulator(self):
-        import_object_classes(self._out_map, ("class",))
-        import_object_parameters(self._out_map, (("class", "parameter"),))
-        import_objects(self._out_map, (("class", "object"),))
-        import_object_parameter_values(self._out_map, (("class", "object", "parameter", -2.3),))
-        self._out_map.commit_session("Add test data.")
+        import_object_classes(self._out_db_map, ("class",))
+        import_object_parameters(self._out_db_map, (("class", "parameter"),))
+        import_objects(self._out_db_map, (("class", "object"),))
+        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", -2.3),))
+        self._out_db_map.commit_session("Add test data.")
         instructions = {"class": {"parameter": [{"operation": "multiply", "rhs": 10.0}]}}
         config = value_transformer_config(instructions)
         url = append_filter_config(str(self._db_url), config)
@@ -161,14 +160,14 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
             values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
             self.assertEqual(values, [-23.0])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
     def test_invert_manipulator(self):
-        import_object_classes(self._out_map, ("class",))
-        import_object_parameters(self._out_map, (("class", "parameter"),))
-        import_objects(self._out_map, (("class", "object"),))
-        import_object_parameter_values(self._out_map, (("class", "object", "parameter", -2.3),))
-        self._out_map.commit_session("Add test data.")
+        import_object_classes(self._out_db_map, ("class",))
+        import_object_parameters(self._out_db_map, (("class", "parameter"),))
+        import_objects(self._out_db_map, (("class", "object"),))
+        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", -2.3),))
+        self._out_db_map.commit_session("Add test data.")
         instructions = {"class": {"parameter": [{"operation": "invert"}]}}
         config = value_transformer_config(instructions)
         url = append_filter_config(str(self._db_url), config)
@@ -177,14 +176,14 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
             values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
             self.assertEqual(values, [-1.0 / 2.3])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
     def test_multiple_instructions(self):
-        import_object_classes(self._out_map, ("class",))
-        import_object_parameters(self._out_map, (("class", "parameter"),))
-        import_objects(self._out_map, (("class", "object"),))
-        import_object_parameter_values(self._out_map, (("class", "object", "parameter", -2.3),))
-        self._out_map.commit_session("Add test data.")
+        import_object_classes(self._out_db_map, ("class",))
+        import_object_parameters(self._out_db_map, (("class", "parameter"),))
+        import_objects(self._out_db_map, (("class", "object"),))
+        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", -2.3),))
+        self._out_db_map.commit_session("Add test data.")
         instructions = {"class": {"parameter": [{"operation": "invert"}, {"operation": "negate"}]}}
         config = value_transformer_config(instructions)
         url = append_filter_config(str(self._db_url), config)
@@ -193,15 +192,15 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
             values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
             self.assertEqual(values, [1.0 / 2.3])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
     def test_index_generator_on_time_series(self):
-        import_object_classes(self._out_map, ("class",))
-        import_object_parameters(self._out_map, (("class", "parameter"),))
-        import_objects(self._out_map, (("class", "object"),))
+        import_object_classes(self._out_db_map, ("class",))
+        import_object_parameters(self._out_db_map, (("class", "parameter"),))
+        import_objects(self._out_db_map, (("class", "object"),))
         value = TimeSeriesFixedResolution("2021-06-07T08:00", "1D", [-5.0, -2.3], False, False)
-        import_object_parameter_values(self._out_map, (("class", "object", "parameter", value),))
-        self._out_map.commit_session("Add test data.")
+        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", value),))
+        self._out_db_map.commit_session("Add test data.")
         instructions = {"class": {"parameter": [{"operation": "generate_index", "expression": "float(i)"}]}}
         config = value_transformer_config(instructions)
         url = append_filter_config(str(self._db_url), config)
@@ -211,7 +210,7 @@ class TestValueTransformerUsingDatabase(unittest.TestCase):
             expected = Map([1.0, 2.0], [-5.0, -2.3])
             self.assertEqual(values, [expected])
         finally:
-            db_map.connection.close()
+            db_map.close()
 
 
 if __name__ == "__main__":

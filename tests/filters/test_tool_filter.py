@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
 # This file is part of Spine Database API.
 # Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
@@ -18,9 +19,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
-    apply_tool_filter_to_entity_sq,
     create_new_spine_database,
-    DiffDatabaseMapping,
+    DatabaseMapping,
     import_object_classes,
     import_relationship_classes,
     import_object_parameter_values,
@@ -30,20 +30,11 @@ from spinedb_api import (
     import_relationship_parameter_values,
     import_relationship_parameters,
     import_parameter_value_lists,
-    import_tools,
-    import_features,
-    import_tool_features,
-    import_tool_feature_methods,
     SpineDBAPIError,
 )
-from spinedb_api.filters.tool_filter import (
-    tool_filter_config,
-    tool_filter_config_to_shorthand,
-    tool_filter_from_dict,
-    tool_filter_shorthand_to_config,
-)
 
 
+@unittest.skip("obsolete, but need to adapt into the scenario filter")
 class TestToolEntityFilter(unittest.TestCase):
     _db_url = None
     _temp_dir = None
@@ -55,10 +46,10 @@ class TestToolEntityFilter(unittest.TestCase):
 
     def setUp(self):
         create_new_spine_database(self._db_url)
-        self._db_map = DiffDatabaseMapping(self._db_url)
+        self._db_map = DatabaseMapping(self._db_url)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
 
     def _build_data_with_tools(self):
         import_object_classes(self._db_map, ["object_class"])
@@ -226,5 +217,5 @@ class TestToolEntityFilter(unittest.TestCase):
         self.assertTrue("node1" not in pval_object_names)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

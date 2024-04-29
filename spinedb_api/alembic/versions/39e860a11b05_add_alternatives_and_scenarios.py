@@ -13,8 +13,8 @@ from sqlalchemy.orm import sessionmaker
 
 
 # revision identifiers, used by Alembic.
-revision = '39e860a11b05'
-down_revision = '9da58d2def22'
+revision = "39e860a11b05"
+down_revision = "9da58d2def22"
 branch_labels = None
 depends_on = None
 
@@ -85,7 +85,7 @@ def alter_tables_after_update():
 
     op.execute("UPDATE parameter_value SET alternative_id = 1")
     with op.batch_alter_table("parameter_value") as batch_op:
-        batch_op.alter_column('alternative_id', nullable=False)
+        batch_op.alter_column("alternative_id", nullable=False)
         batch_op.create_foreign_key(
             None, "alternative", ("alternative_id",), ("id",), onupdate="CASCADE", ondelete="CASCADE"
         )
@@ -115,9 +115,9 @@ def alter_tables_after_update():
         )
 
     with op.batch_alter_table("entity_type") as batch_op:
-        batch_op.alter_column('commit_id', nullable=False)
+        batch_op.alter_column("commit_id", nullable=False)
     with op.batch_alter_table("entity_class_type") as batch_op:
-        batch_op.alter_column('commit_id', nullable=False)
+        batch_op.alter_column("commit_id", nullable=False)
 
 
 def upgrade():
@@ -146,6 +146,6 @@ def downgrade():
             batch_op.drop_column("scenario_id")
             batch_op.drop_column("scenario_alternative_id")
     with op.batch_alter_table("entity_type") as batch_op:
-        batch_op.alter_column('commit_id', nullable=True)
+        batch_op.alter_column("commit_id", nullable=True)
     with op.batch_alter_table("entity_class_type") as batch_op:
-        batch_op.alter_column('commit_id', nullable=True)
+        batch_op.alter_column("commit_id", nullable=True)
