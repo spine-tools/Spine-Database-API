@@ -11,8 +11,11 @@
 ######################################################################################################################
 """ Unit tests for import_functions.py. """
 
+import json
+import pathlib
 import unittest
 
+from spinedb_api.helpers import name_from_elements
 from spinedb_api.spine_db_server import _unparse_value
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.import_functions import (
@@ -36,7 +39,7 @@ from spinedb_api.import_functions import (
     import_relationship_parameter_value_metadata,
     import_data,
 )
-from spinedb_api.parameter_value import from_database, dump_db_value, TimeSeriesFixedResolution
+from spinedb_api.parameter_value import Duration, from_database, dump_db_value, TimeSeriesFixedResolution
 
 
 def assert_import_equivalent(test, obs, exp, strict=True):
@@ -76,37 +79,88 @@ def create_db_map():
 class TestIntegrationImportData(unittest.TestCase):
     def test_import_data_integration(self):
         database_url = "sqlite://"
-        db_map = DatabaseMapping(database_url, username="IntegrationTest", create=True)
+        with DatabaseMapping(database_url, username="IntegrationTest", create=True) as db_map:
+            object_c = ["example_class", "other_class"]  # 2 items
+            objects = [["example_class", "example_object"], ["other_class", "other_object"]]  # 2 items
+            relationship_c = [["example_rel_class", ["example_class", "other_class"]]]  # 1 item
+            relationships = [["example_rel_class", ["example_object", "other_object"]]]  # 1 item
+            obj_parameters = [["example_class", "example_parameter"]]  # 1 item
+            rel_parameters = [["example_rel_class", "rel_parameter"]]  # 1 item
+            object_p_values = [["example_class", "example_object", "example_parameter", 3.14]]  # 1 item
+            rel_p_values = [["example_rel_class", ["example_object", "other_object"], "rel_parameter", 2.718]]  # 1
+            alternatives = [["example_alternative", "An example"]]
+            scenarios = [["example_scenario", True, "An example"]]
+            scenario_alternatives = [["example_scenario", "example_alternative"]]
+            num_imports, errors = import_data(
+                db_map,
+                object_classes=object_c,
+                relationship_classes=relationship_c,
+                object_parameters=obj_parameters,
+                relationship_parameters=rel_parameters,
+                objects=objects,
+                relationships=relationships,
+                object_parameter_values=object_p_values,
+                relationship_parameter_values=rel_p_values,
+                alternatives=alternatives,
+                scenarios=scenarios,
+                scenario_alternatives=scenario_alternatives,
+            )
+            self.assertEqual(errors, [])
+            self.assertEqual(num_imports, 13)
 
-        object_c = ["example_class", "other_class"]  # 2 items
-        objects = [["example_class", "example_object"], ["other_class", "other_object"]]  # 2 items
-        relationship_c = [["example_rel_class", ["example_class", "other_class"]]]  # 1 item
-        relationships = [["example_rel_class", ["example_object", "other_object"]]]  # 1 item
-        obj_parameters = [["example_class", "example_parameter"]]  # 1 item
-        rel_parameters = [["example_rel_class", "rel_parameter"]]  # 1 item
-        object_p_values = [["example_class", "example_object", "example_parameter", 3.14]]  # 1 item
-        rel_p_values = [["example_rel_class", ["example_object", "other_object"], "rel_parameter", 2.718]]  # 1
-        alternatives = [["example_alternative", "An example"]]
-        scenarios = [["example_scenario", True, "An example"]]
-        scenario_alternatives = [["example_scenario", "example_alternative"]]
+    def test_import_spineopt_template(self):
+        template_path = pathlib.Path(__file__).parent / "test_resources" / "spineopt_template.json"
+        with template_path.open() as template_file:
+            data = json.load(template_file)
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            num_imports, errors = import_data(db_map, **data)
+        self.assertEqual(errors, [])
+        self.assertEqual(num_imports, 497)
 
-        num_imports, errors = import_data(
-            db_map,
-            object_classes=object_c,
-            relationship_classes=relationship_c,
-            object_parameters=obj_parameters,
-            relationship_parameters=rel_parameters,
-            objects=objects,
-            relationships=relationships,
-            object_parameter_values=object_p_values,
-            relationship_parameter_values=rel_p_values,
-            alternatives=alternatives,
-            scenarios=scenarios,
-            scenario_alternatives=scenario_alternatives,
-        )
-        db_map.close()
-        self.assertEqual(num_imports, 13)
-        self.assertFalse(errors)
+    def test_import_spineopt_basic_model_template(self):
+        template_path = pathlib.Path(__file__).parent / "test_resources" / "spineopt_template.json"
+        with template_path.open() as template_file:
+            template_data = json.load(template_file)
+        basic_model_path = pathlib.Path(__file__).parent / "test_resources" / "basic_model_template.json"
+        with basic_model_path.open() as model_file:
+            model_data = json.load(model_file)
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            num_imports, errors = import_data(db_map, **template_data)
+            self.assertEqual(errors, [])
+            self.assertEqual(num_imports, 497)
+            num_imports, errors = import_data(db_map, **model_data)
+            self.assertEqual(errors, [])
+            self.assertEqual(num_imports, 10)
+            expected_entities = {
+                "model": {"simple"},
+                "report": {"report1"},
+                "stochastic_scenario": {"realization"},
+                "stochastic_structure": {"deterministic"},
+                "temporal_block": {"flat"},
+                "model__default_stochastic_structure": {name_from_elements(("simple", "deterministic"))},
+                "model__default_temporal_block": {name_from_elements(("simple", "flat"))},
+                "model__report": {name_from_elements(("simple", "report1"))},
+                "stochastic_structure__stochastic_scenario": {name_from_elements(("deterministic", "realization"))},
+            }
+            for class_name, expected_names in expected_entities.items():
+                with self.subTest(entity_class=class_name):
+                    entities = db_map.get_entity_items(entity_class_name=class_name)
+                    self.assertEqual(len(entities), len(expected_names))
+                    names = {entity["name"] for entity in entities}
+                    self.assertEqual(names, expected_names)
+            expected_parameter_values = {("temporal_block", "flat", "resolution", "Base"): Duration("1D")}
+            for unique_id, expected_value in expected_parameter_values.items():
+                class_name, entity_name, definition_name, alternative_name = unique_id
+                with self.subTest(
+                    entity_class=class_name, entity=entity_name, parameter=definition_name, alternative=alternative_name
+                ):
+                    value = db_map.get_parameter_value_item(
+                        entity_class_name=class_name,
+                        entity_byname=(entity_name,),
+                        parameter_definition_name=definition_name,
+                        alternative_name=alternative_name,
+                    )
+                    self.assertEqual(value["parsed_value"], expected_value)
 
 
 class TestImportObjectClass(unittest.TestCase):
