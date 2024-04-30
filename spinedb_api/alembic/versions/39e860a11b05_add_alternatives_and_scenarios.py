@@ -5,6 +5,7 @@ Revises: 9da58d2def22
 Create Date: 2020-03-05 14:04:00.854936
 
 """
+
 from datetime import datetime, timezone
 from alembic import op
 import sqlalchemy as sa

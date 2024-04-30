@@ -5,6 +5,7 @@ Revises: bf255c179bce
 Create Date: 2019-09-17 13:38:53.437119
 
 """
+
 from datetime import datetime
 from alembic import op
 import sqlalchemy as sa

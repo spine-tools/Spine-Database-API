@@ -5,6 +5,7 @@ Revises: 0c7d199ae915
 Create Date: 2022-03-14 11:33:13.777028
 
 """
+
 from alembic import op
 from sqlalchemy import MetaData
 from sqlalchemy.sql.expression import bindparam
