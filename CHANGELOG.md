@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+### Added
+
+### Fixed
+
+### Removed
+
+### Deprecated
+
+### Security
+
+## 0.31.0
+
 This is the first release where we keep a Spine-Database-API specific changelog.
 
 The database structure has changed quite a bit.
@@ -28,12 +42,6 @@ but those functions and methods are pending deprecation.
   It is now possible to set a superclass for an entity class.
   The class then inherits parameter definitions from its superclass.
 
-### Fixed
-
 ### Removed
 
 - Tools, features and methods have been removed.
-
-### Deprecated
-
-### Security
