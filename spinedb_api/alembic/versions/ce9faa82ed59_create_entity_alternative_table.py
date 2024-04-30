@@ -5,6 +5,7 @@ Revises: 6b7c994c1c61
 Create Date: 2023-09-21 14:35:28.867803
 
 """
+
 from alembic import op
 import sqlalchemy as sa
 from spinedb_api.compatibility import convert_tool_feature_method_to_entity_alternative

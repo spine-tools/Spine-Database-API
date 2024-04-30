@@ -65,4 +65,4 @@ ignore_errors = true
 
 [tool.black]
 line-length = 120
-exclude = '\.git'
+exclude = '\.git|version.py'

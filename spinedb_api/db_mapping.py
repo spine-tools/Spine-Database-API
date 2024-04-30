@@ -877,6 +877,7 @@ for it in DatabaseMapping.item_types():
     setattr(DatabaseMapping, "remove_" + it + "_item", partialmethod(DatabaseMapping.remove_item, it))
     setattr(DatabaseMapping, "restore_" + it + "_item", partialmethod(DatabaseMapping.restore_item, it))
 
+
 # Astroid transform so DatabaseMapping looks like it has the convenience methods defined above
 def _add_convenience_methods(node):
     if node.name != "DatabaseMapping":

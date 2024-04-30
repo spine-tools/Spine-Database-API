@@ -26,7 +26,7 @@ def _python_interpreter_bitness():
     """Returns 64 for 64bit Python interpreter or 32 for 32bit interpreter."""
     # As recommended in Python's docs:
     # https://docs.python.org/3/library/platform.html#cross-platform
-    return 64 if sys.maxsize > 2 ** 32 else 32
+    return 64 if sys.maxsize > 2**32 else 32
 
 
 def _windows_dlls_exist(gams_path):

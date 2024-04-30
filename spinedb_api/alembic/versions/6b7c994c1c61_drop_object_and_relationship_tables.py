@@ -5,6 +5,7 @@ Revises: 989fccf80441
 Create Date: 2023-02-09 06:48:46.585108
 
 """
+
 from alembic import op
 import sqlalchemy as sa
 from spinedb_api.helpers import naming_convention

@@ -5,6 +5,7 @@ Revises: fd542cebf699
 Create Date: 2022-02-15 15:41:06.794006
 
 """
+
 from alembic import op
 from spinedb_api.helpers import naming_convention
 

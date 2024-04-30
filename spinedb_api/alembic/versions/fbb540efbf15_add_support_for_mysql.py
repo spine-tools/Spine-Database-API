@@ -5,6 +5,7 @@ Revises: 1892adebc00f
 Create Date: 2021-01-05 10:40:16.720937
 
 """
+
 from alembic import op
 from sqlalchemy import Text
 from spinedb_api.helpers import LONGTEXT_LENGTH, naming_convention
