@@ -382,7 +382,7 @@ class ParsedValueBase(MappedItemBase):
     def _something_to_update(self, other):
         if self._value_key in other and self._type_key in other:
             other_value_type = other[self._type_key]
-            if self.type != other_value_type:
+            if self[self._type_key] != other_value_type:
                 return True
             other_value = other[self._value_key]
             if self.value != other_value:
