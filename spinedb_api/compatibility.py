@@ -97,16 +97,6 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
             conn.execute(update_statement.where(entity_class_table.c.id == class_id), update)
         update["id"] = class_id
         updated_items.append(update)
-    parameter_definitions_to_update = (
-        x["parameter_definition_id"] for x in is_active_default_vals if x["list_value_id"] is not None
-    )
-    update_statement = pd_table.update()
-    for definition_id in parameter_definitions_to_update:
-        update = {"default_value": None, "default_type": None}
-        if apply:
-            conn.execute(update_statement.where(pd_table.c.id == definition_id), update)
-        update["id"] = definition_id
-        updated_items.append(update)
     return [], updated_items, []
 
 

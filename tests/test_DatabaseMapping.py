@@ -674,7 +674,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 from_database(definition["default_value"], definition["default_type"])
                 for definition in db_map.query(db_map.parameter_definition_sq)
             ]
-            self.assertEqual(defaults, 3 * [None])
+            self.assertEqual(defaults, [True, True, None])
 
     def test_remove_items_by_asterisk(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
