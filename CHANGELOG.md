@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The server default of `active_by_default` is now `True`.
+
 ### Added
 
 ### Fixed

@@ -379,7 +379,7 @@ def create_spine_metadata():
         Column("display_order", Integer, server_default="99"),
         Column("display_icon", BigInteger, server_default=null()),
         Column("hidden", Integer, server_default="0"),
-        Column("active_by_default", Boolean(name="active_by_default"), server_default=false(), nullable=False),
+        Column("active_by_default", Boolean(name="active_by_default"), server_default=true(), nullable=False),
     )
     Table(
         "superclass_subclass",

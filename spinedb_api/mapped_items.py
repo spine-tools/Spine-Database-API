@@ -103,7 +103,7 @@ class EntityClassItem(MappedItemBase):
         if error:
             return error
         if "active_by_default" not in self:
-            self["active_by_default"] = bool(dict.get(self, "dimension_id_list"))
+            self["active_by_default"] = True
 
     def merge(self, other):
         dimension_id_list = other.pop("dimension_id_list", None)
@@ -164,7 +164,7 @@ class EntityItem(MappedItemBase):
 
     @classmethod
     def unique_values_for_item(cls, item, skip_keys=()):
-        """Overriden to also yield unique values for the superclass."""
+        """Overridden to also yield unique values for the superclass."""
         for key, value in super().unique_values_for_item(item, skip_keys=skip_keys):
             yield key, value
             sc_value = tuple(item.get("superclass_name" if k == "entity_class_name" else k) for k in key)
