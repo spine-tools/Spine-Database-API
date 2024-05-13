@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `ScenarioActiveFlag` import and export mappings have been removed.
+  While the flag column is still in the database schema, it is not used anywhere,
+  nor is it accessible e.g. in Toolbox.
+
 ### Deprecated
 
 ### Security

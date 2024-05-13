@@ -30,7 +30,6 @@ from .import_mapping import (
     ExpandedParameterValueMapping,
     AlternativeMapping,
     ScenarioMapping,
-    ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
     ScenarioBeforeAlternativeMapping,
     EntityGroupMapping,
@@ -110,9 +109,7 @@ def _scenario_mapping_from_dict(map_dict):
     name = map_dict.get("name")
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
-    active = map_dict.get("active", "false")
     root_mapping = ScenarioMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    root_mapping.child = ScenarioActiveFlagMapping(*_pos_and_val(active))
     return root_mapping
 
 

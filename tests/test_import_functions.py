@@ -1268,6 +1268,15 @@ class TestImportScenario(unittest.TestCase):
         self.assertEqual(scenarios, {"scenario": None})
         db_map.close()
 
+    def test_import_single_scenario_as_tuple(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            count, errors = import_scenarios(db_map, [("scenario",)])
+            self.assertEqual(errors, [])
+            self.assertEqual(count, 1)
+            db_map.commit_session("test")
+            scenarios = {s.name: s.description for s in db_map.query(db_map.scenario_sq)}
+            self.assertEqual(scenarios, {"scenario": None})
+
     def test_scenario_with_description(self):
         db_map = create_db_map()
         count, errors = import_scenarios(db_map, [["scenario", False, "description"]])

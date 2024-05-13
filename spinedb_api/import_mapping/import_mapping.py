@@ -796,21 +796,10 @@ class ScenarioMapping(ImportMapping):
     MAP_TYPE = "Scenario"
 
     def _import_row(self, source_data, state, mapped_data):
-        state[ImportKey.SCENARIO_NAME] = str(source_data)
-
-
-class ScenarioActiveFlagMapping(ImportMapping):
-    """Maps scenario active flags.
-
-    Cannot be used as the topmost mapping; must have a :class:`ScenarioMapping` as parent.
-    """
-
-    MAP_TYPE = "ScenarioActiveFlag"
-
-    def _import_row(self, source_data, state, mapped_data):
-        scenario = state[ImportKey.SCENARIO_NAME]
-        active = string_to_bool(str(source_data))
-        mapped_data.setdefault("scenarios", set()).add((scenario, active))
+        scenario = str(source_data)
+        state[ImportKey.SCENARIO_NAME] = scenario
+        if self._child is None:
+            mapped_data.setdefault("scenarios", set()).add((scenario,))
 
 
 class ScenarioAlternativeMapping(ImportMapping):
@@ -907,7 +896,6 @@ def _default_scenario_mapping():
         ScenarioMapping: root mapping
     """
     root_mapping = ScenarioMapping(Position.hidden)
-    root_mapping.child = ScenarioActiveFlagMapping(Position.hidden)
     return root_mapping
 
 
@@ -980,7 +968,6 @@ def from_dict(serialized):
             ParameterValueListValueMapping,
             AlternativeMapping,
             ScenarioMapping,
-            ScenarioActiveFlagMapping,
             ScenarioAlternativeMapping,
             ScenarioBeforeAlternativeMapping,
             ToolMapping,
@@ -1010,6 +997,9 @@ def from_dict(serialized):
     mappings.update(legacy_mappings)
     flattened = []
     for mapping_dict in serialized:
+        if mapping_dict["map_type"] == "ScenarioActiveFlag":
+            # We don't have active flag mapping anymore.
+            continue
         position = mapping_dict["position"]
         value = mapping_dict.get("value")
         skip_columns = mapping_dict.get("skip_columns")

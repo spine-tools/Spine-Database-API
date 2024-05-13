@@ -442,6 +442,22 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_import_scenario(self):
+        data_source = iter([["scen1"]])
+        mappings = [
+            [
+                {"map_type": "Scenario", "position": 0},
+            ]
+        ]
+        convert_function_specs = {0: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {"scenarios": {("scen1",)}},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -60,7 +60,6 @@ from spinedb_api.export_mapping.export_mapping import (
     ParameterValueTypeMapping,
     DimensionMapping,
     ElementMapping,
-    ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
     ScenarioDescriptionMapping,
     ScenarioMapping,
@@ -961,19 +960,6 @@ class TestExportMapping(unittest.TestCase):
         for title, title_key in titles(scenario_mapping, db_map):
             tables[title] = list(rows(scenario_mapping, db_map, title_key))
         self.assertEqual(tables, {None: [["s1"], ["s2"]]})
-        db_map.close()
-
-    def test_scenario_active_flag_mapping(self):
-        db_map = DatabaseMapping("sqlite://", create=True)
-        import_scenarios(db_map, (("s1", True), ("s2", False)))
-        db_map.commit_session("Add test data.")
-        scenario_mapping = ScenarioMapping(0)
-        active_flag_mapping = ScenarioActiveFlagMapping(1)
-        scenario_mapping.child = active_flag_mapping
-        tables = dict()
-        for title, title_key in titles(scenario_mapping, db_map):
-            tables[title] = list(rows(scenario_mapping, db_map, title_key))
-        self.assertEqual(tables, {None: [["s1", True], ["s2", False]]})
         db_map.close()
 
     def test_scenario_alternative_mapping(self):

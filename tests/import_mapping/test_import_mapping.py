@@ -221,7 +221,7 @@ class TestImportMappingIO(unittest.TestCase):
         mapping = import_mapping_from_dict({"map_type": "Scenario"})
         d = mapping_to_dict(mapping)
         types = [m["map_type"] for m in d]
-        expected = ["Scenario", "ScenarioActiveFlag"]
+        expected = ["Scenario"]
         self.assertEqual(types, expected)
 
     def test_scenario_alternative_mapping(self):
@@ -405,7 +405,6 @@ class TestImportMappingLegacy(unittest.TestCase):
         out = mapping_to_dict(mapping)
         expected = [
             {"map_type": "Scenario", "position": 0},
-            {"map_type": "ScenarioActiveFlag", "position": "hidden", "value": "false"},
         ]
         self.assertEqual(out, expected)
 
@@ -1648,7 +1647,7 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         mapping = {"map_type": "Scenario", "name": 0}
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = {"scenarios": {("scenario1", False), ("second_scenario", False), ("last_one", False)}}
+        expected = {"scenarios": {("scenario1",), ("second_scenario",), ("last_one",)}}
         self.assertFalse(errors)
         self.assertEqual(out, expected)
 
@@ -1658,7 +1657,7 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         mapping = {"map_type": "Scenario", "name": 0, "active": 1}
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = {"scenarios": {("scenario1", True), ("second_scenario", False), ("last_one", True)}}
+        expected = {"scenarios": {("scenario1",), ("second_scenario",), ("last_one",)}}
         self.assertFalse(errors)
         self.assertEqual(out, expected)
 
