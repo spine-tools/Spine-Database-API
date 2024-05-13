@@ -1320,26 +1320,6 @@ class ScenarioMapping(ExportMapping):
         return "scenario_id"
 
 
-class ScenarioActiveFlagMapping(ExportMapping):
-    """Maps scenario active flags.
-
-    Cannot be used as the topmost mapping; must have a :class:`ScenarioMapping` as parent.
-    """
-
-    MAP_TYPE = "ScenarioActiveFlag"
-
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.scenario_sq.c.active)
-
-    @staticmethod
-    def name_field():
-        return "active"
-
-    @staticmethod
-    def id_field():
-        return "active"
-
-
 class ScenarioAlternativeMapping(ExportMapping):
     """Maps scenario alternatives.
 
@@ -1557,8 +1537,6 @@ def from_dict(serialized):
             ParameterValueListValueMapping,
             ParameterValueMapping,
             ParameterValueTypeMapping,
-            ScenarioActiveFlagMapping,
-            ScenarioAlternativeMapping,
             ScenarioBeforeAlternativeMapping,
             ScenarioDescriptionMapping,
             ScenarioMapping,
@@ -1589,6 +1567,9 @@ def from_dict(serialized):
     mappings.update(legacy_mappings)
     flattened = list()
     for mapping_dict in serialized:
+        if mapping_dict["map_type"] == "ScenarioActiveFlag":
+            # We don't support active flag exporting anymore.
+            continue
         if (highlight_position := mapping_dict.get("highlight_dimension")) is not None:
             # legacy
             mapping_dict["highlight_position"] = highlight_position

@@ -32,7 +32,6 @@ from .export_mapping import (
     ParameterValueMapping,
     ParameterValueTypeMapping,
     Position,
-    ScenarioActiveFlagMapping,
     ScenarioAlternativeMapping,
     ScenarioBeforeAlternativeMapping,
     ScenarioMapping,
@@ -318,7 +317,6 @@ def alternative_export(alternative_position=Position.hidden, alternative_descrip
 
 def scenario_export(
     scenario_position=Position.hidden,
-    scenario_active_flag_position=Position.hidden,
     scenario_description_position=Position.hidden,
 ):
     """
@@ -326,15 +324,13 @@ def scenario_export(
 
     Args:
         scenario_position (int or Position): position of scenarios
-        scenario_active_flag_position (int or Position): position of scenario active flags
         scenario_description_position (int or Position): position of descriptions
 
     Returns:
         Mapping: root mapping
     """
     scenario_mapping = ScenarioMapping(scenario_position)
-    active_flag_mapping = scenario_mapping.child = ScenarioActiveFlagMapping(scenario_active_flag_position)
-    active_flag_mapping.child = ScenarioDescriptionMapping(scenario_description_position)
+    scenario_mapping.child = ScenarioDescriptionMapping(scenario_description_position)
     return scenario_mapping
 
 
