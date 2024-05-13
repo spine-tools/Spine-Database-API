@@ -84,7 +84,7 @@ class TestExportFunctions(unittest.TestCase):
                 db_map.add_entity_class_item(name="Relation", dimension_name_list=("Object",))
             )
             exported = export_entity_classes(db_map)
-            expected = (("Object", (), None, None, False), ("Relation", ("Object",), None, None, True))
+            expected = (("Object", (), None, None, True), ("Relation", ("Object",), None, None, True))
             self.assertCountEqual(exported, expected)
 
     def test_export_data(self):
@@ -116,7 +116,7 @@ class TestExportFunctions(unittest.TestCase):
             self.assertIn("entity_classes", exported)
             self.assertEqual(
                 exported["entity_classes"],
-                [("object_class", (), None, None, False), ("relationship_class", ("object_class",), None, None, True)],
+                [("object_class", (), None, None, True), ("relationship_class", ("object_class",), None, None, True)],
             )
             self.assertIn("parameter_definitions", exported)
             self.assertEqual(
