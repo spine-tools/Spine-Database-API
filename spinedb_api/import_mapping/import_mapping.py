@@ -454,10 +454,13 @@ class DimensionMapping(ImportMapping):
     MAP_TYPE = "Dimension"
 
     def _import_row(self, source_data, state, mapped_data):
-        _ = state[ImportKey.ENTITY_CLASS_NAME]
-        dimension_name = str(source_data)
-        state[ImportKey.DIMENSION_NAMES].append(dimension_name)
+        if ImportKey.ENTITY_CLASS_NAME not in state:
+            raise KeyError(ImportKey.ENTITY_CLASS_NAME)
         dimension_names = state[ImportKey.DIMENSION_NAMES]
+        if len(dimension_names) == state[ImportKey.DIMENSION_COUNT]:
+            return
+        dimension_name = str(source_data)
+        dimension_names.append(dimension_name)
         if len(dimension_names) == state[ImportKey.DIMENSION_COUNT]:
             raise KeyFix(ImportKey.DIMENSION_NAMES)
 
