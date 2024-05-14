@@ -458,6 +458,61 @@ class TestGetMappedData(unittest.TestCase):
             {"scenarios": {("scen1",)}},
         )
 
+    def test_importing_multidimensional_class_when_there_is_an_extra_column(self):
+        header = ["3D entity class", "unit", "node", "node", "parameter", "alternative", "value", None]
+        data_source = iter(
+            [
+                ["unit__node__node", "Dyson sphere", "Gamma Ceti", "Ring world", "flow", "Base", 23.3, None],
+                7 * [None] + ["aa"],
+            ]
+        )
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": 0},
+                {"map_type": "Dimension", "position": "header", "value": 1},
+                {"map_type": "Dimension", "position": "header", "value": 2},
+                {"map_type": "Dimension", "position": "header", "value": 3},
+                {"map_type": "Entity", "position": "hidden"},
+                {"map_type": "Element", "position": 1, "import_entities": True},
+                {"map_type": "Element", "position": 2, "import_entities": True},
+                {"map_type": "Element", "position": 3, "import_entities": True},
+                {"map_type": "EntityMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": 4},
+                {"map_type": "Alternative", "position": 5},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValue", "position": 6},
+            ]
+        ]
+        convert_function_specs = {
+            0: "string",
+            1: "string",
+            2: "string",
+            3: "string",
+            4: "string",
+            5: "string",
+            6: "float",
+        }
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base"},
+                "entities": [
+                    ("unit", "Dyson sphere"),
+                    ("node", "Gamma Ceti"),
+                    ("node", "Ring world"),
+                    ("unit__node__node", ("Dyson sphere", "Gamma Ceti", "Ring world")),
+                ],
+                "entity_classes": [("unit",), ("node",), ("unit__node__node", ("unit", "node", "node"))],
+                "parameter_definitions": [("unit__node__node", "flow")],
+                "parameter_values": [
+                    ["unit__node__node", ("Dyson sphere", "Gamma Ceti", "Ring world"), "flow", 23.3, "Base"]
+                ],
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
