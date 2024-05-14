@@ -9,21 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The server default of `active_by_default` is now `True`.
-
 ### Added
 
 ### Fixed
 
 ### Removed
 
-- `ScenarioActiveFlag` import and export mappings have been removed.
-  While the flag column is still in the database schema, it is not used anywhere,
-  nor is it accessible e.g. in Toolbox.
-
 ### Deprecated
 
 ### Security
+
+## 0.31.1
+
+### Changed
+
+- The server default of `active_by_default` is now `True`.
+
+### Removed
+
+- `ScenarioActiveFlag` import and export mappings have been removed.
+  While the flag column is still in the database schema, it is not used anywhere,
+  nor is it accessible e.g. in Toolbox.
 
 ## 0.31.0
 
