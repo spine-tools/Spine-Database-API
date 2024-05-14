@@ -721,29 +721,54 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             entity_class.restore()
             self.assertTrue(entity.is_valid())
 
-    def test_get_parameter_value_with_list_value(self):
+    def test_get_parameter_value_from_wrong_alternative_fails_graciously(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            value_list = self._assert_success(db_map.add_parameter_value_list_item(name="Enumeration"))
-            value, value_type = to_database(2.3)
-            list_value = self._assert_success(
-                db_map.add_list_value_item(
-                    parameter_value_list_name="Enumeration", value=value, type=value_type, index=0
-                )
-            )
-            entity_class = self._assert_success(db_map.add_entity_class_item(name="Object"))
-            entity = self._assert_success(db_map.add_entity_item(name="knife", entity_class_name="Object"))
-            parameter_definition = self._assert_success(
-                db_map.add_parameter_definition_item(
-                    entity_class_name="Object", name="x", parameter_value_list_name="Enumeration"
-                )
-            )
-            value = self._assert_success(
+            self._assert_success(db_map.add_alternative_item(name="extra alternative"))
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_entity_item(name="knife", entity_class_name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(entity_class_name="Object", name="x"))
+            db_value, value_type = to_database(2.3)
+            self._assert_success(
                 db_map.add_parameter_value_item(
                     entity_class_name="Object",
                     entity_byname=("knife",),
                     parameter_definition_name="x",
                     alternative_name="Base",
-                    value=value,
+                    value=db_value,
+                    type=value_type,
+                )
+            )
+            gotten_value = db_map.get_parameter_value_item(
+                entity_class_name="Object",
+                entity_byname=("knife",),
+                parameter_definition_name="x",
+                alternative_name="extra alternative",
+            )
+            self.assertEqual(gotten_value, {})
+
+    def test_get_parameter_value_with_list_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_parameter_value_list_item(name="Enumeration"))
+            db_value, value_type = to_database(2.3)
+            self._assert_success(
+                db_map.add_list_value_item(
+                    parameter_value_list_name="Enumeration", value=db_value, type=value_type, index=0
+                )
+            )
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_entity_item(name="knife", entity_class_name="Object"))
+            self._assert_success(
+                db_map.add_parameter_definition_item(
+                    entity_class_name="Object", name="x", parameter_value_list_name="Enumeration"
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("knife",),
+                    parameter_definition_name="x",
+                    alternative_name="Base",
+                    value=db_value,
                     type=value_type,
                 )
             )
@@ -753,12 +778,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 parameter_definition_name="x",
                 alternative_name="Base",
             )
+            self.assertEqual(gotten_value["parsed_value"], 2.3)
 
     def test_get_parameter_value_with_list_value_from_disk(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
             with DatabaseMapping(url, create=True) as db_map:
-                value_list = self._assert_success(db_map.add_parameter_value_list_item(name="Enumeration"))
+                self._assert_success(db_map.add_parameter_value_list_item(name="Enumeration"))
                 value, value_type = to_database(2.3)
                 self._assert_success(
                     db_map.add_list_value_item(
@@ -792,6 +818,45 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertNotEqual(value, {})
                 self.assertEqual(value["parsed_value"], 2.3)
+
+    def test_nonexistent_parameter_value_with_list_value_does_not_traceback(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_alternative_item(name="extra alternative"))
+                self._assert_success(db_map.add_parameter_value_list_item(name="Enumeration"))
+                value, value_type = to_database(2.3)
+                self._assert_success(
+                    db_map.add_list_value_item(
+                        parameter_value_list_name="Enumeration", value=value, type=value_type, index=0
+                    )
+                )
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                self._assert_success(db_map.add_entity_item(name="knife", entity_class_name="Object"))
+                self._assert_success(
+                    db_map.add_parameter_definition_item(
+                        entity_class_name="Object", name="x", parameter_value_list_name="Enumeration"
+                    )
+                )
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Object",
+                        entity_byname=("knife",),
+                        parameter_definition_name="x",
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                db_map.commit_session("Add parameter value.")
+            with DatabaseMapping(url) as db_map:
+                value = db_map.get_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("knife",),
+                    parameter_definition_name="x",
+                    alternative_name="extra alternative",
+                )
+                self.assertEqual(value, {})
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):

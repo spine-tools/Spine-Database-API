@@ -434,7 +434,12 @@ class ParameterItemBase(ParsedValueBase):
         if list_name is None:
             self["list_value_id"] = None
             return
-        type_ = super().__getitem__(self._type_key)
+        try:
+            type_ = super().__getitem__(self._type_key)
+        except KeyError:
+            if isinstance(self, ParameterValueItem):
+                return f"parameter value {self['parameter_definition_name']} for class {self['entity_class_name']}, entity {self['entity_byname']}, alternative {self['alternative_name']} has no list value"
+            return f"parameter {self['name']} for class {self['entity_class_name']} has no list value"
         if type_ == "list_value_ref":
             return
         value = super().__getitem__(self._value_key)
