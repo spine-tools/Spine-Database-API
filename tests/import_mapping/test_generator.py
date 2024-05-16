@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains unit tests for the generator module.
-
-"""
+""" Contains unit tests for the generator module. """
 import unittest
 
 from spinedb_api import Array, Map
