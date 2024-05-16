@@ -4,4 +4,4 @@ sphinx
 sphinx-autoapi
 sphinx_rtd_theme
 recommonmark
-black == 21.12b
+black == 24.4.2
