@@ -24,6 +24,6 @@ formats:
 # Optionally set the version of Python and requirements required to build your docs
 python:
   install:
-    - requirements: dev-requirements.txt
     - method: pip
-      path: .
+      path: -e .
+    - requirements: dev-requirements.txt
