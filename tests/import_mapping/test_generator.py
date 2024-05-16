@@ -510,6 +510,36 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_importing_empty_rows_does_unnecessarily_not_repeat_mapped_data(self):
+        header = ["Generator", "HydroGenerator"]
+        data_source = iter(
+            [["MyHydroGenerator", "MyHydroGenerator"], ["NonHydroGenerator", None], ["OtherGenerator", None]]
+        )
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "header", "value": 0},
+                {"map_type": "Entity", "position": 1},
+                {"map_type": "EntityMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "Type"},
+                {"map_type": "Alternative", "position": "hidden"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValue", "position": "hidden", "value": "Hydro"},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entities": [("Generator", "MyHydroGenerator")],
+                "entity_classes": [("Generator",)],
+                "parameter_definitions": [("Generator", "Type")],
+                "parameter_values": [["Generator", "MyHydroGenerator", "Type", "Hydro"]],
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

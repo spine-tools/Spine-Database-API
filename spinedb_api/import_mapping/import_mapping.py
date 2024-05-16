@@ -258,6 +258,7 @@ class ImportMapping(Mapping):
             source_data = self._data(source_row)
             if source_data is None:
                 self._skip_row(state)
+                return
             else:
                 try:
                     self._import_row(source_data, state, mapped_data)
