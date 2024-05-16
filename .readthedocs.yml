@@ -25,5 +25,5 @@ formats:
 python:
   install:
     - method: pip
-      path: -e .
+      path: .
     - requirements: dev-requirements.txt
