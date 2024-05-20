@@ -27,6 +27,7 @@ from spinedb_api import (
     SpineDBAPIError,
     SpineIntegrityError,
 )
+from spinedb_api.db_mapping_base import PublicItem, Status
 from spinedb_api.helpers import Asterisk, name_from_elements
 from tests.custom_db_mapping import CustomDatabaseMapping
 from tests.mock_helpers import AssertSuccessTestCase
@@ -949,6 +950,109 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             )
             list_item.remove()
             self.assertFalse(definition_item.is_valid())
+
+    def test_adding_scenario_with_same_name_as_previously_removed_one(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                scenario = self._assert_success(db_map.add_scenario_item(name="high lows"))
+                db_map.commit_session("Add 'high lows' scenario")
+                self._assert_success(scenario.remove())
+                self._assert_success(db_map.add_scenario_item(name="high lows", description="Readded scenario"))
+                db_map.commit_session("Readd 'high lows' scenario")
+            with DatabaseMapping(url) as db_map:
+                scenario = db_map.get_scenario_item(name="high lows")
+                self.assertNotEqual(scenario, {})
+                self.assertEqual(scenario["name"], "high lows")
+                self.assertEqual(scenario["description"], "Readded scenario")
+
+    def test_restoring_original_item_fails_after_it_has_been_removed_and_replaced(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            scenario = self._assert_success(db_map.add_scenario_item(name="high lows"))
+            scenario.remove()
+            self._assert_success(db_map.add_scenario_item(name="high lows"))
+            self.assertEqual(
+                scenario.restore(),
+                (None, "restoring would create a conflict with another item with same unique values"),
+            )
+
+    def test_restoring_original_item_succeeds_after_readded_item_has_been_removed(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            original_scenario = self._assert_success(db_map.add_scenario_item(name="high lows"))
+            original_scenario.remove()
+            readded_scenario = self._assert_success(db_map.add_scenario_item(name="high lows"))
+            readded_scenario.remove()
+            self.assertIsNotNone(original_scenario.restore())
+
+    def test_restoring_original_item_restores_referrers_after_readded_item_has_been_removed(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            original_scenario = self._assert_success(db_map.add_scenario_item(name="high lows"))
+            scenario_alternative = self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="high lows", alternative_name="Base")
+            )
+            original_scenario.remove()
+            self.assertFalse(scenario_alternative.is_valid())
+            readded_scenario = self._assert_success(db_map.add_scenario_item(name="high lows"))
+            readded_scenario.remove()
+            self.assertIsNotNone(original_scenario.restore())
+            self.assertTrue(scenario_alternative.is_valid)
+
+    def test_shuffle_scenario_alternatives(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            scenario = self._assert_success(db_map.add_scenario_item(name="scenario"))
+            base = db_map.get_alternative_item(name="Base")
+            next_level = self._assert_success(db_map.add_alternative_item(name="Next level"))
+            scenario_alternative_1 = self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_id=scenario["id"], alternative_id=base["id"], rank=1)
+            )
+            scenario_alternative_2 = self._assert_success(
+                db_map.add_scenario_alternative_item(
+                    scenario_id=scenario["id"], alternative_id=next_level["id"], rank=2
+                )
+            )
+            removed, error = db_map.remove_item("scenario_alternative", scenario_alternative_2["id"])
+            self.assertIsNone(error)
+            self.assertIsInstance(removed, PublicItem)
+            removed, error = db_map.remove_item("scenario_alternative", scenario_alternative_1["id"])
+            self.assertIsNone(error)
+            self.assertIsInstance(removed, PublicItem)
+            scenario_alternative_3 = self._assert_success(
+                db_map.add_scenario_alternative_item(
+                    scenario_id=scenario["id"], alternative_id=next_level["id"], rank=1
+                )
+            )
+            scenario_alternative_4 = self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_id=scenario["id"], alternative_id=base["id"], rank=2)
+            )
+            removed, error = db_map.remove_item("scenario_alternative", scenario_alternative_4["id"])
+            self.assertIsNone(
+                error,
+            )
+            self.assertIsInstance(removed, PublicItem)
+            removed, error = db_map.remove_item("scenario_alternative", scenario_alternative_3["id"])
+            self.assertIsNone(error)
+            self.assertIsInstance(removed, PublicItem)
+
+    def test_get_items_with_skip_removed(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            alternative = db_map.get_alternative_item(name="Base")
+            self._assert_success(alternative.remove())
+            alternatives = db_map.get_items("alternative", skip_removed=False)
+            self.assertEqual(len(alternatives), 1)
+            self.assertEqual(alternatives[0]["name"], "Base")
+            self.assertFalse(alternatives[0].is_valid())
+
+    def test_get_items_with_skip_removed_after_readding_item(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            alternative = db_map.get_alternative_item(name="Base")
+            self._assert_success(alternative.remove())
+            self._assert_success(db_map.add_alternative_item(name="Base"))
+            alternatives = db_map.get_items("alternative", skip_removed=False)
+            self.assertEqual(len(alternatives), 2)
+            self.assertEqual(alternatives[0]["name"], "Base")
+            self.assertFalse(alternatives[0].is_valid())
+            self.assertEqual(alternatives[1]["name"], "Base")
+            self.assertTrue(alternatives[1].is_valid())
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
@@ -3249,18 +3353,18 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
-            with CustomDatabaseMapping(url, create=True) as db_map1:
-                with CustomDatabaseMapping(url) as db_map2:
-                    db_map1.add_entity_class_item(name="dog")
-                    db_map1.add_entity_class_item(name="cat")
-                    db_map2.add_entity_class_item(name="cat")
+            with DatabaseMapping(url, create=True) as db_map1:
+                with DatabaseMapping(url) as db_map2:
+                    self._assert_success(db_map1.add_entity_class_item(name="dog"))
+                    self._assert_success(db_map1.add_entity_class_item(name="cat"))
+                    self._assert_success(db_map2.add_entity_class_item(name="cat"))
                     c1 = make_concurrent(target=_commit_on_thread, args=(db_map1, "one"))
                     c2 = make_concurrent(target=_commit_on_thread, args=(db_map2, "two"))
                     c2.start()
                     c1.start()
                     c1.join()
                     c2.join()
-            with CustomDatabaseMapping(url) as db_map:
+            with DatabaseMapping(url) as db_map:
                 commit_msgs = {x["comment"] for x in db_map.query(db_map.commit_sq)}
                 entity_class_names = [x["name"] for x in db_map.query(db_map.entity_class_sq)]
                 self.assertEqual(commit_msgs, {"Create the database", "one", "two"})
@@ -3270,13 +3374,13 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
     def test_uncommitted_mapped_items_take_id_from_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
-            with CustomDatabaseMapping(url, create=True) as db_map1:
-                db_map1.add_entity_class_item(name="widget")
-                db_map1.add_entity_class_item(name="gadget")
-                with CustomDatabaseMapping(url) as db_map2:
+            with DatabaseMapping(url, create=True) as db_map1:
+                self._assert_success(db_map1.add_entity_class_item(name="widget"))
+                self._assert_success(db_map1.add_entity_class_item(name="gadget"))
+                with DatabaseMapping(url) as db_map2:
                     # Add the same classes in different order
-                    db_map2.add_entity_class_item(name="gadget")
-                    db_map2.add_entity_class_item(name="widget")
+                    self._assert_success(db_map2.add_entity_class_item(name="gadget"))
+                    self._assert_success(db_map2.add_entity_class_item(name="widget"))
                     db_map2.commit_session("No comment")
                     committed_resolved_entity_classes = [x.resolve() for x in db_map2.get_items("entity_class")]
                     committed_resolved_id_by_name = {x["name"]: x["id"] for x in committed_resolved_entity_classes}
@@ -3286,26 +3390,26 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 uncommitted_resolved_id_by_name = {x["name"]: x["id"] for x in uncommitted_resolved_entity_classes}
                 self.assertEqual(committed_resolved_id_by_name, uncommitted_resolved_id_by_name)
                 for mapped_item in uncommitted_entity_classes:
-                    self.assertTrue(mapped_item.is_committed())
-                with self.assertRaises(SpineDBAPIError):
-                    db_map1.commit_session("No comment")
+                    self.assertFalse(mapped_item.is_committed())
+                    self.assertEqual(mapped_item._mapped_item.status, Status.to_update)
+                db_map1.commit_session("Update classes already in database.")
 
     def test_committed_mapped_items_take_id_from_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
-            with CustomDatabaseMapping(url, create=True) as db_map0:
+            with DatabaseMapping(url, create=True) as db_map0:
                 # Add widget before gadget
-                db_map0.add_entity_class_item(name="widget")
-                db_map0.add_entity_class_item(name="gadget")
+                self._assert_success(db_map0.add_entity_class_item(name="widget"))
+                self._assert_success(db_map0.add_entity_class_item(name="gadget"))
                 db_map0.commit_session("No comment")
-            with CustomDatabaseMapping(url) as db_map1:
-                with CustomDatabaseMapping(url) as db_map2:
+            with DatabaseMapping(url) as db_map1:
+                with DatabaseMapping(url) as db_map2:
                     # Purge, then add *gadget* before *widget* (swap the order)
                     # Also add an entity
                     db_map2.purge_items("entity_class")
-                    db_map2.add_entity_class_item(name="gadget")
-                    db_map2.add_entity_class_item(name="widget")
-                    db_map2.add_entity_item(entity_class_name="gadget", name="phone")
+                    self._assert_success(db_map2.add_entity_class_item(name="gadget"))
+                    self._assert_success(db_map2.add_entity_class_item(name="widget"))
+                    self._assert_success(db_map2.add_entity_item(entity_class_name="gadget", name="phone"))
                     db_map2.commit_session("No comment")
                 # Check that we see the entity added by the other mapping
                 phone = db_map1.get_entity_item(entity_class_name="gadget", name="phone")
@@ -3382,7 +3486,8 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self.assertEqual(items[0]["name"], "other_entity")
                 all_items = db_map.get_entity_items()
                 self.assertEqual(len(all_items), 1)
-                restored_item = db_map.restore_item("entity", original_id)
+                restored_item, error = db_map.restore_item("entity", original_id)
+                self.assertEqual(error, "")
                 self.assertEqual(restored_item["name"], "my_entity")
                 all_items = db_map.get_entity_items()
                 self.assertEqual(len(all_items), 2)
@@ -3715,7 +3820,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 db_map.commit_session("Add some data")
-            with DatabaseMapping(url, create=True) as db_map:
+            with DatabaseMapping(url) as db_map:
                 db_map.purge_items("entity_class")
                 db_map.commit_session("Purge all")
                 with DatabaseMapping(url) as shadow_db_map:
@@ -3732,7 +3837,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 self._assert_success(db_map.add_entity_class_item(name="new_class"))
                 db_map.commit_session("Add some data")
-            with DatabaseMapping(url, create=True) as db_map:
+            with DatabaseMapping(url) as db_map:
                 db_map.fetch_all("entity_class")
                 with DatabaseMapping(url) as shadow_db_map:
                     shadow_db_map.purge_items("entity_class")
@@ -3751,7 +3856,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self._assert_success(db_map.add_entity_class_item(name="yyy"))
                 self._assert_success(db_map.add_entity_class_item(name="zzz"))
                 db_map.commit_session("Add some data")
-            with DatabaseMapping(url, create=True) as db_map:
+            with DatabaseMapping(url) as db_map:
                 db_map.fetch_all("entity_class")
                 with DatabaseMapping(url) as shadow_db_map:
                     shadow_db_map.purge_items("entity_class")
