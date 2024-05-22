@@ -858,6 +858,87 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertEqual(value, {})
 
+    def test_entity_item_active_in_scenario(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                # Add data
+                import_functions.import_scenarios(db_map, ("scen1",))
+                db_map.commit_session("Add test data.")
+                import_functions.import_scenarios(db_map, ("scen2",))
+                db_map.commit_session("Add test data.")
+                import_functions.import_alternatives(db_map, ("alt1",))
+                db_map.commit_session("Add test data.")
+                import_functions.import_alternatives(db_map, ("alt2",))
+                db_map.commit_session("Add test data.")
+                import_functions.import_alternatives(db_map, ("alt3",))
+                db_map.commit_session("Add test data.")
+                items, errors = db_map.add_items(
+                    "scenario_alternative", {"scenario_id": 1, "alternative_id": 1, "rank": 0}
+                )
+                self.assertEqual(errors, [])
+                self.assertEqual(len(items), 1)
+                items, errors = db_map.add_items(
+                    "scenario_alternative", {"scenario_id": 1, "alternative_id": 2, "rank": 1}
+                )
+                self.assertEqual(errors, [])
+                self.assertEqual(len(items), 1)
+                items, errors = db_map.add_items(
+                    "scenario_alternative", {"scenario_id": 2, "alternative_id": 3, "rank": 0}
+                )
+                self.assertEqual(errors, [])
+                self.assertEqual(len(items), 1)
+                items, errors = db_map.add_items(
+                    "scenario_alternative", {"scenario_id": 2, "alternative_id": 2, "rank": 1}
+                )
+                self.assertEqual(errors, [])
+                self.assertEqual(len(items), 1)
+                items, errors = db_map.add_items(
+                    "scenario_alternative", {"scenario_id": 2, "alternative_id": 1, "rank": 2}
+                )
+                self.assertEqual(errors, [])
+                self.assertEqual(len(items), 1)
+
+                db_map.commit_session("Add test data.")
+                scenario_alternatives = db_map.query(db_map.scenario_alternative_sq).all()
+                self.assertEqual(len(scenario_alternatives), 5)
+                self.assertEqual(
+                    dict(scenario_alternatives[0]),
+                    {"id": 1, "scenario_id": 1, "alternative_id": 1, "rank": 0, "commit_id": 7},
+                )
+                import_functions.import_scenarios(db_map, ("scen1",))
+                items, errors = db_map.add_items("entity_class", {"id": 1, "name": "my_class"})
+                self.assertEqual(errors, [])
+                self.assertEqual(len(items), 1)
+                entity_items, errors = db_map.add_items(
+                    "entity",
+                    {"class_id": 1, "id": 1, "name": "entity1"},
+                    {"class_id": 1, "id": 2, "name": "entity2"},
+                )
+                self.assertEqual(errors, [])
+                self.assertEqual(len(entity_items), 2)
+                db_map.commit_session("Add test data.")
+                items, errors = db_map.add_items(
+                    "entity_alternative",
+                    {"alternative_id": 1, "entity_id": 1, "active": False},
+                    {"alternative_id": 2, "entity_id": 1, "active": True},
+                    {"alternative_id": 3, "entity_id": 1, "active": True},
+                    {"alternative_id": 1, "entity_id": 2, "active": True},
+                    {"alternative_id": 2, "entity_id": 2, "active": False},
+                    {"alternative_id": 3, "entity_id": 2, "active": False},
+                )
+                self.assertEqual(errors, [])
+                self.assertEqual(len(items), 6)
+                # Actual tests
+                active = db_map.item_active_in_scenario(entity_items[0], 1)
+                self.assertTrue(active)
+                active = db_map.item_active_in_scenario(entity_items[0], 2)
+                self.assertFalse(active)
+                active = db_map.item_active_in_scenario(entity_items[1], 1)
+                self.assertFalse(active)
+                active = db_map.item_active_in_scenario(entity_items[1], 2)
+                self.assertTrue(active)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
