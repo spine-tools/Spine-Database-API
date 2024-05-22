@@ -686,6 +686,8 @@ class MappedItemBase(dict):
     """A dictionary mapping source fields, to a tuple of reference item type and reference field.
     Used to access external fields.
     """
+    _soft_references = set()
+    """A set of reference source fields that are OK to have no external field value."""
     _external_fields = {}
     """A dictionary mapping fields that are not in the original dictionary, to a tuple of source field
     and target field.
@@ -908,6 +910,8 @@ class MappedItemBase(dict):
         """
         for src_key, (ref_type, ref_key) in self._references.items():
             ref = self._get_full_ref(src_key, ref_type, ref_key)
+            if not ref and src_key in self._soft_references:
+                continue
             if isinstance(ref, tuple):
                 for r in ref:
                     yield src_key, r
@@ -1246,6 +1250,8 @@ class MappedItemBase(dict):
             raise RuntimeError("invalid status of item being updated")
         for src_key, (ref_type, ref_key) in self._references.items():
             src_val = self[src_key]
+            if src_val is None and src_key in self._soft_references:
+                continue
             if src_key in other and other[src_key] != src_val:
                 # Invalidate references
                 if isinstance(src_val, tuple):
@@ -1298,6 +1304,9 @@ class PublicItem:
 
     def __getitem__(self, key):
         return self._mapped_item[key]
+
+    def __contains__(self, item):
+        return self._mapped_item._extended().__contains__(item)
 
     def __eq__(self, other):
         if isinstance(other, dict):
