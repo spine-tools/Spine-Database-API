@@ -474,12 +474,35 @@ class _MappedTable(dict):
             current_item = None
             full_item, merge_error = item, None
         candidate_item = self._make_item(full_item)
+        if current_item is None:
+            error = self._check_unique_keys(candidate_item)
+            if error:
+                return None, error
         error = self._prepare_item(candidate_item, current_item, item)
         if error:
             return None, error
         valid_types = (type(None),) if for_update else ()
         self.check_fields(candidate_item._asdict(), valid_types=valid_types)
         return candidate_item, merge_error
+
+    def _check_unique_keys(self, item):
+        """Checks that unique keys are set in given item for addition.
+
+        Args:
+            item (MappedItemBase): item to check
+
+        Returns:
+            str: error or empty string if item is OK
+        """
+        missing = []
+        for key_set in item.unique_keys:
+            missing = [key for key in key_set if key not in item]
+            if not missing:
+                return ""
+            missing = [key for key in missing if item.corresponding_unique_id_keys.get(key) not in item]
+            if not missing:
+                return ""
+        return f"missing values for unique keys {missing}" if missing else ""
 
     def _prepare_item(self, candidate_item, current_item, original_item):
         """Prepares item for insertion or update, returns any errors.
@@ -654,9 +677,11 @@ class MappedItemBase(dict):
     """A dictionary mapping fields to a another dict mapping "type" to a Python type,
     "value" to a description of the value for the key, and "optional" to a bool."""
     _defaults = {}
-    """A dictionary mapping fields to their default values"""
-    _unique_keys = ()
-    """A tuple where each element is itself a tuple of fields corresponding to a unique key"""
+    """A dictionary mapping fields to their default values."""
+    unique_keys = ()
+    """A tuple where each element is itself a tuple of fields corresponding to a unique key."""
+    corresponding_unique_id_keys = {}
+    """A dictionary mapping unique keys to corresponding id keys."""
     _references = {}
     """A dictionary mapping source fields, to a tuple of reference item type and reference field.
     Used to access external fields.
@@ -906,7 +931,7 @@ class MappedItemBase(dict):
 
     @classmethod
     def unique_values_for_item(cls, item, skip_keys=()):
-        for key in cls._unique_keys:
+        for key in cls.unique_keys:
             if key not in skip_keys:
                 value = tuple(item.get(k) for k in key)
                 if None not in value:
