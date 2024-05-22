@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- It is not possible to omit `name` for `add_entity_class_item()` if `dimension_name_list` is supplied instead.
+  The name of the class is then automatically generated from the dimensions.
+- It is not possible to omit `name` for `add_entity_item()` if `element_name_list` is supplied instead.
+  The name of the entity is then automatically generated from the dimensions.
+
 ### Added
 
 ### Fixed
