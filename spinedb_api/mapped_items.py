@@ -481,11 +481,13 @@ class ParameterDefinitionItem(ParameterItemBase):
     _defaults = {"description": None, "default_value": None, "default_type": None, "parameter_value_list_id": None}
     unique_keys = (("entity_class_name", "name"),)
     corresponding_unique_id_keys = {"entity_class_name": "entity_class_id"}
-    _references = {"entity_class_id": ("entity_class", "id")}
+    _references = {"entity_class_id": ("entity_class", "id"), "parameter_value_list_id": ("parameter_value_list", "id")}
+    _soft_references = {"parameter_value_list_id"}
     _external_fields = {
         "entity_class_name": ("entity_class_id", "name"),
         "dimension_id_list": ("entity_class_id", "dimension_id_list"),
         "dimension_name_list": ("entity_class_id", "dimension_name_list"),
+        "parameter_value_list_name": ("parameter_value_list_id", "name"),
     }
     _alt_references = {
         ("entity_class_name",): ("entity_class", ("name",)),

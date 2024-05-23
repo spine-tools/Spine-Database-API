@@ -29,6 +29,7 @@ from spinedb_api import (
 )
 from spinedb_api.helpers import Asterisk, name_from_elements
 from tests.custom_db_mapping import CustomDatabaseMapping
+from tests.mock_helpers import AssertSuccessTestCase
 
 
 def create_query_wrapper(db_map):
@@ -83,13 +84,6 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
                 self.fail("CustomDatabaseMapping.__init__() should not raise.")
             else:
                 db_map.close()
-
-
-class AssertSuccessTestCase(unittest.TestCase):
-    def _assert_success(self, result):
-        item, error = result
-        self.assertIsNone(error)
-        return item
 
 
 class TestDatabaseMapping(AssertSuccessTestCase):
@@ -903,6 +897,58 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             )
             self.assertEqual(u_n_u_n["element_name_list"], ("U__N", "U__N"))
             self.assertEqual(u_n_u_n["entity_byname"], ("U", "N", "U", "N"))
+
+    def test_get_parameter_definition_item_has_value_list_name(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_parameter_value_list_item(name="Values"))
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                definition_item = self._assert_success(
+                    db_map.add_parameter_definition_item(
+                        name="x", entity_class_name="Object", parameter_value_list_name="Values"
+                    )
+                )
+                self.assertIn("parameter_value_list_name", definition_item)
+                self.assertEqual(definition_item["parameter_value_list_name"], "Values")
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                definition_item = db_map.get_parameter_definition_item(name="x", entity_class_name="Object")
+                self.assertIn("parameter_value_list_name", definition_item)
+                self.assertEqual(definition_item["parameter_value_list_name"], "Values")
+
+    def test_get_parameter_definition_item_without_value_list_(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                definition_item = self._assert_success(
+                    db_map.add_parameter_definition_item(name="x", entity_class_name="Object")
+                )
+                self.assertIsNone(definition_item["parameter_value_list_name"])
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                definition_item = db_map.get_parameter_definition_item(name="x", entity_class_name="Object")
+                self.assertIsNone(definition_item["parameter_value_list_name"])
+
+    def test_get_non_existent_parameter_definition_item_without_value_list_returns_empty_dict(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            definition_item = db_map.get_parameter_definition_item(
+                name="x", entity_class_name="Object", parameter_value_list_name=None
+            )
+            self.assertEqual(definition_item, {})
+
+    def test_remove_parameter_value_list_removes_parameter_definition(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            list_item = self._assert_success(db_map.add_parameter_value_list_item(name="Values"))
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            definition_item = self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="x", entity_class_name="Object", parameter_value_list_name="Values"
+                )
+            )
+            list_item.remove()
+            self.assertFalse(definition_item.is_valid())
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
