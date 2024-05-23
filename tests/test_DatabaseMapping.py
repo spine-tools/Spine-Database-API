@@ -883,6 +883,27 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertEqual(error, "missing values for unique keys ['name']")
             self.assertIsNone(item)
 
+    def test_byname_versus_element_name_list(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="unit"))
+            self._assert_success(db_map.add_entity_class_item(name="node"))
+            unit_node = self._assert_success(db_map.add_entity_class_item(dimension_name_list=("unit", "node")))
+            unit_node_unit_node = self._assert_success(
+                db_map.add_entity_class_item(dimension_name_list=(unit_node["name"], unit_node["name"]))
+            )
+            self._assert_success(db_map.add_entity_item(name="U", entity_class_name="unit"))
+            self._assert_success(db_map.add_entity_item(name="N", entity_class_name="node"))
+            u_n = self._assert_success(
+                db_map.add_entity_item(element_name_list=("U", "N"), entity_class_name=unit_node["name"])
+            )
+            u_n_u_n = self._assert_success(
+                db_map.add_entity_item(
+                    element_name_list=(u_n["name"], u_n["name"]), entity_class_name=unit_node_unit_node["name"]
+                )
+            )
+            self.assertEqual(u_n_u_n["element_name_list"], ("U__N", "U__N"))
+            self.assertEqual(u_n_u_n["entity_byname"], ("U", "N", "U", "N"))
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
