@@ -10,7 +10,9 @@
 ######################################################################################################################
 import unittest
 
-from spinedb_api.db_mapping_base import MappedItemBase, DatabaseMappingBase
+from spinedb_api.db_mapping_base import MappedItemBase, DatabaseMappingBase, PublicItem
+from spinedb_api import DatabaseMapping
+from tests.mock_helpers import AssertSuccessTestCase
 
 
 class TestDBMapping(DatabaseMappingBase):
@@ -80,6 +82,13 @@ class TestMappedItemBase(unittest.TestCase):
         self.assertFalse(item.has_valid_id)
         item["id"] = 23
         self.assertTrue(item.has_valid_id)
+
+
+class TestPublicItem(AssertSuccessTestCase):
+    def test_contains_operator(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            item = self._assert_success(db_map.add_scenario_item(name="my scenario"))
+            self.assertIn("name", item)
 
 
 if __name__ == "__main__":

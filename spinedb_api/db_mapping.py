@@ -915,7 +915,7 @@ def _add_convenience_methods(node):
     def _uq_fields(factory):
         return {
             f_name: factory.fields[f_name]
-            for f_names in factory._unique_keys
+            for f_names in factory.unique_keys
             for f_name in set(f_names) & set(factory.fields.keys())
         }
 

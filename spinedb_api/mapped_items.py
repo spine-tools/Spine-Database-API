@@ -12,7 +12,7 @@
 
 from operator import itemgetter
 import time
-from .helpers import name_from_elements
+from .helpers import name_from_dimensions, name_from_elements
 from .parameter_value import to_database, from_database, ParameterValueFormatError
 from .db_mapping_base import MappedItemBase
 
@@ -47,7 +47,7 @@ class CommitItem(MappedItemBase):
         "date": {"type": str, "value": "Date and time of the commit in ISO 8601 format."},
         "user": {"type": str, "value": "Username of the committer."},
     }
-    _unique_keys = (("date",),)
+    unique_keys = (("date",),)
     is_protected = True
 
     def commit(self, commit_id):
@@ -76,8 +76,14 @@ class EntityClassItem(MappedItemBase):
             "optional": True,
         },
     }
-    _defaults = {"description": None, "display_icon": None, "display_order": 99, "hidden": False}
-    _unique_keys = (("name",),)
+    _defaults = {
+        "description": None,
+        "display_icon": None,
+        "display_order": 99,
+        "hidden": False,
+        "active_by_default": True,
+    }
+    unique_keys = (("name",),)
     _references = {"dimension_id_list": ("entity_class", "id")}
     _external_fields = {"dimension_name_list": ("dimension_id_list", "name")}
     _alt_references = {("dimension_name_list",): ("entity_class", ("name",))}
@@ -88,6 +94,8 @@ class EntityClassItem(MappedItemBase):
         dimension_id_list = kwargs.get("dimension_id_list")
         if dimension_id_list is None:
             dimension_id_list = ()
+            if "name" not in kwargs and "dimension_name_list" in kwargs:
+                kwargs["name"] = name_from_dimensions(kwargs["dimension_name_list"])
         if isinstance(dimension_id_list, str):
             dimension_id_list = (int(id_) for id_ in dimension_id_list.split(","))
         kwargs["dimension_id_list"] = tuple(dimension_id_list)
@@ -97,13 +105,6 @@ class EntityClassItem(MappedItemBase):
         if key in ("superclass_id", "superclass_name"):
             return self._get_ref("superclass_subclass", {"subclass_id": self["id"]}, strong=False).get(key)
         return super().__getitem__(key)
-
-    def polish(self):
-        error = super().polish()
-        if error:
-            return error
-        if "active_by_default" not in self:
-            self["active_by_default"] = True
 
     def merge(self, other):
         dimension_id_list = other.pop("dimension_id_list", None)
@@ -133,7 +134,8 @@ class EntityItem(MappedItemBase):
     }
 
     _defaults = {"description": None}
-    _unique_keys = (("entity_class_name", "name"), ("entity_class_name", "entity_byname"))
+    unique_keys = (("entity_class_name", "name"), ("entity_class_name", "entity_byname"))
+    corresponding_unique_id_keys = {"entity_class_name": "class_id"}
     _references = {"class_id": ("entity_class", "id"), "element_id_list": ("entity", "id")}
     _external_fields = {
         "entity_class_name": ("class_id", "name"),
@@ -157,6 +159,8 @@ class EntityItem(MappedItemBase):
         element_id_list = kwargs.get("element_id_list")
         if element_id_list is None:
             element_id_list = ()
+            if "name" not in kwargs and "element_name_list" in kwargs:
+                kwargs["name"] = name_from_elements(kwargs["element_name_list"])
         if isinstance(element_id_list, str):
             element_id_list = (int(id_) for id_ in element_id_list.split(","))
         kwargs["element_id_list"] = tuple(element_id_list)
@@ -267,7 +271,12 @@ class EntityGroupItem(MappedItemBase):
         "group_name": {"type": str, "value": "The group entity name."},
         "member_name": {"type": str, "value": "The member entity name."},
     }
-    _unique_keys = (("entity_class_name", "group_name", "member_name"),)
+    unique_keys = (("entity_class_name", "group_name", "member_name"),)
+    corresponding_unique_id_keys = {
+        "entity_class_name": "entity_class_id",
+        "group_name": "entity_id",
+        "member_name": "member_id",
+    }
     _references = {
         "entity_class_id": ("entity_class", "id"),
         "entity_id": ("entity", "id"),
@@ -316,7 +325,8 @@ class EntityAlternativeItem(MappedItemBase):
         },
     }
     _defaults = {"active": True}
-    _unique_keys = (("entity_class_name", "entity_byname", "alternative_name"),)
+    unique_keys = (("entity_class_name", "entity_byname", "alternative_name"),)
+    corresponding_unique_id_keys = {"entity_class_name": "entity_class_id", "alternative_name": "alternative_id"}
     _references = {
         "entity_id": ("entity", "id"),
         "entity_class_id": ("entity_class", "id"),
@@ -469,12 +479,15 @@ class ParameterDefinitionItem(ParameterItemBase):
         "description": {"type": str, "value": "The parameter description.", "optional": True},
     }
     _defaults = {"description": None, "default_value": None, "default_type": None, "parameter_value_list_id": None}
-    _unique_keys = (("entity_class_name", "name"),)
-    _references = {"entity_class_id": ("entity_class", "id")}
+    unique_keys = (("entity_class_name", "name"),)
+    corresponding_unique_id_keys = {"entity_class_name": "entity_class_id"}
+    _references = {"entity_class_id": ("entity_class", "id"), "parameter_value_list_id": ("parameter_value_list", "id")}
+    _soft_references = {"parameter_value_list_id"}
     _external_fields = {
         "entity_class_name": ("entity_class_id", "name"),
         "dimension_id_list": ("entity_class_id", "dimension_id_list"),
         "dimension_name_list": ("entity_class_id", "dimension_name_list"),
+        "parameter_value_list_name": ("parameter_value_list_id", "name"),
     }
     _alt_references = {
         ("entity_class_name",): ("entity_class", ("name",)),
@@ -541,7 +554,13 @@ class ParameterValueItem(ParameterItemBase):
         "type": {"type": str, "value": "The value type.", "optional": True},
         "alternative_name": {"type": str, "value": "The alternative name - defaults to 'Base'.", "optional": True},
     }
-    _unique_keys = (("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),)
+    unique_keys = (("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),)
+    corresponding_unique_id_keys = {
+        "entity_class_name": "entity_id",
+        "parameter_definition_name": "parameter_definition_id",
+        "entity_byname": "entity_id",
+        "alternative_name": "alternative_id",
+    }
     _references = {
         "entity_class_id": ("entity_class", "id"),
         "parameter_definition_id": ("parameter_definition", "id"),
@@ -602,7 +621,7 @@ class ParameterValueItem(ParameterItemBase):
 
 class ParameterValueListItem(MappedItemBase):
     fields = {"name": {"type": str, "value": "The parameter value list name."}}
-    _unique_keys = (("name",),)
+    unique_keys = (("name",),)
 
 
 class ListValueItem(ParsedValueBase):
@@ -612,7 +631,8 @@ class ListValueItem(ParsedValueBase):
         "type": {"type": str, "value": "The value type.", "optional": True},
         "index": {"type": int, "value": "The value index.", "optional": True},
     }
-    _unique_keys = (("parameter_value_list_name", "value_and_type"), ("parameter_value_list_name", "index"))
+    unique_keys = (("parameter_value_list_name", "value_and_type"), ("parameter_value_list_name", "index"))
+    corresponding_unique_id_keys = {"parameter_value_list_name": "parameter_value_list_id"}
     _references = {"parameter_value_list_id": ("parameter_value_list", "id")}
     _external_fields = {"parameter_value_list_name": ("parameter_value_list_id", "name")}
     _alt_references = {("parameter_value_list_name",): ("parameter_value_list", ("name",))}
@@ -638,7 +658,7 @@ class AlternativeItem(MappedItemBase):
         "description": {"type": str, "value": "The alternative description.", "optional": True},
     }
     _defaults = {"description": None}
-    _unique_keys = (("name",),)
+    unique_keys = (("name",),)
 
 
 class ScenarioItem(MappedItemBase):
@@ -648,7 +668,7 @@ class ScenarioItem(MappedItemBase):
         "active": {"type": bool, "value": "Not in use at the moment.", "optional": True},
     }
     _defaults = {"active": False, "description": None}
-    _unique_keys = (("name",),)
+    unique_keys = (("name",),)
 
     def __getitem__(self, key):
         if key == "alternative_id_list":
@@ -674,7 +694,8 @@ class ScenarioAlternativeItem(MappedItemBase):
         "alternative_name": {"type": str, "value": "The alternative name."},
         "rank": {"type": int, "value": "The rank - higher has precedence."},
     }
-    _unique_keys = (("scenario_name", "alternative_name"), ("scenario_name", "rank"))
+    unique_keys = (("scenario_name", "alternative_name"), ("scenario_name", "rank"))
+    corresponding_unique_id_keys = {"scenario_name": "scenario_id", "alternative_name": "alternative_id"}
     _references = {"scenario_id": ("scenario", "id"), "alternative_id": ("alternative", "id")}
     _external_fields = {"scenario_name": ("scenario_id", "name"), "alternative_name": ("alternative_id", "name")}
     _alt_references = {("scenario_name",): ("scenario", ("name",)), ("alternative_name",): ("alternative", ("name",))}
@@ -701,7 +722,7 @@ class MetadataItem(MappedItemBase):
         "name": {"type": str, "value": "The metadata entry name."},
         "value": {"type": str, "value": "The metadata entry value."},
     }
-    _unique_keys = (("name", "value"),)
+    unique_keys = (("name", "value"),)
 
 
 class EntityMetadataItem(MappedItemBase):
@@ -711,7 +732,13 @@ class EntityMetadataItem(MappedItemBase):
         "metadata_name": {"type": str, "value": "The metadata entry name."},
         "metadata_value": {"type": str, "value": "The metadata entry value."},
     }
-    _unique_keys = (("entity_class_name", "entity_byname", "metadata_name", "metadata_value"),)
+    unique_keys = (("entity_class_name", "entity_byname", "metadata_name", "metadata_value"),)
+    corresponding_unique_id_keys = {
+        "entity_class_name": "entity_id",
+        "entity_byname": "entity_id",
+        "metadata_name": "metadata_id",
+        "metadata_value": "metadata_id",
+    }
     _references = {
         "entity_id": ("entity", "id"),
         "metadata_id": ("metadata", "id"),
@@ -747,7 +774,7 @@ class ParameterValueMetadataItem(MappedItemBase):
         "metadata_name": {"type": str, "value": "The metadata entry name."},
         "metadata_value": {"type": str, "value": "The metadata entry value."},
     }
-    _unique_keys = (
+    unique_keys = (
         (
             "entity_class_name",
             "parameter_definition_name",
@@ -757,6 +784,14 @@ class ParameterValueMetadataItem(MappedItemBase):
             "metadata_value",
         ),
     )
+    corresponding_unique_id_keys = {
+        "entity_class_name": "parameter_value_id",
+        "parameter_definition_name": "parameter_value_id",
+        "entity_byname": "parameter_value_id",
+        "alternative_name": "parameter_value_id",
+        "metadata_name": "metadata_id",
+        "metadata_value": "metadata_id",
+    }
     _references = {"parameter_value_id": ("parameter_value", "id"), "metadata_id": ("metadata", "id")}
     _external_fields = {
         "entity_class_name": ("parameter_value_id", "entity_class_name"),
@@ -787,7 +822,8 @@ class SuperclassSubclassItem(MappedItemBase):
         "superclass_name": {"type": str, "value": "The superclass name."},
         "subclass_name": {"type": str, "value": "The subclass name."},
     }
-    _unique_keys = (("subclass_name",),)
+    unique_keys = (("subclass_name",),)
+    corresponding_unique_id_keys = {"subclass_name": "subclass_id"}
     _references = {"superclass_id": ("entity_class", "id"), "subclass_id": ("entity_class", "id")}
     _external_fields = {
         "superclass_name": ("superclass_id", "name"),
