@@ -10,11 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for DatabaseMapping class.
-
-"""
-from spinedb_api import DatabaseMapping, SpineIntegrityError
+""" Unit tests for DatabaseMapping class. """
+from spinedb_api import DatabaseMapping
 
 
 class CustomDatabaseMapping(DatabaseMapping):

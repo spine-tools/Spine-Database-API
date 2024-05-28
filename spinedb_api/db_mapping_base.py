@@ -183,7 +183,7 @@ class DatabaseMappingBase:
             else:
                 for item in mapped_table.values():
                     item.validate()
-                    if item.status == Status.to_remove:
+                    if item.status == Status.to_remove and item.has_valid_id:
                         to_remove.append(item)
             if to_add or to_update or to_remove:
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
@@ -426,7 +426,9 @@ class _MappedTable(dict):
         """Returns a MappedItemBase that matches the given dictionary-item.
 
         Args:
-            item (dict)
+            item (dict): item's unique keys
+            skip_keys (tuple of str): unique keys to skip
+            fetch (bool): if True, fetch db if item is not found in-memory
 
         Returns:
             MappedItemBase or None
@@ -434,7 +436,7 @@ class _MappedTable(dict):
         id_ = item.get("id")
         if id_ is not None:
             return self.find_item_by_id(id_, fetch=fetch)
-        return self._find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
+        return self.find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
 
     def find_item_by_id(self, id_, fetch=True):
         current_item = self.get(id_, {})
@@ -443,7 +445,7 @@ class _MappedTable(dict):
             current_item = self.get(id_, {})
         return current_item
 
-    def _find_item_by_unique_key(self, item, skip_keys=(), fetch=True, valid_only=True):
+    def find_item_by_unique_key(self, item, skip_keys=(), fetch=True, valid_only=True):
         for key, value in self._db_map.item_factory(self._item_type).unique_values_for_item(item, skip_keys=skip_keys):
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch, valid_only=valid_only)
             if current_item:
@@ -574,14 +576,20 @@ class _MappedTable(dict):
 
         Args:
             item (dict): item from the DB.
-            is_db_clean (Bool)
+            is_db_clean (bool)
 
         Returns:
-            tuple(MappedItem,bool): A mapped item and whether it needs to be added to the unique key values dict.
+            tuple(MappedItem, bool): A mapped item and whether it needs to be added to the unique key values dict.
         """
-        mapped_item = self._find_item_by_unique_key(item, fetch=False, valid_only=False)
+        mapped_item = self.find_item_by_unique_key(item, fetch=False, valid_only=False)
         if mapped_item and (is_db_clean or self._same_item(mapped_item, item)):
             mapped_item.force_id(item["id"])
+            if mapped_item.status == Status.to_add:
+                # We could test if the non-unique fields of mapped_item and db item are equal
+                # and set status to Status.committed
+                # but that is potentially complex operation (for e.g. large parameter values)
+                # so we take a shortcut here and assume that mapped_item always contains modified data.
+                mapped_item.status = Status.to_update
             return mapped_item, False
         mapped_item = self.get(item["id"])
         if mapped_item and (is_db_clean or self._same_item(mapped_item.db_equivalent(), item)):
@@ -809,7 +817,6 @@ class MappedItemBase(dict):
     @property
     def key(self):
         """Returns a tuple (item_type, id) for convenience, or None if this item doesn't yet have an id.
-        TODO: When does the latter happen?
 
         Returns:
             tuple(str,int) or None
@@ -826,6 +833,10 @@ class MappedItemBase(dict):
     def invalidate_id(self):
         """Sets id as invalid."""
         self._has_valid_id = False
+
+    def validate_id(self):
+        """Sets id as valid"""
+        self._has_valid_id = True
 
     def _extended(self):
         """Returns a dict from this item's original fields plus all the references resolved statically.
@@ -1275,10 +1286,7 @@ class MappedItemBase(dict):
         mapped_id = self["id"]
         if mapped_id == id_:
             return
-        # Resolve the TempId to the new db id (and commit the item if pending)
         mapped_id.resolve(id_)
-        if self.status == Status.to_add:
-            self.status = Status.committed
 
     def handle_id_steal(self):
         """Called when a new item is fetched from the DB with this item's id."""
@@ -1344,6 +1352,16 @@ class PublicItem:
         return self._db_map.remove_item(self.item_type, self["id"])
 
     def restore(self):
+        if not self._mapped_item.has_valid_id:
+            mapped_table = self._db_map.mapped_table(self.item_type)
+            existing_item = mapped_table.find_item_by_unique_key(self, fetch=False, valid_only=False)
+            if existing_item:
+                if not existing_item.removed:
+                    return None, "restoring would create a conflict with another item with same unique values"
+                existing_item.invalidate_id()
+                mapped_table.remove_unique(existing_item)
+                self._mapped_item.validate_id()
+                mapped_table.add_unique(self._mapped_item)
         return self._db_map.restore_item(self.item_type, self["id"])
 
     def add_update_callback(self, callback):
