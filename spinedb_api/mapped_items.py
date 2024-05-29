@@ -38,7 +38,10 @@ def item_factory(item_type):
     }.get(item_type, MappedItemBase)
 
 
-_ENTITY_BYNAME_VALUE = "A tuple with the entity name as single element if the entity is zero-dimensional, or the element names if the entity is multi-dimensional."
+_ENTITY_BYNAME_VALUE = (
+    "A tuple with the entity name as single element if the entity is 0-dimensional, "
+    "or the 0-dimensional element names if the entity is multi-dimensional."
+)
 
 
 class CommitItem(MappedItemBase):
@@ -127,8 +130,7 @@ class EntityItem(MappedItemBase):
         "element_name_list": {"type": tuple, "value": "The element names if the entity is multi-dimensional."},
         "entity_byname": {
             "type": tuple,
-            "value": "A tuple with the entity name as single element if the entity is zero-dimensional,"
-            "or the element names if it is multi-dimensional.",
+            "value": _ENTITY_BYNAME_VALUE,
         },
         "description": {"type": str, "value": "The entity description.", "optional": True},
     }
@@ -448,7 +450,10 @@ class ParameterItemBase(ParsedValueBase):
             type_ = super().__getitem__(self._type_key)
         except KeyError:
             if isinstance(self, ParameterValueItem):
-                return f"parameter value {self['parameter_definition_name']} for class {self['entity_class_name']}, entity {self['entity_byname']}, alternative {self['alternative_name']} has no list value"
+                return (
+                    f"parameter value {self['parameter_definition_name']} for class {self['entity_class_name']}, "
+                    f"entity {self['entity_byname']}, alternative {self['alternative_name']} has no list value"
+                )
             return f"parameter {self['name']} for class {self['entity_class_name']} has no list value"
         if type_ == "list_value_ref":
             return
