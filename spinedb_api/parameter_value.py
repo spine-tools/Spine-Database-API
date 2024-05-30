@@ -898,7 +898,7 @@ class _Indexes(np.ndarray):
         super().__setitem__(position, index)
 
     def __eq__(self, other):
-        return len(self) == len(other) and np.all(super().__eq__(other))
+        return np.array_equal(self, other)
 
     def __bool__(self):
         return np.size(self) != 0
@@ -1624,6 +1624,12 @@ def convert_containers_to_maps(value):
             if isinstance(value, TimeSeries):
                 return Map([], [], DateTime, index_name=TimeSeries.DEFAULT_INDEX_NAME)
             return Map([], [], str)
+        if isinstance(value, TimeSeries):
+            return Map(
+                [DateTime(t) for t in np.datetime_as_string(value.indexes)],
+                list(value.values),
+                index_name=value.index_name,
+            )
         return Map(list(value.indexes), list(value.values), index_name=value.index_name)
     return value
 
