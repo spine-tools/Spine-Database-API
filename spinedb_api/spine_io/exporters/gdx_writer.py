@@ -9,10 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Module contains a .gdx writer implementation.
-
-"""
+""" Module contains a .gdx writer implementation. """
 import math
 from gdx2py import GAMSSet, GAMSScalar, GAMSParameter, GdxFile
 from gdx2py.gdxfile import EPS_VALUE
@@ -20,7 +17,12 @@ import gdxcc
 from .writer import Writer, WriterException
 
 
-SPECIAL_CONVERSIONS = {EPS_VALUE: gdxcc.GMS_SV_EPS, math.inf: gdxcc.GMS_SV_PINF, -math.inf: gdxcc.GMS_SV_MINF}
+SPECIAL_CONVERSIONS = {
+    EPS_VALUE: gdxcc.GMS_SV_EPS,
+    1e-10: gdxcc.GMS_SV_EPS,
+    math.inf: gdxcc.GMS_SV_PINF,
+    -math.inf: gdxcc.GMS_SV_MINF,
+}
 
 
 class GdxWriter(Writer):
@@ -127,12 +129,14 @@ def _convert_to_gams(x):
     """Converts special float values to corresponding GAMS constants, otherwise returns x as is.
 
     Args:
-        x (float): value to convert
+        x (float or Any): value to convert
 
     Returns:
-        float: converted value
+        float or Any: converted value
     """
     if not isinstance(x, float):
+        if x == "EPS":
+            return gdxcc.GMS_SV_EPS
         return x
     if math.isnan(x):
         return gdxcc.GMS_SV_UNDEF
