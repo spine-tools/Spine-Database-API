@@ -5,26 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.31.2]
 
 ### Changed
 
-- It is not possible to omit `name` for `add_entity_class_item()` if `dimension_name_list` is supplied instead.
+- It is now possible to omit `name` for `add_entity_class_item()` if `dimension_name_list` is supplied instead.
   The name of the class is then automatically generated from the dimensions.
-- It is not possible to omit `name` for `add_entity_item()` if `element_name_list` is supplied instead.
+- It is now possible to omit `name` for `add_entity_item()` if `element_name_list` is supplied instead.
   The name of the entity is then automatically generated from the dimensions.
 
-### Added
-
-### Fixed
-
-### Removed
-
-### Deprecated
-
-### Security
-
-## 0.31.1
+## [0.31.1]
 
 ### Changed
 
@@ -36,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   While the flag column is still in the database schema, it is not used anywhere,
   nor is it accessible e.g. in Toolbox.
 
-## 0.31.0
+## [0.31.0]
 
 This is the first release where we keep a Spine-Database-API specific changelog.
 
