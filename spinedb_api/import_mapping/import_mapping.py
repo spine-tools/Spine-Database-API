@@ -168,10 +168,14 @@ class ImportMapping(Mapping):
         if for_preview:
             self._polish_for_preview(source_header)
 
-    def _polish_for_import(self, table_name, source_header, column_count):
+    def _polish_for_import(self, table_name, source_header, column_count, pivoted=None):
         # FIXME: Polish skip columns
+        if pivoted is None:
+            pivoted = self.is_pivoted()
+        if pivoted and self.parent and self.is_effective_leaf():
+            return
         if self.child is not None:
-            self.child._polish_for_import(table_name, source_header, column_count)
+            self.child._polish_for_import(table_name, source_header, column_count, pivoted)
         if isinstance(self.position, str):
             # Column mapping with string position, we need to find the index in the header
             try:
