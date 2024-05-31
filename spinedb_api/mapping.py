@@ -158,6 +158,16 @@ class Mapping:
         """
         return [self] + (self.child.flatten() if self.child is not None else [])
 
+    def is_effective_leaf(self):
+        """Tests if mapping is effectively the leaf mapping.
+
+        Returns:
+            bool: True if mapping is effectively the last child, False otherwise
+        """
+        return self._child is None or any(
+            child.position in (Position.hidden, Position.table_name) for child in self._child.flatten()
+        )
+
     def is_pivoted(self):
         """
         Queries recursively if export items are pivoted.
