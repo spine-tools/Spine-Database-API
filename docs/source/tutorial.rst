@@ -75,7 +75,7 @@ Let's begin the party by adding a couple of entity classes::
     db_map.add_entity_class_item(name="cat", description="Eats fish.")
 
 Now let's add a multi-dimensional entity class between the two above. For this we need to specify the class names
-as `dimension_name_list`::
+as ``dimension_name_list``::
 
     db_map.add_entity_class_item(
         name="fish__cat",
@@ -91,7 +91,7 @@ Let's add entities to our zero-dimensional classes::
     )
 
 Let's add a multi-dimensional entity to our multi-dimensional class. For this we need to specify the entity names
-as `element_name_list`::
+as ``element_name_list``::
 
     db_map.add_entity_item(entity_class_name="fish__cat", element_name_list=("Nemo", "Felix"))
 
@@ -116,7 +116,15 @@ Now we create our parameter value::
     )
 
 Note that in the above, we refer to the entity by its *byname*.
-We also set the value to belong to an *alternative* called ``Base``
+Byname is a single-element tuple containing the name of the entity if it is 0-dimensional like ``("Nemo",)`` above.
+For multi-dimensional entities, byname consists of the entity's 0-dimensional elements
+such as ``("Nemo", "Felix")`` for the ``"fish__cat"`` entity.
+At a quick glance, ``entity_byname`` and ``element_name_list`` may look the same
+but this is true only for certain cases.
+``element_name_list`` contains the names of the n-1 dimensional elements of n-dimensional entities
+while ``entity_byname`` breaks the element names down to their 0-dimensional parts, or contains just the entity's name.
+
+We also set the value to belong to an *alternative* called ``"Base"``
 which is readily available in new databases.
 
 .. note::
@@ -193,7 +201,8 @@ Removing data
 You know what, let's just remove the entity entirely.
 To do this we use the :meth:`~.PublicItem.remove` method of :class:`~.PublicItem`::
 
-    db_map.get_entity_item(entity_class_name="fish", name="NotNemo").remove()
+    not_nemo = db_map.get_entity_item(entity_class_name="fish", name="NotNemo")
+    not_nemo.remove()
 
 Note that the above call removes items in *cascade*,
 meaning that items that depend on ``"NotNemo"`` will get removed as well.
@@ -203,7 +212,23 @@ which also gets dropped when the above method is called.
 Restoring data
 --------------
 
-TODO
+Already regretting we lost Ne... I mean the fish that is not Nemo?
+It is possible to resurrect a removed item and bring back all its dependants with :meth:`~.PublicItem.restore`::
+
+    not_nemo.restore()
+
+The above will also bring back the ``"color"`` parameter value.
+
+Luckily, we stored ``"NotNemo"`` in a variable ``not_nemo`` before removing it
+so it was possible to call :meth:`~.PublicItem.restore` on it.
+What if you had removed ``"NotNemo"`` with the following::
+
+   db_map.get_entity_item(entity_class_name="fish", name="NotNemo").remove()
+
+It is still possible to access removed items by passing ``skip_removed=False`` to the ``get_*_item()`` methods::
+
+   not_nemo = db_map.get_entity_item(entity_class_name="fish", name="NotNemo", skip_removed=False)
+   not_nemo.restore()
 
 Committing data
 ---------------

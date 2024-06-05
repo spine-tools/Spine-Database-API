@@ -513,6 +513,13 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if not check:
             return mapped_table.add_item(kwargs), None
         checked_item, error = mapped_table.checked_item_and_error(kwargs)
+        if not error:
+            existing_item = mapped_table.find_item_by_unique_key(checked_item, fetch=False, valid_only=False)
+            if existing_item:
+                if not existing_item.removed:
+                    raise RuntimeError("Logic error: item exists but no error was issued")
+                existing_item.invalidate_id()
+                mapped_table.remove_unique(existing_item)
         return (mapped_table.add_item(checked_item).public_item if checked_item else None, error)
 
     def add_items(self, item_type, *items, check=True, strict=False):
@@ -637,7 +644,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         item, error = mapped_table.item_to_remove_and_error(id_)
         if check and error:
             return None, error
-        return mapped_table.remove_item(item).public_item, None
+        removed_item = mapped_table.remove_item(item)
+        return (removed_item.public_item, None) if removed_item else (None, "failed to remove")
 
     def remove_items(self, item_type, *ids, check=True, strict=False):
         """Removes many items from the in-memory mapping.
@@ -679,11 +687,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             id_ (int): The id of the item to restore.
 
         Returns:
-            tuple(:class:`PublicItem` or None, str): The restored item if any.
+            tuple(:class:`PublicItem` or None, str): The restored item if any and possible error.
         """
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
-        return mapped_table.restore_item(id_).public_item
+        restored_item = mapped_table.restore_item(id_)
+        return (restored_item.public_item, "") if restored_item else (None, "failed to restore item")
 
     def restore_items(self, item_type, *ids):
         """Restores many previously removed items into the in-memory mapping.

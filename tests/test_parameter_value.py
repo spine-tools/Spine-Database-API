@@ -868,6 +868,9 @@ class TestParameterValue(unittest.TestCase):
     def test_Map_inequality(self):
         map_value = Map(["1", "2", "3", "4", "5"], [-2.3, 2.3, 2.3, 2.3, 2.3])
         self.assertNotEqual(map_value, Map(["a", "b"], [2.3, -2.3]))
+        self.assertNotEqual(
+            Map([DateTime("2024-05-30T00:00:00")], [2.3]), Map([DateTime("2024-05-30T10:00:00")], [2.3])
+        )
 
     def test_TimePattern_equality(self):
         pattern = TimePattern(["D1-2", "D3-7"], np.array([-2.3, -5.0]))

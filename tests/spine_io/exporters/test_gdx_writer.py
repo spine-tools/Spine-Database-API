@@ -276,13 +276,25 @@ class TestGdxWriter(unittest.TestCase):
         db_map = DatabaseMapping("sqlite://", create=True)
         import_object_classes(db_map, ("oc",))
         import_object_parameters(
-            db_map, (("oc", "epsilon"), ("oc", "infinity"), ("oc", "negative_infinity"), ("oc", "nan"))
+            db_map,
+            (
+                ("oc", "epsilon1"),
+                ("oc", "epsilon2"),
+                ("oc", "epsilon3"),
+                ("oc", "epsilon4"),
+                ("oc", "infinity"),
+                ("oc", "negative_infinity"),
+                ("oc", "nan"),
+            ),
         )
         import_objects(db_map, (("oc", "o1"),))
         import_object_parameter_values(
             db_map,
             (
-                ("oc", "o1", "epsilon", sys.float_info.min),
+                ("oc", "o1", "epsilon1", sys.float_info.min),
+                ("oc", "o1", "epsilon2", 2.2250738585072014e-308),
+                ("oc", "o1", "epsilon3", 1e-10),
+                ("oc", "o1", "epsilon4", "EPS"),
                 ("oc", "o1", "infinity", math.inf),
                 ("oc", "o1", "negative_infinity", -math.inf),
                 ("oc", "o1", "nan", math.nan),
@@ -301,8 +313,11 @@ class TestGdxWriter(unittest.TestCase):
             with GdxFile(str(file_path), "r", self._gams_dir) as gdx_file:
                 self.assertEqual(len(gdx_file), 1)
                 gams_parameter = gdx_file["oc"]
-                self.assertEqual(len(gams_parameter), 4)
-                self.assertEqual(gams_parameter[("o1", "epsilon")], sys.float_info.min)
+                self.assertEqual(len(gams_parameter), 7)
+                self.assertEqual(gams_parameter[("o1", "epsilon1")], sys.float_info.min)
+                self.assertEqual(gams_parameter[("o1", "epsilon2")], sys.float_info.min)
+                self.assertEqual(gams_parameter[("o1", "epsilon3")], sys.float_info.min)
+                self.assertEqual(gams_parameter[("o1", "epsilon4")], sys.float_info.min)
                 self.assertEqual(gams_parameter[("o1", "infinity")], math.inf)
                 self.assertEqual(gams_parameter[("o1", "negative_infinity")], -math.inf)
                 self.assertTrue(math.isnan(gams_parameter[("o1", "nan")]))

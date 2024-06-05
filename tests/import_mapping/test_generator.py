@@ -540,6 +540,120 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_pivoted_mapping_has_position_outside_source_bounds(self):
+        data_source = iter(
+            [
+                ["solve", "period", "time", "A1", "A2", "A3"],
+                [None, None, None, "B1", "B2", "B3"],
+                [None, None, None, "C1", "C2", "C3"],
+                ["y2025", "p2025", "t01", -2.1, -2.2, -2.3],
+                ["y2025", "p2025", "t02", -3.1, -3.2, -3.3],
+            ]
+        )
+        mappings = [
+            [
+                {"map_type": "RelationshipClass", "position": "hidden", "value": "connection__node__node"},
+                {"map_type": "RelationshipClassObjectClass", "position": "hidden", "value": "connection"},
+                {"map_type": "RelationshipClassObjectClass", "position": "hidden", "value": "node"},
+                {"map_type": "RelationshipClassObjectClass", "position": "hidden", "value": "node"},
+                {"map_type": "Relationship", "position": "hidden", "value": "relationship"},
+                {"map_type": "RelationshipObject", "position": -1, "import_objects": True},
+                {"map_type": "RelationshipObject", "position": -2, "import_objects": True},
+                {"map_type": "RelationshipObject", "position": -3, "import_objects": True},
+                {"map_type": "RelationshipMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "flow_t"},
+                {"map_type": "Alternative", "position": "hidden"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValueType", "position": "hidden", "value": "map"},
+                {"map_type": "IndexName", "position": "hidden", "value": "solve"},
+                {"map_type": "ParameterValueIndex", "position": 0},
+                {"map_type": "IndexName", "position": "hidden", "value": "period"},
+                {"map_type": "ParameterValueIndex", "position": 1},
+                {"map_type": "IndexName", "position": "hidden", "value": "time"},
+                {"map_type": "ParameterValueIndex", "position": 2},
+                {"map_type": "ExpandedValue", "position": 6},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "string", 3: "float", 4: "float", 5: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entities": [
+                    ("connection", "A1"),
+                    ("node", "B1"),
+                    ("node", "C1"),
+                    ("connection__node__node", ("A1", "B1", "C1")),
+                    ("connection", "A2"),
+                    ("node", "B2"),
+                    ("node", "C2"),
+                    ("connection__node__node", ("A2", "B2", "C2")),
+                    ("connection", "A3"),
+                    ("node", "B3"),
+                    ("node", "C3"),
+                    ("connection__node__node", ("A3", "B3", "C3")),
+                ],
+                "entity_classes": [
+                    ("connection",),
+                    ("node",),
+                    ("connection__node__node", ("connection", "node", "node")),
+                ],
+                "parameter_definitions": [("connection__node__node", "flow_t")],
+                "parameter_values": [
+                    [
+                        "connection__node__node",
+                        ("A1", "B1", "C1"),
+                        "flow_t",
+                        Map(
+                            ["y2025"],
+                            [
+                                Map(
+                                    ["p2025"],
+                                    [Map(["t01", "t02"], [-2.1, -3.1], index_name="time")],
+                                    index_name="period",
+                                )
+                            ],
+                            index_name="solve",
+                        ),
+                    ],
+                    [
+                        "connection__node__node",
+                        ("A2", "B2", "C2"),
+                        "flow_t",
+                        Map(
+                            ["y2025"],
+                            [
+                                Map(
+                                    ["p2025"],
+                                    [Map(["t01", "t02"], [-2.2, -3.2], index_name="time")],
+                                    index_name="period",
+                                )
+                            ],
+                            index_name="solve",
+                        ),
+                    ],
+                    [
+                        "connection__node__node",
+                        ("A3", "B3", "C3"),
+                        "flow_t",
+                        Map(
+                            ["y2025"],
+                            [
+                                Map(
+                                    ["p2025"],
+                                    [Map(["t01", "t02"], [-2.3, -3.3], index_name="time")],
+                                    index_name="period",
+                                )
+                            ],
+                            index_name="solve",
+                        ),
+                    ],
+                ],
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

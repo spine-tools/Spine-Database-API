@@ -9,10 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Contains export mappings for database items such as entities, entity classes and parameter values.
-
-"""
+""" Contains export mappings for database items such as entities, entity classes and parameter values."""
 
 from dataclasses import dataclass
 from itertools import cycle, dropwhile, islice
@@ -28,25 +25,6 @@ from ..parameter_value import (
 )
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
 from .group_functions import NoGroup
-
-
-def check_validity(root_mapping):
-    """Checks validity of a mapping hierarchy.
-
-    To check validity of individual mappings withing the hierarchy, use :func:`Mapping.check_validity`.
-
-    Args:
-        root_mapping (Mapping): root mapping
-
-    Returns:
-        list of str: a list of issue descriptions
-    """
-    issues = list()
-    flattened = root_mapping.flatten()
-    non_title_mappings = [m for m in flattened if m.position != Position.table_name]
-    if len(non_title_mappings) == 2 and is_pivoted(non_title_mappings[0].position):
-        issues.append("First mapping cannot be pivoted")
-    return issues
 
 
 class _MappingWithLeafMixin:
@@ -86,13 +64,7 @@ class ExportMapping(Mapping):
             list: a list of issues
         """
         issues = list()
-        if self.child is None:
-            is_effective_leaf = True
-        else:
-            is_effective_leaf = any(
-                child.position in (Position.hidden, Position.table_name) for child in self.child.flatten()
-            )
-        if is_effective_leaf and is_pivoted(self.position):
+        if self.is_effective_leaf() and is_pivoted(self.position):
             issues.append("Cannot be pivoted.")
         return issues
 
