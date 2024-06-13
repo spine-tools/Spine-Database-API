@@ -32,12 +32,14 @@ class ImportKey(Enum):
     PARAMETER_DEFAULT_VALUE_INDEXES = auto()
     PARAMETER_VALUES = auto()
     PARAMETER_VALUE_INDEXES = auto()
+    PARAMETER_VALUE_METADATA = auto()
     DIMENSION_NAMES = auto()
     ELEMENT_NAMES = auto()
     ALTERNATIVE_NAME = auto()
     SCENARIO_NAME = auto()
     SCENARIO_ALTERNATIVE = auto()
     PARAMETER_VALUE_LIST_NAME = auto()
+    ENTITY_METADATA = auto()
 
     def __str__(self):
         name = {
@@ -425,7 +427,13 @@ class EntityMetadataMapping(ImportMapping):
     MAP_TYPE = "EntityMetadata"
 
     def _import_row(self, source_data, state, mapped_data):
-        pass
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        if state[ImportKey.DIMENSION_COUNT]:
+            entity_byname = state[ImportKey.ELEMENT_NAMES]
+        else:
+            entity_byname = (state[ImportKey.ENTITY_NAME],)
+        entity_metadata = state[ImportKey.ENTITY_METADATA] = source_data
+        mapped_data.setdefault("entity_metadata", {})[entity_class_name, entity_byname, entity_metadata] = None
 
 
 class EntityGroupMapping(ImportEntitiesMixin, ImportMapping):
@@ -692,7 +700,17 @@ class ParameterValueMetadataMapping(ImportMapping):
     MAP_TYPE = "ParameterValueMetadata"
 
     def _import_row(self, source_data, state, mapped_data):
-        pass
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        if state[ImportKey.DIMENSION_COUNT]:
+            entity_byname = state[ImportKey.ELEMENT_NAMES]
+        else:
+            entity_byname = (state[ImportKey.ENTITY_NAME],)
+        parameter_name = state[ImportKey.PARAMETER_NAME]
+        alternative_name = state[ImportKey.ALTERNATIVE_NAME]
+        parameter_metadata = state[ImportKey.PARAMETER_VALUE_METADATA] = source_data
+        mapped_data.setdefault("parameter_value_metadata", {})[
+            entity_class_name, entity_byname, parameter_name, parameter_metadata, alternative_name
+        ] = None
 
 
 class ParameterValueIndexMapping(ImportMapping):
