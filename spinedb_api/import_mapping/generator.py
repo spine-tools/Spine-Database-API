@@ -317,17 +317,20 @@ def _make_parameter_values(mapped_data, unparse_value):
                 full_rows.append(entity_definition)
         mapped_data[key] = full_rows
 
+
 def _make_parameter_value_metadata(mapped_data):
     rows = mapped_data.get("parameter_value_metadata")
     if rows is None:
         return
     mapped_data["parameter_value_metadata"] = list(rows)
 
+
 def _make_entity_metadata(mapped_data):
     rows = mapped_data.get("entity_metadata")
     if rows is None:
         return
     mapped_data["entity_metadata"] = list(rows)
+
 
 def _make_value(row, value_pos):
     try:
