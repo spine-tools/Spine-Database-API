@@ -18,7 +18,7 @@ dependencies = [
     "alembic >=1.7",
     "datapackage >=1.15.2",
     "python-dateutil >=2.8.1",
-    "numpy >=1.20.2, <2.0",
+    "numpy >=1.20.2",
     "scipy >=1.7.1",
     "openpyxl >=3.0.7, !=3.1.1",
     "GDX2py >=2.1.1",

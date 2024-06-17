@@ -105,7 +105,7 @@ def _convert_to_excel(x):
     Returns:
         float or str: Excel compatible value
     """
-    if isinstance(x, numpy.float_):
+    if isinstance(x, numpy.float64):
         if numpy.isnan(x):
             return "nan"
         return float(x)
