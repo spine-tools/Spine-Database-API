@@ -183,7 +183,9 @@ class DatabaseMappingBase:
             else:
                 for item in mapped_table.values():
                     item.validate()
-                    if item.status == Status.to_remove and item.has_valid_id:
+                    if item.status == Status.to_remove:
+                        if item_type != "scenario_alternative" and not item.has_valid_id:
+                            continue
                         to_remove.append(item)
             if to_add or to_update or to_remove:
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))

@@ -162,7 +162,9 @@ def get_mapped_data(
                 mapping.import_row(full_row, read_state, mapped_data)
     _make_entity_classes(mapped_data)
     _make_entities(mapped_data)
+    _make_entity_metadata(mapped_data)
     _make_parameter_values(mapped_data, unparse_value)
+    _make_parameter_value_metadata(mapped_data)
     return mapped_data, errors
 
 
@@ -314,6 +316,20 @@ def _make_parameter_values(mapped_data, unparse_value):
             else:
                 full_rows.append(entity_definition)
         mapped_data[key] = full_rows
+
+
+def _make_parameter_value_metadata(mapped_data):
+    rows = mapped_data.get("parameter_value_metadata")
+    if rows is None:
+        return
+    mapped_data["parameter_value_metadata"] = list(rows)
+
+
+def _make_entity_metadata(mapped_data):
+    rows = mapped_data.get("entity_metadata")
+    if rows is None:
+        return
+    mapped_data["entity_metadata"] = list(rows)
 
 
 def _make_value(row, value_pos):

@@ -14,17 +14,17 @@ classifiers = [
 requires-python = ">=3.8.1"
 dependencies = [
     # v1.4 does not pass tests
-    "sqlalchemy >=1.3, <1.4",
+    "SQLAlchemy >=1.3, <1.4",
     "alembic >=1.7",
     "datapackage >=1.15.2",
     "python-dateutil >=2.8.1",
     "numpy >=1.20.2",
     "scipy >=1.7.1",
     "openpyxl >=3.0.7, !=3.1.1",
-    "gdx2py >=2.1.1",
+    "GDX2py >=2.1.1",
     "ijson >=3.1.4",
     "chardet >=4.0.0",
-    "pymysql >=1.0.2",
+    "PyMySQL >=1.0.2",
     "psycopg2",
 ]
 
