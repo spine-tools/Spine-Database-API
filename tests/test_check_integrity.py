@@ -27,11 +27,11 @@ def _val_dict(val):
 class TestCheckIntegrity(unittest.TestCase):
     def setUp(self):
         self.data = [
-            (bool, (b'"TRUE"', b'"FALSE"', b'"T"', b'"True"', b'"False"'), (b"true", b"false")),
-            (int, (b"32", b"3.14"), (b"42", b"-2")),
-            (str, (b'"FOO"', b'"bar"'), (b'"foo"', b'"Bar"', b'"BAZ"')),
+            ("bool", (b'"TRUE"', b'"FALSE"', b'"T"', b'"True"', b'"False"'), (b"true", b"false")),
+            ("float", (b"32", b"3.14"), (b"42", b"-2")),
+            ("str", (b'"FOO"', b'"bar"'), (b'"foo"', b'"Bar"', b'"BAZ"')),
         ]
-        self.value_type = {bool: 1, int: 2, str: 3}
+        self.value_type = {"bool": 1, "float": 2, "str": 3}
         self.db_map = DatabaseMapping("sqlite://", create=True)
         self.db_map.add_items("entity_class", {"id": 1, "name": "cat"})
         self.db_map.add_items(
@@ -61,14 +61,14 @@ class TestCheckIntegrity(unittest.TestCase):
         )
 
     @staticmethod
-    def get_item(id_: int, val: bytes, entity_id: int):
+    def get_item(id_: int, val: bytes, type_: str, entity_id: int):
         return {
             "id": 1,
             "parameter_definition_id": id_,
             "entity_class_id": 1,
             "entity_id": entity_id,
             "value": val,
-            "type": None,
+            "type": type_,
             "alternative_id": 1,
         }
 
@@ -78,7 +78,7 @@ class TestCheckIntegrity(unittest.TestCase):
             id_ = self.value_type[type_]  # setup: parameter definition/value list ids are equal
             for k, value in enumerate(fail):
                 with self.subTest(type=type_, value=value):
-                    item = self.get_item(id_, value, 1)
+                    item = self.get_item(id_, value, type_, 1)
                     _, errors = self.db_map.add_items("parameter_value", item)
                     self.assertEqual(len(errors), 1)
                     parsed_value = json.loads(value.decode("utf8"))
@@ -87,6 +87,6 @@ class TestCheckIntegrity(unittest.TestCase):
                     self.assertEqual(errors[0], f"value {parsed_value} of par{id_} for ('Tom',) is not in list{id_}")
             for k, value in enumerate(pass_):
                 with self.subTest(type=type_, value=value):
-                    item = self.get_item(id_, value, k + 1)
+                    item = self.get_item(id_, value, type_, k + 1)
                     _, errors = self.db_map.add_items("parameter_value", item)
                     self.assertEqual(errors, [])

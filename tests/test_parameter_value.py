@@ -144,13 +144,13 @@ class TestParameterValue(unittest.TestCase):
 
     def test_from_database_plain_number(self):
         database_value = b"23.0"
-        value = from_database(database_value, type_=None)
+        value = from_database(database_value, type_="float")
         self.assertTrue(isinstance(value, float))
         self.assertEqual(value, 23.0)
 
     def test_from_database_boolean(self):
         database_value = b"true"
-        value = from_database(database_value, type_=None)
+        value = from_database(database_value, type_="boolean")
         self.assertTrue(isinstance(value, bool))
         self.assertEqual(value, True)
 
@@ -159,7 +159,7 @@ class TestParameterValue(unittest.TestCase):
         database_value, value_type = to_database(value)
         value_as_float = json.loads(database_value)
         self.assertEqual(value_as_float, value)
-        self.assertIsNone(value_type)
+        self.assertEqual(value_type, "float")
 
     def test_to_database_DateTime(self):
         value = DateTime(datetime(year=2019, month=6, day=26, hour=12, minute=50, second=13))
