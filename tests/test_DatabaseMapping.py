@@ -1103,7 +1103,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     {"id": 1, "scenario_id": 1, "alternative_id": 1, "rank": 0, "commit_id": 7},
                 )
                 import_functions.import_scenarios(db_map, ("scen1",))
-                items, errors = db_map.add_items("entity_class", {"id": 1, "name": "my_class"})
+                items, errors = db_map.add_items("entity_class", {"id": 1, "name": "class"})
                 self.assertEqual(errors, [])
                 self.assertEqual(len(items), 1)
                 entity_items, errors = db_map.add_items(
@@ -1116,12 +1116,12 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.commit_session("Add test data.")
                 items, errors = db_map.add_items(
                     "entity_alternative",
-                    {"alternative_id": 1, "entity_id": 1, "active": False},
-                    {"alternative_id": 2, "entity_id": 1, "active": True},
-                    {"alternative_id": 3, "entity_id": 1, "active": True},
-                    {"alternative_id": 1, "entity_id": 2, "active": True},
-                    {"alternative_id": 2, "entity_id": 2, "active": False},
-                    {"alternative_id": 3, "entity_id": 2, "active": False},
+                    {"alternative_id": 1, "entity_class_name": "class", "entity_byname": ("entity1",), "active": False},
+                    {"alternative_id": 2, "entity_class_name": "class", "entity_byname": ("entity1",), "active": True},
+                    {"alternative_id": 3, "entity_class_name": "class", "entity_byname": ("entity1",), "active": True},
+                    {"alternative_id": 1, "entity_class_name": "class", "entity_byname": ("entity2",), "active": True},
+                    {"alternative_id": 2, "entity_class_name": "class", "entity_byname": ("entity2",), "active": False},
+                    {"alternative_id": 3, "entity_class_name": "class", "entity_byname": ("entity2",), "active": False},
                 )
                 self.assertEqual(errors, [])
                 self.assertEqual(len(items), 6)
