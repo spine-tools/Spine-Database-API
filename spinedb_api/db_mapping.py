@@ -471,7 +471,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         alts_ordered_by_rank = scenario["alternative_id_list"]
         alt_id_to_active = {}
         for ent_alt in ent_alts:
-            alt_id_to_active[ent_alt['alternative_id']] = ent_alt["active"]
+            alt_id_to_active[ent_alt["alternative_id"]] = ent_alt["active"]
         result = None
         for id in alts_ordered_by_rank:
             if id in alt_id_to_active:
