@@ -9,10 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Unit tests for the ``filters.tools`` module.
-
-"""
+""" Unit tests for the ``filters.tools`` module. """
 import os.path
 from tempfile import TemporaryDirectory
 import unittest
@@ -90,7 +87,7 @@ class TestApplyFilterStack(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._dir = TemporaryDirectory()
-        cls._db_url.database = os.path.join(cls._dir.name, ".json")
+        cls._db_url.database = os.path.join(cls._dir.name, ".sqlite")
         db_map = DatabaseMapping(cls._db_url, create=True)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")
@@ -137,7 +134,7 @@ class TestFilteredDatabaseMap(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._dir = TemporaryDirectory()
-        cls._db_url.database = os.path.join(cls._dir.name, "TestFilteredDatabaseMap.json")
+        cls._db_url.database = os.path.join(cls._dir.name, "TestFilteredDatabaseMap.sqlite")
         db_map = DatabaseMapping(cls._db_url, create=True)
         import_object_classes(db_map, ("object_class",))
         db_map.commit_session("Add test data.")

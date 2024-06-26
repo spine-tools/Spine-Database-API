@@ -13,7 +13,7 @@
 """ Contains unit tests for the generator module. """
 import unittest
 
-from spinedb_api import Array, Map
+from spinedb_api import Array, DateTime, Duration, Map
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.import_mapping.type_conversion import value_to_convert_spec
 
@@ -650,6 +650,76 @@ class TestGetMappedData(unittest.TestCase):
                             index_name="solve",
                         ),
                     ],
+                ],
+            },
+        )
+
+    def test_import_datetime_values(self):
+        header = ["entity", "t"]
+        data_source = iter([["o1", "2024-06-24T09:00:00"], ["o2", "Jun 24th 2024"]])
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "EntityMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": "header"},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValue", "position": 1},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "datetime"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base"},
+                "entity_classes": [("Object",)],
+                "entities": [
+                    ("Object", "o1"),
+                    ("Object", "o2"),
+                ],
+                "parameter_definitions": [("Object", "t")],
+                "parameter_values": [
+                    ["Object", "o1", "t", DateTime("2024-06-24T09:00:00"), "Base"],
+                    ["Object", "o2", "t", DateTime("2024-06-24T00:00:00"), "Base"],
+                ],
+            },
+        )
+
+    def test_import_durations(self):
+        header = ["entity", "t"]
+        data_source = iter([["o1", "23D"], ["o2", "19 days"]])
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "EntityMetadata", "position": "hidden"},
+                {"map_type": "ParameterDefinition", "position": "header"},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValue", "position": 1},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "duration"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base"},
+                "entity_classes": [("Object",)],
+                "entities": [
+                    ("Object", "o1"),
+                    ("Object", "o2"),
+                ],
+                "parameter_definitions": [("Object", "t")],
+                "parameter_values": [
+                    ["Object", "o1", "t", Duration("23D"), "Base"],
+                    ["Object", "o2", "t", Duration("19D"), "Base"],
                 ],
             },
         )
