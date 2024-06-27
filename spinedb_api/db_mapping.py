@@ -473,9 +473,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         for ent_alt in ent_alts:
             alt_id_to_active[ent_alt["alternative_id"]] = ent_alt["active"]
         result = None
-        for id in alts_ordered_by_rank:
-            if id in alt_id_to_active:
-                result = alt_id_to_active[id]
+        for id_ in reversed(alts_ordered_by_rank):
+            if id_ in alt_id_to_active:
+                result = alt_id_to_active[id_]
+                break
         return result
 
     @staticmethod
