@@ -29,7 +29,6 @@ def upgrade():
     conn = op.get_bind()
     metadata = sa.MetaData()
     metadata.reflect(bind=conn)
-    metadata.reflect(bind=conn)
     class_table = metadata.tables["entity_class"]
     update_statement = class_table.update().values(active_by_default=True)
     conn.execute(update_statement)

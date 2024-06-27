@@ -138,7 +138,7 @@ class TestAlternativeFilterWithMemoryDatabase(unittest.TestCase):
         alternative_filter_from_dict(self._db_map, config)
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 2)
-        values = {from_database(p.value) for p in parameters}
+        values = {from_database(p.value, p.type) for p in parameters}
         self.assertEqual(values, {23.0, 101.1})
 
     def _add_value_in_alternative(self, value, alternative):

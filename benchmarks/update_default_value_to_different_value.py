@@ -27,7 +27,7 @@ def update_default_value(loops, db_map, first_db_value, first_value_type, second
     return total_time
 
 
-def run_benchmark(file_name: str):
+def run_benchmark(file_name: str) -> None:
     first_value, first_type = to_database(None)
     second_value, second_type = to_database(build_even_map())
     with DatabaseMapping("sqlite://", create=True) as db_map:

@@ -679,7 +679,7 @@ class TestImportParameterDefinition(unittest.TestCase):
             parameter_definitions,
             [
                 {
-                    "default_type": None,
+                    "default_type": "float",
                     "default_value": b"99.0",
                     "description": None,
                     "entity_class_id": 1,
@@ -933,7 +933,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.commit_session("test")
         values = db_map.query(db_map.object_parameter_value_sq).all()
         value = values[0]
-        self.assertEqual(from_database(value.value), 5.0)
+        self.assertEqual(from_database(value.value, value.type), 5.0)
         db_map.close()
 
     def test_valid_object_parameter_value_from_value_list(self):
@@ -949,7 +949,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = db_map.query(db_map.object_parameter_value_sq).all()
         self.assertEqual(len(values), 1)
         value = values[0]
-        self.assertEqual(from_database(value.value), 5.0)
+        self.assertEqual(from_database(value.value, value.type), 5.0)
         db_map.close()
 
     def test_non_existent_object_parameter_value_from_value_list_fails_gracefully(self):
@@ -1117,7 +1117,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = db_map.query(db_map.relationship_parameter_value_sq).all()
         self.assertEqual(len(values), 1)
         value = values[0]
-        self.assertEqual(from_database(value.value), 5.0)
+        self.assertEqual(from_database(value.value, value.type), 5.0)
         db_map.close()
 
     def test_non_existent_relationship_parameter_value_from_value_list_fails_gracefully(self):

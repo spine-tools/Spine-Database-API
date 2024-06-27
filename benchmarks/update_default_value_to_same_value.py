@@ -2,6 +2,7 @@
 This benchmark tests the performance of updating a parameter definition item when
 the default value is somewhat complex Map and the update does not change anything.
 """
+
 import time
 from typing import Optional
 import pyperf
