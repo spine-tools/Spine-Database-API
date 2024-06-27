@@ -724,6 +724,48 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_import_with_one_mapping_name_for_two_mappings(self):
+        data_source = iter([["other_name"]])
+        mappings = [
+            [
+                {"map_type": "Alternative", "position": "mapping_name"},
+            ],
+            [
+                {"map_type": "Alternative", "position": 0},
+            ],
+        ]
+        convert_function_specs = {0: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(
+            data_source, mappings, column_convert_fns=convert_functions, mapping_names=["some_name"]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {"alternatives": {"some_name", "other_name"}},
+        )
+
+    def test_import_with_mapping_name_with_too_many_mapping_names(self):
+        data_source = iter([["other_name"]])
+        mappings = [
+            [
+                {"map_type": "Alternative", "position": "mapping_name"},
+            ],
+            [
+                {"map_type": "Alternative", "position": 0},
+            ],
+        ]
+        convert_function_specs = {0: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(
+            data_source, mappings, column_convert_fns=convert_functions, mapping_names=["some_name", "other", "null"]
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {"alternatives": {"some_name", "other_name"}},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

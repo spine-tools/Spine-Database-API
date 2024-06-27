@@ -156,28 +156,29 @@ class ImportMapping(Mapping):
             return msg
         return ""
 
-    def polish(self, table_name, source_header, column_count=0, for_preview=False):
+    def polish(self, table_name, source_header, mapping_name, column_count=0, for_preview=False):
         """Polishes the mapping before an import operation.
         'Expands' transient ``position`` and ``value`` attributes into their final value.
 
         Args:
             table_name (str)
             source_header (list(str))
+            mapping_name (str)
             column_count (int, optional)
             for_preview (bool, optional)
         """
-        self._polish_for_import(table_name, source_header, column_count)
+        self._polish_for_import(table_name, source_header, mapping_name, column_count)
         if for_preview:
             self._polish_for_preview(source_header)
 
-    def _polish_for_import(self, table_name, source_header, column_count, pivoted=None):
+    def _polish_for_import(self, table_name, source_header, mapping_name, column_count, pivoted=None):
         # FIXME: Polish skip columns
         if pivoted is None:
             pivoted = self.is_pivoted()
         if pivoted and self.parent and self.is_effective_leaf():
             return
         if self.child is not None:
-            self.child._polish_for_import(table_name, source_header, column_count, pivoted)
+            self.child._polish_for_import(table_name, source_header, mapping_name, column_count, pivoted)
         if isinstance(self.position, str):
             # Column mapping with string position, we need to find the index in the header
             try:
@@ -189,6 +190,10 @@ class ImportMapping(Mapping):
         if self.position == Position.table_name:
             # Table name mapping, we set the fixed value to the table name
             self.value = table_name
+            return
+        if self.position == Position.mapping_name:
+            # Mapping name mapping, we set the fixed value to the mapping name
+            self.value = mapping_name
             return
         if self.position == Position.header:
             if self.value is None:
