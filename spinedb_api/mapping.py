@@ -24,6 +24,7 @@ class Position(Enum):
     hidden = "hidden"
     table_name = "table_name"
     header = "header"
+    mapping_name = "mapping_name"
 
 
 def is_pivoted(position):

@@ -121,7 +121,7 @@ class TestPolishImportMapping(unittest.TestCase):
         mapping = ImportMapping(Position.hidden, value=None)
         table_name = "tablename"
         header = ["A", "B", "C"]
-        mapping.polish(table_name, header)
+        mapping.polish(table_name, header, "")
         self.assertEqual(mapping.position, Position.hidden)
         self.assertIsNone(mapping.value)
 
@@ -129,7 +129,7 @@ class TestPolishImportMapping(unittest.TestCase):
         mapping = ImportMapping("B", value=None)
         table_name = "tablename"
         header = ["A", "B", "C"]
-        mapping.polish(table_name, header)
+        mapping.polish(table_name, header, "")
         self.assertEqual(mapping.position, 1)
         self.assertIsNone(mapping.value)
 
@@ -137,7 +137,7 @@ class TestPolishImportMapping(unittest.TestCase):
         mapping = ImportMapping(Position.header, value=2)
         table_name = "tablename"
         header = ["A", "B", "C"]
-        mapping.polish(table_name, header)
+        mapping.polish(table_name, header, "")
         self.assertEqual(mapping.position, Position.header)
         self.assertEqual(mapping.value, "C")
 
@@ -145,7 +145,7 @@ class TestPolishImportMapping(unittest.TestCase):
         mapping = ImportMapping(Position.header, value="2")
         table_name = "tablename"
         header = ["A", "B", "C"]
-        mapping.polish(table_name, header)
+        mapping.polish(table_name, header, "")
         self.assertEqual(mapping.position, Position.header)
         self.assertEqual(mapping.value, "C")
 
@@ -153,7 +153,7 @@ class TestPolishImportMapping(unittest.TestCase):
         mapping = ImportMapping(Position.header, value=3)
         table_name = "tablename"
         header = ["A", "B", "C", "A"]
-        mapping.polish(table_name, header, for_preview=True)
+        mapping.polish(table_name, header, "", for_preview=True)
         self.assertEqual(mapping.position, Position.header)
         self.assertEqual(mapping.value, 3)
 
@@ -162,20 +162,20 @@ class TestPolishImportMapping(unittest.TestCase):
         table_name = "tablename"
         header = ["A", "B", "C"]
         with self.assertRaises(InvalidMapping):
-            mapping.polish(table_name, header)
+            mapping.polish(table_name, header, "")
 
     def test_polish_column_header_mapping_invalid_index(self):
         mapping = ImportMapping(Position.header, value=4)
         table_name = "tablename"
         header = ["A", "B", "C"]
         with self.assertRaises(InvalidMapping):
-            mapping.polish(table_name, header)
+            mapping.polish(table_name, header, "")
 
     def test_polish_table_name_mapping(self):
         mapping = ImportMapping(Position.table_name)
         table_name = "tablename"
         header = ["A", "B", "C"]
-        mapping.polish(table_name, header)
+        mapping.polish(table_name, header, "")
         self.assertEqual(mapping.position, Position.table_name)
         self.assertEqual(mapping.value, "tablename")
 
@@ -183,9 +183,18 @@ class TestPolishImportMapping(unittest.TestCase):
         mapping = ImportMapping(Position.header, value=None)
         table_name = "tablename"
         header = ["A", "B", "C"]
-        mapping.polish(table_name, header)
+        mapping.polish(table_name, header, "")
         self.assertEqual(mapping.position, Position.header)
         self.assertIsNone(mapping.value)
+
+    def test_polish_mapping_name_mapping(self):
+        mapping = ImportMapping(Position.mapping_name)
+        table_name = "tablename"
+        mapping_name = "some_mapping_name"
+        header = ["A", "B", "C"]
+        mapping.polish(table_name, header, mapping_name)
+        self.assertEqual(mapping.position, Position.mapping_name)
+        self.assertEqual(mapping.value, "some_mapping_name")
 
 
 class TestImportMappingIO(unittest.TestCase):

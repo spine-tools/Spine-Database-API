@@ -57,6 +57,7 @@ def get_mapped_data(
     default_column_convert_fn=None,
     row_convert_fns=None,
     unparse_value=identity,
+    mapping_names=[],
 ):
     """
     Args:
@@ -68,6 +69,7 @@ def get_mapped_data(
         default_column_convert_fn (Callable, optional): default convert function for surplus columns
         row_convert_fns (dict(int,function), optional): mapping from row number to convert function
         unparse_value (Callable): a callable that converts values to database format
+        mapping_names (list, optional): list of mapping names (order corresponds to order of mappings).
 
     Returns:
         dict: Mapped data, ready for ``import_data()``
@@ -91,10 +93,11 @@ def get_mapped_data(
         row_convert_fns = {}
     if default_column_convert_fn is None:
         default_column_convert_fn = column_convert_fns[max(column_convert_fns)] if column_convert_fns else identity
-    for mapping in mappings:
+    _ensure_mapping_name_consistency(mappings, mapping_names)
+    for mapping, mapping_name in zip(mappings, mapping_names):
         read_state = {}
         mapping = deepcopy(mapping)
-        mapping.polish(table_name, data_header, column_count)
+        mapping.polish(table_name, data_header, mapping_name, column_count)
         mapping_errors = check_validity(mapping)
         if mapping_errors:
             errors += mapping_errors
@@ -417,3 +420,18 @@ def _apply_index_names(map_, index_names):
     for v in map_.values:
         if isinstance(v, Map):
             _apply_index_names(v, index_names[1:])
+
+
+def _ensure_mapping_name_consistency(mappings, mapping_names):
+    """Makes sure that there are as many mapping names as actual mappings.
+
+    Args:
+        mappings (list(ImportMapping)): list of mappings
+        mapping_names (list(str)): list of mapping names
+    """
+    n_mappings = len(mappings)
+    n_mapping_names = len(mapping_names)
+    if n_mapping_names > n_mappings:
+        mapping_names = mapping_names[:n_mappings]
+    elif n_mapping_names < n_mappings:
+        mapping_names += [""] * (n_mappings - n_mapping_names)
