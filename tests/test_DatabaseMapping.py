@@ -1135,6 +1135,35 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 active = db_map.item_active_in_scenario(entity_items[1], 2)
                 self.assertTrue(active)
 
+    def test_remove_items(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            alternative_1 = self._assert_success(db_map.add_alternative_item(name="alt 1"))
+            alternative_2 = self._assert_success(db_map.add_alternative_item(name="alt 2"))
+            self.assertTrue(alternative_1.is_valid())
+            self.assertTrue(alternative_2.is_valid())
+            removed_items, errors = db_map.remove_items("alternative", alternative_1["id"], alternative_2["id"])
+            self.assertTrue(all(not error for error in errors))
+            self.assertCountEqual(removed_items, [alternative_1, alternative_2])
+            self.assertFalse(alternative_1.is_valid())
+            self.assertFalse(alternative_2.is_valid())
+
+    def test_restore_items(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            alternative_1 = self._assert_success(db_map.add_alternative_item(name="alt 1"))
+            alternative_2 = self._assert_success(db_map.add_alternative_item(name="alt 2"))
+            self.assertTrue(alternative_1.is_valid())
+            self.assertTrue(alternative_2.is_valid())
+            removed_items, errors = db_map.remove_items("alternative", alternative_1["id"], alternative_2["id"])
+            self.assertTrue(all(not error for error in errors))
+            self.assertCountEqual(removed_items, [alternative_1, alternative_2])
+            self.assertFalse(alternative_1.is_valid())
+            self.assertFalse(alternative_2.is_valid())
+            restored_items, errors = db_map.restore_items("alternative", alternative_1["id"], alternative_2["id"])
+            self.assertTrue(all(not error for error in errors))
+            self.assertCountEqual(removed_items, [alternative_1, alternative_2])
+            self.assertTrue(alternative_1.is_valid())
+            self.assertTrue(alternative_2.is_valid())
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

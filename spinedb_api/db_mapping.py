@@ -703,11 +703,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             *ids (Iterable(int)): Ids of items to be removed.
 
         Returns:
-            list(:class:`PublicItem`): the restored items.
+            tuple(list(:class:`PublicItem`),list(str)): items successfully restored and found violations.
         """
-        if not ids:
-            return []
-        return [self.restore_item(item_type, id_) for id_ in ids]
+        return self._modify_items(lambda x: self.restore_item(item_type, x), *ids)
 
     def purge_items(self, item_type):
         """Removes all items of one type.
