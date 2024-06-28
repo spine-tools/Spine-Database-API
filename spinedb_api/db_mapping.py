@@ -452,6 +452,33 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
         return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
 
+    def item_active_in_scenario(self, item, scenario_id):
+        """Checks if an item is active in a given scenario.
+
+        Takes into account the ranks of the alternatives and figures
+        out the final state of activity for the item.
+
+        Args:
+            item (:class:`PublicItem`): Item value to check
+            scenario_id (:class:`TempId`): The id of the scenario to test against
+
+        Returns:
+            result (bool or None): True if the item is active, False if not,
+                None if no entity alternatives are specified.
+        """
+        scenario = self.get_item("scenario", id=scenario_id)
+        ent_alts = self.get_items("entity_alternative", entity_id=item["id"])
+        alts_ordered_by_rank = scenario["alternative_id_list"]
+        alt_id_to_active = {}
+        for ent_alt in ent_alts:
+            alt_id_to_active[ent_alt["alternative_id"]] = ent_alt["active"]
+        result = None
+        for id_ in reversed(alts_ordered_by_rank):
+            if id_ in alt_id_to_active:
+                result = alt_id_to_active[id_]
+                break
+        return result
+
     @staticmethod
     def _modify_items(function, *items, strict=False):
         modified, errors = [], []
