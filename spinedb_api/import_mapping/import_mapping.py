@@ -463,6 +463,33 @@ class EntityGroupMapping(ImportEntitiesMixin, ImportMapping):
         raise KeyFix(ImportKey.MEMBER_NAME)
 
 
+class EntityAlternativeActivityMapping(ImportMapping):
+    """Maps activity flags for entity alternative.
+
+    Cannot be used as the topmost mapping; must have :class:`EntityMapping` or :class:`ElementMapping`,
+    and :class:`AlternativeMapping` as parents.
+    """
+
+    MAP_TYPE = "EntityAlternativeActivity"
+
+    def _import_row(self, source_data, state, mapped_data):
+        if source_data is None or source_data == "":
+            return
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        if state[ImportKey.DIMENSION_COUNT]:
+            entity_byname = state[ImportKey.ELEMENT_NAMES]
+        else:
+            entity_byname = (state[ImportKey.ENTITY_NAME],)
+        alternative_name = state[ImportKey.ALTERNATIVE_NAME]
+        if isinstance(source_data, str):
+            active = string_to_bool(source_data)
+        else:
+            active = bool(source_data)
+        mapped_data.setdefault("entity_alternatives", {})[
+            entity_class_name, entity_byname, alternative_name, active
+        ] = None
+
+
 class DimensionMapping(ImportMapping):
     """Maps dimensions.
 
@@ -905,8 +932,8 @@ def _default_entity_class_mapping():
         EntityClassMapping: root mapping
     """
     root_mapping = EntityClassMapping(Position.hidden)
-    object_mapping = root_mapping.child = EntityMapping(Position.hidden)
-    object_mapping.child = EntityMetadataMapping(Position.hidden)
+    entity_mapping = root_mapping.child = EntityMapping(Position.hidden)
+    entity_mapping.child = EntityMetadataMapping(Position.hidden)
     return root_mapping
 
 
@@ -984,9 +1011,11 @@ def from_dict(serialized):
             EntityGroupMapping,
             DimensionMapping,
             ElementMapping,
+            EntityAlternativeActivityMapping,
             ParameterDefinitionMapping,
             ParameterDefaultValueMapping,
             ParameterDefaultValueTypeMapping,
+            DefaultValueIndexNameMapping,
             ParameterDefaultValueIndexMapping,
             ExpandedParameterDefaultValueMapping,
             ParameterValueMapping,

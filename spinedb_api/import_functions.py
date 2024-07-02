@@ -111,7 +111,7 @@ def get_data_for_import(
     entity_classes=(),
     entities=(),
     entity_groups=(),
-    entity_alternatives=(),  # TODO
+    entity_alternatives=(),
     parameter_definitions=(),
     parameter_values=(),
     parameter_value_lists=(),

@@ -749,7 +749,7 @@ class EntityGroupMapping(ExportMapping):
 
 
 class EntityGroupEntityMapping(ExportMapping):
-    """Maps entities in objectentity groups.
+    """Maps entities in object entity groups.
 
     Cannot be used as the topmost mapping; one of the parents must be :class:`EntityGroupMapping`.
     """
