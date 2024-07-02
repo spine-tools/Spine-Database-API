@@ -766,6 +766,126 @@ class TestGetMappedData(unittest.TestCase):
             {"alternatives": {"some_name", "other_name"}},
         )
 
+    def test_import_entity_alternatives_with_activity_string(self):
+        header = ["entity", "alternative", "active"]
+        data_source = iter([["o1", "Base", "yes"], ["o1", "alt1", "no"], ["o1", "alt2", ""]])
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "Alternative", "position": 1},
+                {"map_type": "EntityAlternativeActivity", "position": 2},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base", "alt1", "alt2"},
+                "entity_classes": [("Object",)],
+                "entities": [
+                    ("Object", "o1"),
+                ],
+                "entity_alternatives": [("Object", ("o1",), "Base", True), ("Object", ("o1",), "alt1", False)],
+            },
+        )
+
+    def test_import_entity_alternatives_with_activity_boolean(self):
+        header = ["entity", "alternative", "active"]
+        data_source = iter([["o1", "Base", True], ["o1", "alt1", False], ["o1", "alt2", None]])
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "Alternative", "position": 1},
+                {"map_type": "EntityAlternativeActivity", "position": 2},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "boolean"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base", "alt1", "alt2"},
+                "entity_classes": [("Object",)],
+                "entities": [
+                    ("Object", "o1"),
+                ],
+                "entity_alternatives": [("Object", ("o1",), "Base", True), ("Object", ("o1",), "alt1", False)],
+            },
+        )
+
+    def test_import_entity_alternatives_with_activity_integer(self):
+        header = ["entity", "alternative", "active"]
+        data_source = iter([["o1", "Base", 1], ["o1", "alt1", 0], ["o1", "alt2", None]])
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "Alternative", "position": 1},
+                {"map_type": "EntityAlternativeActivity", "position": 2},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base", "alt1", "alt2"},
+                "entity_classes": [("Object",)],
+                "entities": [
+                    ("Object", "o1"),
+                ],
+                "entity_alternatives": [("Object", ("o1",), "Base", True), ("Object", ("o1",), "alt1", False)],
+            },
+        )
+
+    def test_import_entity_alternatives_with_multidimensional_entities(self):
+        header = ["element 1", "element 2", "alternative", "active"]
+        data_source = iter([["o1", "p1", "Base", "true"], ["o1", "p1", "alt1", "false"], ["o1", "p2", "alt1", "true"]])
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Widget__Gadget"},
+                {"map_type": "Dimension", "position": "hidden", "value": "Widget"},
+                {"map_type": "Dimension", "position": "hidden", "value": "Gadget"},
+                {"map_type": "Entity", "position": "hidden", "value": "relationship"},
+                {"map_type": "Element", "position": 0, "import_objects": True},
+                {"map_type": "Element", "position": 1, "import_objects": True},
+                {"map_type": "Alternative", "position": 2},
+                {"map_type": "EntityAlternativeActivity", "position": 3},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "string", 3: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base", "alt1"},
+                "entity_classes": [("Widget",), ("Gadget",), ("Widget__Gadget", ("Widget", "Gadget"))],
+                "entities": [
+                    ("Widget", "o1"),
+                    ("Gadget", "p1"),
+                    ("Widget__Gadget", ("o1", "p1")),
+                    ("Gadget", "p2"),
+                    ("Widget__Gadget", ("o1", "p2")),
+                ],
+                "entity_alternatives": [
+                    ("Widget__Gadget", ("o1", "p1"), "Base", True),
+                    ("Widget__Gadget", ("o1", "p1"), "alt1", False),
+                    ("Widget__Gadget", ("o1", "p2"), "alt1", True),
+                ],
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

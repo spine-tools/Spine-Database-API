@@ -274,8 +274,8 @@ class TestImportMappingLegacy(unittest.TestCase):
             {"map_type": "EntityClass", "position": 0},
             {"map_type": "Entity", "position": 1},
             {"map_type": "EntityMetadata", "position": "hidden"},
-            {"map_type": "ParameterDefinition", "position": 2},
             {"map_type": "Alternative", "position": "hidden"},
+            {"map_type": "ParameterDefinition", "position": 2},
             {"map_type": "ParameterValueMetadata", "position": "hidden"},
             {"map_type": "ParameterValue", "position": 3},
         ]
@@ -321,8 +321,8 @@ class TestImportMappingLegacy(unittest.TestCase):
             {"map_type": "Element", "position": 0},
             {"map_type": "Element", "position": 1},
             {"map_type": "EntityMetadata", "position": "hidden"},
-            {"map_type": "ParameterDefinition", "position": "hidden", "value": "pname"},
             {"map_type": "Alternative", "position": "hidden"},
+            {"map_type": "ParameterDefinition", "position": "hidden", "value": "pname"},
             {"map_type": "ParameterValueMetadata", "position": "hidden"},
             {"map_type": "ParameterValue", "position": 2},
         ]
@@ -368,8 +368,8 @@ class TestImportMappingLegacy(unittest.TestCase):
             {"map_type": "Entity", "position": "hidden"},
             {"map_type": "Element", "position": "hidden"},
             {"map_type": "EntityMetadata", "position": "hidden"},
-            {"map_type": "ParameterDefinition", "position": "hidden", "value": "pname"},
             {"map_type": "Alternative", "position": "hidden"},
+            {"map_type": "ParameterDefinition", "position": "hidden", "value": "pname"},
             {"map_type": "ParameterValueMetadata", "position": "hidden"},
             {"map_type": "ParameterValueType", "position": "hidden", "value": "array"},
             {"map_type": "IndexName", "position": "hidden"},
@@ -592,9 +592,10 @@ class TestMappingIsValid(unittest.TestCase):
     def test_valid_object_parameter_value_mapping(self):
         cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
         object_mapping = cls_mapping.flatten()[-2]
-        cls_mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+        cls_mapping.flatten()[-1].child = alternative_mapping = parameter_mapping_from_dict(
             {"map_type": "ParameterValue"}
         )
+        param_def_mapping = alternative_mapping.child
         value_mapping = cls_mapping.flatten()[-1]
         cls_mapping.position = 0
         object_mapping.position = 1
@@ -694,9 +695,10 @@ class TestMappingIsValid(unittest.TestCase):
         cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
         obj_cls_mapping = cls_mapping.child
         object_mapping = cls_mapping.flatten()[-2]
-        cls_mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+        cls_mapping.flatten()[-1].child = alternative_mapping = parameter_mapping_from_dict(
             {"map_type": "ParameterValue"}
         )
+        param_def_mapping = alternative_mapping.child
         value_mapping = cls_mapping.flatten()[-1]
         cls_mapping.position = 0
         obj_cls_mapping.position = 1
