@@ -1164,6 +1164,48 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertTrue(alternative_1.is_valid())
             self.assertTrue(alternative_2.is_valid())
 
+    def test_remove_value_list_then_recreate_it(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_parameter_value_list_item(name="list of values"))
+                value, value_type = to_database("yes")
+                list_value = self._assert_success(
+                    db_map.add_list_value_item(
+                        parameter_value_list_name="list of values", index=0, value=value, type=value_type
+                    )
+                )
+                self.assertEqual(list_value["parsed_value"], "yes")
+                db_map.commit_session("Add value list.")
+            with DatabaseMapping(url) as db_map:
+                db_map.fetch_all("list_value")
+                value_list = db_map.get_parameter_value_list_item(name="list of values")
+                value_list.remove()
+                self._assert_success(db_map.add_parameter_value_list_item(name="list of values"))
+                self._assert_success(
+                    db_map.add_list_value_item(
+                        parameter_value_list_name="list of values", index=0, value=value, type=value_type
+                    )
+                )
+                db_map.commit_session("Add value list.")
+
+    def test_add_referrer_called_only_once_for_fetched_items(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_parameter_value_list_item(name="list of values"))
+                value, value_type = to_database("yes")
+                list_value = self._assert_success(
+                    db_map.add_list_value_item(
+                        parameter_value_list_name="list of values", index=0, value=value, type=value_type
+                    )
+                )
+                db_map.commit_session("Add value list.")
+            with DatabaseMapping(url) as db_map:
+                value_list = db_map.get_parameter_value_list_item(name="list of values")
+                db_map.get_list_value_item(parameter_value_list_name="list_of_values", index=0)
+                self.assertEqual(len(value_list._mapped_item._referrers), 1)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

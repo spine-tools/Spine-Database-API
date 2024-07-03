@@ -824,7 +824,7 @@ class MappedItemBase(dict):
             tuple(str,int) or None
         """
         id_ = dict.get(self, "id")
-        if id_ is None:
+        if not isinstance(id_, TempId):
             return None
         return (self._item_type, id_)
 
