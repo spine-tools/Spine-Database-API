@@ -1205,6 +1205,22 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.get_list_value_item(parameter_value_list_name="list_of_values", index=0)
                 self.assertEqual(len(value_list._mapped_item._referrers), 1)
 
+    def test_remove_scenario_alternative_from_middle(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_scenario_item(name="Scenario"))
+            self._assert_success(db_map.add_alternative_item(name="alt1"))
+            self._assert_success(db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=0))
+            self._assert_success(db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="alt1", rank=1))
+            db_map.commit_session("Add scenario with two alternatives")
+            scenario_alternatives = db_map.query(db_map.scenario_alternative_sq).all()
+            self.assertEqual(len(scenario_alternatives), 2)
+            db_map.get_scenario_alternative_item(scenario_name="Scenario", alternative_name="alt1", rank=1).remove()
+            db_map.get_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=0).remove()
+            self._assert_success(db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="alt1", rank=0))
+            db_map.commit_session("Remove first alternative from scenario")
+            scenario_alternatives = db_map.query(db_map.scenario_alternative_sq).all()
+            self.assertEqual(len(scenario_alternatives), 1)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
