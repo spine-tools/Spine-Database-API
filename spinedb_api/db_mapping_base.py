@@ -9,7 +9,6 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
 from multiprocessing import RLock
 from enum import Enum, unique, auto
 from difflib import SequenceMatcher
@@ -29,7 +28,6 @@ class Status(Enum):
     to_update = auto()
     to_remove = auto()
     added_and_removed = auto()
-    compromised = auto()
 
 
 class DatabaseMappingBase:
@@ -223,14 +221,19 @@ class DatabaseMappingBase:
         return True
 
     def _refresh(self):
-        """Clears fetch progress, so the DB is queried again."""
+        """Clears fetch progress, so the DB is queried again, and committed, unchanged items."""
         if self._commit_count == self._query_commit_count():
             return
         self._fetched.clear()
         for item_type in self.item_types():
             mapped_table = self.mapped_table(item_type)
+            ids_to_drop = []
             for item in mapped_table.values():
-                item.handle_refresh()
+                if item.status not in {Status.to_add, Status.to_update, Status.to_remove}:
+                    mapped_table.remove_unique(item)
+                    ids_to_drop.append(item["id"])
+            for id_ in ids_to_drop:
+                del mapped_table[id_]
 
     def _check_item_type(self, item_type):
         if item_type not in self.all_item_types():
@@ -592,11 +595,10 @@ class _MappedTable(dict):
                 mapped_item.status = Status.to_update
             return mapped_item, False
         mapped_item = self.get(item["id"])
-        if mapped_item and (is_db_clean or self._same_item(mapped_item.db_equivalent(), item)):
-            return mapped_item, False
-        conflicting_item = self.get(item["id"])
-        if conflicting_item is not None:
-            conflicting_item.handle_id_steal()
+        if mapped_item:
+            if is_db_clean or self._same_item(mapped_item.db_equivalent(), item):
+                return mapped_item, False
+            mapped_item.handle_id_steal()
         mapped_item = self._make_and_add_item(item)
         if self.purged:
             # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
@@ -742,23 +744,12 @@ class MappedItemBase(dict):
     def handle_refetch(self):
         """Called when an equivalent item is fetched from the DB.
 
-        1. If this item is compromised, then mark it as committed.
-        2. If this item is committed, then assume the one from the DB is newer and reset the state.
-           Otherwise assume *this* is newer and do nothing.
+        1. If this item is committed, then assume the one from the DB is newer and reset the state.
+           Otherwise, assume *this* is newer and do nothing.
         """
-        if self.status == Status.compromised:
-            self.status = Status.committed
         if self.is_committed():
             self._removed = False
             self._valid = None
-
-    def handle_refresh(self):
-        """Called when the mapping is refreshed.
-
-        If this item is committed, then set it as compromised.
-        """
-        if self.status == Status.committed:
-            self.status = Status.compromised
 
     @classmethod
     def ref_types(cls):
@@ -1065,8 +1056,6 @@ class MappedItemBase(dict):
         Returns:
             bool
         """
-        if self.status == Status.compromised:
-            return False
         self.validate()
         return self._valid
 
