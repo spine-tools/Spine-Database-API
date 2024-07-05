@@ -1209,14 +1209,20 @@ class TestDatabaseMapping(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_scenario_item(name="Scenario"))
             self._assert_success(db_map.add_alternative_item(name="alt1"))
-            self._assert_success(db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=0))
-            self._assert_success(db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="alt1", rank=1))
+            self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=0)
+            )
+            self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="alt1", rank=1)
+            )
             db_map.commit_session("Add scenario with two alternatives")
             scenario_alternatives = db_map.query(db_map.scenario_alternative_sq).all()
             self.assertEqual(len(scenario_alternatives), 2)
             db_map.get_scenario_alternative_item(scenario_name="Scenario", alternative_name="alt1", rank=1).remove()
             db_map.get_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=0).remove()
-            self._assert_success(db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="alt1", rank=0))
+            self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="alt1", rank=0)
+            )
             db_map.commit_session("Remove first alternative from scenario")
             scenario_alternatives = db_map.query(db_map.scenario_alternative_sq).all()
             self.assertEqual(len(scenario_alternatives), 1)
@@ -4034,6 +4040,32 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 entity_class_names = [x["name"] for x in db_map.get_entity_class_items()]
                 self.assertEqual(len(entity_class_names), 2)
                 self.assertEqual(set(entity_class_names), {"zzz", "www"})
+
+    def test_refresh_after_update(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                value, value_type = to_database(2.3)
+                self._assert_success(
+                    db_map.add_parameter_definition_item(
+                        name="z", entity_class_name="Object", default_value=value, default_type=value_type
+                    )
+                )
+                db_map.commit_session("Add initial data.")
+            with DatabaseMapping(url) as db_map:
+                db_map.fetch_more("parameter_definition")
+                definition = db_map.get_parameter_definition_item(name="z", entity_class_name="Object")
+                self.assertEqual(definition["parsed_value"], 2.3)
+                with DatabaseMapping(url) as db_map_2:
+                    definition = db_map_2.get_parameter_definition_item(name="z", entity_class_name="Object")
+                    value, value_type = to_database("yes")
+                    definition.update(default_value=value, default_type=value_type)
+                    db_map_2.commit_session("Update parameter default value.")
+                db_map.refresh_session()
+                db_map.fetch_more("parameter_definition")
+                definition = db_map.get_parameter_definition_item(name="z", entity_class_name="Object")
+                self.assertEqual(definition["parsed_value"], "yes")
 
 
 if __name__ == "__main__":
