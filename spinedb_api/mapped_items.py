@@ -12,8 +12,18 @@
 
 from operator import itemgetter
 from .db_mapping_base import MappedItemBase
+from .exception import SpineDBAPIError
 from .helpers import name_from_dimensions, name_from_elements
-from .parameter_value import ParameterValueFormatError, from_database, to_database
+from .parameter_value import (
+    RANK_1_TYPES,
+    VALUE_TYPES,
+    Map,
+    ParameterValueFormatError,
+    fancy_type_to_type_and_rank,
+    from_database,
+    to_database,
+    type_and_rank_to_fancy_type,
+)
 
 
 def item_factory(item_type):
@@ -25,6 +35,7 @@ def item_factory(item_type):
         "entity_alternative": EntityAlternativeItem,
         "entity_group": EntityGroupItem,
         "parameter_definition": ParameterDefinitionItem,
+        "parameter_type": ParameterTypeItem,
         "parameter_value": ParameterValueItem,
         "parameter_value_list": ParameterValueListItem,
         "list_value": ListValueItem,
@@ -473,6 +484,7 @@ class ParameterDefinitionItem(ParameterItemBase):
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "name": {"type": str, "value": "The parameter name."},
+        "parameter_type_list": {"type": tuple, "value": "List of valid value types.", "optional": True},
         "default_value": {"type": bytes, "value": "The default value.", "optional": True},
         "default_type": {"type": str, "value": "The default value type.", "optional": True},
         "parameter_value_list_name": {
@@ -502,6 +514,10 @@ class ParameterDefinitionItem(ParameterItemBase):
         "parameter_value_list_id": (("parameter_value_list_name",), "id"),
     }
 
+    def __init__(self, db_map, item_type, **kwargs):
+        super().__init__(db_map, item_type, **kwargs)
+        self._init_type_list = kwargs.get("parameter_type_list")
+
     @property
     def _value_key(self):
         return "default_value"
@@ -511,6 +527,11 @@ class ParameterDefinitionItem(ParameterItemBase):
         return "default_type"
 
     def __getitem__(self, key):
+        if key == "parameter_type_id_list":
+            return tuple(x["id"] for x in self._sorted_parameter_types())
+        if key == "parameter_type_list":
+            self._db_map.do_fetch_all("parameter_type")
+            return tuple(type_and_rank_to_fancy_type(x["type"], x["rank"]) for x in self._sorted_parameter_types())
         if key == "value_list_id":
             return super().__getitem__("parameter_value_list_id")
         if key == "parameter_value_list_id":
@@ -525,7 +546,25 @@ class ParameterDefinitionItem(ParameterItemBase):
             return dict.get(self, key)
         return super().__getitem__(key)
 
+    def _sorted_parameter_types(self):
+        self._db_map.do_fetch_all("parameter_type")
+        return sorted(
+            (
+                x
+                for x in self._db_map.mapped_table("parameter_type").valid_values()
+                if x["parameter_definition_id"] == self["id"]
+            ),
+            key=lambda i: (i["type"], i["rank"]),
+        )
+
+    def _asdict(self):
+        d = super()._asdict()
+        if "parameter_type_list" not in d:
+            d["parameter_type_list"] = self.__getitem__("parameter_type_list")
+        return d
+
     def merge(self, other):
+        errors = []
         other_parameter_value_list_id = other.get("parameter_value_list_id")
         if (
             other_parameter_value_list_id is not None
@@ -536,14 +575,146 @@ class ParameterDefinitionItem(ParameterItemBase):
             )
         ):
             del other["parameter_value_list_id"]
-            error = "can't modify the parameter value list of a parameter that already has values"
-        else:
-            error = ""
+            errors.append("can't modify the parameter value list of a parameter that already has values")
+        other_type_list = other.get("parameter_type_list")
+        if other_type_list is not None and other_type_list != self.__getitem__("parameter_type_list"):
+            try:
+                self._make_new_type_items(other_type_list)
+            except SpineDBAPIError as type_error:
+                errors.append(str(type_error))
+                del other["parameter_type_list"]
         merged, super_error = super().merge(other)
-        return merged, " and ".join([x for x in (super_error, error) if x])
+        if super_error:
+            errors.insert(0, super_error)
+        return merged, " and ".join([x for x in errors if x])
+
+    def _make_new_type_items(self, new_type_list):
+        new_types = set(new_type_list)
+        current_types = set(self["parameter_type_list"])
+        items_to_add = []
+        type_table = self._db_map.mapped_table("parameter_type")
+        class_name = self["entity_class_name"]
+        parameter_name = self["name"]
+        for type_to_add in new_types - current_types:
+            type_, rank = fancy_type_to_type_and_rank(type_to_add)
+            type_item, error = type_table.checked_item_and_error(
+                {
+                    "entity_class_name": class_name,
+                    "parameter_definition_name": parameter_name,
+                    "type": type_,
+                    "rank": rank,
+                }
+            )
+            if error:
+                raise SpineDBAPIError(error)
+            items_to_add.append(type_item)
+        return items_to_add
+
+    def _update_types(self, new_type_list, type_items_to_add):
+        new_types = set(new_type_list)
+        current_types = set(self["parameter_type_list"])
+        type_table = self._db_map.mapped_table("parameter_type")
+        class_name = self["entity_class_name"]
+        parameter_name = self["name"]
+        types_to_remove = current_types - new_types
+        for type_to_remove in types_to_remove:
+            type_, rank = fancy_type_to_type_and_rank(type_to_remove)
+            type_item = type_table.find_item_by_unique_key(
+                {
+                    "entity_class_name": class_name,
+                    "parameter_definition_name": parameter_name,
+                    "type": type_,
+                    "rank": rank,
+                }
+            )
+            type_item.cascade_remove()
+        for type_to_add in type_items_to_add:
+            type_table.add_item(type_to_add)
 
     def _value_not_in_list_error(self, parsed_value, list_name):
         return f"default value {parsed_value} of {self['name']} is not in {list_name}"
+
+    def added_to_mapped_table(self):
+        if self._init_type_list is None:
+            return
+        type_table = self._db_map.mapped_table("parameter_type")
+        for fancy_type in self._init_type_list:
+            type_, rank = fancy_type_to_type_and_rank(fancy_type)
+            item = type_table.add_item(
+                {
+                    "entity_class_id": self["entity_class_id"],
+                    "parameter_definition_id": self["id"],
+                    "type": type_,
+                    "rank": rank,
+                }
+            )
+            if not item:
+                raise RuntimeError()
+        self._init_type_list = None
+
+    def cascade_update(self):
+        updated_type_list = self.pop("_updated_parameter_type_list", None)
+        if updated_type_list is None:
+            return
+        new_type_items = self._make_new_type_items(updated_type_list)
+        self._update_types(updated_type_list, new_type_items)
+        super().cascade_update()
+
+    def update(self, other):
+        other_type_list = other.pop("parameter_type_list", None)
+        if other_type_list is not None and other_type_list != self["parameter_type_list"]:
+            other["_updated_parameter_type_list"] = other_type_list
+        super().update(other)
+
+
+class ParameterTypeItem(MappedItemBase):
+    fields = {
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "parameter_definition_name": {"type": str, "value": "The parameter name."},
+        "rank": {"type": int, "value": "The rank of the type."},
+        "type": {"type": str, "value": "The value type."},
+    }
+    unique_keys = (("entity_class_name", "parameter_definition_name", "type", "rank"),)
+    corresponding_unique_id_keys = {
+        "entity_class_name": "entity_class_id",
+        "parameter_definition_name": "parameter_definition_id",
+    }
+    _references = {"entity_class_id": ("entity_class", "id"), "parameter_definition_id": ("parameter_definition", "id")}
+    _external_fields = {
+        "entity_class_id": ("parameter_definition_id", "entity_class_id"),
+        "entity_class_name": ("entity_class_id", "name"),
+        "parameter_definition_name": ("parameter_definition_id", "name"),
+    }
+    _alt_references = {
+        ("entity_class_name",): ("entity_class", ("name",)),
+        (
+            "entity_class_name",
+            "parameter_definition_name",
+        ): ("parameter_definition", ("entity_class_name", "name")),
+    }
+    _internal_fields = {
+        "parameter_definition_id": (
+            (
+                "entity_class_name",
+                "parameter_definition_name",
+            ),
+            "id",
+        ),
+    }
+
+    def first_invalid_key(self):
+        invalid_key = super().first_invalid_key()
+        if invalid_key is not None:
+            return invalid_key
+        value_type = self["type"]
+        if value_type not in VALUE_TYPES:
+            return "type"
+        rank = self["rank"]
+        if value_type == Map.type_():
+            return "rank" if rank < 1 else None
+        if value_type in RANK_1_TYPES:
+            return "rank" if rank != 1 else None
+        return "rank" if rank != 0 else None
 
 
 class ParameterValueItem(ParameterItemBase):
@@ -708,7 +879,7 @@ class ScenarioAlternativeItem(MappedItemBase):
     def __getitem__(self, key):
         # The 'before' is to be interpreted as, this scenario alternative goes *before* the before_alternative.
         # Since ranks go from 1 to the alternative count, the first alternative will have the second as the 'before',
-        # the second will have the third, etc, and the last will have None.
+        # the second will have the third, etc., and the last will have None.
         # Note that alternatives with higher ranks overwrite the values of those with lower ranks.
         if key == "before_alternative_name":
             return self._get_ref("alternative", {"id": self["before_alternative_id"]}, strong=False).get("name")

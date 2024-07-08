@@ -549,6 +549,23 @@ class ParameterDefinitionMapping(ImportMapping):
             mapped_data.setdefault("parameter_definitions", dict())[parameter_definition_key] = definition_extras
 
 
+class ParameterTypeMapping(ImportMapping):
+    """Maps parameter types.
+
+    Cannot be used as the topmost mapping; must have a parameter definition mapping as one of parents.
+    """
+
+    MAP_TYPE = "ParameterType"
+
+    def _import_row(self, source_data, state, mapped_data):
+        parameter_type = str(source_data)
+        if not parameter_type:
+            return
+        entity_class = state[ImportKey.ENTITY_CLASS_NAME]
+        parameter = state[ImportKey.PARAMETER_NAME]
+        mapped_data.setdefault("parameter_types", []).append((entity_class, parameter, parameter_type))
+
+
 class ParameterDefaultValueMapping(ImportMapping):
     """Maps scalar (non-indexed) default values
 
@@ -1007,6 +1024,7 @@ def from_dict(serialized):
             ElementMapping,
             EntityAlternativeActivityMapping,
             ParameterDefinitionMapping,
+            ParameterTypeMapping,
             ParameterDefaultValueMapping,
             ParameterDefaultValueTypeMapping,
             DefaultValueIndexNameMapping,

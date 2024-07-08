@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Unit tests for import_functions.py. """
-
+import pathlib
+from tempfile import TemporaryDirectory
 import unittest
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.import_functions import (
@@ -24,6 +25,8 @@ from spinedb_api.import_functions import (
     import_object_parameter_values,
     import_object_parameters,
     import_objects,
+    import_parameter_definitions,
+    import_parameter_types,
     import_parameter_value_lists,
     import_relationship_classes,
     import_relationship_metadata,
@@ -89,20 +92,22 @@ class TestIntegrationImportData(ImportsTestCase):
             scenarios = [["example_scenario", True, "An example"]]
             scenario_alternatives = [["example_scenario", "example_alternative"]]
 
-            num_imports = self._assert_success(import_data(
-                db_map,
-                object_classes=object_c,
-                relationship_classes=relationship_c,
-                object_parameters=obj_parameters,
-                relationship_parameters=rel_parameters,
-                objects=objects,
-                relationships=relationships,
-                object_parameter_values=object_p_values,
-                relationship_parameter_values=rel_p_values,
-                alternatives=alternatives,
-                scenarios=scenarios,
-                scenario_alternatives=scenario_alternatives,
-            ))
+            num_imports = self._assert_success(
+                import_data(
+                    db_map,
+                    object_classes=object_c,
+                    relationship_classes=relationship_c,
+                    object_parameters=obj_parameters,
+                    relationship_parameters=rel_parameters,
+                    objects=objects,
+                    relationships=relationships,
+                    object_parameter_values=object_p_values,
+                    relationship_parameter_values=rel_p_values,
+                    alternatives=alternatives,
+                    scenarios=scenarios,
+                    scenario_alternatives=scenario_alternatives,
+                )
+            )
         self.assertEqual(num_imports, 13)
 
 
@@ -158,7 +163,9 @@ class TestImportRelationshipClass(ImportsTestCase):
     def test_import_valid_relationship_class(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_object_classes(db_map, ["object_class1", "object_class2"])
-            _, errors = import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
+            _, errors = import_relationship_classes(
+                db_map, [["relationship_class", ["object_class1", "object_class2"]]]
+            )
             self.assertFalse(errors)
             db_map.commit_session("test")
             relationship_classes = {
@@ -384,7 +391,9 @@ class TestImportRelationship(ImportsTestCase):
     def test_import_valid_relationship(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            self._assert_success(import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]]))
+            self._assert_success(
+                import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
+            )
             self._assert_success(import_relationships(db_map, [["relationship_class", ["object1", "object2"]]]))
             db_map.commit_session("test")
             self.assertIn("object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
@@ -392,8 +401,12 @@ class TestImportRelationship(ImportsTestCase):
     def test_import_valid_relationship_with_object_name_in_multiple_classes(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            self._assert_success(import_objects(db_map, [["object_class1", "duplicate"], ["object_class2", "duplicate"]]))
-            self._assert_success(import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]]))
+            self._assert_success(
+                import_objects(db_map, [["object_class1", "duplicate"], ["object_class2", "duplicate"]])
+            )
+            self._assert_success(
+                import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
+            )
             self._assert_success(import_relationships(db_map, [["relationship_class", ["duplicate", "object2"]]]))
             db_map.commit_session("test")
             self.assertIn("duplicate__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
@@ -409,7 +422,9 @@ class TestImportRelationship(ImportsTestCase):
     def test_import_relationship_with_invalid_object_name(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            self._assert_success(import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]]))
+            self._assert_success(
+                import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
+            )
             _, errors = import_relationships(db_map, [["relationship_class", ["nonexistent_object", "object2"]]])
             self.assertTrue(errors)
             db_map.commit_session("test")
@@ -418,7 +433,9 @@ class TestImportRelationship(ImportsTestCase):
     def test_import_existing_relationship(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            self._assert_success(import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]]))
+            self._assert_success(
+                import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
+            )
             self._assert_success(import_relationships(db_map, [["relationship_class", ["object1", "object2"]]]))
             db_map.commit_session("test")
             self.assertIn("object1__object2", [r.name for r in db_map.query(db_map.relationship_sq)])
@@ -436,17 +453,19 @@ class TestImportRelationship(ImportsTestCase):
 
     def test_import_multi_d_entity_with_elements_from_superclass(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_success(import_data(
-                db_map,
-                entity_classes=[
-                    ["object_class1", []],
-                    ["object_class2", []],
-                    ["superclass", []],
-                    ["relationship_class1", ["superclass", "superclass"]],
-                ],
-                superclass_subclasses=[["superclass", "object_class1"], ["superclass", "object_class2"]],
-                entities=[["object_class1", "object1"], ["object_class2", "object2"]],
-            ))
+            self._assert_success(
+                import_data(
+                    db_map,
+                    entity_classes=[
+                        ["object_class1", []],
+                        ["object_class2", []],
+                        ["superclass", []],
+                        ["relationship_class1", ["superclass", "superclass"]],
+                    ],
+                    superclass_subclasses=[["superclass", "object_class1"], ["superclass", "object_class2"]],
+                    entities=[["object_class1", "object1"], ["object_class2", "object2"]],
+                )
+            )
             self._assert_success(import_data(db_map, entities=[["relationship_class1", ["object1", "object2"]]]))
             db_map.commit_session("test")
             entities = {
@@ -460,17 +479,19 @@ class TestImportRelationship(ImportsTestCase):
 
     def test_import_multi_d_entity_with_elements_from_superclass_fails_with_wrong_dimension_count(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_success(import_data(
-                db_map,
-                entity_classes=[
-                    ["object_class1", []],
-                    ["object_class2", []],
-                    ["superclass", []],
-                    ["relationship_class1", ["superclass", "superclass"]],
-                ],
-                superclass_subclasses=[["superclass", "object_class1"], ["superclass", "object_class2"]],
-                entities=[["object_class1", "object1"], ["object_class2", "object2"]],
-            ))
+            self._assert_success(
+                import_data(
+                    db_map,
+                    entity_classes=[
+                        ["object_class1", []],
+                        ["object_class2", []],
+                        ["superclass", []],
+                        ["relationship_class1", ["superclass", "superclass"]],
+                    ],
+                    superclass_subclasses=[["superclass", "object_class1"], ["superclass", "object_class2"]],
+                    entities=[["object_class1", "object1"], ["object_class2", "object2"]],
+                )
+            )
             _, errors = import_data(db_map, entities=[["relationship_class1", ["object1"]]])
             self.assertEqual(len(errors), 1)
             self.assertIn("too few elements", errors[0])
@@ -481,18 +502,25 @@ class TestImportRelationship(ImportsTestCase):
     def test_import_multi_d_entity_with_multi_d_elements(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            self._assert_success(import_data(
-                db_map,
-                entity_classes=[
-                    ["relationship_class1", ["object_class1", "object_class2"]],
-                    ["relationship_class2", ["object_class2", "object_class1"]],
-                    ["meta_relationship_class", ["relationship_class1", "relationship_class2"]],
-                ],
-                entities=[["relationship_class1", ["object1", "object2"]], ["relationship_class2", ["object2", "object1"]]],
-            ))
-            self._assert_success(import_data(
-                db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2", "object1"]]]
-            ))
+            self._assert_success(
+                import_data(
+                    db_map,
+                    entity_classes=[
+                        ["relationship_class1", ["object_class1", "object_class2"]],
+                        ["relationship_class2", ["object_class2", "object_class1"]],
+                        ["meta_relationship_class", ["relationship_class1", "relationship_class2"]],
+                    ],
+                    entities=[
+                        ["relationship_class1", ["object1", "object2"]],
+                        ["relationship_class2", ["object2", "object1"]],
+                    ],
+                )
+            )
+            self._assert_success(
+                import_data(
+                    db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2", "object1"]]]
+                )
+            )
             db_map.commit_session("test")
             entities = {
                 tuple(r.element_name_list.split(",")) if r.element_name_list else r.name: r.name
@@ -508,23 +536,35 @@ class TestImportRelationship(ImportsTestCase):
     def test_import_multi_d_entity_with_multi_d_elements_from_superclass(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            self._assert_success(import_data(
-                db_map,
-                entity_classes=[
-                    ["relationship_class1", ["object_class1", "object_class2"]],
-                    ["relationship_class2", ["object_class2", "object_class1"]],
-                    ["superclass", []],
-                ],
-                superclass_subclasses=[["superclass", "relationship_class1"], ["superclass", "relationship_class2"]],
-            ))
-            self._assert_success(import_data(
-                db_map,
-                entity_classes=[["meta_relationship_class", ["superclass", "superclass"]]],
-                entities=[["relationship_class1", ["object1", "object2"]], ["relationship_class2", ["object2", "object1"]]],
-            ))
-            self._assert_success(import_data(
-                db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2", "object1"]]]
-            ))
+            self._assert_success(
+                import_data(
+                    db_map,
+                    entity_classes=[
+                        ["relationship_class1", ["object_class1", "object_class2"]],
+                        ["relationship_class2", ["object_class2", "object_class1"]],
+                        ["superclass", []],
+                    ],
+                    superclass_subclasses=[
+                        ["superclass", "relationship_class1"],
+                        ["superclass", "relationship_class2"],
+                    ],
+                )
+            )
+            self._assert_success(
+                import_data(
+                    db_map,
+                    entity_classes=[["meta_relationship_class", ["superclass", "superclass"]]],
+                    entities=[
+                        ["relationship_class1", ["object1", "object2"]],
+                        ["relationship_class2", ["object2", "object1"]],
+                    ],
+                )
+            )
+            self._assert_success(
+                import_data(
+                    db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2", "object1"]]]
+                )
+            )
             db_map.commit_session("test")
             entities = {
                 tuple(r.element_name_list.split(",")) if r.element_name_list else r.name: r.name
@@ -540,20 +580,30 @@ class TestImportRelationship(ImportsTestCase):
     def test_import_multi_d_entity_with_multi_d_elements_from_superclass_fails_with_wrong_dimension_count(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            self._assert_success(import_data(
-                db_map,
-                entity_classes=[
-                    ["relationship_class1", ["object_class1", "object_class2"]],
-                    ["relationship_class2", ["object_class2", "object_class1"]],
-                    ["superclass", []],
-                ],
-                superclass_subclasses=[["superclass", "relationship_class1"], ["superclass", "relationship_class2"]],
-            ))
-            self._assert_success(import_data(
-                db_map,
-                entity_classes=[["meta_relationship_class", ["superclass", "superclass"]]],
-                entities=[["relationship_class1", ["object1", "object2"]], ["relationship_class2", ["object2", "object1"]]],
-            ))
+            self._assert_success(
+                import_data(
+                    db_map,
+                    entity_classes=[
+                        ["relationship_class1", ["object_class1", "object_class2"]],
+                        ["relationship_class2", ["object_class2", "object_class1"]],
+                        ["superclass", []],
+                    ],
+                    superclass_subclasses=[
+                        ["superclass", "relationship_class1"],
+                        ["superclass", "relationship_class2"],
+                    ],
+                )
+            )
+            self._assert_success(
+                import_data(
+                    db_map,
+                    entity_classes=[["meta_relationship_class", ["superclass", "superclass"]]],
+                    entities=[
+                        ["relationship_class1", ["object1", "object2"]],
+                        ["relationship_class2", ["object2", "object1"]],
+                    ],
+                )
+            )
             _, errors = import_data(db_map, entities=[["meta_relationship_class", ["object1", "object2", "object2"]]])
             self.assertEqual(len(errors), 1)
             self.assertIn("too few elements", errors[0])
@@ -595,7 +645,9 @@ class TestImportParameterDefinition(ImportsTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(import_object_classes(db_map, ["my_object_class"]))
             self._assert_success(import_parameter_value_lists(db_map, (("my_list", 99.0),)))
-            count = self._assert_success(import_object_parameters(db_map, (("my_object_class", "my_parameter", None, "my_list"),)))
+            count = self._assert_success(
+                import_object_parameters(db_map, (("my_object_class", "my_parameter", None, "my_list"),))
+            )
             self.assertEqual(count, 1)
             db_map.commit_session("Add test data.")
             parameter_definitions = [dict(row) for row in db_map.query(db_map.object_parameter_definition_sq)]
@@ -622,7 +674,9 @@ class TestImportParameterDefinition(ImportsTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(import_object_classes(db_map, ["my_object_class"]))
             self._assert_success(import_parameter_value_lists(db_map, (("my_list", 99.0),)))
-            count = self._assert_success(import_object_parameters(db_map, (("my_object_class", "my_parameter", 99.0, "my_list"),)))
+            count = self._assert_success(
+                import_object_parameters(db_map, (("my_object_class", "my_parameter", 99.0, "my_list"),))
+            )
             self.assertEqual(count, 1)
             db_map.commit_session("Add test data.")
             parameter_definitions = [dict(row) for row in db_map.query(db_map.object_parameter_definition_sq)]
@@ -654,6 +708,79 @@ class TestImportParameterDefinition(ImportsTestCase):
             self.assertEqual(count, 0)
 
 
+class TestImportParameterType(ImportsTestCase):
+    def test_basic_types_without_rank(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(import_entity_classes(db_map, ["Gadget"]))
+            self._assert_success(import_parameter_definitions(db_map, [("Gadget", "width")]))
+            self._assert_success(import_parameter_types(db_map, [("Gadget", "width", "float")]))
+            self._assert_success(import_parameter_types(db_map, [("Gadget", "width", "bool")]))
+            self._assert_success(import_parameter_types(db_map, [("Gadget", "width", "str")]))
+            self._assert_success(import_parameter_types(db_map, [("Gadget", "width", "array")]))
+            self._assert_success(import_parameter_types(db_map, [("Gadget", "width", "time_pattern")]))
+            self._assert_success(import_parameter_types(db_map, [("Gadget", "width", "time_series")]))
+            db_map.commit_session("Add parameter with types.")
+            definition = db_map.query(db_map.parameter_definition_sq).one()
+            types = (
+                db_map.query(db_map.parameter_type_sq)
+                .filter(db_map.parameter_type_sq.c.parameter_definition_id == definition.id)
+                .all()
+            )
+            self.assertEqual(len(types), 6)
+            expected_types = ["float", "bool", "str", "array", "time_pattern", "time_series"]
+            self.assertCountEqual([t.type for t in types], expected_types)
+            expected_ranks = {"float": 0, "bool": 0, "str": 0, "array": 1, "time_pattern": 1, "time_series": 1}
+            for t in types:
+                with self.subTest(type=t.type):
+                    self.assertEqual(t.rank, expected_ranks[t.type])
+
+    def test_map_with_intrinsic_rank(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(import_entity_classes(db_map, ["Gadget"]))
+            self._assert_success(import_parameter_definitions(db_map, [("Gadget", "width")]))
+            self._assert_success(import_parameter_types(db_map, [("Gadget", "width", "1d_map")]))
+            self._assert_success(import_parameter_types(db_map, [("Gadget", "width", "2d_map")]))
+            self._assert_success(import_parameter_types(db_map, [("Gadget", "width", "23d_map")]))
+            db_map.commit_session("Add parameter with types.")
+            definition = db_map.query(db_map.parameter_definition_sq).one()
+            types = (
+                db_map.query(db_map.parameter_type_sq)
+                .filter(db_map.parameter_type_sq.c.parameter_definition_id == definition.id)
+                .all()
+            )
+            self.assertEqual(len(types), 3)
+            expected_types = ["map", "map", "map"]
+            self.assertCountEqual([t.type for t in types], expected_types)
+            expected_ranks = {1, 2, 23}
+            self.assertEqual({t.rank for t in types}, expected_ranks)
+
+    def test_map_with_explicit_rank(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(import_entity_classes(db_map, ["Gadget"]))
+            self._assert_success(import_parameter_definitions(db_map, [("Gadget", "width")]))
+            self._assert_success(import_parameter_types(db_map, [("Gadget", "width", "map", 23)]))
+            db_map.commit_session("Add parameter with types.")
+            definition = db_map.query(db_map.parameter_definition_sq).one()
+            parameter_type = (
+                db_map.query(db_map.parameter_type_sq)
+                .filter(db_map.parameter_type_sq.c.parameter_definition_id == definition.id)
+                .one()
+            )
+            self.assertEqual(parameter_type.type, "map")
+            self.assertEqual(parameter_type.rank, 23)
+
+    def test_map_rank_reading_fails(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(import_entity_classes(db_map, ["Gadget"]))
+            self._assert_success(import_parameter_definitions(db_map, [("Gadget", "width")]))
+            count, errors = import_parameter_types(db_map, [("Gadget", "width", "xd_map")])
+            self.assertEqual(errors, ["Failed to read rank from type 'xd_map' for parameter width in class Gadget"])
+            self.assertEqual(count, 0)
+            count, errors = import_parameter_types(db_map, [("Gadget", "width", "map")])
+            self.assertEqual(errors, ["Missing rank for map type for parameter width in class Gadget"])
+            self.assertEqual(count, 0)
+
+
 class TestImportParameterValue(ImportsTestCase):
     def populate(self, db_map):
         self._assert_success(import_object_classes(db_map, ["object_class1", "object_class2"]))
@@ -662,7 +789,9 @@ class TestImportParameterValue(ImportsTestCase):
 
     def populate_with_relationship(self, db_map):
         self.populate(db_map)
-        self._assert_success(import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]]))
+        self._assert_success(
+            import_relationship_classes(db_map, [["relationship_class", ["object_class1", "object_class2"]]])
+        )
         self._assert_success(import_relationship_parameters(db_map, [["relationship_class", "parameter"]]))
         self._assert_success(import_relationships(db_map, [["relationship_class", ["object1", "object2"]]]))
 
@@ -678,7 +807,9 @@ class TestImportParameterValue(ImportsTestCase):
     def test_import_valid_object_parameter_value_string(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            self._assert_success(import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "value_string"]]))
+            self._assert_success(
+                import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "value_string"]])
+            )
             db_map.commit_session("test")
             values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
             expected = {"object1": b'"value_string"'}
@@ -687,10 +818,16 @@ class TestImportParameterValue(ImportsTestCase):
     def test_import_valid_object_parameter_value_with_duplicate_object_name(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            self._assert_success(import_objects(db_map, [["object_class1", "duplicate_object"], ["object_class2", "duplicate_object"]]))
-            self._assert_success(import_object_parameter_values(db_map, [["object_class1", "duplicate_object", "parameter", 1]]))
+            self._assert_success(
+                import_objects(db_map, [["object_class1", "duplicate_object"], ["object_class2", "duplicate_object"]])
+            )
+            self._assert_success(
+                import_object_parameter_values(db_map, [["object_class1", "duplicate_object", "parameter", 1]])
+            )
             db_map.commit_session("test")
-            values = {v.object_class_name: {v.object_name: v.value} for v in db_map.query(db_map.object_parameter_value_sq)}
+            values = {
+                v.object_class_name: {v.object_name: v.value} for v in db_map.query(db_map.object_parameter_value_sq)
+            }
             expected = {"object_class1": {"duplicate_object": b"1"}}
             self.assertEqual(values, expected)
 
@@ -700,7 +837,9 @@ class TestImportParameterValue(ImportsTestCase):
             self._assert_success(import_object_parameters(db_map, [["object_class2", "parameter"]]))
             self._assert_success(import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", 1]]))
             db_map.commit_session("test")
-            values = {v.object_class_name: {v.object_name: v.value} for v in db_map.query(db_map.object_parameter_value_sq)}
+            values = {
+                v.object_class_name: {v.object_name: v.value} for v in db_map.query(db_map.object_parameter_value_sq)
+            }
             expected = {"object_class1": {"object1": b"1"}}
             self.assertEqual(values, expected)
 
@@ -725,8 +864,12 @@ class TestImportParameterValue(ImportsTestCase):
     def test_import_existing_object_parameter_value_update_the_value(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            self._assert_success(import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "initial_value"]]))
-            self._assert_success(import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "new_value"]]))
+            self._assert_success(
+                import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "initial_value"]])
+            )
+            self._assert_success(
+                import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", "new_value"]])
+            )
             db_map.commit_session("test")
             values = {v.object_name: v.value for v in db_map.query(db_map.object_parameter_value_sq)}
             expected = {"object1": b'"new_value"'}
@@ -737,7 +880,9 @@ class TestImportParameterValue(ImportsTestCase):
             self.populate(db_map)
             initial_value = {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}
             new_value = {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}
-            self._assert_success(import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]]))
+            self._assert_success(
+                import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]])
+            )
             _, errors = import_object_parameter_values(
                 db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="keep"
             )
@@ -753,10 +898,14 @@ class TestImportParameterValue(ImportsTestCase):
             self.populate(db_map)
             initial_value = {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}
             new_value = {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}
-            self._assert_success(import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]]))
-            self._assert_success(import_object_parameter_values(
-                db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="replace"
-            ))
+            self._assert_success(
+                import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]])
+            )
+            self._assert_success(
+                import_object_parameter_values(
+                    db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="replace"
+                )
+            )
             db_map.commit_session("test")
             pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
             value = from_database(pv.value, pv.type)
@@ -768,10 +917,14 @@ class TestImportParameterValue(ImportsTestCase):
             self.populate(db_map)
             initial_value = {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}
             new_value = {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}
-            self._assert_success(import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]]))
-            self._assert_success(import_object_parameter_values(
-                db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="merge"
-            ))
+            self._assert_success(
+                import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]])
+            )
+            self._assert_success(
+                import_object_parameter_values(
+                    db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="merge"
+                )
+            )
             db_map.commit_session("test")
             pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
             value = from_database(pv.value, pv.type)
@@ -786,17 +939,25 @@ class TestImportParameterValue(ImportsTestCase):
             initial_value = {
                 "type": "map",
                 "index_type": "str",
-                "data": {"xxx": {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}},
+                "data": {
+                    "xxx": {"type": "time_series", "data": [("2000-01-01T01:00", "1"), ("2000-01-01T02:00", "2")]}
+                },
             }
             new_value = {
                 "type": "map",
                 "index_type": "str",
-                "data": {"xxx": {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}},
+                "data": {
+                    "xxx": {"type": "time_series", "data": [("2000-01-01T02:00", "3"), ("2000-01-01T03:00", "4")]}
+                },
             }
-            self._assert_success(import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]]))
-            self._assert_success(import_object_parameter_values(
-                db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="merge"
-            ))
+            self._assert_success(
+                import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", initial_value]])
+            )
+            self._assert_success(
+                import_object_parameter_values(
+                    db_map, [["object_class1", "object1", "parameter", new_value]], on_conflict="merge"
+                )
+            )
             db_map.commit_session("test")
             pv = db_map.query(db_map.object_parameter_value_sq).filter_by(object_name="object1").first()
             map_ = from_database(pv.value, pv.type)
@@ -812,7 +973,10 @@ class TestImportParameterValue(ImportsTestCase):
             self.populate(db_map)
             _, errors = import_object_parameter_values(
                 db_map,
-                [["object_class1", "object1", "parameter", "first"], ["object_class1", "object1", "parameter", "second"]],
+                [
+                    ["object_class1", "object1", "parameter", "first"],
+                    ["object_class1", "object1", "parameter", "second"],
+                ],
             )
             self.assertTrue(errors)
             db_map.commit_session("test")
@@ -824,13 +988,14 @@ class TestImportParameterValue(ImportsTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
             self._assert_success(import_alternatives(db_map, ["alternative"]))
-            count = self._assert_success(import_object_parameter_values(
-                db_map, [["object_class1", "object1", "parameter", 1, "alternative"]]
-            ))
+            count = self._assert_success(
+                import_object_parameter_values(db_map, [["object_class1", "object1", "parameter", 1, "alternative"]])
+            )
             self.assertEqual(count, 1)
             db_map.commit_session("test")
             values = {
-                v.object_name: (v.value, v.alternative_name) for v in db_map.query(db_map.object_parameter_value_sq).all()
+                v.object_name: (v.value, v.alternative_name)
+                for v in db_map.query(db_map.object_parameter_value_sq).all()
             }
             expected = {"object1": (b"1", "alternative")}
             self.assertEqual(values, expected)
@@ -848,13 +1013,15 @@ class TestImportParameterValue(ImportsTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(import_data(db_map, parameter_value_lists=(("values_1", 5.0),)))
             db_map.commit_session("test")
-            count = self._assert_success(import_data(
-                db_map,
-                object_classes=("object_class",),
-                object_parameters=(("object_class", "parameter", None, "values_1"),),
-                objects=(("object_class", "my_object"),),
-                object_parameter_values=(("object_class", "my_object", "parameter", 5.0),),
-            ))
+            count = self._assert_success(
+                import_data(
+                    db_map,
+                    object_classes=("object_class",),
+                    object_parameters=(("object_class", "parameter", None, "values_1"),),
+                    objects=(("object_class", "my_object"),),
+                    object_parameter_values=(("object_class", "my_object", "parameter", 5.0),),
+                )
+            )
             self.assertEqual(count, 4)
             db_map.commit_session("test")
             values = db_map.query(db_map.object_parameter_value_sq).all()
@@ -867,7 +1034,9 @@ class TestImportParameterValue(ImportsTestCase):
             self._assert_success(import_object_classes(db_map, ("object_class",)))
             self._assert_success(import_object_parameters(db_map, (("object_class", "parameter", None, "values_1"),)))
             self._assert_success(import_objects(db_map, (("object_class", "my_object"),)))
-            count = self._assert_success(import_object_parameter_values(db_map, (("object_class", "my_object", "parameter", 5.0),)))
+            count = self._assert_success(
+                import_object_parameter_values(db_map, (("object_class", "my_object", "parameter", 5.0),))
+            )
             self.assertEqual(count, 1)
             db_map.commit_session("test")
             values = db_map.query(db_map.object_parameter_value_sq).all()
@@ -888,9 +1057,11 @@ class TestImportParameterValue(ImportsTestCase):
     def test_import_valid_relationship_parameter_value(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate_with_relationship(db_map)
-            self._assert_success(import_relationship_parameter_values(
-                db_map, [["relationship_class", ["object1", "object2"], "parameter", 1]]
-            ))
+            self._assert_success(
+                import_relationship_parameter_values(
+                    db_map, [["relationship_class", ["object1", "object2"], "parameter", 1]]
+                )
+            )
             db_map.commit_session("test")
             values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
             expected = {"object1,object2": b"1"}
@@ -899,11 +1070,15 @@ class TestImportParameterValue(ImportsTestCase):
     def test_import_valid_relationship_parameter_value_with_duplicate_parameter_name(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate_with_relationship(db_map)
-            self._assert_success(import_relationship_classes(db_map, [["relationship_class2", ["object_class2", "object_class1"]]]))
+            self._assert_success(
+                import_relationship_classes(db_map, [["relationship_class2", ["object_class2", "object_class1"]]])
+            )
             self._assert_success(import_relationship_parameters(db_map, [["relationship_class2", "parameter"]]))
-            self._assert_success(import_relationship_parameter_values(
-                db_map, [["relationship_class", ["object1", "object2"], "parameter", 1]]
-            ))
+            self._assert_success(
+                import_relationship_parameter_values(
+                    db_map, [["relationship_class", ["object1", "object2"], "parameter", 1]]
+                )
+            )
             db_map.commit_session("test")
             values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
             expected = {"object1,object2": b"1"}
@@ -912,11 +1087,17 @@ class TestImportParameterValue(ImportsTestCase):
     def test_import_valid_relationship_parameter_value_with_duplicate_object_name(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate_with_relationship(db_map)
-            self._assert_success(import_objects(db_map, [["object_class1", "duplicate_object"], ["object_class2", "duplicate_object"]]))
-            self._assert_success(import_relationships(db_map, [["relationship_class", ["duplicate_object", "duplicate_object"]]]))
-            self._assert_success(import_relationship_parameter_values(
-                db_map, [["relationship_class", ["duplicate_object", "duplicate_object"], "parameter", 1]]
-            ))
+            self._assert_success(
+                import_objects(db_map, [["object_class1", "duplicate_object"], ["object_class2", "duplicate_object"]])
+            )
+            self._assert_success(
+                import_relationships(db_map, [["relationship_class", ["duplicate_object", "duplicate_object"]]])
+            )
+            self._assert_success(
+                import_relationship_parameter_values(
+                    db_map, [["relationship_class", ["duplicate_object", "duplicate_object"], "parameter", 1]]
+                )
+            )
             db_map.commit_session("test")
             values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
             expected = {"duplicate_object,duplicate_object": b"1"}
@@ -955,12 +1136,16 @@ class TestImportParameterValue(ImportsTestCase):
     def test_import_existing_relationship_parameter_value(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate_with_relationship(db_map)
-            self._assert_success(import_relationship_parameter_values(
-                db_map, [["relationship_class", ["object1", "object2"], "parameter", "initial_value"]]
-            ))
-            self._assert_success(import_relationship_parameter_values(
-                db_map, [["relationship_class", ["object1", "object2"], "parameter", "new_value"]]
-            ))
+            self._assert_success(
+                import_relationship_parameter_values(
+                    db_map, [["relationship_class", ["object1", "object2"], "parameter", "initial_value"]]
+                )
+            )
+            self._assert_success(
+                import_relationship_parameter_values(
+                    db_map, [["relationship_class", ["object1", "object2"], "parameter", "new_value"]]
+                )
+            )
             db_map.commit_session("test")
             values = {v.object_name_list: v.value for v in db_map.query(db_map.relationship_parameter_value_sq)}
             expected = {"object1,object2": b'"new_value"'}
@@ -986,9 +1171,11 @@ class TestImportParameterValue(ImportsTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate_with_relationship(db_map)
             self._assert_success(import_alternatives(db_map, ["alternative"]))
-            count = self._assert_success(import_relationship_parameter_values(
-                db_map, [["relationship_class", ["object1", "object2"], "parameter", 1, "alternative"]]
-            ))
+            count = self._assert_success(
+                import_relationship_parameter_values(
+                    db_map, [["relationship_class", ["object1", "object2"], "parameter", 1, "alternative"]]
+                )
+            )
             self.assertEqual(count, 1)
             db_map.commit_session("test")
             values = {
@@ -1013,11 +1200,15 @@ class TestImportParameterValue(ImportsTestCase):
             self._assert_success(import_object_classes(db_map, ("object_class",)))
             self._assert_success(import_objects(db_map, (("object_class", "my_object"),)))
             self._assert_success(import_relationship_classes(db_map, (("relationship_class", ("object_class",)),)))
-            self._assert_success(import_relationship_parameters(db_map, (("relationship_class", "parameter", None, "values_1"),)))
+            self._assert_success(
+                import_relationship_parameters(db_map, (("relationship_class", "parameter", None, "values_1"),))
+            )
             self._assert_success(import_relationships(db_map, (("relationship_class", ("my_object",)),)))
-            count = self._assert_success(import_relationship_parameter_values(
-                db_map, (("relationship_class", ("my_object",), "parameter", 5.0),)
-            ))
+            count = self._assert_success(
+                import_relationship_parameter_values(
+                    db_map, (("relationship_class", ("my_object",), "parameter", 5.0),)
+                )
+            )
             self.assertEqual(count, 1)
             db_map.commit_session("test")
             values = db_map.query(db_map.relationship_parameter_value_sq).all()
@@ -1031,7 +1222,9 @@ class TestImportParameterValue(ImportsTestCase):
             self._assert_success(import_object_classes(db_map, ("object_class",)))
             self._assert_success(import_objects(db_map, (("object_class", "my_object"),)))
             self._assert_success(import_relationship_classes(db_map, (("relationship_class", ("object_class",)),)))
-            self._assert_success(import_relationship_parameters(db_map, (("relationship_class", "parameter", None, "values_1"),)))
+            self._assert_success(
+                import_relationship_parameters(db_map, (("relationship_class", "parameter", None, "values_1"),))
+            )
             self._assert_success(import_relationships(db_map, (("relationship_class", ("my_object",)),)))
             count, errors = import_relationship_parameter_values(
                 db_map, (("relationship_class", ("my_object",), "parameter", 2.3),)
@@ -1194,24 +1387,38 @@ class TestImportScenarioAlternative(ImportsTestCase):
 
     def test_scenario_alternative_import_multiple_without_before_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_success(import_data(db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2"]))
-            count = self._assert_success(import_scenario_alternatives(
-                db_map, [["scenario", "alternative1"], ["scenario", "alternative2"]]
-            ))
+            self._assert_success(
+                import_data(db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2"])
+            )
+            count = self._assert_success(
+                import_scenario_alternatives(db_map, [["scenario", "alternative1"], ["scenario", "alternative2"]])
+            )
             self.assertEqual(count, 2)
             scenario_alternatives = self.scenario_alternatives(db_map)
             self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 1, "alternative2": 2}})
 
     def test_scenario_alternative_import_multiple_with_before_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_success(import_data(db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2", "alternative3"]))
-            count = self._assert_success(import_scenario_alternatives(
-                db_map,
-                [["scenario", "alternative1"], ["scenario", "alternative3"], ["scenario", "alternative2", "alternative3"]],
-            ))
+            self._assert_success(
+                import_data(
+                    db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2", "alternative3"]
+                )
+            )
+            count = self._assert_success(
+                import_scenario_alternatives(
+                    db_map,
+                    [
+                        ["scenario", "alternative1"],
+                        ["scenario", "alternative3"],
+                        ["scenario", "alternative2", "alternative3"],
+                    ],
+                )
+            )
             self.assertEqual(count, 3)
             scenario_alternatives = self.scenario_alternatives(db_map)
-            self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 1, "alternative2": 2, "alternative3": 3}})
+            self.assertEqual(
+                scenario_alternatives, {"scenario": {"alternative1": 1, "alternative2": 2, "alternative3": 3}}
+            )
 
     def test_fails_with_nonexistent_before_alternative(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1232,71 +1439,99 @@ class TestImportScenarioAlternative(ImportsTestCase):
 
     def test_importing_existing_scenario_alternative_does_not_alter_scenario_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_success(import_data(db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2"]))
-            count = self._assert_success(import_scenario_alternatives(
-                db_map,
-                [["scenario", "alternative2", "alternative1"], ["scenario", "alternative1"]],
-            ))
+            self._assert_success(
+                import_data(db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2"])
+            )
+            count = self._assert_success(
+                import_scenario_alternatives(
+                    db_map,
+                    [["scenario", "alternative2", "alternative1"], ["scenario", "alternative1"]],
+                )
+            )
             self.assertEqual(count, 2)
             scenario_alternatives = self.scenario_alternatives(db_map)
             self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative2": 1}})
-            count = self._assert_success(import_scenario_alternatives(
-                db_map,
-                [["scenario", "alternative1"]],
-            ))
+            count = self._assert_success(
+                import_scenario_alternatives(
+                    db_map,
+                    [["scenario", "alternative1"]],
+                )
+            )
             self.assertEqual(count, 0)
 
     def test_import_scenario_alternatives_in_arbitrary_order(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             count = self._assert_success(import_scenarios(db_map, [("A (1)", False, "")]))
             self.assertEqual(count, 1)
-            count = self._assert_success(import_alternatives(
-                db_map, [("Base", "Base alternative"), ("b", ""), ("c", ""), ("d", "")]
-            ))
+            count = self._assert_success(
+                import_alternatives(db_map, [("Base", "Base alternative"), ("b", ""), ("c", ""), ("d", "")])
+            )
             self.assertEqual(count, 3)
-            count = self._assert_success(import_scenario_alternatives(
-                db_map, [("A (1)", "c", "d"), ("A (1)", "d", None), ("A (1)", "Base", "b"), ("A (1)", "b", "c")]
-            ))
+            count = self._assert_success(
+                import_scenario_alternatives(
+                    db_map, [("A (1)", "c", "d"), ("A (1)", "d", None), ("A (1)", "Base", "b"), ("A (1)", "b", "c")]
+                )
+            )
             self.assertEqual(count, 4)
             scenario_alternatives = self.scenario_alternatives(db_map)
             self.assertEqual(scenario_alternatives, {"A (1)": {"Base": 1, "b": 2, "c": 3, "d": 4}})
 
     def test_insert_scenario_alternative_in_the_middle_of_other_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_success(import_data(db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2", "alternative3"]))
-            count = self._assert_success(import_scenario_alternatives(
-                db_map,
-                [["scenario", "alternative2", "alternative1"], ["scenario", "alternative1"]],
-            ))
+            self._assert_success(
+                import_data(
+                    db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2", "alternative3"]
+                )
+            )
+            count = self._assert_success(
+                import_scenario_alternatives(
+                    db_map,
+                    [["scenario", "alternative2", "alternative1"], ["scenario", "alternative1"]],
+                )
+            )
             self.assertEqual(count, 2)
             scenario_alternatives = self.scenario_alternatives(db_map)
             self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative2": 1}})
-            count = self._assert_success(import_scenario_alternatives(db_map, [["scenario", "alternative3", "alternative1"]]))
+            count = self._assert_success(
+                import_scenario_alternatives(db_map, [["scenario", "alternative3", "alternative1"]])
+            )
             self.assertEqual(count, 2)
             scenario_alternatives = self.scenario_alternatives(db_map)
-            self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 3, "alternative2": 1, "alternative3": 2}})
+            self.assertEqual(
+                scenario_alternatives, {"scenario": {"alternative1": 3, "alternative2": 1, "alternative3": 2}}
+            )
 
     def test_import_inconsistent_scenario_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_success(import_data(db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2", "alternative3"]))
-            count = self._assert_success(import_scenario_alternatives(
-                db_map,
-                [["scenario", "alternative3", "alternative1"], ["scenario", "alternative1"]],
-            ))
+            self._assert_success(
+                import_data(
+                    db_map, scenarios=["scenario"], alternatives=["alternative1", "alternative2", "alternative3"]
+                )
+            )
+            count = self._assert_success(
+                import_scenario_alternatives(
+                    db_map,
+                    [["scenario", "alternative3", "alternative1"], ["scenario", "alternative1"]],
+                )
+            )
             self.assertEqual(count, 2)
             scenario_alternatives = self.scenario_alternatives(db_map)
             self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 2, "alternative3": 1}})
-            count = self._assert_success(import_scenario_alternatives(
-                db_map,
-                [
-                    ["scenario", "alternative3", "alternative2"],
-                    ["scenario", "alternative2", "alternative1"],
-                    ["scenario", "alternative1"],
-                ],
-            ))
+            count = self._assert_success(
+                import_scenario_alternatives(
+                    db_map,
+                    [
+                        ["scenario", "alternative3", "alternative2"],
+                        ["scenario", "alternative2", "alternative1"],
+                        ["scenario", "alternative1"],
+                    ],
+                )
+            )
             self.assertEqual(count, 2)
             scenario_alternatives = self.scenario_alternatives(db_map)
-            self.assertEqual(scenario_alternatives, {"scenario": {"alternative1": 3, "alternative2": 2, "alternative3": 1}})
+            self.assertEqual(
+                scenario_alternatives, {"scenario": {"alternative1": 3, "alternative2": 2, "alternative3": 1}}
+            )
 
     @staticmethod
     def scenario_alternatives(db_map):
@@ -1320,7 +1555,9 @@ class TestImportScenarioAlternative(ImportsTestCase):
 class TestImportMetadata(ImportsTestCase):
     def test_import_metadata(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            count = self._assert_success(import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 90}']))
+            count = self._assert_success(
+                import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 90}'])
+            )
             self.assertEqual(count, 4)
             db_map.commit_session("test")
             metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
@@ -1332,7 +1569,9 @@ class TestImportMetadata(ImportsTestCase):
 
     def test_import_metadata_with_duplicate_entry(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            count = self._assert_success(import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 17}']))
+            count = self._assert_success(
+                import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 17}'])
+            )
             self.assertEqual(count, 3)
             db_map.commit_session("test")
             metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
@@ -1343,7 +1582,9 @@ class TestImportMetadata(ImportsTestCase):
 
     def test_import_metadata_with_nested_dict(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            count = self._assert_success(import_metadata(db_map, ['{"name": "John", "info": {"age": 17, "city": "LA"}}']))
+            count = self._assert_success(
+                import_metadata(db_map, ['{"name": "John", "info": {"age": 17, "city": "LA"}}'])
+            )
             db_map.commit_session("test")
             metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
             self.assertEqual(count, 2)
@@ -1353,7 +1594,9 @@ class TestImportMetadata(ImportsTestCase):
 
     def test_import_metadata_with_nested_list(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            count = self._assert_success(import_metadata(db_map, ['{"contributors": [{"name": "John"}, {"name": "Charly"}]}']))
+            count = self._assert_success(
+                import_metadata(db_map, ['{"contributors": [{"name": "John"}, {"name": "Charly"}]}'])
+            )
             db_map.commit_session("test")
             metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
             self.assertEqual(count, 2)
@@ -1380,19 +1623,25 @@ class TestImportEntityMetadata(ImportsTestCase):
         self._assert_success(import_object_parameters(db_map, [("object_class1", "param1")]))
         self._assert_success(import_relationship_parameters(db_map, [("rel_cls1", "param2")]))
         self._assert_success(import_object_parameter_values(db_map, [("object_class1", "object1", "param1", "value1")]))
-        self._assert_success(import_relationship_parameter_values(db_map, [("rel_cls1", ("object1", "object2"), "param2", "value2")]))
-        self._assert_success(import_metadata(db_map, ['{"co-author": "John", "age": 17}', '{"co-author": "Charly", "age": 90}']))
+        self._assert_success(
+            import_relationship_parameter_values(db_map, [("rel_cls1", ("object1", "object2"), "param2", "value2")])
+        )
+        self._assert_success(
+            import_metadata(db_map, ['{"co-author": "John", "age": 17}', '{"co-author": "Charly", "age": 90}'])
+        )
 
     def test_import_object_metadata(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            count = self._assert_success(import_object_metadata(
-                db_map,
-                [
-                    ("object_class1", "object1", '{"co-author": "John", "age": 90}'),
-                    ("object_class1", "object1", '{"co-author": "Charly", "age": 17}'),
-                ],
-            ))
+            count = self._assert_success(
+                import_object_metadata(
+                    db_map,
+                    [
+                        ("object_class1", "object1", '{"co-author": "John", "age": 90}'),
+                        ("object_class1", "object1", '{"co-author": "Charly", "age": 17}'),
+                    ],
+                )
+            )
             self.assertEqual(count, 4)
             db_map.commit_session("test")
             metadata = [
@@ -1407,13 +1656,15 @@ class TestImportEntityMetadata(ImportsTestCase):
     def test_import_relationship_metadata(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.populate(db_map)
-            count = self._assert_success(import_relationship_metadata(
-                db_map,
-                [
-                    ("rel_cls1", ("object1", "object2"), '{"co-author": "John", "age": 90}'),
-                    ("rel_cls1", ("object1", "object2"), '{"co-author": "Charly", "age": 17}'),
-                ],
-            ))
+            count = self._assert_success(
+                import_relationship_metadata(
+                    db_map,
+                    [
+                        ("rel_cls1", ("object1", "object2"), '{"co-author": "John", "age": 90}'),
+                        ("rel_cls1", ("object1", "object2"), '{"co-author": "Charly", "age": 17}'),
+                    ],
+                )
+            )
             self.assertEqual(count, 4)
             db_map.commit_session("test")
             metadata = [(x.metadata_name, x.metadata_value) for x in db_map.query(db_map.ext_entity_metadata_sq)]
@@ -1435,9 +1686,11 @@ class TestImportParameterValueMetadata(ImportsTestCase):
             self._assert_success(import_object_parameters(db_map, [("object_class", "param")]))
             self._assert_success(import_objects(db_map, [("object_class", "object")]))
             self._assert_success(import_object_parameter_values(db_map, [("object_class", "object", "param", "value")]))
-            count = self._assert_success(import_object_parameter_value_metadata(
-                db_map, [("object_class", "object", "param", '{"co-author": "John", "age": 17}')]
-            ))
+            count = self._assert_success(
+                import_object_parameter_value_metadata(
+                    db_map, [("object_class", "object", "param", '{"co-author": "John", "age": 17}')]
+                )
+            )
             self.assertEqual(count, 2)
             db_map.commit_session("test")
             metadata = db_map.query(db_map.ext_parameter_value_metadata_sq).all()
@@ -1479,10 +1732,14 @@ class TestImportParameterValueMetadata(ImportsTestCase):
             self._assert_success(import_relationship_classes(db_map, (("relationship_class", ("object_class",)),)))
             self._assert_success(import_relationships(db_map, (("relationship_class", ("object",)),)))
             self._assert_success(import_relationship_parameters(db_map, (("relationship_class", "param"),)))
-            self._assert_success(import_relationship_parameter_values(db_map, (("relationship_class", ("object",), "param", "value"),)))
-            count = self._assert_success(import_relationship_parameter_value_metadata(
-                db_map, (("relationship_class", ("object",), "param", '{"co-author": "John", "age": 17}'),)
-            ))
+            self._assert_success(
+                import_relationship_parameter_values(db_map, (("relationship_class", ("object",), "param", "value"),))
+            )
+            count = self._assert_success(
+                import_relationship_parameter_value_metadata(
+                    db_map, (("relationship_class", ("object",), "param", '{"co-author": "John", "age": 17}'),)
+                )
+            )
             self.assertEqual(count, 2)
             db_map.commit_session("test")
             metadata = db_map.query(db_map.ext_parameter_value_metadata_sq).all()

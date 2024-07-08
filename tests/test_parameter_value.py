@@ -36,9 +36,11 @@ from spinedb_api.parameter_value import (
     convert_map_to_table,
     deep_copy_value,
     duration_to_relativedelta,
+    fancy_type_to_type_and_rank,
     from_database,
     relativedelta_to_duration,
     to_database,
+    type_and_rank_to_fancy_type,
 )
 
 
@@ -1094,6 +1096,32 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(x, copy_of_x)
         self.assertIsNot(x, copy_of_x)
         self.assertIsNot(x.get_value("T1"), copy_of_x.get_value("T1"))
+
+
+class TestTypeAndRankToFancyType(unittest.TestCase):
+    def test_function_works(self):
+        self.assertEqual(type_and_rank_to_fancy_type("float", 0), "float")
+        self.assertEqual(type_and_rank_to_fancy_type("str", 0), "str")
+        self.assertEqual(type_and_rank_to_fancy_type("bool", 0), "bool")
+        self.assertEqual(type_and_rank_to_fancy_type("date_time", 0), "date_time")
+        self.assertEqual(type_and_rank_to_fancy_type("duration", 0), "duration")
+        self.assertEqual(type_and_rank_to_fancy_type("array", 1), "array")
+        self.assertEqual(type_and_rank_to_fancy_type("time_pattern", 1), "time_pattern")
+        self.assertEqual(type_and_rank_to_fancy_type("time_series", 1), "time_series")
+        self.assertEqual(type_and_rank_to_fancy_type("map", 23), "23d_map")
+
+
+class TestFancyTypeToTypeAndRank(unittest.TestCase):
+    def test_function_works(self):
+        self.assertEqual(fancy_type_to_type_and_rank("float"), ("float", 0))
+        self.assertEqual(fancy_type_to_type_and_rank("str"), ("str", 0))
+        self.assertEqual(fancy_type_to_type_and_rank("bool"), ("bool", 0))
+        self.assertEqual(fancy_type_to_type_and_rank("date_time"), ("date_time", 0))
+        self.assertEqual(fancy_type_to_type_and_rank("duration"), ("duration", 0))
+        self.assertEqual(fancy_type_to_type_and_rank("array"), ("array", 1))
+        self.assertEqual(fancy_type_to_type_and_rank("time_pattern"), ("time_pattern", 1))
+        self.assertEqual(fancy_type_to_type_and_rank("time_series"), ("time_series", 1))
+        self.assertEqual(fancy_type_to_type_and_rank("23d_map"), ("map", 23))
 
 
 if __name__ == "__main__":

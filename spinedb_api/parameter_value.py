@@ -84,6 +84,7 @@ use :func:`.from_database`::
 from collections.abc import Sequence
 from copy import copy
 from datetime import datetime
+from itertools import takewhile
 import json
 from json.decoder import JSONDecodeError
 import re
@@ -1738,8 +1739,34 @@ def _try_convert_to_container(map_):
     return TimeSeriesVariableResolution(stamps, values, False, False, index_name=map_.index_name)
 
 
-# List of scalar types that are supported by the spinedb_api
-SUPPORTED_TYPES = (Duration, DateTime, float, str)
+# Value types that are supported by spinedb_api
+VALUE_TYPES = {
+    FLOAT_VALUE_TYPE,
+    BOOLEAN_VALUE_TYPE,
+    STRING_VALUE_TYPE,
+    Duration.type_(),
+    DateTime.type_(),
+    Array.type_(),
+    TimePattern.type_(),
+    TimeSeries.type_(),
+    Map.type_(),
+}
+
+RANK_1_TYPES = {Array.type_(), TimePattern.type_(), TimeSeries.type_()}
+
+
+def type_and_rank_to_fancy_type(value_type, rank):
+    if value_type == Map.type_():
+        return f"{rank}d_{value_type}"
+    return value_type
+
+
+def fancy_type_to_type_and_rank(fancy_type):
+    if fancy_type.endswith(f"d_{Map.type_()}"):
+        return Map.type_(), int("".join(takewhile(lambda x: x.isdigit(), fancy_type)))
+    if fancy_type in RANK_1_TYPES:
+        return fancy_type, 1
+    return fancy_type, 0
 
 
 def join_value_and_type(db_value, db_type):

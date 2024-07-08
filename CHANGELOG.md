@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- parameter_type table was added to the database. It defines valid value types for a parameter definition.
+  The types are not currently enforced.
+
 ### Changed
 
 - DB server version was bumped from 7 to 8 due to the changes below.

@@ -32,6 +32,7 @@ from spinedb_api import (
     import_scenario_alternatives,
     import_scenarios,
 )
+from spinedb_api.export_functions import export_parameter_types
 
 
 class TestExportFunctions(unittest.TestCase):
@@ -86,6 +87,29 @@ class TestExportFunctions(unittest.TestCase):
             exported = export_entity_classes(db_map)
             expected = (("Object", (), None, None, True), ("Relation", ("Object",), None, None, True))
             self.assertCountEqual(exported, expected)
+
+    def test_export_single_parameter_type(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_addition_success(db_map.add_entity_class_item(name="Widget"))
+            self._assert_addition_success(db_map.add_parameter_definition_item(name="q", entity_class_name="Widget"))
+            self._assert_addition_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="q", rank=0, type="duration"
+                )
+            )
+            exported = export_parameter_types(db_map)
+            expected = [
+                ("Widget", "q", "duration", 0),
+            ]
+            self.assertEqual(exported, expected)
+            exported_data = export_data(db_map)
+            expected_data = {
+                "alternatives": [("Base", "Base alternative")],
+                "entity_classes": [("Widget", (), None, None, True)],
+                "parameter_definitions": [("Widget", "q", None, None, None)],
+                "parameter_types": [("Widget", "q", "duration", 0)],
+            }
+            self.assertEqual(exported_data, expected_data)
 
     def test_export_data(self):
         with DatabaseMapping("sqlite://", username="UnitTest", create=True) as db_map:

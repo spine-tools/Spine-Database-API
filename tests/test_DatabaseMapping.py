@@ -29,6 +29,7 @@ from spinedb_api import (
 )
 from spinedb_api.db_mapping_base import PublicItem, Status
 from spinedb_api.helpers import Asterisk, name_from_elements
+from spinedb_api.parameter_value import type_for_scalar
 from tests.custom_db_mapping import CustomDatabaseMapping
 from tests.mock_helpers import AssertSuccessTestCase
 
@@ -1227,6 +1228,241 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             scenario_alternatives = db_map.query(db_map.scenario_alternative_sq).all()
             self.assertEqual(len(scenario_alternatives), 1)
 
+    def test_add_parameter_definition_item_adds_a_single_entry_to_the_mapped_table(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Gadget"))
+            self._assert_success(db_map.add_parameter_definition_item(name="typeless", entity_class_name="Gadget"))
+            self.assertEqual(len(db_map.mapped_table("parameter_definition")), 1)
+
+    def test_add_item_without_check(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            entity_class = self._assert_success(db_map.add_entity_class_item(name="Gadget"))
+            item = db_map.mapped_table("parameter_definition").add_item(
+                {"entity_class_id": entity_class["id"], "name": "y"}
+            )
+            self.assertTrue(item.is_valid())
+            self.assertEqual(item["entity_class_name"], "Gadget")
+
+    def test_add_parameter_type(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Widget"))
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(name="typed", entity_class_name="Widget")
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="typed", type="float", rank=0
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="typed", type="str", rank=0
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="typed", type="bool", rank=0
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="typed", type="duration", rank=0
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="typed", type="date_time", rank=0
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="typed", type="array", rank=1
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="typed", type="time_pattern", rank=1
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="typed", type="time_series", rank=1
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="typed", type="map", rank=1
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Widget", parameter_definition_name="typed", type="map", rank=2
+                )
+            )
+            db_map.commit_session("Ensure data goes to db.")
+            expected_types = (
+                "array",
+                "bool",
+                "date_time",
+                "duration",
+                "float",
+                "1d_map",
+                "2d_map",
+                "str",
+                "time_pattern",
+                "time_series",
+            )
+            self.assertEqual(definition["parameter_type_list"], expected_types)
+            self.assertEqual(len(definition["parameter_type_id_list"]), len(expected_types))
+
+    def test_cannot_add_invalid_parameter_type(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Widget"))
+            self._assert_success(db_map.add_parameter_definition_item(name="typed", entity_class_name="Widget"))
+            item, error = db_map.add_parameter_type_item(
+                entity_class_name="Widget", parameter_definition_name="typed", rank=1, type="GIBBERISH"
+            )
+            self.assertEqual(error, "invalid type for parameter_type")
+            self.assertFalse(bool(item))
+
+    def test_creating_parameter_definition_with_types(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Widget"))
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="typed", entity_class_name="Widget", parameter_type_list=("duration", "23d_map")
+                )
+            )
+            self.assertEqual(definition["parameter_type_list"], ("duration", "23d_map"))
+            types = db_map.get_parameter_type_items()
+            self.assertEqual(len(types), 2)
+            self.assertEqual([(t["type"], t["rank"]) for t in types], [("duration", 0), ("map", 23)])
+
+    def test_add_type_to_parameter_by_update(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Widget"))
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(name="typed", entity_class_name="Widget")
+            )
+            self.assertEqual(definition["parameter_type_list"], tuple())
+            updated_item, error = definition.update(parameter_type_list=("bool",))
+            self.assertFalse(bool(error))
+            self.assertIsNotNone(updated_item)
+            self.assertEqual(definition["parameter_type_list"], ("bool",))
+            types = db_map.get_parameter_type_items()
+            self.assertEqual(len(types), 1)
+            self.assertEqual([(t["type"], t["rank"]) for t in types], [("bool", 0)])
+
+    def test_remove_type_from_parameter_by_update(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Widget"))
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(name="typed", entity_class_name="Widget")
+            )
+            self.assertEqual(definition["parameter_type_list"], tuple())
+            updated_item, error = definition.update(parameter_type_list=("bool",))
+            self.assertFalse(bool(error))
+            self.assertIsNotNone(updated_item)
+            self.assertEqual(definition["parameter_type_list"], ("bool",))
+            types = db_map.get_parameter_type_items()
+            self.assertEqual(len(types), 1)
+            self.assertEqual([(t["type"], t["rank"]) for t in types], [("bool", 0)])
+
+    def test_modify_parameter_types_by_update(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Widget"))
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="typed", entity_class_name="Widget", parameter_type_list=("3d_map", "str", "array")
+                )
+            )
+            self.assertEqual(definition["parameter_type_list"], ("array", "3d_map", "str"))
+            updated_item, error = definition.update(parameter_type_list=("time_series", "23d_map", "str"))
+            self.assertFalse(bool(error))
+            self.assertIsNotNone(updated_item)
+            self.assertEqual(definition["parameter_type_list"], ("23d_map", "str", "time_series"))
+            types = db_map.get_parameter_type_items()
+            self.assertEqual(len(types), 3)
+            self.assertCountEqual(
+                [(t["type"], t["rank"]) for t in types], [("map", 23), ("str", 0), ("time_series", 1)]
+            )
+
+    def test_modify_parameter_types_by_update_via_mapped_table(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Widget"))
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="typed", entity_class_name="Widget", parameter_type_list=("3d_map", "str", "array")
+                )
+            )
+            self.assertEqual(definition["parameter_type_list"], ("array", "3d_map", "str"))
+            parameter_table = db_map.mapped_table("parameter_definition")
+            parameter_table.update_item(
+                {"id": definition["id"], "parameter_type_list": ("time_series", "23d_map", "str")}
+            )
+            self.assertEqual(definition["parameter_type_list"], ("23d_map", "str", "time_series"))
+            types = db_map.get_parameter_type_items()
+            self.assertEqual(len(types), 3)
+            self.assertCountEqual(
+                [(t["type"], t["rank"]) for t in types], [("str", 0), ("time_series", 1), ("map", 23)]
+            )
+
+    def test_non_updating_something_else_than_parameter_type_list(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Widget"))
+            reused_description = "This won't actually change."
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="typed",
+                    entity_class_name="Widget",
+                    description=reused_description,
+                    parameter_type_list=("array",),
+                )
+            )
+            updated_item, error = definition.update(description=reused_description)
+            self.assertFalse(error)
+            self.assertIsNone(updated_item)
+
+    def test_parameter_type_list_is_included_in_asdict(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            entity_class = self._assert_success(db_map.add_entity_class_item(name="Widget"))
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="typeless",
+                    entity_class_name="Widget",
+                    description="This is not-a-gadget.",
+                )
+            )
+            self.assertEqual(
+                definition._asdict(),
+                {
+                    "name": "typeless",
+                    "id": definition["id"],
+                    "entity_class_id": entity_class["id"],
+                    "description": "This is not-a-gadget.",
+                    "parameter_type_list": (),
+                    "default_type": None,
+                    "default_value": None,
+                    "list_value_id": None,
+                    "parameter_value_list_id": None,
+                },
+            )
+
+    def test_read_parameter_types_from_database(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db_sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Widget"))
+                self._assert_success(
+                    db_map.add_parameter_definition_item(
+                        name="typed", entity_class_name="Widget", parameter_type_list=("3d_map", "str", "array")
+                    )
+                )
+                db_map.commit_session("Add parameter with types.")
+            with DatabaseMapping(url) as db_map:
+                definition = db_map.get_parameter_definition_item(entity_class_name="Widget", name="typed")
+                self.assertEqual(definition["parameter_type_list"], ("array", "3d_map", "str"))
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
@@ -1489,41 +1725,43 @@ class TestDatabaseMappingLegacy(unittest.TestCase):
         self.assertEqual(alternative_name, "Base")
 
 
-class TestDatabaseMappingQueries(unittest.TestCase):
-    def setUp(self):
-        self._db_map = CustomDatabaseMapping(IN_MEMORY_DB_URL, create=True)
+class TestDatabaseMappingQueries(AssertSuccessTestCase):
 
-    def tearDown(self):
-        self._db_map.close()
+    def _assert_import(self, result):
+        import_count, errors = result
+        self.assertEqual(errors, [])
+        return import_count
 
-    def create_object_classes(self):
+    def create_object_classes(self, db_map):
         obj_classes = ["class1", "class2"]
-        import_functions.import_object_classes(self._db_map, obj_classes)
+        self._assert_import(import_functions.import_object_classes(db_map, obj_classes))
         return obj_classes
 
-    def create_objects(self):
+    def create_objects(self, db_map):
         objects = [("class1", "obj11"), ("class1", "obj12"), ("class2", "obj21")]
-        import_functions.import_objects(self._db_map, objects)
+        self._assert_import(import_functions.import_entities(db_map, objects))
         return objects
 
-    def create_relationship_classes(self):
+    def create_relationship_classes(self, db_map):
         relationship_classes = [("rel1", ["class1"]), ("rel2", ["class1", "class2"])]
-        import_functions.import_relationship_classes(self._db_map, relationship_classes)
+        self._assert_import(import_functions.import_entity_classes(db_map, relationship_classes))
         return relationship_classes
 
-    def create_relationships(self):
+    def create_relationships(self, db_map):
         relationships = [("rel1", ["obj11"]), ("rel2", ["obj11", "obj21"])]
-        import_functions.import_relationships(self._db_map, relationships)
+        self._assert_import(import_functions.import_entities(db_map, relationships))
         return relationships
 
     def test_commit_sq_hides_pending_commit(self):
-        commits = self._db_map.query(self._db_map.commit_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            commits = db_map.query(db_map.commit_sq).all()
         self.assertEqual(len(commits), 1)
 
     def test_alternative_sq(self):
-        import_functions.import_alternatives(self._db_map, (("alt1", "test alternative"),))
-        self._db_map.commit_session("test")
-        alternative_rows = self._db_map.query(self._db_map.alternative_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self._assert_import(import_functions.import_alternatives(db_map, (("alt1", "test alternative"),)))
+            db_map.commit_session("test")
+            alternative_rows = db_map.query(db_map.alternative_sq).all()
         expected_names_and_descriptions = {"Base": "Base alternative", "alt1": "test alternative"}
         self.assertEqual(len(alternative_rows), len(expected_names_and_descriptions))
         for row in alternative_rows:
@@ -1533,22 +1771,24 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         self.assertEqual(expected_names_and_descriptions, {})
 
     def test_scenario_sq(self):
-        import_functions.import_scenarios(self._db_map, (("scen1", True, "test scenario"),))
-        self._db_map.commit_session("test")
-        scenario_rows = self._db_map.query(self._db_map.scenario_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self._assert_import(import_functions.import_scenarios(db_map, (("scen1", True, "test scenario"),)))
+            db_map.commit_session("test")
+            scenario_rows = db_map.query(db_map.scenario_sq).all()
         self.assertEqual(len(scenario_rows), 1)
         self.assertEqual(scenario_rows[0].name, "scen1")
         self.assertEqual(scenario_rows[0].description, "test scenario")
         self.assertTrue(scenario_rows[0].active)
 
     def test_ext_linked_scenario_alternative_sq(self):
-        import_functions.import_scenarios(self._db_map, (("scen1", True),))
-        import_functions.import_alternatives(self._db_map, ("alt1", "alt2", "alt3"))
-        import_functions.import_scenario_alternatives(self._db_map, (("scen1", "alt2"),))
-        import_functions.import_scenario_alternatives(self._db_map, (("scen1", "alt3"),))
-        import_functions.import_scenario_alternatives(self._db_map, (("scen1", "alt1"),))
-        self._db_map.commit_session("test")
-        scenario_alternative_rows = self._db_map.query(self._db_map.ext_linked_scenario_alternative_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self._assert_import(import_functions.import_scenarios(db_map, (("scen1", True),)))
+            self._assert_import(import_functions.import_alternatives(db_map, ("alt1", "alt2", "alt3")))
+            self._assert_import(import_functions.import_scenario_alternatives(db_map, (("scen1", "alt2"),)))
+            self._assert_import(import_functions.import_scenario_alternatives(db_map, (("scen1", "alt3"),)))
+            self._assert_import(import_functions.import_scenario_alternatives(db_map, (("scen1", "alt1"),)))
+            db_map.commit_session("test")
+            scenario_alternative_rows = db_map.query(db_map.ext_linked_scenario_alternative_sq).all()
         self.assertEqual(len(scenario_alternative_rows), 3)
         expected_befores = {"alt2": "alt3", "alt3": "alt1", "alt1": None}
         expected_ranks = {"alt2": 1, "alt3": 2, "alt1": 3}
@@ -1567,10 +1807,11 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         self.assertEqual(expected_befores, {})
 
     def test_entity_class_sq(self):
-        obj_classes = self.create_object_classes()
-        relationship_classes = self.create_relationship_classes()
-        self._db_map.commit_session("test")
-        results = self._db_map.query(self._db_map.entity_class_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            obj_classes = self.create_object_classes(db_map)
+            relationship_classes = self.create_relationship_classes(db_map)
+            db_map.commit_session("test")
+            results = db_map.query(db_map.entity_class_sq).all()
         # Check that number of results matches total entities
         self.assertEqual(len(results), len(obj_classes) + len(relationship_classes))
         # Check result values
@@ -1578,12 +1819,13 @@ class TestDatabaseMappingQueries(unittest.TestCase):
             self.assertEqual(row.name, class_name)
 
     def test_entity_sq(self):
-        self.create_object_classes()
-        objects = self.create_objects()
-        self.create_relationship_classes()
-        relationships = self.create_relationships()
-        self._db_map.commit_session("test")
-        entity_rows = self._db_map.query(self._db_map.entity_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self.create_object_classes(db_map)
+            objects = self.create_objects(db_map)
+            self.create_relationship_classes(db_map)
+            relationships = self.create_relationships(db_map)
+            db_map.commit_session("test")
+            entity_rows = db_map.query(db_map.entity_sq).all()
         self.assertEqual(len(entity_rows), len(objects) + len(relationships))
         object_names = [o[1] for o in objects]
         relationship_names = [name_from_elements(r[1]) for r in relationships]
@@ -1591,43 +1833,47 @@ class TestDatabaseMappingQueries(unittest.TestCase):
             self.assertEqual(row.name, expected_name)
 
     def test_object_class_sq_picks_object_classes_only(self):
-        obj_classes = self.create_object_classes()
-        self.create_relationship_classes()
-        self._db_map.commit_session("test")
-        class_rows = self._db_map.query(self._db_map.object_class_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            obj_classes = self.create_object_classes(db_map)
+            self.create_relationship_classes(db_map)
+            db_map.commit_session("test")
+            class_rows = db_map.query(db_map.object_class_sq).all()
         self.assertEqual(len(class_rows), len(obj_classes))
         for row, expected_name in zip(class_rows, obj_classes):
             self.assertEqual(row.name, expected_name)
 
     def test_object_sq_picks_objects_only(self):
-        self.create_object_classes()
-        objects = self.create_objects()
-        self.create_relationship_classes()
-        self.create_relationships()
-        self._db_map.commit_session("test")
-        object_rows = self._db_map.query(self._db_map.object_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self.create_object_classes(db_map)
+            objects = self.create_objects(db_map)
+            self.create_relationship_classes(db_map)
+            self.create_relationships(db_map)
+            db_map.commit_session("test")
+            object_rows = db_map.query(db_map.object_sq).all()
         self.assertEqual(len(object_rows), len(objects))
         for row, expected_object in zip(object_rows, objects):
             self.assertEqual(row.name, expected_object[1])
 
     def test_wide_relationship_class_sq(self):
-        self.create_object_classes()
-        relationship_classes = self.create_relationship_classes()
-        self._db_map.commit_session("test")
-        class_rows = self._db_map.query(self._db_map.wide_relationship_class_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self.create_object_classes(db_map)
+            relationship_classes = self.create_relationship_classes(db_map)
+            db_map.commit_session("test")
+            class_rows = db_map.query(db_map.wide_relationship_class_sq).all()
         self.assertEqual(len(class_rows), 2)
         for row, relationship_class in zip(class_rows, relationship_classes):
             self.assertEqual(row.name, relationship_class[0])
             self.assertEqual(row.object_class_name_list, ",".join(relationship_class[1]))
 
     def test_wide_relationship_sq(self):
-        self.create_object_classes()
-        self.create_objects()
-        relationship_classes = self.create_relationship_classes()
-        object_classes = {rel_class[0]: rel_class[1] for rel_class in relationship_classes}
-        relationships = self.create_relationships()
-        self._db_map.commit_session("test")
-        relationship_rows = self._db_map.query(self._db_map.wide_relationship_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self.create_object_classes(db_map)
+            self.create_objects(db_map)
+            relationship_classes = self.create_relationship_classes(db_map)
+            object_classes = {rel_class[0]: rel_class[1] for rel_class in relationship_classes}
+            relationships = self.create_relationships(db_map)
+            db_map.commit_session("test")
+            relationship_rows = db_map.query(db_map.wide_relationship_sq).all()
         self.assertEqual(len(relationship_rows), 2)
         for row, relationship in zip(relationship_rows, relationships):
             self.assertEqual(row.name, name_from_elements(relationship[1]))
@@ -1636,30 +1882,33 @@ class TestDatabaseMappingQueries(unittest.TestCase):
             self.assertEqual(row.object_name_list, ",".join(relationship[1]))
 
     def test_parameter_definition_sq_for_object_class(self):
-        self.create_object_classes()
-        import_functions.import_object_parameters(self._db_map, (("class1", "par1"),))
-        self._db_map.commit_session("test")
-        definition_rows = self._db_map.query(self._db_map.parameter_definition_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self.create_object_classes(db_map)
+            self._assert_import(import_functions.import_object_parameters(db_map, (("class1", "par1"),)))
+            db_map.commit_session("test")
+            definition_rows = db_map.query(db_map.parameter_definition_sq).all()
         self.assertEqual(len(definition_rows), 1)
         self.assertEqual(definition_rows[0].name, "par1")
         self.assertIsNotNone(definition_rows[0].entity_class_id)
 
     def test_parameter_definition_sq_for_relationship_class(self):
-        self.create_object_classes()
-        self.create_relationship_classes()
-        import_functions.import_relationship_parameters(self._db_map, (("rel1", "par1"),))
-        self._db_map.commit_session("test")
-        definition_rows = self._db_map.query(self._db_map.parameter_definition_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self.create_object_classes(db_map)
+            self.create_relationship_classes(db_map)
+            self._assert_import(import_functions.import_relationship_parameters(db_map, (("rel1", "par1"),)))
+            db_map.commit_session("test")
+            definition_rows = db_map.query(db_map.parameter_definition_sq).all()
         self.assertEqual(len(definition_rows), 1)
         self.assertEqual(definition_rows[0].name, "par1")
         self.assertIsNotNone(definition_rows[0].entity_class_id)
 
     def test_entity_parameter_definition_sq_for_object_class(self):
-        self.create_object_classes()
-        self.create_relationship_classes()
-        import_functions.import_object_parameters(self._db_map, (("class1", "par1"),))
-        self._db_map.commit_session("test")
-        definition_rows = self._db_map.query(self._db_map.entity_parameter_definition_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self.create_object_classes(db_map)
+            self.create_relationship_classes(db_map)
+            self._assert_import(import_functions.import_object_parameters(db_map, (("class1", "par1"),)))
+            db_map.commit_session("test")
+            definition_rows = db_map.query(db_map.entity_parameter_definition_sq).all()
         self.assertEqual(len(definition_rows), 1)
         self.assertEqual(definition_rows[0].parameter_name, "par1")
         self.assertEqual(definition_rows[0].entity_class_name, "class1")
@@ -1670,11 +1919,12 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         self.assertIsNone(definition_rows[0].object_class_name_list)
 
     def test_entity_parameter_definition_sq_for_relationship_class(self):
-        object_classes = self.create_object_classes()
-        self.create_relationship_classes()
-        import_functions.import_relationship_parameters(self._db_map, (("rel2", "par1"),))
-        self._db_map.commit_session("test")
-        definition_rows = self._db_map.query(self._db_map.entity_parameter_definition_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            object_classes = self.create_object_classes(db_map)
+            self.create_relationship_classes(db_map)
+            self._assert_import(import_functions.import_relationship_parameters(db_map, (("rel2", "par1"),)))
+            db_map.commit_session("test")
+            definition_rows = db_map.query(db_map.entity_parameter_definition_sq).all()
         self.assertEqual(len(definition_rows), 1)
         self.assertEqual(definition_rows[0].parameter_name, "par1")
         self.assertEqual(definition_rows[0].entity_class_name, "rel2")
@@ -1685,14 +1935,15 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         self.assertIsNone(definition_rows[0].object_class_name)
 
     def test_entity_parameter_definition_sq_with_multiple_relationship_classes_but_single_parameter(self):
-        self.create_object_classes()
-        self.create_relationship_classes()
-        obj_parameter_definitions = [("class1", "par1a"), ("class1", "par1b")]
-        rel_parameter_definitions = [("rel1", "rpar1a")]
-        import_functions.import_object_parameters(self._db_map, obj_parameter_definitions)
-        import_functions.import_relationship_parameters(self._db_map, rel_parameter_definitions)
-        self._db_map.commit_session("test")
-        results = self._db_map.query(self._db_map.entity_parameter_definition_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self.create_object_classes(db_map)
+            self.create_relationship_classes(db_map)
+            obj_parameter_definitions = [("class1", "par1a"), ("class1", "par1b")]
+            rel_parameter_definitions = [("rel1", "rpar1a")]
+            self._assert_import(import_functions.import_object_parameters(db_map, obj_parameter_definitions))
+            self._assert_import(import_functions.import_relationship_parameters(db_map, rel_parameter_definitions))
+            db_map.commit_session("test")
+            results = db_map.query(db_map.entity_parameter_definition_sq).all()
         # Check that number of results matches total entities
         self.assertEqual(len(results), len(obj_parameter_definitions) + len(rel_parameter_definitions))
         # Check result values
@@ -1700,26 +1951,30 @@ class TestDatabaseMappingQueries(unittest.TestCase):
             self.assertTupleEqual((row.entity_class_name, row.parameter_name), par_def)
 
     def test_entity_parameter_values(self):
-        self.create_object_classes()
-        self.create_objects()
-        self.create_relationship_classes()
-        self.create_relationships()
-        obj_parameter_definitions = [("class1", "par1a"), ("class1", "par1b"), ("class2", "par2a")]
-        rel_parameter_definitions = [("rel1", "rpar1a"), ("rel2", "rpar2a")]
-        import_functions.import_object_parameters(self._db_map, obj_parameter_definitions)
-        import_functions.import_relationship_parameters(self._db_map, rel_parameter_definitions)
-        object_parameter_values = [
-            ("class1", "obj11", "par1a", 123),
-            ("class1", "obj11", "par1b", 333),
-            ("class2", "obj21", "par2a", "empty"),
-        ]
-        _, errors = import_functions.import_object_parameter_values(self._db_map, object_parameter_values)
-        self.assertFalse(errors)
-        relationship_parameter_values = [("rel1", ["obj11"], "rpar1a", 1.1), ("rel2", ["obj11", "obj21"], "rpar2a", 42)]
-        _, errors = import_functions.import_relationship_parameter_values(self._db_map, relationship_parameter_values)
-        self.assertFalse(errors)
-        self._db_map.commit_session("test")
-        results = self._db_map.query(self._db_map.entity_parameter_value_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self.create_object_classes(db_map)
+            self.create_objects(db_map)
+            self.create_relationship_classes(db_map)
+            self.create_relationships(db_map)
+            obj_parameter_definitions = [("class1", "par1a"), ("class1", "par1b"), ("class2", "par2a")]
+            rel_parameter_definitions = [("rel1", "rpar1a"), ("rel2", "rpar2a")]
+            self._assert_import(import_functions.import_object_parameters(db_map, obj_parameter_definitions))
+            self._assert_import(import_functions.import_relationship_parameters(db_map, rel_parameter_definitions))
+            object_parameter_values = [
+                ("class1", "obj11", "par1a", 123),
+                ("class1", "obj11", "par1b", 333),
+                ("class2", "obj21", "par2a", "empty"),
+            ]
+            self._assert_import(import_functions.import_object_parameter_values(db_map, object_parameter_values))
+            relationship_parameter_values = [
+                ("rel1", ["obj11"], "rpar1a", 1.1),
+                ("rel2", ["obj11", "obj21"], "rpar2a", 42),
+            ]
+            self._assert_import(
+                import_functions.import_relationship_parameter_values(db_map, relationship_parameter_values)
+            )
+            db_map.commit_session("test")
+            results = db_map.query(db_map.entity_parameter_value_sq).all()
         # Check that number of results matches total entities
         self.assertEqual(len(results), len(object_parameter_values) + len(relationship_parameter_values))
         # Check result values
@@ -1733,37 +1988,71 @@ class TestDatabaseMappingQueries(unittest.TestCase):
             self.assertEqual(from_database(row.value, row.type), par_val[3])
 
     def test_wide_parameter_value_list_sq(self):
-        _, errors = import_functions.import_parameter_value_lists(
-            self._db_map, (("list1", "value1"), ("list1", "value2"), ("list2", "valueA"))
-        )
-        self.assertEqual(errors, [])
-        self._db_map.commit_session("test")
-        value_lists = self._db_map.query(self._db_map.wide_parameter_value_list_sq).all()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self._assert_import(
+                import_functions.import_parameter_value_lists(
+                    db_map, (("list1", "value1"), ("list1", "value2"), ("list2", "valueA"))
+                )
+            )
+            db_map.commit_session("test")
+            value_lists = db_map.query(db_map.wide_parameter_value_list_sq).all()
         self.assertEqual(len(value_lists), 2)
         self.assertEqual(value_lists[0].name, "list1")
         self.assertEqual(value_lists[1].name, "list2")
 
     def test_filter_query_accepts_multiple_criteria(self):
-        classes, errors = self._db_map.add_entity_classes({"name": "Real"}, {"name": "Fake"})
-        self.assertEqual(errors, [])
-        self.assertEqual(len(classes), 2)
-        self.assertEqual(classes[0]["name"], "Real")
-        self.assertEqual(classes[1]["name"], "Fake")
-        real_class_id = classes[0]["id"]
-        fake_class_id = classes[1]["id"]
-        _, errors = self._db_map.add_entities(
-            {"name": "entity 1", "class_id": real_class_id},
-            {"name": "entity_2", "class_id": real_class_id},
-            {"name": "entity_1", "class_id": fake_class_id},
-        )
-        self.assertEqual(errors, [])
-        self._db_map.commit_session("Add test data")
-        sq = self._db_map.wide_entity_class_sq
-        real_class_id = self._db_map.query(sq).filter(sq.c.name == "Real").one().id
-        sq = self._db_map.wide_entity_sq
-        entity = self._db_map.query(sq).filter(sq.c.name == "entity 1", sq.c.class_id == 1).one()
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            classes = self._assert_import(db_map.add_items("entity_class", {"name": "Real"}, {"name": "Fake"}))
+            self.assertEqual(len(classes), 2)
+            self.assertEqual(classes[0]["name"], "Real")
+            self.assertEqual(classes[1]["name"], "Fake")
+            real_class_id = classes[0]["id"]
+            fake_class_id = classes[1]["id"]
+            self._assert_import(
+                db_map.add_items(
+                    "entity",
+                    {"name": "entity 1", "class_id": real_class_id},
+                    {"name": "entity_2", "class_id": real_class_id},
+                    {"name": "entity_1", "class_id": fake_class_id},
+                )
+            )
+            db_map.commit_session("Add test data")
+            sq = db_map.wide_entity_class_sq
+            real_class_id = db_map.query(sq).filter(sq.c.name == "Real").one().id
+            sq = db_map.wide_entity_sq
+            entity = db_map.query(sq).filter(sq.c.name == "entity 1", sq.c.class_id == 1).one()
         self.assertEqual(entity.name, "entity 1")
         self.assertEqual(entity.class_id, real_class_id)
+
+    def test_wide_parameter_definition_sq(self):
+        with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Gadget"))
+            self._assert_success(db_map.add_parameter_definition_item(name="typeless", entity_class_name="Gadget"))
+            self._assert_success(db_map.add_parameter_definition_item(name="typed", entity_class_name="Gadget"))
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Gadget", parameter_definition_name="typed", rank=0, type=type_for_scalar(1.0)
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Gadget", parameter_definition_name="typed", rank=0, type=type_for_scalar("high")
+                )
+            )
+            self._assert_success(
+                db_map.add_parameter_type_item(
+                    entity_class_name="Gadget", parameter_definition_name="typed", rank=0, type=type_for_scalar(True)
+                )
+            )
+            db_map.commit_session("Add parameter definitions with types")
+            definitions = db_map.query(db_map.wide_parameter_definition_sq).all()
+        self.assertEqual(len(definitions), 2)
+        self.assertCountEqual([item.name for item in definitions], ["typed", "typeless"])
+        for definition in definitions:
+            if definition.name == "typed":
+                self.assertCountEqual(definition.parameter_type_list.split(","), ("str", "float", "bool"))
+            elif definition.name == "typeless":
+                self.assertEqual(definition.parameter_type_list, None)
 
 
 class TestDatabaseMappingGet(unittest.TestCase):
@@ -4060,7 +4349,9 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 with DatabaseMapping(url) as db_map_2:
                     definition = db_map_2.get_parameter_definition_item(name="z", entity_class_name="Object")
                     value, value_type = to_database("yes")
-                    definition.update(default_value=value, default_type=value_type)
+                    item, error = definition.update(default_value=value, default_type=value_type)
+                    self.assertFalse(error)
+                    self.assertIsNotNone(item)
                     db_map_2.commit_session("Update parameter default value.")
                 db_map.refresh_session()
                 db_map.fetch_more("parameter_definition")

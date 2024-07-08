@@ -113,6 +113,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         "parameter_value_list": "parameter_value_list_sq",
         "list_value": "list_value_sq",
         "parameter_definition": "parameter_definition_sq",
+        "parameter_type": "parameter_type_sq",
         "parameter_value": "parameter_value_sq",
         "metadata": "metadata_sq",
         "entity_metadata": "entity_metadata_sq",

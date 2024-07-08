@@ -647,6 +647,7 @@ class _MappedTable(dict):
         item = self._make_and_add_item(item)
         self.add_unique(item)
         item.status = Status.to_add
+        item.added_to_mapped_table()
         return item
 
     def update_item(self, item):
@@ -789,7 +790,7 @@ class MappedItemBase(dict):
 
     @property
     def removed(self):
-        """Returns whether or not this item has been removed.
+        """Returns whether this item has been removed.
 
         Returns:
             bool
@@ -1214,6 +1215,7 @@ class MappedItemBase(dict):
     def __getattr__(self, name):
         """Overridden to return the dictionary key named after the attribute, or None if it doesn't exist."""
         # FIXME: We should try and get rid of this one
+
         return self.get(name)
 
     def __getitem__(self, key):
@@ -1289,6 +1291,9 @@ class MappedItemBase(dict):
             self._status = Status.committed
             self._status_when_removed = Status.to_add
 
+    def added_to_mapped_table(self):
+        """Called after the item has been added to a mapped table as a new item (not after fetching etc.)."""
+
 
 class PublicItem:
     def __init__(self, db_map, mapped_item):
@@ -1335,7 +1340,7 @@ class PublicItem:
         return self._mapped_item._extended()
 
     def update(self, **kwargs):
-        self._db_map.update_item(self.item_type, id=self["id"], **kwargs)
+        return self._db_map.update_item(self.item_type, id=self["id"], **kwargs)
 
     def remove(self):
         return self._db_map.remove_item(self.item_type, self["id"])
