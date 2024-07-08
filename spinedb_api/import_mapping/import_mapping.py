@@ -156,28 +156,29 @@ class ImportMapping(Mapping):
             return msg
         return ""
 
-    def polish(self, table_name, source_header, column_count=0, for_preview=False):
+    def polish(self, table_name, source_header, mapping_name, column_count=0, for_preview=False):
         """Polishes the mapping before an import operation.
         'Expands' transient ``position`` and ``value`` attributes into their final value.
 
         Args:
             table_name (str)
             source_header (list(str))
+            mapping_name (str)
             column_count (int, optional)
             for_preview (bool, optional)
         """
-        self._polish_for_import(table_name, source_header, column_count)
+        self._polish_for_import(table_name, source_header, mapping_name, column_count)
         if for_preview:
             self._polish_for_preview(source_header)
 
-    def _polish_for_import(self, table_name, source_header, column_count, pivoted=None):
+    def _polish_for_import(self, table_name, source_header, mapping_name, column_count, pivoted=None):
         # FIXME: Polish skip columns
         if pivoted is None:
             pivoted = self.is_pivoted()
         if pivoted and self.parent and self.is_effective_leaf():
             return
         if self.child is not None:
-            self.child._polish_for_import(table_name, source_header, column_count, pivoted)
+            self.child._polish_for_import(table_name, source_header, mapping_name, column_count, pivoted)
         if isinstance(self.position, str):
             # Column mapping with string position, we need to find the index in the header
             try:
@@ -189,6 +190,10 @@ class ImportMapping(Mapping):
         if self.position == Position.table_name:
             # Table name mapping, we set the fixed value to the table name
             self.value = table_name
+            return
+        if self.position == Position.mapping_name:
+            # Mapping name mapping, we set the fixed value to the mapping name
+            self.value = mapping_name
             return
         if self.position == Position.header:
             if self.value is None:
@@ -456,6 +461,33 @@ class EntityGroupMapping(ImportEntitiesMixin, ImportMapping):
             entities[entity_class_name, group_name] = None
             entities[entity_class_name, member_name] = None
         raise KeyFix(ImportKey.MEMBER_NAME)
+
+
+class EntityAlternativeActivityMapping(ImportMapping):
+    """Maps activity flags for entity alternative.
+
+    Cannot be used as the topmost mapping; must have :class:`EntityMapping` or :class:`ElementMapping`,
+    and :class:`AlternativeMapping` as parents.
+    """
+
+    MAP_TYPE = "EntityAlternativeActivity"
+
+    def _import_row(self, source_data, state, mapped_data):
+        if source_data is None or source_data == "":
+            return
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        if state[ImportKey.DIMENSION_COUNT]:
+            entity_byname = state[ImportKey.ELEMENT_NAMES]
+        else:
+            entity_byname = (state[ImportKey.ENTITY_NAME],)
+        alternative_name = state[ImportKey.ALTERNATIVE_NAME]
+        if isinstance(source_data, str):
+            active = string_to_bool(source_data)
+        else:
+            active = bool(source_data)
+        mapped_data.setdefault("entity_alternatives", {})[
+            entity_class_name, entity_byname, alternative_name, active
+        ] = None
 
 
 class DimensionMapping(ImportMapping):
@@ -900,8 +932,8 @@ def _default_entity_class_mapping():
         EntityClassMapping: root mapping
     """
     root_mapping = EntityClassMapping(Position.hidden)
-    object_mapping = root_mapping.child = EntityMapping(Position.hidden)
-    object_mapping.child = EntityMetadataMapping(Position.hidden)
+    entity_mapping = root_mapping.child = EntityMapping(Position.hidden)
+    entity_mapping.child = EntityMetadataMapping(Position.hidden)
     return root_mapping
 
 
@@ -979,9 +1011,11 @@ def from_dict(serialized):
             EntityGroupMapping,
             DimensionMapping,
             ElementMapping,
+            EntityAlternativeActivityMapping,
             ParameterDefinitionMapping,
             ParameterDefaultValueMapping,
             ParameterDefaultValueTypeMapping,
+            DefaultValueIndexNameMapping,
             ParameterDefaultValueIndexMapping,
             ExpandedParameterDefaultValueMapping,
             ParameterValueMapping,

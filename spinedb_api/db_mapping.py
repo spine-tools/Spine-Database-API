@@ -37,7 +37,7 @@ from alembic.util.exc import CommandError
 from .filters.tools import pop_filter_configs, apply_filter_stack, load_filters
 from .spine_db_client import get_db_url_from_server
 from .mapped_items import item_factory
-from .db_mapping_base import DatabaseMappingBase
+from .db_mapping_base import DatabaseMappingBase, Status
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
@@ -452,6 +452,33 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
         return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
 
+    def item_active_in_scenario(self, item, scenario_id):
+        """Checks if an item is active in a given scenario.
+
+        Takes into account the ranks of the alternatives and figures
+        out the final state of activity for the item.
+
+        Args:
+            item (:class:`PublicItem`): Item value to check
+            scenario_id (:class:`TempId`): The id of the scenario to test against
+
+        Returns:
+            result (bool or None): True if the item is active, False if not,
+                None if no entity alternatives are specified.
+        """
+        scenario = self.get_item("scenario", id=scenario_id)
+        ent_alts = self.get_items("entity_alternative", entity_id=item["id"])
+        alts_ordered_by_rank = scenario["alternative_id_list"]
+        alt_id_to_active = {}
+        for ent_alt in ent_alts:
+            alt_id_to_active[ent_alt["alternative_id"]] = ent_alt["active"]
+        result = None
+        for id_ in reversed(alts_ordered_by_rank):
+            if id_ in alt_id_to_active:
+                result = alt_id_to_active[id_]
+                break
+        return result
+
     @staticmethod
     def _modify_items(function, *items, strict=False):
         modified, errors = [], []
@@ -476,6 +503,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
+            check (bool): Whether to check for data integrity.
             **kwargs: Fields and values as specified for the item type in :ref:`db_mapping_schema`.
 
         Returns:
@@ -487,14 +515,18 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if not check:
             return mapped_table.add_item(kwargs), None
         checked_item, error = mapped_table.checked_item_and_error(kwargs)
-        if not error:
-            existing_item = mapped_table.find_item_by_unique_key(checked_item, fetch=False, valid_only=False)
-            if existing_item:
-                if not existing_item.removed:
-                    raise RuntimeError("Logic error: item exists but no error was issued")
-                existing_item.invalidate_id()
-                mapped_table.remove_unique(existing_item)
-        return (mapped_table.add_item(checked_item).public_item if checked_item else None, error)
+        if error:
+            return None, error
+        existing_item = mapped_table.find_item_by_unique_key(checked_item, fetch=False, valid_only=False)
+        if existing_item:
+            if not existing_item.removed:
+                raise RuntimeError("Logic error: item exists but no error was issued")
+            existing_item.invalidate_id()
+            mapped_table.remove_unique(existing_item)
+        checked_item = mapped_table.add_item(checked_item)
+        if existing_item and existing_item["id"].db_id is not None and not mapped_table.purged:
+            checked_item.status = Status.to_update
+        return checked_item.public_item, error
 
     def add_items(self, item_type, *items, check=True, strict=False):
         """Adds many items to the in-memory mapping.
@@ -503,7 +535,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
                 as specified in :ref:`db_mapping_schema`.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            check (bool): Whether to check for data integrity.
+            strict (bool): Whether the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
 
         Returns:
@@ -524,7 +557,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
-            id (int): The id of the item to update.
+            check (bool): Whether to check for data integrity.
             **kwargs: Fields to update and their new values as specified for the item type in :ref:`db_mapping_schema`.
 
         Returns:
@@ -545,7 +578,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
                 as specified in :ref:`db_mapping_schema` and including the `id`.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            check (bool): Whether to check for data integrity.
+            strict (bool): Whether the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the update of one of the items violates an integrity constraint.
 
         Returns:
@@ -558,6 +592,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
+            check (bool): Whether to check for data integrity.
             **kwargs: Fields and values as specified for the item type in :ref:`db_mapping_schema`.
 
         Returns:
@@ -579,7 +614,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type (str): One of <spine_item_types>.
             *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
                 as specified in :ref:`db_mapping_schema`.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            check (bool): Whether to check for data integrity.
+            strict (bool): Whether the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
 
         Returns:
@@ -609,6 +645,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Args:
             item_type (str): One of <spine_item_types>.
             id_ (int): The id of the item to remove.
+            check (bool): Whether to check for data integrity.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The removed item and any errors.
@@ -626,8 +663,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
-            *ids (Iterable(int)): Ids of items to be removed.
-            strict (bool): Whether or not the method should raise :exc:`~.exception.SpineIntegrityError`
+            *ids: Ids of items to be removed.
+            check (bool): Whether to check for data integrity.
+            strict (bool): Whether the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the update of one of the items violates an integrity constraint.
 
         Returns:
@@ -673,14 +711,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
-            *ids (Iterable(int)): Ids of items to be removed.
+            *ids: Ids of items to be removed.
 
         Returns:
-            list(:class:`PublicItem`): the restored items.
+            tuple(list(:class:`PublicItem`),list(str)): items successfully restored and found violations.
         """
-        if not ids:
-            return []
-        return [self.restore_item(item_type, id_) for id_ in ids]
+        return self._modify_items(lambda x: self.restore_item(item_type, x), *ids)
 
     def purge_items(self, item_type):
         """Removes all items of one type.
@@ -714,8 +750,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Unlike :meth:`fetch_more`, this method fetches entire tables.
 
         Args:
-            *item_types (Iterable(str)): One or more of <spine_item_types>.
-                If none given, then the entire DB is fetched.
+            *item_types: One or more of <spine_item_types>. If none given, then the entire DB is fetched.
         """
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
         for item_type in item_types:

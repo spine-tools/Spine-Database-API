@@ -202,12 +202,13 @@ def parameter_mapping_from_dict(map_dict):
         return param_def_mapping
     alternative_name = map_dict.get("alternative_name")
     parameter_value_metadata = map_dict.get("parameter_value_metadata")
-    param_def_mapping.child = alt_mapping = AlternativeMapping(*_pos_and_val(alternative_name))
-    alt_mapping.child = param_val_metadata_mapping = ParameterValueMetadataMapping(
+    alt_mapping = AlternativeMapping(*_pos_and_val(alternative_name))
+    alt_mapping.child = param_def_mapping
+    param_def_mapping.child = param_val_metadata_mapping = ParameterValueMetadataMapping(
         *_pos_and_val(parameter_value_metadata)
     )
     param_val_metadata_mapping.child = parameter_value_mapping_from_dict(map_dict.get("value"))
-    return param_def_mapping
+    return alt_mapping
 
 
 def parameter_default_value_mapping_from_dict(default_value_dict):

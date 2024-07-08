@@ -139,9 +139,11 @@ class SourceConnection:
             table_max_rows = self._resolve_max_rows(options, max_rows)
             data_source, header = self.get_data_iterator(table, options, table_max_rows)
             mappings = []
+            mapping_names = []
             for named_mapping_spec in named_mapping_specs:
-                _, mapping = parse_named_mapping_spec(named_mapping_spec)
+                name, mapping = parse_named_mapping_spec(named_mapping_spec)
                 mappings.append(mapping)
+                mapping_names.append(name)
             try:
                 data, t_errors = get_mapped_data(
                     data_source,
@@ -152,6 +154,7 @@ class SourceConnection:
                     default_column_convert_fn,
                     row_convert_fns,
                     unparse_value,
+                    mapping_names,
                 )
             except (ConnectorError, ParameterValueFormatError, InvalidMappingComponent) as error:
                 errors.append(str(error))
