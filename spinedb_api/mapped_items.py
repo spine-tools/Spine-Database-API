@@ -25,6 +25,7 @@ def item_factory(item_type):
         "entity": EntityItem,
         "entity_alternative": EntityAlternativeItem,
         "entity_group": EntityGroupItem,
+        "entity_class_display_mode": EntityClassDisplayMode,
         "parameter_definition": ParameterDefinitionItem,
         "parameter_value": ParameterValueItem,
         "parameter_value_list": ParameterValueListItem,
@@ -353,6 +354,15 @@ class EntityAlternativeItem(MappedItemBase):
         "entity_id": (("entity_class_name", "entity_byname"), "id"),
         "alternative_id": (("alternative_name",), "id"),
     }
+
+
+class EntityClassDisplayMode(MappedItemBase):
+    fields = {
+        "name": {"type": str, "value": "The entity class display mode name."},
+        "description": {"type": str, "value": "The entity class display mode description.", "optional": True},
+    }
+    _defaults = {"description": None}
+    unique_keys = (("name",),)
 
 
 class ParsedValueBase(MappedItemBase):

@@ -56,6 +56,7 @@ from .import_functions import (
     import_relationship_metadata,
     import_object_parameter_value_metadata,
     import_relationship_parameter_value_metadata,
+    import_entity_class_display_modes,
     get_data_for_import,
 )
 from .export_functions import (

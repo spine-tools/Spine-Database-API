@@ -483,6 +483,14 @@ def create_spine_metadata():
         UniqueConstraint("entity_id", "alternative_id"),
     )
     Table(
+        "entity_class_display_mode",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(255), nullable=False),
+        Column("description", Text(), server_default=null()),
+        UniqueConstraint("name"),
+    )
+    Table(
         "parameter_definition",
         meta,
         Column("id", Integer, primary_key=True),

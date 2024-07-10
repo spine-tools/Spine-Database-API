@@ -1541,6 +1541,14 @@ class TestDatabaseMappingQueries(unittest.TestCase):
         self.assertEqual(scenario_rows[0].description, "test scenario")
         self.assertTrue(scenario_rows[0].active)
 
+    def test_entity_class_display_mode_sq(self):
+        import_functions.import_entity_class_display_modes(self._db_map, (("disp_mode", "Some desc."),))
+        self._db_map.commit_session("test")
+        disp_mode_rows = self._db_map.query(self._db_map.entity_class_display_mode_sq).all()
+        self.assertEqual(len(disp_mode_rows), 1)
+        self.assertEqual(disp_mode_rows[0].name, "disp_mode")
+        self.assertEqual(disp_mode_rows[0].description, "Some desc.")
+
     def test_ext_linked_scenario_alternative_sq(self):
         import_functions.import_scenarios(self._db_map, (("scen1", True),))
         import_functions.import_alternatives(self._db_map, ("alt1", "alt2", "alt3"))

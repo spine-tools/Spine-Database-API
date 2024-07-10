@@ -31,6 +31,7 @@ from spinedb_api import (
     import_relationships,
     import_scenarios,
     import_scenario_alternatives,
+    import_entity_class_display_modes,
 )
 
 
@@ -111,8 +112,9 @@ class TestExportFunctions(unittest.TestCase):
             self._assert_import_success(import_alternatives(db_map, ["alternative"]))
             self._assert_import_success(import_scenarios(db_map, ["scenario"]))
             self._assert_import_success(import_scenario_alternatives(db_map, [("scenario", "alternative")]))
+            self._assert_import_success(import_entity_class_display_modes(db_map, ["display_mode"]))
             exported = export_data(db_map)
-            self.assertEqual(len(exported), 8)
+            self.assertEqual(len(exported), 9)
             self.assertIn("entity_classes", exported)
             self.assertEqual(
                 exported["entity_classes"],
@@ -146,6 +148,8 @@ class TestExportFunctions(unittest.TestCase):
             self.assertEqual(exported["scenarios"], [("scenario", False, None)])
             self.assertIn("scenario_alternatives", exported)
             self.assertEqual(exported["scenario_alternatives"], [("scenario", "alternative", None)])
+            self.assertIn("entity_class_display_modes", exported)
+            self.assertEqual(exported["entity_class_display_modes"], [("display_mode", None)])
 
 
 if __name__ == "__main__":

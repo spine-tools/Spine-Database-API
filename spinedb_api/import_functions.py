@@ -122,6 +122,7 @@ def get_data_for_import(
     entity_metadata=(),
     parameter_value_metadata=(),
     superclass_subclasses=(),
+    entity_class_display_modes=(),
     # legacy
     object_classes=(),
     relationship_classes=(),
@@ -162,6 +163,13 @@ def get_data_for_import(
         scenario_alternatives (list(str,str,str)): tuples of
             (scenario name, alternative name, preceeding alternative name)
         parameter_value_lists (list(str,str|numeric)): tuples of (list name, value)
+        metadata (str,str): tuples of (name, value)
+        entity_metadata (str,str or tuple(str),str,str):
+            tuples of (class name, entity name or element name list, metadata name, metadata value)
+        parameter_value_metadata (str,str,str or tuple(str),str,str,str): tuples of
+            (class name, parameter definition name, entity byname, alternative name, metadata name, metadata value)
+        superclass_subclasses (str,str): tuples of (superclass name, subclass name)
+        entity_class_display_modes (str,str): tuples of (name, description)
 
     Yields:
         str: item type
@@ -242,6 +250,11 @@ def get_data_for_import(
         yield from get_data_for_import(db_map, parameter_value_metadata=object_parameter_value_metadata)
     if relationship_parameter_value_metadata:  # Legacy
         yield from get_data_for_import(db_map, parameter_value_metadata=relationship_parameter_value_metadata)
+    if entity_class_display_modes:
+        yield (
+            "entity_class_display_mode",
+            _get_entity_class_display_modes_for_import(db_map, entity_class_display_modes),
+        )
 
 
 def import_superclass_subclasses(db_map, data):
@@ -375,6 +388,20 @@ def import_scenarios(db_map, data):
     return import_data(db_map, scenarios=data)
 
 
+def import_entity_class_display_modes(db_map, data):
+    """Imports entity class display modes into a Spine database using a standard format.
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        data (list(str, str)): tuples of (name, description)
+
+    Returns:
+        int: number of items imported
+        list: errors
+    """
+    return import_data(db_map, entity_class_display_modes=data)
+
+
 def import_scenario_alternatives(db_map, data):
     """Imports scenario alternatives into a Spine database using a standard format.
 
@@ -495,6 +522,11 @@ def _get_entity_classes_for_import(db_map, data):
 def _get_superclass_subclasses_for_import(db_map, data):
     key = ("superclass_name", "subclass_name")
     return (dict(zip(key, x)) for x in data)
+
+
+def _get_entity_class_display_modes_for_import(db_map, data):
+    key = ("name", "description")
+    return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
 
 
 def _get_entities_for_import(db_map, data):
