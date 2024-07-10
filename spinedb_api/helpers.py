@@ -486,9 +486,33 @@ def create_spine_metadata():
         "entity_class_display_mode",
         meta,
         Column("id", Integer, primary_key=True),
-        Column("name", String(255), nullable=False),
+        Column("name", String(255), nullable=False, unique=True),
         Column("description", Text(), server_default=null()),
-        UniqueConstraint("name"),
+    )
+    Table(
+        "entity_class_display_mode__entity_class",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column(
+            "display_mode_id",
+            Integer,
+            ForeignKey(
+                "entity_class_display_mode.id",
+                onupdate="CASCADE",
+                ondelete="CASCADE",
+                name="fk_display_mode_display_mode",
+            ),
+            nullable=False,
+        ),
+        Column(
+            "entity_class_id",
+            Integer,
+            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE", name="fk_display_mode_entity_class"),
+            nullable=False,
+        ),
+        Column("display_order", Integer, nullable=False),
+        Column("display_status", Text(), server_default=null()),
+        UniqueConstraint("display_mode_id", "entity_class_id", name="uq_display_mode_entity_class"),
     )
     Table(
         "parameter_definition",

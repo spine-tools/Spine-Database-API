@@ -34,6 +34,8 @@ from spinedb_api.import_functions import (
     import_relationship_metadata,
     import_object_parameter_value_metadata,
     import_relationship_parameter_value_metadata,
+    import_entity_class_display_modes,
+    import_entity_class_display_mode__entity_classes,
     import_data,
 )
 from spinedb_api.parameter_value import from_database, dump_db_value, TimeSeriesFixedResolution
@@ -1657,6 +1659,48 @@ class TestImportParameterValueMetadata(unittest.TestCase):
                 "commit_id": 2,
             },
         )
+
+
+class TestImportEntityClassDisplayMode(unittest.TestCase):
+    def test_import_single_entity_class_display_mode(self):
+        db_map = create_db_map()
+        count, errors = import_entity_class_display_modes(db_map, (("disp_mode", "Some desc."),))
+        self.assertEqual(count, 1)
+        self.assertFalse(errors)
+        db_map.commit_session("test")
+        display_modes = {a.name: a.description for a in db_map.query(db_map.entity_class_display_mode_sq)}
+        self.assertEqual(len(display_modes), 1)
+        self.assertIn("disp_mode", display_modes.keys())
+        self.assertIn("Some desc.", display_modes.values())
+        db_map.close()
+
+
+class TestImportEntityClassDisplayModeEntityClass(unittest.TestCase):
+    def test_import_single_entity_class_display_mode__entity_class(self):
+        db_map = create_db_map()
+        count, errors = import_entity_classes(db_map, (("ent_cls", ()),))
+        self.assertEqual(count, 1)
+        self.assertFalse(errors)
+        count, errors = import_entity_class_display_modes(db_map, (("disp_mode", "Some desc."),))
+        self.assertEqual(count, 1)
+        self.assertFalse(errors)
+        count, errors = import_entity_class_display_mode__entity_classes(db_map, (("disp_mode", "ent_cls", 98),))
+        self.assertEqual(count, 1)
+        self.assertFalse(errors)
+        db_map.commit_session("test")
+        metadata = db_map.query(db_map.entity_class_display_mode__entity_class_sq).all()
+        self.assertEqual(len(metadata), 1)
+        self.assertEqual(
+            dict(metadata[0]),
+            {
+                "id": 1,
+                "display_mode_id": 1,
+                "entity_class_id": 1,
+                "display_order": 98,
+                "display_status": None,
+            },
+        )
+        db_map.close()
 
 
 if __name__ == "__main__":

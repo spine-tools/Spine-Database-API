@@ -25,7 +25,8 @@ def item_factory(item_type):
         "entity": EntityItem,
         "entity_alternative": EntityAlternativeItem,
         "entity_group": EntityGroupItem,
-        "entity_class_display_mode": EntityClassDisplayMode,
+        "entity_class_display_mode": EntityClassDisplayModeItem,
+        "entity_class_display_mode__entity_class": EntityClassDisplayModeEntityClassItem,
         "parameter_definition": ParameterDefinitionItem,
         "parameter_value": ParameterValueItem,
         "parameter_value_list": ParameterValueListItem,
@@ -356,13 +357,46 @@ class EntityAlternativeItem(MappedItemBase):
     }
 
 
-class EntityClassDisplayMode(MappedItemBase):
+class EntityClassDisplayModeItem(MappedItemBase):
     fields = {
         "name": {"type": str, "value": "The entity class display mode name."},
         "description": {"type": str, "value": "The entity class display mode description.", "optional": True},
     }
     _defaults = {"description": None}
     unique_keys = (("name",),)
+
+
+class EntityClassDisplayModeEntityClassItem(MappedItemBase):
+    fields = {
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "display_mode_name": {"type": int, "value": "The entity class display mode name."},
+        "display_order": {"type": int, "value": "The display order."},
+        "display_status": {"type": str, "value": "The display status.", "optional": True},
+    }
+    _defaults = {"display_status": None}
+    unique_keys = (
+        (
+            "entity_class_name",
+            "display_mode_name",
+        ),
+    )
+    corresponding_unique_id_keys = {"entity_class_name": "entity_class_id", "display_mode_name": "display_mode_id"}
+    _references = {
+        "entity_class_id": ("entity_class", "id"),
+        "display_mode_id": ("entity_class_display_mode", "id"),
+    }
+    _external_fields = {
+        "entity_class_name": ("entity_class_id", "name"),
+        "display_mode_name": ("display_mode_id", "name"),
+    }
+    _alt_references = {
+        ("entity_class_name",): ("entity_class", ("name",)),
+        ("display_mode_name",): ("entity_class_display_mode", ("name",)),
+    }
+    _internal_fields = {
+        "entity_class_id": (("entity_class_name",), "id"),
+        "display_mode_id": (("display_mode_name",), "id"),
+    }
 
 
 class ParsedValueBase(MappedItemBase):

@@ -22,6 +22,7 @@ def export_data(
     entity_class_ids=Asterisk,
     superclass_subclass_ids=Asterisk,
     entity_class_display_mode_ids=Asterisk,
+    entity_class_display_mode__entity_class_ids=Asterisk,
     entity_ids=Asterisk,
     entity_group_ids=Asterisk,
     parameter_value_list_ids=Asterisk,
@@ -43,6 +44,7 @@ def export_data(
         entity_class_ids (Iterable, optional): If given, only exports classes with these ids
         superclass_subclass_ids (Iterable, optional): If given, only exports superclass subclasse with these ids
         entity_class_display_mode_ids (Iterable, optional): If given, only exports entity class display modes with these ids
+        entity_class_display_mode__entity_class_ids (Iterable, optional): If given, only exports entity class specific display modes with these ids
         entity_ids (Iterable, optional): If given, only exports entities with these ids
         entity_group_ids (Iterable, optional): If given, only exports groups with these ids
         parameter_value_list_ids (Iterable, optional): If given, only exports lists with these ids
@@ -60,6 +62,9 @@ def export_data(
         "entity_classes": export_entity_classes(db_map, entity_class_ids),
         "superclass_subclasses": export_superclass_subclasses(db_map, superclass_subclass_ids),
         "entity_class_display_modes": export_entity_class_display_modes(db_map, entity_class_display_mode_ids),
+        "entity_class_display_mode__entity_classes": export_entity_class_display_mode__entity_classes(
+            db_map, entity_class_display_mode__entity_class_ids
+        ),
         "entities": export_entities(db_map, entity_ids),
         "entity_alternatives": export_entity_alternatives(db_map, entity_alternative_ids),
         "entity_groups": export_entity_groups(db_map, entity_group_ids),
@@ -137,6 +142,13 @@ def export_superclass_subclasses(db_map, ids=Asterisk):
 
 def export_entity_class_display_modes(db_map, ids=Asterisk):
     return sorted(((x.name, x.description) for x in _get_items(db_map, "entity_class_display_mode", ids)))
+
+
+def export_entity_class_display_mode__entity_classes(db_map, ids=Asterisk):
+    return sorted(
+        (x.display_mode_name, x.entity_class_name, x.display_order, x.display_status)
+        for x in _get_items(db_map, "entity_class_display_mode__entity_class", ids)
+    )
 
 
 def export_entities(db_map, ids=Asterisk):
