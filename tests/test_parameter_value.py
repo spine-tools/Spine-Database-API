@@ -680,7 +680,7 @@ class TestParameterValue(unittest.TestCase):
         map_value = Map(["a", "b"], [1.1, 2.2])
         db_value, value_type = to_database(map_value)
         raw = json.loads(db_value)
-        self.assertEqual(raw, {"index_type": "str", "data": [["a", 1.1], ["b", 2.2]]})
+        self.assertEqual(raw, {"index_type": "str", "rank": 1, "data": [["a", 1.1], ["b", 2.2]]})
         self.assertEqual(value_type, "map")
 
     def test_Map_to_database_with_index_names(self):
@@ -695,8 +695,18 @@ class TestParameterValue(unittest.TestCase):
             {
                 "index_type": "str",
                 "index_name": "index",
+                "rank": 2,
                 "data": [
-                    ["A", {"type": "map", "index_type": "str", "index_name": "nested index", "data": [["a", 0.3]]}]
+                    [
+                        "A",
+                        {
+                            "type": "map",
+                            "index_type": "str",
+                            "index_name": "nested index",
+                            "rank": 1,
+                            "data": [["a", 0.3]],
+                        },
+                    ]
                 ],
             },
         )
@@ -712,6 +722,7 @@ class TestParameterValue(unittest.TestCase):
         raw = json.loads(db_value)
         expected = {
             "index_type": "str",
+            "rank": 2,
             "data": [
                 ["a", {"type": "time_series", "data": {"2020-01-01T12:00:00": 2.3, "2020-01-02T12:00:00": 4.5}}],
                 ["b", {"type": "time_series", "data": {"2020-01-01T12:00:00": -4.5, "2020-01-02T12:00:00": -2.3}}],
@@ -729,10 +740,16 @@ class TestParameterValue(unittest.TestCase):
             raw,
             {
                 "index_type": "date_time",
+                "rank": 2,
                 "data": [
                     [
                         "2020-01-01T13:00:00",
-                        {"type": "map", "index_type": "duration", "data": [["2M", {"type": "duration", "data": "5D"}]]},
+                        {
+                            "type": "map",
+                            "index_type": "duration",
+                            "rank": 1,
+                            "data": [["2M", {"type": "duration", "data": "5D"}]],
+                        },
                     ]
                 ],
             },
