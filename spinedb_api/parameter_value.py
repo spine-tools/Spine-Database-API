@@ -294,7 +294,10 @@ def from_database_to_dimension_count(database_value, value_type):
     if value_type in {"time_series", "time_pattern", "array"}:
         return 1
     if value_type == "map":
-        map_value = from_database(database_value, value_type)
+        parsed = load_db_value(database_value, value_type)
+        if "rank" in parsed:
+            return parsed["rank"]
+        map_value = from_dict(parsed)
         return map_dimensions(map_value)
     return 0
 
@@ -652,8 +655,16 @@ def _map_index_to_database(index):
 def _map_value_to_database(value):
     """Converts a single map value to database format."""
     if hasattr(value, "to_dict"):
-        return dict(type=value.type_(), **value.to_dict())
-    return value
+        value_type = value.type_()
+        value_dict = value.to_dict()
+        if value_type == "map":
+            rank = value_dict["rank"]
+        elif value_type in (TimeSeries.type_(), Array.type_(), TimePattern.type_()):
+            rank = 1
+        else:
+            rank = 0
+        return dict(type=value.type_(), **value.to_dict()), rank
+    return value, 0
 
 
 def _map_values_from_database(values_in_db):
@@ -1525,20 +1536,24 @@ class Map(IndexedValue):
     def value_to_database_data(self):
         """Returns map's database representation's 'data' dictionary."""
         data = list()
+        nested_ranks = [0]
         for index, value in zip(self._indexes, self._values):
             index_in_db = _map_index_to_database(index)
-            value_in_db = _map_value_to_database(value)
+            value_in_db, nested_rank = _map_value_to_database(value)
+            nested_ranks.append(nested_rank)
             data.append([index_in_db, value_in_db])
-        return data
+        return data, max(nested_ranks)
 
     @staticmethod
     def type_():
         return "map"
 
     def to_dict(self):
+        data, nested_rank = self.value_to_database_data()
         value_dict = {
             "index_type": _map_index_type_to_database(self._index_type),
-            "data": self.value_to_database_data(),
+            "rank": nested_rank + 1,
+            "data": data,
         }
         if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
