@@ -847,6 +847,39 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_import_entity_alternatives_errors_gracefully_when_activity_cannot_be_converted_to_bool(self):
+        header = ["entity", "alternative", "active"]
+        data_source = iter([["o1", "Base", "xoxoxo"]])
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "Alternative", "position": 1},
+                {"map_type": "EntityAlternativeActivity", "position": 2},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(
+            errors,
+            [
+                "Can't convert xoxoxo to entity alternative activity boolean for '('o1',)' in "
+                "'Object' with alternative 'Base'"
+            ],
+        )
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base"},
+                "entity_classes": [("Object",)],
+                "entities": [
+                    ("Object", "o1"),
+                ],
+                "entity_alternatives": [],
+            },
+        )
+
     def test_import_entity_alternatives_with_multidimensional_entities(self):
         header = ["element 1", "element 2", "alternative", "active"]
         data_source = iter([["o1", "p1", "Base", "true"], ["o1", "p1", "alt1", "false"], ["o1", "p2", "alt1", "true"]])
