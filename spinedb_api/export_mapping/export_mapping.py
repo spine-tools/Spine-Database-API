@@ -1096,7 +1096,7 @@ class ParameterValueTypeMapping(ParameterValueMapping):
             return f"{from_database_to_dimension_count(db_row.value, type_)}d_map"
         if type_ in ("time_series", "time_pattern", "array"):
             return type_
-        return "single_value"
+        return type_
 
     def _title_state(self, db_row):
         return {"type_and_dimensions": (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type))}

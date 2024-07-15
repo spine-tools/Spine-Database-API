@@ -1,6 +1,4 @@
-"""
-This benchmark tests the performance of reading a DateTime value from database.
-"""
+""" This benchmark tests the performance of reading a DateTime value from database. """
 
 import datetime
 import time

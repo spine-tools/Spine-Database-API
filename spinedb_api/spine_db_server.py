@@ -117,7 +117,7 @@ from .filters.alternative_filter import alternative_filter_config
 from .filters.tools import apply_filter_stack
 from .spine_db_client import SpineDBClient
 
-_current_server_version = 7
+_current_server_version = 8
 
 
 def get_current_server_version():
@@ -129,7 +129,7 @@ def get_current_server_version():
     return _current_server_version
 
 
-def _parse_value(v, type_=None):
+def _parse_value(v, type_):
     return (v, type_)
 
 
