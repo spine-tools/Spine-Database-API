@@ -15,20 +15,20 @@ Unit tests for ``value_transformer`` module.
 
 """
 from pathlib import Path
-import unittest
 from tempfile import TemporaryDirectory
+import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
     DatabaseMapping,
+    Map,
+    TimeSeriesFixedResolution,
+    append_filter_config,
+    create_new_spine_database,
+    from_database,
     import_object_classes,
     import_object_parameter_values,
     import_object_parameters,
     import_objects,
-    append_filter_config,
-    create_new_spine_database,
-    from_database,
-    Map,
-    TimeSeriesFixedResolution,
 )
 from spinedb_api.filters.value_transformer import (
     value_transformer_config,

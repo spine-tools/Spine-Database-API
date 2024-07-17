@@ -12,31 +12,30 @@
 """ Unit tests for import_functions.py. """
 
 import unittest
-
-from spinedb_api.spine_db_server import _unparse_value
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.import_functions import (
     import_alternatives,
+    import_data,
     import_entity_classes,
+    import_metadata,
     import_object_classes,
+    import_object_metadata,
+    import_object_parameter_value_metadata,
     import_object_parameter_values,
     import_object_parameters,
     import_objects,
+    import_parameter_value_lists,
     import_relationship_classes,
+    import_relationship_metadata,
+    import_relationship_parameter_value_metadata,
     import_relationship_parameter_values,
     import_relationship_parameters,
     import_relationships,
     import_scenario_alternatives,
     import_scenarios,
-    import_parameter_value_lists,
-    import_metadata,
-    import_object_metadata,
-    import_relationship_metadata,
-    import_object_parameter_value_metadata,
-    import_relationship_parameter_value_metadata,
-    import_data,
 )
-from spinedb_api.parameter_value import from_database, dump_db_value, TimeSeriesFixedResolution
+from spinedb_api.parameter_value import TimeSeriesFixedResolution, dump_db_value, from_database
+from spinedb_api.spine_db_server import _unparse_value
 
 
 def assert_import_equivalent(test, obs, exp, strict=True):

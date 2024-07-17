@@ -11,11 +11,11 @@
 ######################################################################################################################
 
 from sqlalchemy import and_, or_
-from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy.sql.expression import bindparam
 from .exception import SpineDBAPIError
+from .helpers import Asterisk, group_consecutive
 from .temp_id import TempId, resolve
-from .helpers import group_consecutive, Asterisk
 
 
 class DatabaseMappingCommitMixin:

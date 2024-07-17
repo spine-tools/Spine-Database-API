@@ -15,25 +15,25 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
+    DatabaseMapping,
     append_filter_config,
     clear_filter_configs,
-    DatabaseMapping,
     export_entity_classes,
     import_object_classes,
     pop_filter_configs,
 )
+from spinedb_api.filters.alternative_filter import alternative_filter_config, alternative_names_from_dict
+from spinedb_api.filters.renamer import entity_class_renamer_config
+from spinedb_api.filters.scenario_filter import scenario_filter_config, scenario_name_from_dict
 from spinedb_api.filters.tools import (
     apply_filter_stack,
     ensure_filtering,
-    filter_configs,
     filter_config,
+    filter_configs,
     load_filters,
     name_from_dict,
     store_filter,
 )
-from spinedb_api.filters.alternative_filter import alternative_filter_config, alternative_names_from_dict
-from spinedb_api.filters.renamer import entity_class_renamer_config
-from spinedb_api.filters.scenario_filter import scenario_filter_config, scenario_name_from_dict
 
 
 class TestLoadFilters(unittest.TestCase):

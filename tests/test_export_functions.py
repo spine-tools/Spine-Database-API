@@ -17,8 +17,8 @@ from spinedb_api import (
     export_alternatives,
     export_data,
     export_entity_classes,
-    export_scenarios,
     export_scenario_alternatives,
+    export_scenarios,
     import_alternatives,
     import_object_classes,
     import_object_parameter_values,
@@ -29,8 +29,8 @@ from spinedb_api import (
     import_relationship_parameter_values,
     import_relationship_parameters,
     import_relationships,
-    import_scenarios,
     import_scenario_alternatives,
+    import_scenarios,
 )
 
 

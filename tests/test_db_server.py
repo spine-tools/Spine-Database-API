@@ -11,12 +11,12 @@
 ######################################################################################################################
 """ Unit tests for spine_db_server module. """
 import os
-import unittest
-import threading
 from tempfile import TemporaryDirectory
-from spinedb_api.spine_db_server import db_server_manager, closing_spine_db_server
-from spinedb_api.spine_db_client import SpineDBClient
+import threading
+import unittest
 from spinedb_api.db_mapping import DatabaseMapping
+from spinedb_api.spine_db_client import SpineDBClient
+from spinedb_api.spine_db_server import closing_spine_db_server, db_server_manager
 
 
 class TestDBServer(unittest.TestCase):

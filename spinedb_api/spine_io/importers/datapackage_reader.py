@@ -14,13 +14,12 @@
 Contains DataPackageConnector class.
 
 """
-import threading
 from itertools import chain
-
-import tabulator.exceptions
+import threading
 from datapackage import Package
-from .reader import SourceConnection
+import tabulator.exceptions
 from ...exception import ConnectorError
+from .reader import SourceConnection
 
 
 class DataPackageConnector(SourceConnection):

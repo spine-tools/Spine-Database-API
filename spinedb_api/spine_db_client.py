@@ -14,10 +14,10 @@
 This module defines the :class:`SpineDBClient` class.
 """
 
-from urllib.parse import urlparse
 import socket
+from urllib.parse import urlparse
 from sqlalchemy.engine.url import URL
-from .server_client_helpers import ReceiveAllMixing, encode, decode
+from .server_client_helpers import ReceiveAllMixing, decode, encode
 
 client_version = 8
 

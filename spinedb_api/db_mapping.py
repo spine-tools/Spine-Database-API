@@ -16,41 +16,40 @@ If you're planning to use this class, it is probably a good idea to first famili
 :ref:`db_mapping_schema`.
 """
 
+from datetime import datetime, timezone
+from functools import partialmethod
 import hashlib
+import logging
 import os
 import time
-import logging
-from functools import partialmethod
-from datetime import datetime, timezone
 from types import MethodType
-from sqlalchemy import create_engine, MetaData, inspect
-from sqlalchemy.pool import NullPool
-from sqlalchemy.event import listen
-from sqlalchemy.exc import DatabaseError, DBAPIError, ArgumentError
-from sqlalchemy.engine.url import make_url, URL
-from alembic.migration import MigrationContext
-from alembic.environment import EnvironmentContext
-from alembic.script import ScriptDirectory
 from alembic.config import Config
+from alembic.environment import EnvironmentContext
+from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from alembic.util.exc import CommandError
-
-from .filters.tools import pop_filter_configs, apply_filter_stack, load_filters
-from .spine_db_client import get_db_url_from_server
-from .mapped_items import item_factory
+from sqlalchemy import MetaData, create_engine, inspect
+from sqlalchemy.engine.url import URL, make_url
+from sqlalchemy.event import listen
+from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
+from sqlalchemy.pool import NullPool
+from .compatibility import compatibility_transformations
 from .db_mapping_base import DatabaseMappingBase, Status
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .exception import SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
-from .query import Query
-from .compatibility import compatibility_transformations
+from .filters.tools import apply_filter_stack, load_filters, pop_filter_configs
 from .helpers import (
-    _create_first_spine_database,
-    create_new_spine_database_from_bind,
-    compare_schemas,
-    model_meta,
-    copy_database_bind,
     Asterisk,
+    _create_first_spine_database,
+    compare_schemas,
+    copy_database_bind,
+    create_new_spine_database_from_bind,
+    model_meta,
 )
+from .mapped_items import item_factory
+from .query import Query
+from .spine_db_client import get_db_url_from_server
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
 

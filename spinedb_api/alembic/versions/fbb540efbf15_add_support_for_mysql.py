@@ -10,7 +10,6 @@ from alembic import op
 from sqlalchemy import Text
 from spinedb_api.helpers import LONGTEXT_LENGTH, naming_convention
 
-
 # revision identifiers, used by Alembic.
 revision = "fbb540efbf15"
 down_revision = "1892adebc00f"

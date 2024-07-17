@@ -16,12 +16,11 @@ Provides a database query manipulator that applies mathematical transformations 
 """
 from functools import partial
 from numbers import Number
-from sqlalchemy import case, literal, Integer, LargeBinary, String
-from sqlalchemy.sql.expression import select, cast, union_all
-
+from sqlalchemy import Integer, LargeBinary, String, case, literal
+from sqlalchemy.sql.expression import cast, select, union_all
 from ..exception import SpineDBAPIError
 from ..helpers import LONGTEXT_LENGTH
-from ..parameter_value import from_database, IndexedValue, to_database, Map
+from ..parameter_value import IndexedValue, Map, from_database, to_database
 
 VALUE_TRANSFORMER_TYPE = "value_transformer"
 VALUE_TRANSFORMER_SHORTHAND_TAG = "value_transform"

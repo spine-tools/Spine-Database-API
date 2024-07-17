@@ -16,7 +16,6 @@ Module contains the :class:`Writer` base class and functions to write tabular da
 from contextlib import contextmanager
 from copy import copy
 from sqlalchemy.exc import OperationalError
-
 from spinedb_api import SpineDBAPIError
 from spinedb_api.export_mapping import rows, titles
 from spinedb_api.export_mapping.export_mapping import drop_non_positioned_tail

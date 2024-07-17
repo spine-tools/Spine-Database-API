@@ -18,24 +18,23 @@ from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 import unittest
-from gdx2py import GdxFile, GAMSParameter
-
-from spinedb_api.spine_io.gdx_utils import find_gams_directory
-from spinedb_api.spine_io.exporters.gdx_writer import GdxWriter
-from spinedb_api.spine_io.exporters.writer import write, WriterException
+from gdx2py import GAMSParameter, GdxFile
 from spinedb_api import (
     DatabaseMapping,
+    Map,
     import_object_classes,
-    import_object_parameters,
     import_object_parameter_values,
+    import_object_parameters,
     import_objects,
     import_relationship_classes,
     import_relationships,
-    Map,
 )
-from spinedb_api.mapping import Position, unflatten
-from spinedb_api.export_mapping import entity_export, entity_parameter_value_export, entity_export
+from spinedb_api.export_mapping import entity_export, entity_parameter_value_export
 from spinedb_api.export_mapping.export_mapping import FixedValueMapping
+from spinedb_api.mapping import Position, unflatten
+from spinedb_api.spine_io.exporters.gdx_writer import GdxWriter
+from spinedb_api.spine_io.exporters.writer import WriterException, write
+from spinedb_api.spine_io.gdx_utils import find_gams_directory
 
 
 class TestGdxWriter(unittest.TestCase):

@@ -21,7 +21,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from gdx2py import GdxFile
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
-from spinedb_api.spine_io.importers.gdx_connector import GdxConnector, GAMSParameter, GAMSScalar, GAMSSet
+from spinedb_api.spine_io.importers.gdx_connector import GAMSParameter, GAMSScalar, GAMSSet, GdxConnector
 
 
 @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")

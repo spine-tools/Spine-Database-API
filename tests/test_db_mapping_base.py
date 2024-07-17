@@ -9,9 +9,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 import unittest
-
-from spinedb_api.db_mapping_base import MappedItemBase, DatabaseMappingBase, PublicItem
 from spinedb_api import DatabaseMapping
+from spinedb_api.db_mapping_base import DatabaseMappingBase, MappedItemBase, PublicItem
 from tests.mock_helpers import AssertSuccessTestCase
 
 

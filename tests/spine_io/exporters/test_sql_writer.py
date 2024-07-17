@@ -16,29 +16,29 @@ Unit tests for SQL writer.
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from sqlalchemy import Column, create_engine, MetaData, String, Table
+from sqlalchemy import Column, MetaData, String, Table, create_engine
 from sqlalchemy.orm import Session
 from spinedb_api import (
-    DateTime,
     DatabaseMapping,
+    DateTime,
     Duration,
     import_object_classes,
-    import_objects,
-    import_object_parameters,
     import_object_parameter_values,
+    import_object_parameters,
+    import_objects,
 )
-from spinedb_api.mapping import Position, unflatten
 from spinedb_api.export_mapping import entity_export
 from spinedb_api.export_mapping.export_mapping import (
     AlternativeMapping,
-    FixedValueMapping,
     EntityClassMapping,
     EntityMapping,
+    FixedValueMapping,
     ParameterDefinitionMapping,
     ParameterValueMapping,
 )
-from spinedb_api.spine_io.exporters.writer import write
+from spinedb_api.mapping import Position, unflatten
 from spinedb_api.spine_io.exporters.sql_writer import SqlWriter
+from spinedb_api.spine_io.exporters.writer import write
 
 
 class TestSqlWriter(unittest.TestCase):

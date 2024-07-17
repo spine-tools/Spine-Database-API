@@ -7,10 +7,8 @@ Create Date: 2024-06-26 11:55:40.006129
 """
 
 import json
-
 from alembic import op
 import sqlalchemy as sa
-
 from spinedb_api.parameter_value import type_for_scalar
 
 # revision identifiers, used by Alembic.

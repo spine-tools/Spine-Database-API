@@ -11,18 +11,26 @@
 ######################################################################################################################
 
 """ Tools and utilities to work with filters, manipulators and database URLs. """
-import sys
 from itertools import dropwhile, takewhile
 from json import dump, load
+import sys
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from .alternative_filter import (
     ALTERNATIVE_FILTER_SHORTHAND_TAG,
     ALTERNATIVE_FILTER_TYPE,
     alternative_filter_config,
-    alternative_filter_from_dict,
     alternative_filter_config_to_shorthand,
+    alternative_filter_from_dict,
     alternative_filter_shorthand_to_config,
     alternative_names_from_dict,
+)
+from .execution_filter import (
+    EXECUTION_FILTER_TYPE,
+    EXECUTION_SHORTHAND_TAG,
+    execution_filter_config,
+    execution_filter_config_to_shorthand,
+    execution_filter_from_dict,
+    execution_filter_shorthand_to_config,
 )
 from .renamer import (
     ENTITY_CLASS_RENAMER_SHORTHAND_TAG,
@@ -48,17 +56,9 @@ from .scenario_filter import (
 from .value_transformer import (
     VALUE_TRANSFORMER_SHORTHAND_TAG,
     VALUE_TRANSFORMER_TYPE,
-    value_transformer_shorthand_to_config,
-    value_transformer_from_dict,
     value_transformer_config_to_shorthand,
-)
-from .execution_filter import (
-    EXECUTION_SHORTHAND_TAG,
-    EXECUTION_FILTER_TYPE,
-    execution_filter_config,
-    execution_filter_config_to_shorthand,
-    execution_filter_from_dict,
-    execution_filter_shorthand_to_config,
+    value_transformer_from_dict,
+    value_transformer_shorthand_to_config,
 )
 
 FILTER_IDENTIFIER = "spinedbfilter"

@@ -15,43 +15,43 @@ import unittest
 import numpy
 from spinedb_api import (
     DatabaseMapping,
+    TimeSeriesFixedResolution,
     import_object_classes,
-    import_object_parameters,
     import_object_parameter_values,
+    import_object_parameters,
     import_objects,
     import_relationship_classes,
     import_relationship_parameter_values,
     import_relationship_parameters,
     import_relationships,
-    TimeSeriesFixedResolution,
 )
 from spinedb_api.export_mapping import rows
+from spinedb_api.export_mapping.export_mapping import (
+    DefaultValueIndexNameMapping,
+    DimensionMapping,
+    ElementMapping,
+    EntityClassMapping,
+    EntityMapping,
+    ExpandedParameterDefaultValueMapping,
+    ExpandedParameterValueMapping,
+    IndexNameMapping,
+    ParameterDefaultValueIndexMapping,
+    ParameterDefaultValueMapping,
+    ParameterDefaultValueTypeMapping,
+    ParameterValueIndexMapping,
+    ParameterValueMapping,
+    ParameterValueTypeMapping,
+    Position,
+)
 from spinedb_api.export_mapping.settings import (
-    entity_export,
-    set_entity_dimensions,
-    entity_parameter_value_export,
-    set_parameter_dimensions,
-    set_parameter_default_value_dimensions,
-    entity_parameter_default_value_export,
     entity_dimension_parameter_default_value_export,
     entity_dimension_parameter_value_export,
-)
-from spinedb_api.export_mapping.export_mapping import (
-    Position,
-    EntityClassMapping,
-    DimensionMapping,
-    EntityMapping,
-    ElementMapping,
-    ExpandedParameterValueMapping,
-    ParameterValueIndexMapping,
-    IndexNameMapping,
-    ParameterValueTypeMapping,
-    ParameterValueMapping,
-    ExpandedParameterDefaultValueMapping,
-    ParameterDefaultValueIndexMapping,
-    DefaultValueIndexNameMapping,
-    ParameterDefaultValueTypeMapping,
-    ParameterDefaultValueMapping,
+    entity_export,
+    entity_parameter_default_value_export,
+    entity_parameter_value_export,
+    set_entity_dimensions,
+    set_parameter_default_value_dimensions,
+    set_parameter_dimensions,
 )
 
 

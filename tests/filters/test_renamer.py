@@ -15,11 +15,10 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
-    apply_renaming_to_parameter_definition_sq,
+    DatabaseMapping,
     apply_renaming_to_entity_class_sq,
+    apply_renaming_to_parameter_definition_sq,
     create_new_spine_database,
-    DatabaseMapping,
-    DatabaseMapping,
     import_object_classes,
     import_object_parameters,
     import_relationship_classes,

@@ -15,8 +15,8 @@ Provides functions to apply filtering based on scenarios to parameter value subq
 
 """
 
-import json
 from functools import partial
+import json
 from sqlalchemy import func
 from ..exception import SpineDBAPIError
 

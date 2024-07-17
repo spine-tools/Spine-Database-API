@@ -16,11 +16,10 @@ Contains a class template for a data source connector used in import ui.
 """
 
 from itertools import islice
-
+from spinedb_api import DateTime, Duration, ParameterValueFormatError
 from spinedb_api.exception import ConnectorError, InvalidMappingComponent
 from spinedb_api.import_mapping.generator import get_mapped_data, identity
 from spinedb_api.import_mapping.import_mapping_compat import parse_named_mapping_spec
-from spinedb_api import DateTime, Duration, ParameterValueFormatError
 
 TYPE_STRING_TO_CLASS = {"string": str, "datetime": DateTime, "duration": Duration, "float": float, "boolean": bool}
 

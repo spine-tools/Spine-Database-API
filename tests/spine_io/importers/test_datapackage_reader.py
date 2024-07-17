@@ -16,12 +16,11 @@ Contains unit tests for DatapackageConnector.
 """
 from contextlib import contextmanager
 import csv
-import unittest
 from pathlib import Path
 import pickle
 from tempfile import TemporaryDirectory
+import unittest
 from datapackage import Package
-
 from spinedb_api.exception import ConnectorError
 from spinedb_api.spine_io.importers.datapackage_reader import DataPackageConnector
 

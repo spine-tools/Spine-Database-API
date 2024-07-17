@@ -13,7 +13,6 @@
 import json
 from numbers import Number
 import unittest
-
 from spinedb_api import DatabaseMapping
 from spinedb_api.parameter_value import to_database
 

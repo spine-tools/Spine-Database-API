@@ -19,18 +19,18 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
-    create_new_spine_database,
     DatabaseMapping,
+    SpineDBAPIError,
+    create_new_spine_database,
     import_object_classes,
-    import_relationship_classes,
     import_object_parameter_values,
     import_object_parameters,
     import_objects,
-    import_relationships,
+    import_parameter_value_lists,
+    import_relationship_classes,
     import_relationship_parameter_values,
     import_relationship_parameters,
-    import_parameter_value_lists,
-    SpineDBAPIError,
+    import_relationships,
 )
 
 
