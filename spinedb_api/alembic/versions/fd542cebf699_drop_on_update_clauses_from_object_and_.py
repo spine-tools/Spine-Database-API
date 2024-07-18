@@ -9,7 +9,6 @@ Create Date: 2022-01-05 11:00:31.154790
 from alembic import op
 from spinedb_api.helpers import naming_convention
 
-
 # revision identifiers, used by Alembic.
 revision = "fd542cebf699"
 down_revision = "738d494a08ac"

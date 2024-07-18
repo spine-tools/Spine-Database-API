@@ -17,13 +17,13 @@ This package contains facilities to map a Spine database into tables.
 from .generator import rows, titles
 from .settings import (
     alternative_export,
+    entity_dimension_parameter_default_value_export,
+    entity_dimension_parameter_value_export,
     entity_export,
     entity_group_export,
     entity_parameter_default_value_export,
     entity_parameter_value_export,
     parameter_value_list_export,
-    entity_dimension_parameter_default_value_export,
-    entity_dimension_parameter_value_export,
     scenario_alternative_export,
     scenario_export,
 )

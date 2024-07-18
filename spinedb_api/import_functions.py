@@ -16,9 +16,8 @@ This functionaly is equivalent to the one provided by :meth:`.DatabaseMapping.ad
 but the syntax is a little more compact.
 """
 from collections import defaultdict
-
-from .parameter_value import to_database, fix_conflict
 from .helpers import _parse_metadata
+from .parameter_value import fix_conflict, to_database
 
 
 def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs):

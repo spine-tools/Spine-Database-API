@@ -11,10 +11,9 @@
 ######################################################################################################################
 """ Contains import mappings for database items such as entities, entity classes and parameter values. """
 
-from enum import auto, Enum, unique
-
-from spinedb_api.mapping import Mapping, Position, unflatten, is_pivoted
+from enum import Enum, auto, unique
 from spinedb_api.exception import InvalidMappingComponent
+from spinedb_api.mapping import Mapping, Position, is_pivoted, unflatten
 
 
 @unique

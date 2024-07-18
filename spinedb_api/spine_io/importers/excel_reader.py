@@ -15,8 +15,8 @@ Contains ExcelConnector class and a help function.
 
 """
 
-from itertools import islice, takewhile, chain
 import io
+from itertools import chain, islice, takewhile
 from openpyxl import load_workbook
 from .reader import SourceConnection
 

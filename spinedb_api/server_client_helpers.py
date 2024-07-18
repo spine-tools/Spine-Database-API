@@ -11,8 +11,8 @@
 ######################################################################################################################
 
 import json
-from .exception import SpineDBAPIError
 from .db_mapping_base import PublicItem
+from .exception import SpineDBAPIError
 from .temp_id import TempId
 
 # Encode decode server messages

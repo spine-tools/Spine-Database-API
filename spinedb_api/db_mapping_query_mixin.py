@@ -11,9 +11,9 @@
 ######################################################################################################################
 
 from types import MethodType
-from sqlalchemy import Table, Integer, case, func, cast, and_, or_
-from sqlalchemy.sql.expression import Alias, label
+from sqlalchemy import Integer, Table, and_, case, cast, func, or_
 from sqlalchemy.orm import aliased
+from sqlalchemy.sql.expression import Alias, label
 from .helpers import forward_sweep, group_concat
 
 

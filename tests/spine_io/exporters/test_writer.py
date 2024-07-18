@@ -15,8 +15,8 @@ Unit tests for ``writer`` module.
 """
 import unittest
 from spinedb_api import DatabaseMapping, import_object_classes, import_objects
-from spinedb_api.spine_io.exporters.writer import Writer, write
 from spinedb_api.export_mapping.settings import entity_export
+from spinedb_api.spine_io.exporters.writer import Writer, write
 
 
 class _TableWriter(Writer):

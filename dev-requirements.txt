@@ -5,3 +5,4 @@ sphinx-autoapi
 sphinx_rtd_theme
 recommonmark
 black == 24.4.2
+isort

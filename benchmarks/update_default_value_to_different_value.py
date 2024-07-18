@@ -5,8 +5,8 @@ the update changes the default value from None to a somewhat complex Map.
 
 import time
 import pyperf
-from spinedb_api import DatabaseMapping, to_database
 from benchmarks.utils import build_even_map
+from spinedb_api import DatabaseMapping, to_database
 
 
 def update_default_value(loops, db_map, first_db_value, first_value_type, second_db_value, second_value_type):

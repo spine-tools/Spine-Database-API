@@ -88,7 +88,6 @@ import json
 from json.decoder import JSONDecodeError
 import re
 from typing import SupportsFloat
-
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import numpy as np

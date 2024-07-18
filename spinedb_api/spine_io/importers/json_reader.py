@@ -15,8 +15,8 @@ Contains JSONConnector class.
 
 """
 
-import sys
 import os
+import sys
 import ijson
 from .reader import SourceConnection
 

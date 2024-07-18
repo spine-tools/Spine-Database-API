@@ -15,14 +15,15 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
+    DatabaseMapping,
+    SpineDBAPIError,
     apply_filter_stack,
     apply_scenario_filter_to_subqueries,
     create_new_spine_database,
-    DatabaseMapping,
     import_alternatives,
-    import_entity_classes,
     import_entities,
     import_entity_alternatives,
+    import_entity_classes,
     import_object_classes,
     import_object_parameter_values,
     import_object_parameters,
@@ -33,7 +34,6 @@ from spinedb_api import (
     import_relationships,
     import_scenario_alternatives,
     import_scenarios,
-    SpineDBAPIError,
 )
 from spinedb_api.filters.scenario_filter import (
     scenario_filter_config,

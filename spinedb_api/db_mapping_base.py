@@ -9,12 +9,12 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-from multiprocessing import RLock
-from enum import Enum, unique, auto
 from difflib import SequenceMatcher
-from .temp_id import TempId, resolve
+from enum import Enum, auto, unique
+from multiprocessing import RLock
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
+from .temp_id import TempId, resolve
 
 # TODO: Implement MappedItem.pop() to do lookup?
 

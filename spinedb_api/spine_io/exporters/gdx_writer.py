@@ -11,11 +11,10 @@
 ######################################################################################################################
 """ Module contains a .gdx writer implementation. """
 import math
-from gdx2py import GAMSSet, GAMSScalar, GAMSParameter, GdxFile
+from gdx2py import GAMSParameter, GAMSScalar, GAMSSet, GdxFile
 from gdx2py.gdxfile import EPS_VALUE
 import gdxcc
 from .writer import Writer, WriterException
-
 
 SPECIAL_CONVERSIONS = {
     EPS_VALUE: gdxcc.GMS_SV_EPS,

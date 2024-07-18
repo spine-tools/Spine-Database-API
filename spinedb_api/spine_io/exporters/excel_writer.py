@@ -17,7 +17,7 @@ A writer for exporting Spine databases to Excel files.
 from pathlib import Path
 import re
 import numpy
-from openpyxl import load_workbook, Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.child import INVALID_TITLE_REGEX
 from .writer import Writer, WriterException

@@ -6,8 +6,8 @@ the default value is somewhat complex Map and the update does not change anythin
 import time
 from typing import Optional
 import pyperf
-from spinedb_api import DatabaseMapping, to_database
 from benchmarks.utils import build_even_map
+from spinedb_api import DatabaseMapping, to_database
 
 
 def update_default_value(loops: int, db_map: DatabaseMapping, value: bytes, value_type: Optional[str]) -> float:

@@ -13,7 +13,6 @@
 from functools import partial
 from sqlalchemy import case
 
-
 ENTITY_CLASS_RENAMER_TYPE = "entity_class_renamer"
 ENTITY_CLASS_RENAMER_SHORTHAND_TAG = "entity_class_rename"
 PARAMETER_RENAMER_TYPE = "parameter_renamer"

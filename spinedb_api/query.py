@@ -12,7 +12,7 @@
 
 """The :class:`Query` class."""
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.sql.functions import count
 from .exception import SpineDBAPIError
 

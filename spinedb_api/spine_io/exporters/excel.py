@@ -14,26 +14,26 @@
 Framework for exporting a database to Excel file.
 
 """
-from spinedb_api.export_mapping.group_functions import GroupOneOrNone
 from spinedb_api.export_mapping.export_mapping import (
-    Position,
-    AlternativeMapping,
     AlternativeDescriptionMapping,
+    AlternativeMapping,
+    ElementMapping,
     EntityClassMapping,
     EntityGroupMapping,
     EntityMapping,
+    ExpandedParameterValueMapping,
     FixedValueMapping,
-    ScenarioMapping,
+    ParameterDefinitionMapping,
+    ParameterValueIndexMapping,
+    ParameterValueMapping,
+    ParameterValueTypeMapping,
+    Position,
     ScenarioAlternativeMapping,
     ScenarioBeforeAlternativeMapping,
     ScenarioDescriptionMapping,
-    ParameterDefinitionMapping,
-    ParameterValueIndexMapping,
-    ParameterValueTypeMapping,
-    ParameterValueMapping,
-    ExpandedParameterValueMapping,
-    ElementMapping,
+    ScenarioMapping,
 )
+from spinedb_api.export_mapping.group_functions import GroupOneOrNone
 from ...parameter_value import from_database_to_dimension_count
 from .excel_writer import ExcelWriter
 from .writer import write

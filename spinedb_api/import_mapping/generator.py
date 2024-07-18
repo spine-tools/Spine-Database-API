@@ -18,21 +18,20 @@ using ``import_functions.import_data()``
 
 from copy import deepcopy
 from operator import itemgetter
-from .import_mapping_compat import import_mapping_from_dict
-from .import_mapping import ImportMapping, check_validity
+from ..exception import ParameterValueFormatError
 from ..helpers import string_to_bool
 from ..mapping import Position
 from ..parameter_value import (
-    convert_leaf_maps_to_specialized_containers,
-    Map,
-    TimeSeriesVariableResolution,
-    TimePattern,
     Array,
+    Map,
+    TimePattern,
+    TimeSeriesVariableResolution,
+    convert_leaf_maps_to_specialized_containers,
     from_database,
     split_value_and_type,
 )
-from ..exception import ParameterValueFormatError
-
+from .import_mapping import ImportMapping, check_validity
+from .import_mapping_compat import import_mapping_from_dict
 
 _NO_VALUE = object()
 

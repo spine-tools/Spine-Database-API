@@ -17,7 +17,6 @@ Provides functions to apply filtering based on alternatives to parameter value s
 from functools import partial
 from ..exception import SpineDBAPIError
 
-
 ALTERNATIVE_FILTER_TYPE = "alternative_filter"
 ALTERNATIVE_FILTER_SHORTHAND_TAG = "alternatives"
 

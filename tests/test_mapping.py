@@ -15,7 +15,7 @@ Unit tests for :mod:`spinedb_api.mapping`.
 
 """
 import unittest
-from spinedb_api.mapping import Mapping, Position, value_index, unflatten
+from spinedb_api.mapping import Mapping, Position, unflatten, value_index
 
 
 class TestMapping(unittest.TestCase):

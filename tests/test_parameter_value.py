@@ -23,22 +23,22 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 import numpy.testing
 from spinedb_api.parameter_value import (
-    convert_containers_to_maps,
-    convert_leaf_maps_to_specialized_containers,
-    convert_map_to_table,
-    deep_copy_value,
-    duration_to_relativedelta,
-    relativedelta_to_duration,
-    from_database,
-    to_database,
     Array,
     DateTime,
     Duration,
     Map,
     TimePattern,
+    TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
-    TimeSeries,
+    convert_containers_to_maps,
+    convert_leaf_maps_to_specialized_containers,
+    convert_map_to_table,
+    deep_copy_value,
+    duration_to_relativedelta,
+    from_database,
+    relativedelta_to_duration,
+    to_database,
 )
 
 

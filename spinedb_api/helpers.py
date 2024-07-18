@@ -11,14 +11,18 @@
 ######################################################################################################################
 """ General helper functions. """
 
-import os
-import json
-import warnings
-from operator import itemgetter
 from itertools import groupby
+import json
+from operator import itemgetter
+import os
+import warnings
+from alembic.config import Config
+from alembic.environment import EnvironmentContext
+from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import (
-    Boolean,
     BigInteger,
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -26,30 +30,26 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
+    LargeBinary,
     MetaData,
     PrimaryKeyConstraint,
     String,
     Table,
     Text,
-    LargeBinary,
     UniqueConstraint,
     create_engine,
     false,
     func,
     inspect,
     null,
-    true,
     select,
+    true,
 )
+from sqlalchemy.dialects.mysql import DOUBLE, TINYINT
+from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.exc import DatabaseError, IntegrityError
-from sqlalchemy.dialects.mysql import TINYINT, DOUBLE
 from sqlalchemy.sql.expression import FunctionElement, bindparam, cast
-from alembic.config import Config
-from alembic.script import ScriptDirectory
-from alembic.migration import MigrationContext
-from alembic.environment import EnvironmentContext
 from .exception import SpineDBAPIError, SpineDBVersionError
 
 SUPPORTED_DIALECTS = {

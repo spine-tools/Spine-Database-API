@@ -17,6 +17,7 @@ Unit tests for export mappings.
 import unittest
 from spinedb_api import (
     DatabaseMapping,
+    Map,
     import_alternatives,
     import_object_classes,
     import_object_parameter_values,
@@ -27,44 +28,42 @@ from spinedb_api import (
     import_relationships,
     import_scenario_alternatives,
     import_scenarios,
-    Map,
 )
-from spinedb_api.import_functions import import_object_groups
-from spinedb_api.mapping import Position, to_dict
 from spinedb_api.export_mapping import (
-    rows,
-    titles,
+    entity_export,
     entity_parameter_default_value_export,
     entity_parameter_value_export,
-    entity_export,
+    rows,
+    titles,
 )
 from spinedb_api.export_mapping.export_mapping import (
     AlternativeDescriptionMapping,
     AlternativeMapping,
-    drop_non_positioned_tail,
-    FixedValueMapping,
-    ExpandedParameterValueMapping,
-    ExpandedParameterDefaultValueMapping,
-    from_dict,
-    EntityGroupMapping,
-    EntityGroupEntityMapping,
-    EntityMapping,
+    DimensionMapping,
+    ElementMapping,
     EntityClassMapping,
-    ParameterDefaultValueMapping,
+    EntityGroupEntityMapping,
+    EntityGroupMapping,
+    EntityMapping,
+    ExpandedParameterDefaultValueMapping,
+    ExpandedParameterValueMapping,
+    FixedValueMapping,
     ParameterDefaultValueIndexMapping,
+    ParameterDefaultValueMapping,
     ParameterDefinitionMapping,
     ParameterValueIndexMapping,
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     ParameterValueMapping,
     ParameterValueTypeMapping,
-    DimensionMapping,
-    ElementMapping,
     ScenarioAlternativeMapping,
     ScenarioDescriptionMapping,
     ScenarioMapping,
+    drop_non_positioned_tail,
+    from_dict,
 )
-from spinedb_api.mapping import unflatten
+from spinedb_api.import_functions import import_object_groups
+from spinedb_api.mapping import Position, to_dict, unflatten
 
 
 class TestExportMapping(unittest.TestCase):
