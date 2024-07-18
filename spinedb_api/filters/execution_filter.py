@@ -17,7 +17,7 @@ Provides functions to apply filtering based on scenarios to parameter value subq
 
 from functools import partial
 import json
-from sqlalchemy import func
+from sqlalchemy import func  # pylint: disable=unused-import
 from ..exception import SpineDBAPIError
 
 EXECUTION_FILTER_TYPE = "execution_filter"

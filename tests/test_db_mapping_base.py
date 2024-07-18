@@ -10,7 +10,7 @@
 ######################################################################################################################
 import unittest
 from spinedb_api import DatabaseMapping
-from spinedb_api.db_mapping_base import DatabaseMappingBase, MappedItemBase, PublicItem
+from spinedb_api.db_mapping_base import DatabaseMappingBase, MappedItemBase
 from tests.mock_helpers import AssertSuccessTestCase
 
 

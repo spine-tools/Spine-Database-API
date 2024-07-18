@@ -14,7 +14,7 @@
 from itertools import dropwhile, takewhile
 from json import dump, load
 import sys
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, urlencode, urlparse
 from .alternative_filter import (
     ALTERNATIVE_FILTER_SHORTHAND_TAG,
     ALTERNATIVE_FILTER_TYPE,

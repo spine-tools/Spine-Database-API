@@ -11,7 +11,6 @@
 ######################################################################################################################
 
 from operator import itemgetter
-import time
 from .db_mapping_base import MappedItemBase
 from .helpers import name_from_dimensions, name_from_elements
 from .parameter_value import ParameterValueFormatError, from_database, to_database
