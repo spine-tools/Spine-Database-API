@@ -102,7 +102,7 @@ def value_transformer_shorthand_to_config(shorthand):
         dict: value transformer configuration
     """
     tokens = shorthand.split(":")[1:]
-    instructions = dict()
+    instructions = {}
     while tokens:
         class_name = tokens.pop(0)
         param_name = tokens.pop(0)
@@ -146,7 +146,7 @@ class _ValueTransformerState:
                 & db_map.entity_parameter_definition_sq.c.parameter_name.in_(param_names)
             )
         }
-        transformed = dict()
+        transformed = {}
         for value_row in db_map.query(db_map.entity_parameter_value_sq).filter(
             db_map.entity_parameter_value_sq.c.parameter_id.in_(definition_ids)
         ):

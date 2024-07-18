@@ -95,7 +95,7 @@ def load_filters(configs):
     Returns:
         list of dict: filter stack
     """
-    stack = list()
+    stack = []
     for config in configs:
         if isinstance(config, str):
             with open(config) as config_file:
@@ -149,7 +149,7 @@ def append_filter_config(url, config):
     """
     url = urlparse(url)
     query = parse_qs(url.query)
-    filters = query.setdefault(FILTER_IDENTIFIER, list())
+    filters = query.setdefault(FILTER_IDENTIFIER, [])
     if isinstance(config, dict):
         config = config_to_shorthand(config)
     if config not in filters:
@@ -174,7 +174,7 @@ def filter_configs(url):
         filters = query[FILTER_IDENTIFIER]
     except KeyError:
         return []
-    parsed_filters = list()
+    parsed_filters = []
     for filter_ in filters:
         if filter_.startswith(SHORTHAND_TAG):
             parsed_filters.append(_parse_shorthand(filter_[len(SHORTHAND_TAG) :]))
@@ -199,7 +199,7 @@ def pop_filter_configs(url):
         filters = query.pop(FILTER_IDENTIFIER)
     except KeyError:
         return [], url
-    parsed_filters = list()
+    parsed_filters = []
     for filter_ in filters:
         if filter_.startswith(SHORTHAND_TAG):
             parsed_filters.append(_parse_shorthand(filter_[len(SHORTHAND_TAG) :]))

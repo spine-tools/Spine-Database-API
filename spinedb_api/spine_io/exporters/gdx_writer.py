@@ -35,8 +35,8 @@ class GdxWriter(Writer):
         self._file_path = file_path
         self._gams_dir = gams_directory
         self._gdx_file = None
-        self._tables = dict()
-        self._table_dimensions = dict()
+        self._tables = {}
+        self._table_dimensions = {}
         self._current_table_name = None
         self._current_table = None
         self._dimensions_missing = True
@@ -52,7 +52,7 @@ class GdxWriter(Writer):
     def finish_table(self):
         if self._current_table_name is None:
             return
-        self._tables.setdefault(self._current_table_name, list()).extend(self._current_table)
+        self._tables.setdefault(self._current_table_name, []).extend(self._current_table)
         self._current_table_name = None
 
     def start(self):
@@ -67,7 +67,7 @@ class GdxWriter(Writer):
         if table_name in self._gdx_file:
             raise WriterException("Gdx does not support appending data to existing sets.")
         self._current_table_name = table_name
-        self._current_table = list()
+        self._current_table = []
         self._dimensions_missing = True
         return True
 

@@ -475,7 +475,7 @@ def _time_series_from_dictionary(value_dict):
         TimeSeriesVariableResolution: restored time series
     """
     data = value_dict["data"]
-    stamps = list()
+    stamps = []
     values = np.empty(len(data))
     for index, (stamp, series_value) in enumerate(data.items()):
         try:
@@ -524,7 +524,7 @@ def _time_series_from_single_column(value_dict):
     if isinstance(resolution, str) or not isinstance(resolution, Sequence):
         # Always work with lists to simplify the code.
         resolution = [resolution]
-    relativedeltas = list()
+    relativedeltas = []
     for duration in resolution:
         if not isinstance(duration, str):
             duration = str(duration) + _TIME_SERIES_PLAIN_INDEX_UNIT
@@ -552,7 +552,7 @@ def _time_series_from_two_columns(value_dict):
         TimeSeriesVariableResolution: restored time series
     """
     data = value_dict["data"]
-    stamps = list()
+    stamps = []
     values = np.empty(len(data))
     for index, element in enumerate(data):
         if not isinstance(element, Sequence) or len(element) != 2:
@@ -598,11 +598,11 @@ def _map_from_database(value_dict):
         values = _map_values_from_database(data.values())
     elif isinstance(data, Sequence):
         if not data:
-            indexes = list()
-            values = list()
+            indexes = []
+            values = []
         else:
-            indexes_in_db = list()
-            values_in_db = list()
+            indexes_in_db = []
+            values_in_db = []
             for row in data:
                 if not isinstance(row, Sequence) or len(row) != 2:
                     raise ParameterValueFormatError('"data" is not a nested two column array.')
@@ -678,8 +678,8 @@ def _map_value_to_database(value):
 def _map_values_from_database(values_in_db):
     """Converts map's values from their database format."""
     if not values_in_db:
-        return list()
-    values = list()
+        return []
+    values = []
     for value_in_db in values_in_db:
         value = from_dict(value_in_db) if isinstance(value_in_db, dict) else value_in_db
         if isinstance(value, int):
@@ -1489,13 +1489,13 @@ class TimeSeriesVariableResolution(TimeSeries):
         )
 
     def to_dict(self):
-        value_dict = dict()
+        value_dict = {}
         value_dict["data"] = {str(index): float(value) for index, value in zip(self._indexes, self._values)}
         # Add "index" entry only if its contents are not set to their default values.
         if self._ignore_year:
-            value_dict.setdefault("index", dict())["ignore_year"] = self._ignore_year
+            value_dict.setdefault("index", {})["ignore_year"] = self._ignore_year
         if self._repeat:
-            value_dict.setdefault("index", dict())["repeat"] = self._repeat
+            value_dict.setdefault("index", {})["repeat"] = self._repeat
         if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
         return value_dict
@@ -1547,7 +1547,7 @@ class Map(IndexedValue):
 
     def value_to_database_data(self):
         """Returns map's database representation's 'data' dictionary."""
-        data = list()
+        data = []
         nested_ranks = [0]
         for index, value in zip(self._indexes, self._values):
             index_in_db = _map_index_to_database(index)
@@ -1612,7 +1612,7 @@ def convert_leaf_maps_to_specialized_containers(map_):
     converted_container = _try_convert_to_container(map_)
     if converted_container is not None:
         return converted_container
-    new_values = list()
+    new_values = []
     for _, value in zip(map_.indexes, map_.values):
         if isinstance(value, Map):
             converted = convert_leaf_maps_to_specialized_containers(value)
@@ -1639,7 +1639,7 @@ def convert_containers_to_maps(value):
     if isinstance(value, Map):
         if not value:
             return value
-        new_values = list()
+        new_values = []
         for _, x in zip(value.indexes, value.values):
             if isinstance(x, IndexedValue):
                 new_values.append(convert_containers_to_maps(x))
@@ -1677,8 +1677,8 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
         list of list: map's rows
     """
     if row_this_far is None:
-        row_this_far = list()
-    rows = list()
+        row_this_far = []
+    rows = []
     for index, value in zip(map_.indexes, map_.values):
         if not isinstance(value, Map):
             rows.append(row_this_far + [index, value])
@@ -1688,7 +1688,7 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
         max_length = 0
         for row in rows:
             max_length = max(max_length, len(row))
-        equal_length_rows = list()
+        equal_length_rows = []
         for row in rows:
             equal_length_row = row + (max_length - len(row)) * [empty]
             equal_length_rows.append(equal_length_row)
@@ -1708,7 +1708,7 @@ def convert_map_to_dict(map_):
     Returns:
         dict:
     """
-    d = dict()
+    d = {}
     for index, x in zip(map_.indexes, map_.values):
         if isinstance(x, Map):
             x = convert_map_to_dict(x)
@@ -1728,8 +1728,8 @@ def _try_convert_to_container(map_):
     """
     if not map_:
         return None
-    stamps = list()
-    values = list()
+    stamps = []
+    values = []
     for index, value in zip(map_.indexes, map_.values):
         if not isinstance(index, DateTime) or not isinstance(value, float):
             return None

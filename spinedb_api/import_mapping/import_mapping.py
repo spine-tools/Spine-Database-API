@@ -546,7 +546,7 @@ class ParameterDefinitionMapping(ImportMapping):
         parameter_definition_key = state[ImportKey.PARAMETER_DEFINITION] = entity_class_name, parameter_name
         default_values = state.get(ImportKey.PARAMETER_DEFAULT_VALUES)
         if default_values is None or parameter_definition_key not in default_values:
-            mapped_data.setdefault("parameter_definitions", dict())[parameter_definition_key] = definition_extras
+            mapped_data.setdefault("parameter_definitions", {})[parameter_definition_key] = definition_extras
 
 
 class ParameterTypeMapping(ImportMapping):

@@ -63,7 +63,7 @@ class ExportMapping(Mapping):
         Returns:
             list: a list of issues
         """
-        issues = list()
+        issues = []
         if self.is_effective_leaf() and is_pivoted(self.position):
             issues.append("Cannot be pivoted.")
         return issues
@@ -1454,7 +1454,7 @@ def pair_header_buddies(root_mapping):
         paired: bool
 
     pairables = [Pairable(m, False) for m in root_mapping.flatten()]
-    buddies = list()
+    buddies = []
     for i, parent in enumerate(pairables):
         if parent.mapping.position != Position.header:
             continue
@@ -1545,7 +1545,7 @@ def from_dict(serialized):
         "RelationshipObjectHighlightingMapping": ElementMapping,
     }
     mappings.update(legacy_mappings)
-    flattened = list()
+    flattened = []
     for mapping_dict in serialized:
         if mapping_dict["map_type"] == "ScenarioActiveFlag":
             # We don't support active flag exporting anymore.

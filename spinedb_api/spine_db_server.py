@@ -241,7 +241,7 @@ class _DBServerManager:
         if not server:
             return
         ordering = server.ordering
-        checkouts = self._checkouts.get(ordering["id"], dict())
+        checkouts = self._checkouts.get(ordering["id"], {})
         full_checkouts = set(x for x, count in checkouts.items() if count == self._CHECKOUT_COMPLETE)
         precursors = ordering["precursors"]
         if precursors <= full_checkouts:
@@ -259,7 +259,7 @@ class _DBServerManager:
 
     def _quick_db_checkout(self, ordering):
         current = ordering["current"]
-        checkouts = self._checkouts.setdefault(ordering["id"], dict())
+        checkouts = self._checkouts.setdefault(ordering["id"], {})
         if current not in checkouts:
             checkouts[current] = 1
         elif checkouts[current] != self._CHECKOUT_COMPLETE:
@@ -267,7 +267,7 @@ class _DBServerManager:
         if checkouts[current] == ordering["part_count"]:
             checkouts[current] = self._CHECKOUT_COMPLETE
         full_checkouts = set(x for x, count in checkouts.items() if count == self._CHECKOUT_COMPLETE)
-        waiters = self._waiters.get(ordering["id"], dict())
+        waiters = self._waiters.get(ordering["id"], {})
         done = [event for event, precursors in waiters.items() if precursors <= full_checkouts]
         for event in done:
             del waiters[event]
@@ -278,7 +278,7 @@ class _DBServerManager:
         if not server:
             return
         ordering = server.ordering
-        checkouts = self._checkouts.get(ordering["id"], dict())
+        checkouts = self._checkouts.get(ordering["id"], {})
         checkouts.pop(ordering["current"], None)
 
 

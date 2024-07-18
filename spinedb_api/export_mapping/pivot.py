@@ -64,7 +64,7 @@ def make_pivot(
         Returns:
             dict: mapping non-pivoted keys to regular rows
         """
-        regular_rows = dict()
+        regular_rows = {}
         for row in table:
             regular_key = tuple(row[c] for c in key_columns)
             regular_row = [row[i] for i in range(regular_column_width)]
@@ -77,14 +77,14 @@ def make_pivot(
         Returns:
             dict: a nested dictionary mapping keys to pivot values
         """
-        tree = dict()
+        tree = {}
         for row in table:
             branch = tree
             for c in key_columns + pivot_columns[:-1]:
-                branch = branch.setdefault(row[c], dict())
+                branch = branch.setdefault(row[c], {})
             # If not grouping, the list below will have exactly one element
             # If grouping, it will have all the elements that need to be grouped
-            values = branch.setdefault(row[pivot_columns[-1]], list())
+            values = branch.setdefault(row[pivot_columns[-1]], [])
             values.append(row[value_column])
         return tree
 
@@ -98,12 +98,12 @@ def make_pivot(
             row = [pivot_header[i]] if pivot_header is not None else []
             row += list(k[i] for k in pivot_keys)
             yield row
-        values = dict()
+        values = {}
         for row in table:
             branch = values
             for c in pivot_columns[:-1]:
-                branch = branch.setdefault(row[c], dict())
-            branch.setdefault(row[pivot_columns[-1]], list()).append(row[value_column])
+                branch = branch.setdefault(row[c], {})
+            branch.setdefault(row[pivot_columns[-1]], []).append(row[value_column])
         height = max(len(leaf(values, key)) for key in pivot_keys) if pivot_keys else 0
         for i in range(height):
             row = [None] if pivot_header is not None else []
@@ -213,10 +213,10 @@ def make_regular(root_mapping):
     pivot_position_to_row = {position: i for i, position in enumerate(pivoted_positions)}
     pivot_column_count = len(pivot_position_to_row)
     pivot_column_base = regular_column_count
-    pivot_columns = list()
+    pivot_columns = []
     hidden_column_base = pivot_column_base + pivot_column_count
     current_hidden_column = 0
-    hidden_columns = list()
+    hidden_columns = []
     for mapping in mappings[:value_i]:
         position = mapping.position
         if is_pivoted(position):

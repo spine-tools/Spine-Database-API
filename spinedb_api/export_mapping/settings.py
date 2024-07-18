@@ -83,9 +83,9 @@ def entity_export(
         ExportMapping: root mapping
     """
     if dimension_positions is None:
-        dimension_positions = list()
+        dimension_positions = []
     if element_positions is None:
-        element_positions = list()
+        element_positions = []
     entity_class = EntityClassMapping(entity_class_position)
     dimension = _generate_dimensions(entity_class, DimensionMapping, dimension_positions)
     entity = EntityMapping(entity_position)
@@ -158,9 +158,9 @@ def entity_parameter_value_export(
         ExportMapping: root mapping
     """
     if dimension_positions is None:
-        dimension_positions = list()
+        dimension_positions = []
     if element_positions is None:
-        element_positions = list()
+        element_positions = []
     entity_class = EntityClassMapping(entity_class_position)
     dimension = _generate_dimensions(entity_class, DimensionMapping, dimension_positions)
     value_list = ParameterValueListMapping(value_list_position)
@@ -257,9 +257,9 @@ def entity_dimension_parameter_value_export(
     """
     # TODO fix dimension highlighting
     if dimension_positions is None:
-        dimension_positions = list()
+        dimension_positions = []
     if element_positions is None:
-        element_positions = list()
+        element_positions = []
     entity_class = EntityClassMapping(entity_class_position, highlight_position=highlight_position)
     dimension = _generate_dimensions(entity_class, DimensionMapping, dimension_positions)
     value_list = ParameterValueListMapping(value_list_position)

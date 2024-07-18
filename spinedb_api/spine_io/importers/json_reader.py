@@ -52,7 +52,7 @@ class JSONConnector(SourceConnection):
         """Disconnect from connected source."""
 
     def get_tables(self):
-        prefixes = dict()
+        prefixes = {}
         with open(self._filename) as f:
             for prefix, event, _ in ijson.parse(f):
                 if event in ("start_map", "start_array"):
