@@ -97,6 +97,7 @@ autoapi_ignore = [
     '*/spinedb_api/import_mapping/*',
     '*/spinedb_api/spine_io/*',
     '*/spinedb_api/compatibility*',
+    '*/spinedb_api/db_mapping_helpers*',
     '*/spinedb_api/exception*',
     '*/spinedb_api/export_functions*',
     '*/spinedb_api/helpers*',

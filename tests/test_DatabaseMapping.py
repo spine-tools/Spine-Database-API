@@ -1463,6 +1463,64 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 definition = db_map.get_parameter_definition_item(entity_class_name="Widget", name="typed")
                 self.assertEqual(definition["parameter_type_list"], ("array", "3d_map", "str"))
 
+    def test_set_parameter_value_to_null(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Unit"))
+            self._assert_success(db_map.add_parameter_definition_item(name="is_SI", entity_class_name="Unit"))
+            self._assert_success(db_map.add_entity_item(name="gram", entity_class_name="Unit"))
+            value, value_type = to_database(None)
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Unit",
+                    entity_byname=("gram",),
+                    parameter_definition_name="is_SI",
+                    alternative_name="Base",
+                    value=value,
+                    type=value_type,
+                )
+            )
+            self.assertIsNone(value_item["parsed_value"])
+            self.assertIsNone(value_item["type"])
+
+    def test_parameter_default_type_cannot_be_none_if_default_value_is_non_null(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Unit"))
+            value, _ = to_database(2.3)
+            definition, error = db_map.add_parameter_definition_item(
+                name="is_SI", entity_class_name="Unit", default_value=value, default_type=None
+            )
+            self.assertEqual(error, "invalid default_type for parameter_definition")
+            self.assertIsNone(definition)
+
+    def test_parameter_type_cannot_be_none_if_value_is_non_null(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Unit"))
+            self._assert_success(db_map.add_parameter_definition_item(name="is_SI", entity_class_name="Unit"))
+            self._assert_success(db_map.add_entity_item(name="gram", entity_class_name="Unit"))
+            value, _ = to_database(2.3)
+            value_item, error = db_map.add_parameter_value_item(
+                entity_class_name="Unit",
+                entity_byname=("gram",),
+                parameter_definition_name="is_SI",
+                alternative_name="Base",
+                value=value,
+                type=None,
+            )
+            self.assertEqual(error, "invalid type for parameter_value")
+            self.assertIsNone(value_item)
+
+    def test_parameter_definition_callbacks_get_called_on_default_value_update(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="bear"))
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(name="is_hibernating", entity_class_name="bear")
+            )
+            callback = mock.MagicMock(return_value=True)
+            definition.add_update_callback(callback)
+            value, value_type = to_database(2.3)
+            definition.update(default_value=value, default_type=value_type)
+            callback.assert_called_once_with(definition)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
@@ -2476,19 +2534,23 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         )
         nemo_row = self._db_map.query(self._db_map.object_sq).filter(self._db_map.object_sq.c.name == "nemo").first()
         nemo__pluto_row = self._db_map.query(self._db_map.wide_relationship_sq).first()
+        value1, value_type_1 = to_database("orange")
+        value2, value_type_2 = to_database(125)
         self._db_map.add_parameter_values(
             {
                 "parameter_definition_id": color_id,
                 "entity_id": nemo_row.id,
                 "entity_class_id": nemo_row.class_id,
-                "value": b'"orange"',
+                "value": value1,
+                "type": value_type_1,
                 "alternative_id": 1,
             },
             {
                 "parameter_definition_id": rel_speed_id,
                 "entity_id": nemo__pluto_row.id,
                 "entity_class_id": nemo__pluto_row.class_id,
-                "value": b"125",
+                "value": value2,
+                "type": value_type_2,
                 "alternative_id": 1,
             },
         )
@@ -2534,19 +2596,23 @@ class TestDatabaseMappingAdd(unittest.TestCase):
             .id
         )
         nemo_row = self._db_map.query(self._db_map.object_sq).filter(self._db_map.entity_sq.c.name == "nemo").first()
+        value1, type1 = to_database("orange")
+        value2, type2 = to_database("blue")
         self._db_map.add_parameter_values(
             {
                 "parameter_definition_id": color_id,
                 "entity_id": nemo_row.id,
                 "entity_class_id": nemo_row.class_id,
-                "value": b'"orange"',
+                "value": value1,
+                "type": type1,
                 "alternative_id": 1,
             },
             {
                 "parameter_definition_id": color_id,
                 "entity_id": nemo_row.id,
                 "entity_class_id": nemo_row.class_id,
-                "value": b'"blue"',
+                "value": value2,
+                "type": type2,
                 "alternative_id": 1,
             },
         )
@@ -2564,13 +2630,15 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         import_functions.import_objects(self._db_map, [("fish", "nemo")])
         import_functions.import_object_parameters(self._db_map, [("fish", "color")])
         import_functions.import_object_parameter_values(self._db_map, [("fish", "nemo", "color", "orange")])
+        value, value_type = to_database("blue")
         self._db_map.commit_session("add")
         _, errors = self._db_map.add_parameter_values(
             {
                 "parameter_definition_id": 1,
                 "entity_class_id": 1,
                 "entity_id": 1,
-                "value": b'"blue"',
+                "value": value,
+                "type": value_type,
                 "alternative_id": 1,
             },
             strict=False,
@@ -3407,9 +3475,11 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self._db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
+        value, value_type = to_database(0)
         self._db_map.add_parameter_values(
             {
-                "value": b"0",
+                "value": value,
+                "type": value_type,
                 "id": 1,
                 "parameter_definition_id": 1,
                 "object_id": 1,
@@ -3429,9 +3499,11 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self._db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
+        value, value_type = to_database(0)
         self._db_map.add_parameter_values(
             {
-                "value": b"0",
+                "value": value,
+                "type": value_type,
                 "id": 1,
                 "parameter_definition_id": 1,
                 "object_id": 1,
@@ -3451,9 +3523,11 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self._db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
+        value, value_type = to_database(0)
         self._db_map.add_parameter_values(
             {
-                "value": b"0",
+                "value": value,
+                "type": value_type,
                 "id": 1,
                 "parameter_definition_id": 1,
                 "object_id": 1,
@@ -3473,9 +3547,11 @@ class TestDatabaseMappingRemoveMixin(unittest.TestCase):
         self._db_map.add_object_classes({"name": "oc1", "id": 1}, strict=True)
         self._db_map.add_objects({"name": "o1", "id": 1, "class_id": 1}, strict=True)
         self._db_map.add_parameter_definitions({"name": "param", "id": 1, "object_class_id": 1}, strict=True)
+        value, value_type = to_database(0)
         self._db_map.add_parameter_values(
             {
-                "value": b"0",
+                "value": value,
+                "type": value_type,
                 "id": 1,
                 "parameter_definition_id": 1,
                 "object_id": 1,

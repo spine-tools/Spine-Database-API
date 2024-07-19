@@ -240,7 +240,7 @@ def load_db_value(db_value, type_):
     except JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}") from err
     if isinstance(parsed, dict):
-        return {"type": type_, **parsed}
+        parsed["type"] = type_
     return parsed
 
 
@@ -257,10 +257,8 @@ def dump_db_value(parsed_value):
     Returns:
         tuple(str,str): database representation (value and type).
     """
-    value_type = parsed_value.pop("type") if isinstance(parsed_value, dict) else None
+    value_type = parsed_value["type"] if isinstance(parsed_value, dict) else type_for_scalar(parsed_value)
     db_value = json.dumps(parsed_value).encode("UTF8")
-    if isinstance(parsed_value, dict) and value_type is not None:
-        parsed_value["type"] = value_type
     return db_value, value_type
 
 
@@ -1174,8 +1172,9 @@ class _TimePatternIndexes(_Indexes):
 
     def __array_finalize__(self, obj):
         """Checks indexes when building the array."""
-        for x in obj:
-            self._check_index(x)
+        if obj is not None:
+            for x in obj:
+                self._check_index(x)
         super().__array_finalize__(obj)
 
     def __eq__(self, other):
@@ -1860,11 +1859,29 @@ def deep_copy_map(value):
     return Map(xs, ys, index_type=value.index_type, index_name=value.index_name)
 
 
+def type_for_value(value):
+    """Declares value's database type and rank.
+
+    Args:
+        value (Any): value to inspect
+
+    Returns:
+        tuple: type and rank
+    """
+    if isinstance(value, Map):
+        return Map.type_(), map_dimensions(value)
+    if isinstance(value, ParameterValue):
+        if value.type_() in RANK_1_TYPES:
+            return value.type_(), 1
+        return value.type_(), 0
+    return type_for_scalar(value), 0
+
+
 def type_for_scalar(parsed_value):
     """Declares scalar value's database type.
 
     Args:
-        parsed_value (float or string or bool): parsed scalar
+        parsed_value (float or string or bool or dict): parsed scalar
 
     Returns:
         str: value's type
@@ -1880,3 +1897,6 @@ def type_for_scalar(parsed_value):
     if isinstance(parsed_value, str):
         return STRING_VALUE_TYPE
     raise ParameterValueFormatError(f"Values of type {type(parsed_value).__name__} not supported.")
+
+
+UNPARSED_NULL_VALUE = to_database(None)[0]

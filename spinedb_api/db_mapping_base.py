@@ -740,7 +740,7 @@ class MappedItemBase(dict):
         self._status_when_removed = None
         self._status_when_committed = None
         self._backup = None
-        self.public_item = PublicItem(self._db_map, self)
+        self.public_item = PublicItem(self)
 
     def handle_refetch(self):
         """Called when an equivalent item is fetched from the DB.
@@ -760,6 +760,11 @@ class MappedItemBase(dict):
             set(str)
         """
         return set(ref_type for ref_type, _ref_key in cls._references.values())
+
+    @property
+    def db_map(self) -> DatabaseMappingBase:
+        """Returns the database mapping of the item."""
+        return self._db_map
 
     @property
     def status(self):
@@ -1296,13 +1301,20 @@ class MappedItemBase(dict):
 
 
 class PublicItem:
-    def __init__(self, db_map, mapped_item):
-        self._db_map = db_map
+    def __init__(self, mapped_item):
         self._mapped_item = mapped_item
 
     @property
     def item_type(self):
         return self._mapped_item.item_type
+
+    @property
+    def mapped_item(self):
+        return self._mapped_item
+
+    @property
+    def db_map(self):
+        return self._mapped_item.db_map
 
     def __getitem__(self, key):
         return self._mapped_item[key]
@@ -1340,14 +1352,14 @@ class PublicItem:
         return self._mapped_item._extended()
 
     def update(self, **kwargs):
-        return self._db_map.update_item(self.item_type, id=self["id"], **kwargs)
+        return self._mapped_item.db_map.update_item(self.item_type, id=self["id"], **kwargs)
 
     def remove(self):
-        return self._db_map.remove_item(self.item_type, self["id"])
+        return self._mapped_item.db_map.remove_item(self.item_type, self["id"])
 
     def restore(self):
         if not self._mapped_item.has_valid_id:
-            mapped_table = self._db_map.mapped_table(self.item_type)
+            mapped_table = self._mapped_item.db_map.mapped_table(self.item_type)
             existing_item = mapped_table.find_item_by_unique_key(self, fetch=False, valid_only=False)
             if existing_item:
                 if not existing_item.removed:
@@ -1356,7 +1368,7 @@ class PublicItem:
                 mapped_table.remove_unique(existing_item)
                 self._mapped_item.validate_id()
                 mapped_table.add_unique(self._mapped_item)
-        return self._db_map.restore_item(self.item_type, self["id"])
+        return self._mapped_item.db_map.restore_item(self.item_type, self["id"])
 
     def add_update_callback(self, callback):
         self._mapped_item.update_callbacks.add(callback)
