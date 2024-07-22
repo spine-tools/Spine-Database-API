@@ -25,7 +25,7 @@ def item_factory(item_type):
         "entity_alternative": EntityAlternativeItem,
         "entity_group": EntityGroupItem,
         "entity_class_display_mode": EntityClassDisplayModeItem,
-        "entity_class_display_mode__entity_class": EntityClassDisplayModeEntityClassItem,
+        "display_mode__entity_class": DisplayModeEntityClassItem,
         "parameter_definition": ParameterDefinitionItem,
         "parameter_value": ParameterValueItem,
         "parameter_value_list": ParameterValueListItem,
@@ -365,7 +365,7 @@ class EntityClassDisplayModeItem(MappedItemBase):
     unique_keys = (("name",),)
 
 
-class EntityClassDisplayModeEntityClassItem(MappedItemBase):
+class DisplayModeEntityClassItem(MappedItemBase):
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "display_mode_name": {"type": int, "value": "The entity class display mode name."},
@@ -377,6 +377,7 @@ class EntityClassDisplayModeEntityClassItem(MappedItemBase):
         (
             "entity_class_name",
             "display_mode_name",
+            "display_order",
         ),
     )
     corresponding_unique_id_keys = {"entity_class_name": "entity_class_id", "display_mode_name": "display_mode_id"}

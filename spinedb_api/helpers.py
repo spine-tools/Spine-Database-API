@@ -490,7 +490,7 @@ def create_spine_metadata():
         Column("description", Text(), server_default=null()),
     )
     Table(
-        "entity_class_display_mode__entity_class",
+        "display_mode__entity_class",
         meta,
         Column("id", Integer, primary_key=True),
         Column(
@@ -512,7 +512,7 @@ def create_spine_metadata():
         ),
         Column("display_order", Integer, nullable=False),
         Column("display_status", Text(), server_default=null()),
-        UniqueConstraint("display_mode_id", "entity_class_id", name="uq_display_mode_entity_class"),
+        UniqueConstraint("display_mode_id", "entity_class_id", "display_order", name="uq_display_mode_class_order"),
     )
     Table(
         "parameter_definition",

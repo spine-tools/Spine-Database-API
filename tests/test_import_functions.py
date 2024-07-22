@@ -16,7 +16,7 @@ from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.import_functions import (
     import_alternatives,
     import_data,
-    import_entity_class_display_mode__entity_classes,
+    import_display_mode__entity_classes,
     import_entity_class_display_modes,
     import_entity_classes,
     import_metadata,
@@ -1675,7 +1675,7 @@ class TestImportEntityClassDisplayMode(unittest.TestCase):
 
 
 class TestImportEntityClassDisplayModeEntityClass(unittest.TestCase):
-    def test_import_single_entity_class_display_mode__entity_class(self):
+    def test_import_single_display_mode__entity_class(self):
         db_map = create_db_map()
         count, errors = import_entity_classes(db_map, (("ent_cls", ()),))
         self.assertEqual(count, 1)
@@ -1683,11 +1683,11 @@ class TestImportEntityClassDisplayModeEntityClass(unittest.TestCase):
         count, errors = import_entity_class_display_modes(db_map, (("disp_mode", "Some desc."),))
         self.assertEqual(count, 1)
         self.assertFalse(errors)
-        count, errors = import_entity_class_display_mode__entity_classes(db_map, (("disp_mode", "ent_cls", 98),))
+        count, errors = import_display_mode__entity_classes(db_map, (("disp_mode", "ent_cls", 98),))
         self.assertEqual(count, 1)
         self.assertFalse(errors)
         db_map.commit_session("test")
-        metadata = db_map.query(db_map.entity_class_display_mode__entity_class_sq).all()
+        metadata = db_map.query(db_map.display_mode__entity_class_sq).all()
         self.assertEqual(len(metadata), 1)
         self.assertEqual(
             dict(metadata[0]),

@@ -122,7 +122,7 @@ def get_data_for_import(
     parameter_value_metadata=(),
     superclass_subclasses=(),
     entity_class_display_modes=(),
-    entity_class_display_mode__entity_classes=(),
+    display_mode__entity_classes=(),
     # legacy
     object_classes=(),
     relationship_classes=(),
@@ -255,12 +255,10 @@ def get_data_for_import(
             "entity_class_display_mode",
             _get_entity_class_display_modes_for_import(db_map, entity_class_display_modes),
         )
-    if entity_class_display_mode__entity_classes:
+    if display_mode__entity_classes:
         yield (
-            "entity_class_display_mode__entity_class",
-            _get_entity_class_display_mode__entity_classes_for_import(
-                db_map, entity_class_display_mode__entity_classes
-            ),
+            "display_mode__entity_class",
+            _get_display_mode__entity_classes_for_import(db_map, display_mode__entity_classes),
         )
 
 
@@ -409,7 +407,7 @@ def import_entity_class_display_modes(db_map, data):
     return import_data(db_map, entity_class_display_modes=data)
 
 
-def import_entity_class_display_mode__entity_classes(db_map, data):
+def import_display_mode__entity_classes(db_map, data):
     """Imports entity class display mode entity classes into a Spine database using a standard format.
 
     Args:
@@ -420,7 +418,7 @@ def import_entity_class_display_mode__entity_classes(db_map, data):
         int: number of items imported
         list: errors
     """
-    return import_data(db_map, entity_class_display_mode__entity_classes=data)
+    return import_data(db_map, display_mode__entity_classes=data)
 
 
 def import_scenario_alternatives(db_map, data):
@@ -550,7 +548,7 @@ def _get_entity_class_display_modes_for_import(db_map, data):
     return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
 
 
-def _get_entity_class_display_mode__entity_classes_for_import(db_map, data):
+def _get_display_mode__entity_classes_for_import(db_map, data):
     key = ("display_mode_name", "entity_class_name", "display_order", "display_status")
     for display_mode_name, entity_class_name, display_order, *optionals in data:
         yield dict(zip(key, (display_mode_name, entity_class_name, display_order, *optionals)))

@@ -1,7 +1,7 @@
 """create entity class display order tables
 
 Revision ID: 02581198a2d8
-Revises: e010777927a5
+Revises: ca7a13da8ff6
 Create Date: 2024-07-10 12:13:10.690801
 
 """
@@ -9,10 +9,9 @@ Create Date: 2024-07-10 12:13:10.690801
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = "02581198a2d8"
-down_revision = "e010777927a5"
+down_revision = "ca7a13da8ff6"
 branch_labels = None
 depends_on = None
 
@@ -25,7 +24,7 @@ def upgrade():
         sa.Column("description", sa.Text, nullable=True),
     )
     op.create_table(
-        "entity_class_display_mode__entity_class",
+        "display_mode__entity_class",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("display_mode_id", sa.Integer, nullable=False),
         sa.Column("entity_class_id", sa.Integer, nullable=False),
