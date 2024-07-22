@@ -9,10 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Unit tests for export mappings.
-
-"""
+""" Unit tests for export mappings. """
 
 import unittest
 from spinedb_api import (
@@ -28,6 +25,7 @@ from spinedb_api import (
     import_relationships,
     import_scenario_alternatives,
     import_scenarios,
+    to_database,
 )
 from spinedb_api.export_mapping import (
     entity_export,
@@ -64,9 +62,10 @@ from spinedb_api.export_mapping.export_mapping import (
 )
 from spinedb_api.import_functions import import_object_groups
 from spinedb_api.mapping import Position, to_dict, unflatten
+from tests.mock_helpers import AssertSuccessTestCase
 
 
-class TestExportMapping(unittest.TestCase):
+class TestExportMapping(AssertSuccessTestCase):
     def test_export_empty_table(self):
         db_map = DatabaseMapping("sqlite://", create=True)
         object_class_mapping = EntityClassMapping(0)
@@ -1340,9 +1339,9 @@ class TestExportMapping(unittest.TestCase):
         db_map.commit_session("Add test data.")
         root_mapping = entity_parameter_default_value_export(0, 1, 2, 3, None, None)
         expected = [
-            ["oc1", "p11", "single_value", 3.14],
-            ["oc2", "p21", "single_value", 14.3],
-            ["oc2", "p22", "single_value", -1.0],
+            ["oc1", "p11", "float", 3.14],
+            ["oc2", "p21", "float", 14.3],
+            ["oc2", "p22", "float", -1.0],
         ]
         self.assertEqual(list(rows(root_mapping, db_map)), expected)
         db_map.close()
@@ -1592,6 +1591,38 @@ class TestExportMapping(unittest.TestCase):
             self.assertEqual(list(rows(root_mapping1, db_map)), expected1)
             expected2 = [["scenario", "description"], ["scenario1", "Scenario with Base alternative"]]
             self.assertEqual(list(rows(root_mapping2, db_map)), expected2)
+
+    def test_scalar_value_export(self):
+        value_list_mapping = ParameterValueListMapping(Position.hidden)
+        value_list_mapping.set_ignorable(True)
+        root_mapping = unflatten(
+            [
+                EntityClassMapping(0),
+                ParameterDefinitionMapping(1),
+                value_list_mapping,
+                EntityMapping(2),
+                AlternativeMapping(3),
+                ParameterValueTypeMapping(4),
+                ParameterValueMapping(5),
+            ]
+        )
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Gadget"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Gadget"))
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Gadget"))
+            value, value_type = to_database(2.3)
+            self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Gadget",
+                    entity_byname=("spoon",),
+                    parameter_definition_name="y",
+                    alternative_name="Base",
+                    value=value,
+                    type=value_type,
+                )
+            )
+            db_map.commit_session("Add test data.")
+            self.assertEqual(list(rows(root_mapping, db_map)), [["Gadget", "y", "spoon", "Base", "float", 2.3]])
 
 
 if __name__ == "__main__":
