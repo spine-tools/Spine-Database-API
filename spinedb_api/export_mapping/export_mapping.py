@@ -928,6 +928,10 @@ class ParameterDefaultValueTypeMapping(ParameterDefaultValueMapping):
 
     MAP_TYPE = "ParameterDefaultValueType"
 
+    def __init__(self, position, value=None, header="", filter_re=""):
+        filter_re = filter_re.replace("single_value", "float|str|bool")
+        super().__init__(position, value, header, filter_re)
+
     def _data(self, db_row):
         type_ = db_row.default_type
         if type_ == "map":
@@ -1089,6 +1093,10 @@ class ParameterValueTypeMapping(ParameterValueMapping):
     """
 
     MAP_TYPE = "ParameterValueType"
+
+    def __init__(self, position, value=None, header="", filter_re=""):
+        filter_re = filter_re.replace("single_value", "float|str|bool")
+        super().__init__(position, value, header, filter_re)
 
     def _data(self, db_row):
         type_ = db_row.type
