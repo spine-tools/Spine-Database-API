@@ -10,16 +10,14 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 import unittest
-
 from spinedb_api import DateTime, Duration
-
 from spinedb_api.import_mapping.type_conversion import (
-    value_to_convert_spec,
-    StringConvertSpec,
-    FloatConvertSpec,
     DateTimeConvertSpec,
     DurationConvertSpec,
+    FloatConvertSpec,
     IntegerSequenceDateTimeConvertSpec,
+    StringConvertSpec,
+    value_to_convert_spec,
 )
 
 

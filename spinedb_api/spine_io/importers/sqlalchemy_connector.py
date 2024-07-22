@@ -12,7 +12,7 @@
 """ Contains SqlAlchemyConnector class. """
 
 
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import Session
 from .reader import SourceConnection
 

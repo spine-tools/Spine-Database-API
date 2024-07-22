@@ -23,22 +23,22 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 import numpy.testing
 from spinedb_api.parameter_value import (
-    convert_containers_to_maps,
-    convert_leaf_maps_to_specialized_containers,
-    convert_map_to_table,
-    deep_copy_value,
-    duration_to_relativedelta,
-    relativedelta_to_duration,
-    from_database,
-    to_database,
     Array,
     DateTime,
     Duration,
     Map,
     TimePattern,
+    TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
-    TimeSeries,
+    convert_containers_to_maps,
+    convert_leaf_maps_to_specialized_containers,
+    convert_map_to_table,
+    deep_copy_value,
+    duration_to_relativedelta,
+    from_database,
+    relativedelta_to_duration,
+    to_database,
 )
 
 
@@ -144,13 +144,13 @@ class TestParameterValue(unittest.TestCase):
 
     def test_from_database_plain_number(self):
         database_value = b"23.0"
-        value = from_database(database_value, type_=None)
+        value = from_database(database_value, type_="float")
         self.assertTrue(isinstance(value, float))
         self.assertEqual(value, 23.0)
 
     def test_from_database_boolean(self):
         database_value = b"true"
-        value = from_database(database_value, type_=None)
+        value = from_database(database_value, type_="boolean")
         self.assertTrue(isinstance(value, bool))
         self.assertEqual(value, True)
 
@@ -159,7 +159,7 @@ class TestParameterValue(unittest.TestCase):
         database_value, value_type = to_database(value)
         value_as_float = json.loads(database_value)
         self.assertEqual(value_as_float, value)
-        self.assertIsNone(value_type)
+        self.assertEqual(value_type, "float")
 
     def test_to_database_DateTime(self):
         value = DateTime(datetime(year=2019, month=6, day=26, hour=12, minute=50, second=13))
@@ -680,7 +680,7 @@ class TestParameterValue(unittest.TestCase):
         map_value = Map(["a", "b"], [1.1, 2.2])
         db_value, value_type = to_database(map_value)
         raw = json.loads(db_value)
-        self.assertEqual(raw, {"index_type": "str", "data": [["a", 1.1], ["b", 2.2]]})
+        self.assertEqual(raw, {"index_type": "str", "rank": 1, "data": [["a", 1.1], ["b", 2.2]]})
         self.assertEqual(value_type, "map")
 
     def test_Map_to_database_with_index_names(self):
@@ -695,8 +695,18 @@ class TestParameterValue(unittest.TestCase):
             {
                 "index_type": "str",
                 "index_name": "index",
+                "rank": 2,
                 "data": [
-                    ["A", {"type": "map", "index_type": "str", "index_name": "nested index", "data": [["a", 0.3]]}]
+                    [
+                        "A",
+                        {
+                            "type": "map",
+                            "index_type": "str",
+                            "index_name": "nested index",
+                            "rank": 1,
+                            "data": [["a", 0.3]],
+                        },
+                    ]
                 ],
             },
         )
@@ -712,6 +722,7 @@ class TestParameterValue(unittest.TestCase):
         raw = json.loads(db_value)
         expected = {
             "index_type": "str",
+            "rank": 2,
             "data": [
                 ["a", {"type": "time_series", "data": {"2020-01-01T12:00:00": 2.3, "2020-01-02T12:00:00": 4.5}}],
                 ["b", {"type": "time_series", "data": {"2020-01-01T12:00:00": -4.5, "2020-01-02T12:00:00": -2.3}}],
@@ -729,10 +740,16 @@ class TestParameterValue(unittest.TestCase):
             raw,
             {
                 "index_type": "date_time",
+                "rank": 2,
                 "data": [
                     [
                         "2020-01-01T13:00:00",
-                        {"type": "map", "index_type": "duration", "data": [["2M", {"type": "duration", "data": "5D"}]]},
+                        {
+                            "type": "map",
+                            "index_type": "duration",
+                            "rank": 1,
+                            "data": [["2M", {"type": "duration", "data": "5D"}]],
+                        },
                     ]
                 ],
             },

@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- DB server version was bumped from 7 to 8 due to the changes below.
+- Scalar parameters (float, string, boolean) now have a proper type in `parameter_definition`, `parameter_value` and `list_value` tables.
+  Previously, the type was left unspecified (`None`).
+  Consequently, `to_database()` always returns a valid type string unless the value is `None`.
+  **Breaking**: A type must now be always supplied to `from_database()` explicitly.
+  A new migration script adds missing type information to existing databases.
+
 ### Deprecated
 
 ### Removed

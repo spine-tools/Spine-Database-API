@@ -12,7 +12,6 @@
 
 """ Contains unit tests for the generator module. """
 import unittest
-
 from spinedb_api import Array, DateTime, Duration, Map
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.import_mapping.type_conversion import value_to_convert_spec
@@ -844,6 +843,39 @@ class TestGetMappedData(unittest.TestCase):
                     ("Object", "o1"),
                 ],
                 "entity_alternatives": [("Object", ("o1",), "Base", True), ("Object", ("o1",), "alt1", False)],
+            },
+        )
+
+    def test_import_entity_alternatives_errors_gracefully_when_activity_cannot_be_converted_to_bool(self):
+        header = ["entity", "alternative", "active"]
+        data_source = iter([["o1", "Base", "xoxoxo"]])
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "Alternative", "position": 1},
+                {"map_type": "EntityAlternativeActivity", "position": 2},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(
+            errors,
+            [
+                "Can't convert xoxoxo to entity alternative activity boolean for '('o1',)' in "
+                "'Object' with alternative 'Base'"
+            ],
+        )
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base"},
+                "entity_classes": [("Object",)],
+                "entities": [
+                    ("Object", "o1"),
+                ],
+                "entity_alternatives": [],
             },
         )
 

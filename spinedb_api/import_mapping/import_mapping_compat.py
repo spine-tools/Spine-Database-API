@@ -11,35 +11,35 @@
 ######################################################################################################################
 
 """ Functions for creating import mappings from dicts. """
+from ..mapping import to_dict as import_mapping_to_dict
 from .import_mapping import (
-    Position,
-    EntityClassMapping,
+    AlternativeMapping,
+    DefaultValueIndexNameMapping,
     DimensionMapping,
+    ElementMapping,
+    EntityClassMapping,
+    EntityGroupMapping,
     EntityMapping,
     EntityMetadataMapping,
-    ElementMapping,
-    ParameterDefinitionMapping,
+    ExpandedParameterDefaultValueMapping,
+    ExpandedParameterValueMapping,
+    IndexNameMapping,
+    ParameterDefaultValueIndexMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueTypeMapping,
-    ParameterDefaultValueIndexMapping,
-    ExpandedParameterDefaultValueMapping,
-    ParameterValueMapping,
-    ParameterValueTypeMapping,
-    ParameterValueMetadataMapping,
+    ParameterDefinitionMapping,
     ParameterValueIndexMapping,
-    ExpandedParameterValueMapping,
-    AlternativeMapping,
-    ScenarioMapping,
-    ScenarioAlternativeMapping,
-    ScenarioBeforeAlternativeMapping,
-    EntityGroupMapping,
     ParameterValueListMapping,
     ParameterValueListValueMapping,
-    from_dict as mapping_from_dict,
-    IndexNameMapping,
-    DefaultValueIndexNameMapping,
+    ParameterValueMapping,
+    ParameterValueMetadataMapping,
+    ParameterValueTypeMapping,
+    Position,
+    ScenarioAlternativeMapping,
+    ScenarioBeforeAlternativeMapping,
+    ScenarioMapping,
 )
-from ..mapping import to_dict as import_mapping_to_dict
+from .import_mapping import from_dict as mapping_from_dict
 
 
 def parse_named_mapping_spec(named_mapping_spec):

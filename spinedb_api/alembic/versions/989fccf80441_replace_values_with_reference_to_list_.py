@@ -8,12 +8,11 @@ Create Date: 2022-03-14 11:33:13.777028
 
 from alembic import op
 from sqlalchemy import MetaData
-from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.orm import sessionmaker
-from spinedb_api.parameter_value import dump_db_value, from_database, ParameterValueFormatError
-from spinedb_api.helpers import group_concat
+from sqlalchemy.sql.expression import bindparam
 from spinedb_api.exception import SpineIntegrityError
-
+from spinedb_api.helpers import group_concat
+from spinedb_api.parameter_value import ParameterValueFormatError, dump_db_value, from_database
 
 # revision identifiers, used by Alembic.
 revision = "989fccf80441"

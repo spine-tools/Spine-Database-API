@@ -11,10 +11,9 @@
 ######################################################################################################################
 
 from operator import itemgetter
-import time
-from .helpers import name_from_dimensions, name_from_elements
-from .parameter_value import to_database, from_database, ParameterValueFormatError
 from .db_mapping_base import MappedItemBase
+from .helpers import name_from_dimensions, name_from_elements
+from .parameter_value import ParameterValueFormatError, from_database, to_database
 
 
 def item_factory(item_type):

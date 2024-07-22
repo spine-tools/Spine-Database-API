@@ -2,9 +2,9 @@
 This benchmark tests the performance of the MappedItemBase.__getitem__() method.
 """
 
-import pyperf
 import time
 from typing import Dict
+import pyperf
 from spinedb_api import DatabaseMapping
 from spinedb_api.db_mapping_base import PublicItem
 

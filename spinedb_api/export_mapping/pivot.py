@@ -14,10 +14,10 @@ Contains functions and methods to turn a regular export table into a pivot table
 
 """
 from copy import deepcopy
-
+from ..mapping import Position, is_pivoted, is_regular, unflatten, value_index
 from .export_mapping import EntityMapping
-from ..mapping import is_regular, is_pivoted, Position, unflatten, value_index
-from .group_functions import from_str as group_function_from_str, NoGroup
+from .group_functions import NoGroup
+from .group_functions import from_str as group_function_from_str
 
 
 def make_pivot(

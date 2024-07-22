@@ -9,7 +9,6 @@ Create Date: 2024-01-12 09:55:08.934574
 from alembic import op
 import sqlalchemy as sa
 import sqlalchemy.orm
-
 from spinedb_api.compatibility import convert_tool_feature_method_to_active_by_default
 
 # revision identifiers, used by Alembic.
@@ -28,7 +27,6 @@ def upgrade():
         )
     conn = op.get_bind()
     metadata = sa.MetaData()
-    metadata.reflect(bind=conn)
     metadata.reflect(bind=conn)
     class_table = metadata.tables["entity_class"]
     update_statement = class_table.update().values(active_by_default=True)

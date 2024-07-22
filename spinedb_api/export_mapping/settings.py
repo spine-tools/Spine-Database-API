@@ -11,20 +11,23 @@
 ######################################################################################################################
 """ Contains convenience functions to set up different database export schemes. """
 from itertools import takewhile
-
+from ..mapping import unflatten
 from .export_mapping import (
-    AlternativeMapping,
     AlternativeDescriptionMapping,
+    AlternativeMapping,
+    DefaultValueIndexNameMapping,
     DimensionMapping,
     ElementMapping,
+    EntityClassMapping,
+    EntityGroupEntityMapping,
+    EntityGroupMapping,
+    EntityMapping,
     ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
-    EntityGroupMapping,
-    EntityGroupEntityMapping,
-    EntityMapping,
-    EntityClassMapping,
-    ParameterDefaultValueMapping,
+    IndexNameMapping,
     ParameterDefaultValueIndexMapping,
+    ParameterDefaultValueMapping,
+    ParameterDefaultValueTypeMapping,
     ParameterDefinitionMapping,
     ParameterValueIndexMapping,
     ParameterValueListMapping,
@@ -34,13 +37,9 @@ from .export_mapping import (
     Position,
     ScenarioAlternativeMapping,
     ScenarioBeforeAlternativeMapping,
-    ScenarioMapping,
     ScenarioDescriptionMapping,
-    IndexNameMapping,
-    DefaultValueIndexNameMapping,
-    ParameterDefaultValueTypeMapping,
+    ScenarioMapping,
 )
-from ..mapping import unflatten
 
 
 def entity_group_export(

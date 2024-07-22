@@ -3,8 +3,7 @@ This benchmark tests the performance of import-mapping multidimensional entity c
 """
 
 import time
-from typing import Callable,Dict, List
-
+from typing import Callable, Dict, List
 import pyperf
 from spinedb_api import get_mapped_data
 from spinedb_api.import_mapping.type_conversion import value_to_convert_spec
@@ -27,7 +26,9 @@ def import_entity_classes(
     return duration
 
 
-def make_input_table(size: int, name_1: Callable[[int], str], name_2:  Callable[[int], str], name_3:  Callable[[int], str]):
+def make_input_table(
+    size: int, name_1: Callable[[int], str], name_2: Callable[[int], str], name_3: Callable[[int], str]
+):
     table: List[List[str]] = []
     for i in range(size):
         dim_1 = name_1(i)

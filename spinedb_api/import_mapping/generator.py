@@ -18,20 +18,20 @@ using ``import_functions.import_data()``
 
 from copy import deepcopy
 from operator import itemgetter
-from .import_mapping_compat import import_mapping_from_dict
-from .import_mapping import ImportMapping, check_validity
+from ..exception import ParameterValueFormatError
+from ..helpers import string_to_bool
 from ..mapping import Position
 from ..parameter_value import (
-    convert_leaf_maps_to_specialized_containers,
-    Map,
-    TimeSeriesVariableResolution,
-    TimePattern,
     Array,
+    Map,
+    TimePattern,
+    TimeSeriesVariableResolution,
+    convert_leaf_maps_to_specialized_containers,
     from_database,
     split_value_and_type,
 )
-from ..exception import ParameterValueFormatError
-
+from .import_mapping import ImportMapping, check_validity
+from .import_mapping_compat import import_mapping_from_dict
 
 _NO_VALUE = object()
 
@@ -166,7 +166,7 @@ def get_mapped_data(
     _make_entity_classes(mapped_data)
     _make_entities(mapped_data)
     _make_entity_metadata(mapped_data)
-    _make_entity_alternatives(mapped_data)
+    _make_entity_alternatives(mapped_data, errors)
     _make_parameter_values(mapped_data, unparse_value)
     _make_parameter_value_metadata(mapped_data)
     return mapped_data, errors
@@ -291,10 +291,22 @@ def _make_entities(mapped_data):
     mapped_data["entities"] = list(rows)
 
 
-def _make_entity_alternatives(mapped_data):
+def _make_entity_alternatives(mapped_data, errors):
     if "entity_alternatives" not in mapped_data:
         return
-    mapped_data["entity_alternatives"] = list(mapped_data["entity_alternatives"])
+    rows = []
+    for item in mapped_data["entity_alternatives"]:
+        entity_class, byname, alternative, activity = item
+        try:
+            activity = string_to_bool(activity) if isinstance(activity, str) else bool(activity)
+        except ValueError:
+            errors.append(
+                f"Can't convert {activity} to entity alternative activity boolean "
+                f"for '{byname}' in '{entity_class}' with alternative '{alternative}'"
+            )
+        else:
+            rows.append((entity_class, byname, alternative, activity))
+    mapped_data["entity_alternatives"] = rows
 
 
 def _make_parameter_values(mapped_data, unparse_value):

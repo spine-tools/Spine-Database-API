@@ -9,52 +9,49 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Unit tests for export settings.
-
-"""
+""" Unit tests for export settings. """
 
 import unittest
 import numpy
 from spinedb_api import (
     DatabaseMapping,
+    TimeSeriesFixedResolution,
     import_object_classes,
-    import_object_parameters,
     import_object_parameter_values,
+    import_object_parameters,
     import_objects,
     import_relationship_classes,
     import_relationship_parameter_values,
     import_relationship_parameters,
     import_relationships,
-    TimeSeriesFixedResolution,
 )
 from spinedb_api.export_mapping import rows
+from spinedb_api.export_mapping.export_mapping import (
+    DefaultValueIndexNameMapping,
+    DimensionMapping,
+    ElementMapping,
+    EntityClassMapping,
+    EntityMapping,
+    ExpandedParameterDefaultValueMapping,
+    ExpandedParameterValueMapping,
+    IndexNameMapping,
+    ParameterDefaultValueIndexMapping,
+    ParameterDefaultValueMapping,
+    ParameterDefaultValueTypeMapping,
+    ParameterValueIndexMapping,
+    ParameterValueMapping,
+    ParameterValueTypeMapping,
+    Position,
+)
 from spinedb_api.export_mapping.settings import (
-    entity_export,
-    set_entity_dimensions,
-    entity_parameter_value_export,
-    set_parameter_dimensions,
-    set_parameter_default_value_dimensions,
-    entity_parameter_default_value_export,
     entity_dimension_parameter_default_value_export,
     entity_dimension_parameter_value_export,
-)
-from spinedb_api.export_mapping.export_mapping import (
-    Position,
-    EntityClassMapping,
-    DimensionMapping,
-    EntityMapping,
-    ElementMapping,
-    ExpandedParameterValueMapping,
-    ParameterValueIndexMapping,
-    IndexNameMapping,
-    ParameterValueTypeMapping,
-    ParameterValueMapping,
-    ExpandedParameterDefaultValueMapping,
-    ParameterDefaultValueIndexMapping,
-    DefaultValueIndexNameMapping,
-    ParameterDefaultValueTypeMapping,
-    ParameterDefaultValueMapping,
+    entity_export,
+    entity_parameter_default_value_export,
+    entity_parameter_value_export,
+    set_entity_dimensions,
+    set_parameter_default_value_dimensions,
+    set_parameter_dimensions,
 )
 
 
@@ -165,9 +162,9 @@ class TestEntityElementParameterExport(unittest.TestCase):
         )
         set_entity_dimensions(root_mapping, 2)
         expected = [
-            ["rc", "p11", "o11__o21", "oc1", "oc2", "o11", "o21", "Base", "single_value", 2.3],
-            ["rc", "p11", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -2.3],
-            ["rc", "p12", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "single_value", -5.0],
+            ["rc", "p11", "o11__o21", "oc1", "oc2", "o11", "o21", "Base", "float", 2.3],
+            ["rc", "p11", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "float", -2.3],
+            ["rc", "p12", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "float", -5.0],
         ]
         self.assertEqual(list(rows(root_mapping, self._db_map)), expected)
 

@@ -94,30 +94,30 @@ Only after the second writes, the first one also writes and the program finishes
         assert [x["name"] for x in db_map.get_items("entity_class")] == ["donkey", "monkey"]
 """
 
-from urllib.parse import urlunsplit
+import atexit
 from contextlib import contextmanager
-import socketserver
 import multiprocessing as mp
 from multiprocessing.queues import Queue as MPQueue
-import threading
-import atexit
-import traceback
-import time
-import uuid
 from queue import Queue
+import socketserver
+import threading
+import time
+import traceback
+from urllib.parse import urlunsplit
+import uuid
 from sqlalchemy.exc import DBAPIError
 from spinedb_api import __version__ as spinedb_api_version
 from .db_mapping import DatabaseMapping
-from .import_functions import import_data
 from .export_functions import export_data
-from .parameter_value import dump_db_value
-from .server_client_helpers import ReceiveAllMixing, encode, decode
-from .filters.scenario_filter import scenario_filter_config
 from .filters.alternative_filter import alternative_filter_config
+from .filters.scenario_filter import scenario_filter_config
 from .filters.tools import apply_filter_stack
+from .import_functions import import_data
+from .parameter_value import dump_db_value
+from .server_client_helpers import ReceiveAllMixing, decode, encode
 from .spine_db_client import SpineDBClient
 
-_current_server_version = 7
+_current_server_version = 8
 
 
 def get_current_server_version():
@@ -129,7 +129,7 @@ def get_current_server_version():
     return _current_server_version
 
 
-def _parse_value(v, type_=None):
+def _parse_value(v, type_):
     return (v, type_)
 
 

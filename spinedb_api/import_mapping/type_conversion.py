@@ -13,7 +13,6 @@
 """ Type conversion functions. """
 
 import re
-
 from spinedb_api.helpers import string_to_bool
 from spinedb_api.parameter_value import DateTime, Duration, ParameterValueFormatError
 

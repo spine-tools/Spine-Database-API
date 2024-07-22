@@ -60,4 +60,12 @@ ignore_errors = true
 
 [tool.black]
 line-length = 120
-exclude = '\.git|version.py'
+force-exclude = '\.git|version.py'
+
+[tool.isort]
+profile = "black"
+lines_between_sections = 0
+force_sort_within_sections = true
+honor_case_in_force_sorted_sections = true
+skip = [".git", "spinedb_api/version.py"]
+line_length = 120

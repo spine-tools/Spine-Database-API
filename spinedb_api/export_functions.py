@@ -11,10 +11,9 @@
 ######################################################################################################################
 """ Functions for exporting data from a Spine database in a standard format. """
 from operator import itemgetter
-
 from sqlalchemy.util import KeyedTuple
-from .parameter_value import from_database
 from .helpers import Asterisk
+from .parameter_value import from_database
 
 
 def export_data(

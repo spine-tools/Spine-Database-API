@@ -15,11 +15,10 @@ Contains GDXConnector class and a help function.
 
 """
 
-from gdx2py import GdxFile, GAMSParameter, GAMSScalar, GAMSSet
-
+from gdx2py import GAMSParameter, GAMSScalar, GAMSSet, GdxFile
 from spinedb_api import SpineDBAPIError
-from .reader import SourceConnection
 from ..gdx_utils import find_gams_directory
+from .reader import SourceConnection
 
 
 class GdxConnector(SourceConnection):

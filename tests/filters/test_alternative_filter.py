@@ -19,21 +19,21 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy.engine.url import URL
 from spinedb_api import (
+    DatabaseMapping,
+    SpineDBAPIError,
     apply_alternative_filter_to_parameter_value_sq,
     create_new_spine_database,
-    DatabaseMapping,
     from_database,
     import_alternatives,
     import_object_classes,
     import_object_parameter_values,
     import_object_parameters,
     import_objects,
-    SpineDBAPIError,
 )
 from spinedb_api.filters.alternative_filter import (
     alternative_filter_config,
-    alternative_filter_from_dict,
     alternative_filter_config_to_shorthand,
+    alternative_filter_from_dict,
     alternative_filter_shorthand_to_config,
     alternative_names_from_dict,
 )
@@ -138,7 +138,7 @@ class TestAlternativeFilterWithMemoryDatabase(unittest.TestCase):
         alternative_filter_from_dict(self._db_map, config)
         parameters = self._db_map.query(self._db_map.parameter_value_sq).all()
         self.assertEqual(len(parameters), 2)
-        values = {from_database(p.value) for p in parameters}
+        values = {from_database(p.value, p.type) for p in parameters}
         self.assertEqual(values, {23.0, 101.1})
 
     def _add_value_in_alternative(self, value, alternative):

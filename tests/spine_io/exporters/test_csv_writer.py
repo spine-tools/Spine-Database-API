@@ -17,10 +17,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from spinedb_api import DatabaseMapping, import_object_classes, import_objects
-from spinedb_api.mapping import Position
 from spinedb_api.export_mapping import entity_export
-from spinedb_api.spine_io.exporters.writer import write
+from spinedb_api.mapping import Position
 from spinedb_api.spine_io.exporters.csv_writer import CsvWriter
+from spinedb_api.spine_io.exporters.writer import write
 
 
 class TestCsvWriter(unittest.TestCase):

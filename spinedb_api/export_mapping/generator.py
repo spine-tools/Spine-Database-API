@@ -15,9 +15,9 @@ Contains generator functions that convert a Spine database into rows of tabular 
 """
 from copy import deepcopy
 from ..mapping import Position
-from .pivot import make_pivot, make_regular
 from .export_mapping import pair_header_buddies
 from .group_functions import NoGroup
+from .pivot import make_pivot, make_regular
 
 
 def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, group_fn=NoGroup.NAME):

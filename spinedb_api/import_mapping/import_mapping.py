@@ -11,11 +11,9 @@
 ######################################################################################################################
 """ Contains import mappings for database items such as entities, entity classes and parameter values. """
 
-from enum import auto, Enum, unique
-
-from spinedb_api.helpers import string_to_bool
-from spinedb_api.mapping import Mapping, Position, unflatten, is_pivoted
+from enum import Enum, auto, unique
 from spinedb_api.exception import InvalidMappingComponent
+from spinedb_api.mapping import Mapping, Position, is_pivoted, unflatten
 
 
 @unique
@@ -481,12 +479,8 @@ class EntityAlternativeActivityMapping(ImportMapping):
         else:
             entity_byname = (state[ImportKey.ENTITY_NAME],)
         alternative_name = state[ImportKey.ALTERNATIVE_NAME]
-        if isinstance(source_data, str):
-            active = string_to_bool(source_data)
-        else:
-            active = bool(source_data)
         mapped_data.setdefault("entity_alternatives", {})[
-            entity_class_name, entity_byname, alternative_name, active
+            entity_class_name, entity_byname, alternative_name, source_data
         ] = None
 
 

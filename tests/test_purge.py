@@ -12,10 +12,9 @@
 import pathlib
 import tempfile
 import unittest
-
 from spinedb_api import DatabaseMapping
-from spinedb_api.purge import purge_url
 from spinedb_api.helpers import Asterisk
+from spinedb_api.purge import purge_url
 
 
 class TestPurgeUrl(unittest.TestCase):

@@ -19,8 +19,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy import inspect
 from sqlalchemy.engine.url import URL
-from spinedb_api.helpers import create_new_spine_database, _create_first_spine_database, is_head_engine, schema_dict
 from spinedb_api import DatabaseMapping
+from spinedb_api.helpers import _create_first_spine_database, create_new_spine_database, is_head_engine, schema_dict
 
 
 class TestMigration(unittest.TestCase):

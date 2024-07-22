@@ -12,33 +12,32 @@
 """ Unit tests for import_functions.py. """
 
 import unittest
-
-from spinedb_api.spine_db_server import _unparse_value
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.import_functions import (
     import_alternatives,
+    import_data,
+    import_entity_class_display_mode__entity_classes,
+    import_entity_class_display_modes,
     import_entity_classes,
+    import_metadata,
     import_object_classes,
+    import_object_metadata,
+    import_object_parameter_value_metadata,
     import_object_parameter_values,
     import_object_parameters,
     import_objects,
+    import_parameter_value_lists,
     import_relationship_classes,
+    import_relationship_metadata,
+    import_relationship_parameter_value_metadata,
     import_relationship_parameter_values,
     import_relationship_parameters,
     import_relationships,
     import_scenario_alternatives,
     import_scenarios,
-    import_parameter_value_lists,
-    import_metadata,
-    import_object_metadata,
-    import_relationship_metadata,
-    import_object_parameter_value_metadata,
-    import_relationship_parameter_value_metadata,
-    import_entity_class_display_modes,
-    import_entity_class_display_mode__entity_classes,
-    import_data,
 )
-from spinedb_api.parameter_value import from_database, dump_db_value, TimeSeriesFixedResolution
+from spinedb_api.parameter_value import TimeSeriesFixedResolution, dump_db_value, from_database
+from spinedb_api.spine_db_server import _unparse_value
 
 
 def assert_import_equivalent(test, obs, exp, strict=True):
@@ -681,7 +680,7 @@ class TestImportParameterDefinition(unittest.TestCase):
             parameter_definitions,
             [
                 {
-                    "default_type": None,
+                    "default_type": "float",
                     "default_value": b"99.0",
                     "description": None,
                     "entity_class_id": 1,
@@ -935,7 +934,7 @@ class TestImportParameterValue(unittest.TestCase):
         db_map.commit_session("test")
         values = db_map.query(db_map.object_parameter_value_sq).all()
         value = values[0]
-        self.assertEqual(from_database(value.value), 5.0)
+        self.assertEqual(from_database(value.value, value.type), 5.0)
         db_map.close()
 
     def test_valid_object_parameter_value_from_value_list(self):
@@ -951,7 +950,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = db_map.query(db_map.object_parameter_value_sq).all()
         self.assertEqual(len(values), 1)
         value = values[0]
-        self.assertEqual(from_database(value.value), 5.0)
+        self.assertEqual(from_database(value.value, value.type), 5.0)
         db_map.close()
 
     def test_non_existent_object_parameter_value_from_value_list_fails_gracefully(self):
@@ -1119,7 +1118,7 @@ class TestImportParameterValue(unittest.TestCase):
         values = db_map.query(db_map.relationship_parameter_value_sq).all()
         self.assertEqual(len(values), 1)
         value = values[0]
-        self.assertEqual(from_database(value.value), 5.0)
+        self.assertEqual(from_database(value.value, value.type), 5.0)
         db_map.close()
 
     def test_non_existent_relationship_parameter_value_from_value_list_fails_gracefully(self):

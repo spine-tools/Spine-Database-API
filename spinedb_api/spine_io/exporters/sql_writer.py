@@ -13,7 +13,7 @@
 Module contains an SQL writer implementation.
 
 """
-from sqlalchemy import Boolean, Column, create_engine, Float, Integer, MetaData, String, Table, DateTime
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, MetaData, String, Table, create_engine
 from sqlalchemy.orm import Session
 from spinedb_api import parameter_value
 from .writer import Writer, WriterException

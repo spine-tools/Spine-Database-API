@@ -10,7 +10,6 @@ from alembic import op
 import sqlalchemy as sa
 from spinedb_api.compatibility import convert_tool_feature_method_to_entity_alternative
 
-
 # revision identifiers, used by Alembic.
 revision = "ce9faa82ed59"
 down_revision = "6b7c994c1c61"

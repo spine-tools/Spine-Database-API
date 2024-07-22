@@ -12,7 +12,6 @@ import sqlalchemy as sa
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
 
-
 # revision identifiers, used by Alembic.
 revision = "1e4997105288"
 down_revision = "fbb540efbf15"

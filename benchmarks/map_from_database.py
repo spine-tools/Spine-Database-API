@@ -4,8 +4,8 @@ This benchmark tests the performance of reading a Map type value from database.
 
 import time
 import pyperf
-from spinedb_api import from_database, to_database
 from benchmarks.utils import build_even_map
+from spinedb_api import from_database, to_database
 
 
 def value_from_database(loops, db_value, value_type):

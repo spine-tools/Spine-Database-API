@@ -10,8 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 import unittest
-
-from spinedb_api import apply_execution_filter, DatabaseMapping
+from spinedb_api import DatabaseMapping, apply_execution_filter
 
 
 class TestExecutionFilter(unittest.TestCase):

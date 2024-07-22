@@ -86,8 +86,8 @@ from copy import copy
 from datetime import datetime
 import json
 from json.decoder import JSONDecodeError
-from numbers import Number
 import re
+from typing import SupportsFloat
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import numpy as np
@@ -102,15 +102,18 @@ _TIME_SERIES_DEFAULT_START = "0001-01-01T00:00:00"
 _TIME_SERIES_DEFAULT_RESOLUTION = "1h"
 # Default unit if resolution is given as a number instead of a string.
 _TIME_SERIES_PLAIN_INDEX_UNIT = "m"
+FLOAT_VALUE_TYPE = "float"
+BOOLEAN_VALUE_TYPE = "bool"
+STRING_VALUE_TYPE = "str"
 
 
-def from_database(value, type_=None):
+def from_database(value, type_):
     """
     Converts a parameter value from the DB into a Python object.
 
     Args:
-        value (bytes or None): the `value` field from the ``parameter_value`` table.
-        type_ (str, optional): the `type` field from the ``parameter_value`` table.
+        value (bytes, optional): the `value` field from the ``parameter_value`` table.
+        type_ (str): the `type` field from the ``parameter_value`` table.
 
     Returns:
         :class:`ParameterValue`, float, str, bool or None: a Python object representing the parameter value.
@@ -120,17 +123,17 @@ def from_database(value, type_=None):
         return from_dict(parsed)
     if isinstance(parsed, bool):
         return parsed
-    if isinstance(parsed, Number):
+    if isinstance(parsed, SupportsFloat):
         return float(parsed)
     return parsed
 
 
 def to_database(parsed_value):
     """
-    Converts a Python object representing a parameter value into their DB representation.
+    Converts a Python object representing a parameter value into its DB representation.
 
     Args:
-        parsed_value (any): the Python object.
+        parsed_value (Any): the Python object.
 
     Returns:
         tuple(bytes,str): the `value` and `type` fields that would go in the ``parameter_value`` table.
@@ -138,7 +141,8 @@ def to_database(parsed_value):
     if hasattr(parsed_value, "to_database"):
         return parsed_value.to_database()
     db_value = json.dumps(parsed_value).encode("UTF8")
-    return db_value, None
+    db_type = type_for_scalar(parsed_value)
+    return db_value, db_type
 
 
 def duration_to_relativedelta(duration):
@@ -214,7 +218,7 @@ def relativedelta_to_duration(delta):
     return "0h"
 
 
-def load_db_value(db_value, type_=None):
+def load_db_value(db_value, type_):
     """
     Parses a database representation of a parameter value (value and type) into a Python object, using JSON.
     If the result is a dict, adds the "type" property to it.
@@ -223,7 +227,7 @@ def load_db_value(db_value, type_=None):
 
     Args:
         db_value (bytes, optional): the database value.
-        type_ (str, optional): the value type.
+        type_ (str): the value type.
 
     Returns:
         any: the parsed parameter value
@@ -272,7 +276,7 @@ def from_database_to_single_value(database_value, value_type):
     Returns:
         :class:`ParameterValue`, float, str, bool or None: the encoded parameter value or its type.
     """
-    if value_type is None or value_type not in ("map", "time_series", "time_pattern", "array"):
+    if value_type is None or value_type not in {Map.type_(), TimeSeries.type_(), TimePattern.type_(), Array.type_()}:
         return from_database(database_value, value_type)
     return value_type
 
@@ -291,10 +295,13 @@ def from_database_to_dimension_count(database_value, value_type):
         int: number of dimensions
     """
 
-    if value_type in {"time_series", "time_pattern", "array"}:
+    if value_type in {TimeSeries.type_(), TimePattern.type_(), Array.type_()}:
         return 1
-    if value_type == "map":
-        map_value = from_database(database_value, value_type)
+    if value_type == Map.type_():
+        parsed = load_db_value(database_value, value_type)
+        if "rank" in parsed:
+            return parsed["rank"]
+        map_value = from_dict(parsed)
         return map_dimensions(map_value)
     return 0
 
@@ -313,19 +320,19 @@ def from_dict(value):
     """
     value_type = value["type"]
     try:
-        if value_type == "date_time":
+        if value_type == DateTime.type_():
             return _datetime_from_database(value["data"])
-        if value_type == "duration":
+        if value_type == Duration.type_():
             return _duration_from_database(value["data"])
-        if value_type == "map":
+        if value_type == Map.type_():
             return _map_from_database(value)
-        if value_type == "time_pattern":
+        if value_type == TimePattern.type_():
             return _time_pattern_from_database(value)
-        if value_type == "time_series":
+        if value_type == TimeSeries.type_():
             return _time_series_from_database(value)
-        if value_type == "array":
+        if value_type == Array.type_():
             return _array_from_database(value)
-        raise ParameterValueFormatError(f'Unknown parameter value type "{value_type}"')
+        raise ParameterValueFormatError(f'Unknown or non-dictionary parameter value type "{value_type}"')
     except KeyError as error:
         raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description')
 
@@ -611,7 +618,12 @@ def _map_from_database(value_dict):
 
 def _map_index_type_from_database(index_type_in_db):
     """Returns the type corresponding to index_type string."""
-    index_type = {"str": str, "date_time": DateTime, "duration": Duration, "float": float}.get(index_type_in_db, None)
+    index_type = {
+        STRING_VALUE_TYPE: str,
+        DateTime.type_(): DateTime,
+        Duration.type_(): Duration,
+        FLOAT_VALUE_TYPE: float,
+    }.get(index_type_in_db, None)
     if index_type is None:
         raise ParameterValueFormatError(f'Unknown index_type "{index_type_in_db}".')
     return index_type
@@ -620,13 +632,13 @@ def _map_index_type_from_database(index_type_in_db):
 def _map_index_type_to_database(index_type):
     """Returns the string corresponding to given index type."""
     if issubclass(index_type, str):
-        return "str"
+        return STRING_VALUE_TYPE
     if issubclass(index_type, float):
-        return "float"
+        return FLOAT_VALUE_TYPE
     if index_type == DateTime:
-        return "date_time"
+        return DateTime.type_()
     if index_type == Duration:
-        return "duration"
+        return Duration.type_()
     raise ParameterValueFormatError(f'Unknown index type "{index_type.__name__}".')
 
 
@@ -652,8 +664,16 @@ def _map_index_to_database(index):
 def _map_value_to_database(value):
     """Converts a single map value to database format."""
     if hasattr(value, "to_dict"):
-        return dict(type=value.type_(), **value.to_dict())
-    return value
+        value_type = value.type_()
+        value_dict = value.to_dict()
+        if value_type == "map":
+            rank = value_dict["rank"]
+        elif value_type in (TimeSeries.type_(), Array.type_(), TimePattern.type_()):
+            rank = 1
+        else:
+            rank = 0
+        return dict(type=value.type_(), **value.to_dict()), rank
+    return value, 0
 
 
 def _map_values_from_database(values_in_db):
@@ -680,10 +700,13 @@ def _array_from_database(value_dict):
     Returns:
           Array: Array value
     """
-    value_type_id = value_dict.get("value_type", "float")
-    value_type = {"float": float, "str": str, "date_time": DateTime, "duration": Duration, "time_period": str}.get(
-        value_type_id, None
-    )
+    value_type_id = value_dict.get("value_type", FLOAT_VALUE_TYPE)
+    value_type = {
+        FLOAT_VALUE_TYPE: float,
+        STRING_VALUE_TYPE: str,
+        DateTime.type_(): DateTime,
+        Duration.type_(): Duration,
+    }.get(value_type_id, None)
     if value_type is None:
         raise ParameterValueFormatError(f'Unsupported value type for Array: "{value_type_id}".')
     try:
@@ -1084,14 +1107,14 @@ class Array(IndexedValue):
 
     def to_dict(self):
         value_type_id = {
-            float: "float",
-            str: "str",  # String could also mean time_period but we don't have any way to distinguish that, yet.
-            DateTime: "date_time",
-            Duration: "duration",
+            float: FLOAT_VALUE_TYPE,
+            str: STRING_VALUE_TYPE,  # String could also mean time_period but we don't have any way to distinguish that, yet.
+            DateTime: DateTime.type_(),
+            Duration: Duration.type_(),
         }.get(self._value_type)
         if value_type_id is None:
             raise ParameterValueFormatError(f"Cannot write unsupported array value type: {self._value_type.__name__}")
-        if value_type_id in ("float", "str"):
+        if value_type_id in (FLOAT_VALUE_TYPE, STRING_VALUE_TYPE):
             data = self._values
         else:
             data = [x.value_to_database_data() for x in self._values]
@@ -1525,20 +1548,24 @@ class Map(IndexedValue):
     def value_to_database_data(self):
         """Returns map's database representation's 'data' dictionary."""
         data = list()
+        nested_ranks = [0]
         for index, value in zip(self._indexes, self._values):
             index_in_db = _map_index_to_database(index)
-            value_in_db = _map_value_to_database(value)
+            value_in_db, nested_rank = _map_value_to_database(value)
+            nested_ranks.append(nested_rank)
             data.append([index_in_db, value_in_db])
-        return data
+        return data, max(nested_ranks)
 
     @staticmethod
     def type_():
         return "map"
 
     def to_dict(self):
+        data, nested_rank = self.value_to_database_data()
         value_dict = {
             "index_type": _map_index_type_to_database(self._index_type),
-            "data": self.value_to_database_data(),
+            "rank": nested_rank + 1,
+            "data": data,
         }
         if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
@@ -1767,7 +1794,7 @@ def deep_copy_value(value):
     Returns:
         Any: deep-copied value
     """
-    if isinstance(value, (Number, str)) or value is None:
+    if isinstance(value, (SupportsFloat, str)) or value is None:
         return value
     if isinstance(value, Array):
         return Array(value.values, value.value_type, value.index_name)
@@ -1804,3 +1831,25 @@ def deep_copy_map(value):
     xs = value.indexes.copy()
     ys = [deep_copy_value(y) for y in value.values]
     return Map(xs, ys, index_type=value.index_type, index_name=value.index_name)
+
+
+def type_for_scalar(parsed_value):
+    """Declares scalar value's database type.
+
+    Args:
+        parsed_value (float or string or bool): parsed scalar
+
+    Returns:
+        str: value's type
+    """
+    if parsed_value is None:
+        return None
+    if isinstance(parsed_value, dict):
+        return parsed_value["type"]
+    if isinstance(parsed_value, bool):
+        return BOOLEAN_VALUE_TYPE
+    if isinstance(parsed_value, SupportsFloat):
+        return FLOAT_VALUE_TYPE
+    if isinstance(parsed_value, str):
+        return STRING_VALUE_TYPE
+    raise ParameterValueFormatError(f"Values of type {type(parsed_value).__name__} not supported.")

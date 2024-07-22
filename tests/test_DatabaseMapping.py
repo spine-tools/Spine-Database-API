@@ -10,22 +10,22 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Unit tests for DatabaseMapping class. """
+import multiprocessing
 import os.path
 from tempfile import TemporaryDirectory
-import unittest
 import threading
-import multiprocessing
+import unittest
 from unittest import mock
 from unittest.mock import patch
-from sqlalchemy.engine.url import make_url, URL
+from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.util import KeyedTuple
 from spinedb_api import (
     DatabaseMapping,
-    import_functions,
-    from_database,
-    to_database,
     SpineDBAPIError,
     SpineIntegrityError,
+    from_database,
+    import_functions,
+    to_database,
 )
 from spinedb_api.db_mapping_base import PublicItem, Status
 from spinedb_api.helpers import Asterisk, name_from_elements

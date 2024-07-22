@@ -10,7 +10,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 import unittest
-
 from spinedb_api.exception import ConnectorError
 from spinedb_api.spine_io.importers.reader import SourceConnection
 

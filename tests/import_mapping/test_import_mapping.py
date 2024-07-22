@@ -14,33 +14,35 @@
 import unittest
 from unittest.mock import Mock
 from spinedb_api.exception import InvalidMapping
-from spinedb_api.mapping import Position, to_dict as mapping_to_dict, unflatten
+from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.import_mapping.import_mapping import (
-    default_import_mapping,
-    ImportMapping,
+    AlternativeMapping,
+    DefaultValueIndexNameMapping,
     EntityClassMapping,
     EntityMapping,
-    check_validity,
-    ParameterDefinitionMapping,
-    IndexNameMapping,
-    ParameterValueIndexMapping,
+    ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
+    ImportMapping,
+    IndexNameMapping,
+    ParameterDefaultValueIndexMapping,
+    ParameterDefaultValueTypeMapping,
+    ParameterDefinitionMapping,
+    ParameterValueIndexMapping,
     ParameterValueMapping,
     ParameterValueTypeMapping,
-    ParameterDefaultValueTypeMapping,
-    DefaultValueIndexNameMapping,
-    ParameterDefaultValueIndexMapping,
-    ExpandedParameterDefaultValueMapping,
-    AlternativeMapping,
+    check_validity,
+    default_import_mapping,
 )
 from spinedb_api.import_mapping.import_mapping_compat import (
     import_mapping_from_dict,
     parameter_mapping_from_dict,
     parameter_value_mapping_from_dict,
 )
-from spinedb_api.import_mapping.type_conversion import BooleanConvertSpec, StringConvertSpec, FloatConvertSpec
-from spinedb_api.import_mapping.generator import get_mapped_data
-from spinedb_api.parameter_value import Array, DateTime, TimeSeriesVariableResolution, Map
+from spinedb_api.import_mapping.type_conversion import BooleanConvertSpec, FloatConvertSpec, StringConvertSpec
+from spinedb_api.mapping import Position
+from spinedb_api.mapping import to_dict as mapping_to_dict
+from spinedb_api.mapping import unflatten
+from spinedb_api.parameter_value import Array, DateTime, Map, TimeSeriesVariableResolution
 
 
 class TestConvertFunctions(unittest.TestCase):
