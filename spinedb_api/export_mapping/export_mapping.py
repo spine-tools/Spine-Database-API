@@ -22,7 +22,7 @@ from ..parameter_value import (
     from_database,
     from_database_to_dimension_count,
     from_database_to_single_value,
-    map_dimensions,
+    type_for_scalar,
 )
 from .group_functions import NoGroup
 
@@ -928,13 +928,17 @@ class ParameterDefaultValueTypeMapping(ParameterDefaultValueMapping):
 
     MAP_TYPE = "ParameterDefaultValueType"
 
+    def __init__(self, position, value=None, header="", filter_re=""):
+        filter_re = filter_re.replace("single_value", "float|str|bool")
+        super().__init__(position, value, header, filter_re)
+
     def _data(self, db_row):
         type_ = db_row.default_type
         if type_ == "map":
-            return f"{map_dimensions(from_database(db_row.default_value, type_))}d_map"
+            return f"{from_database_to_dimension_count(db_row.default_value, type_)}d_map"
         if type_ in ("time_series", "time_pattern", "array"):
             return type_
-        return "single_value"
+        return type_ if type_ else type_for_scalar(from_database(db_row.default_value, db_row.default_type))
 
     def _title_state(self, db_row):
         return {
@@ -1090,13 +1094,17 @@ class ParameterValueTypeMapping(ParameterValueMapping):
 
     MAP_TYPE = "ParameterValueType"
 
+    def __init__(self, position, value=None, header="", filter_re=""):
+        filter_re = filter_re.replace("single_value", "float|str|bool")
+        super().__init__(position, value, header, filter_re)
+
     def _data(self, db_row):
         type_ = db_row.type
         if type_ == "map":
             return f"{from_database_to_dimension_count(db_row.value, type_)}d_map"
         if type_ in ("time_series", "time_pattern", "array"):
             return type_
-        return type_
+        return type_ if type_ else type_for_scalar(from_database(db_row.value, db_row.type))
 
     def _title_state(self, db_row):
         return {"type_and_dimensions": (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type))}

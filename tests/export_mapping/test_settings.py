@@ -119,7 +119,7 @@ class TestEntityClassDimensionParameterDefaultValueExport(unittest.TestCase):
             index_positions=None,
             highlight_position=0,
         )
-        expected = [["rc", "p11", "oc1", "oc2", 2.3, "single_value"], ["rc", "p12", "oc1", "oc2", 5.0, "single_value"]]
+        expected = [["rc", "p11", "oc1", "oc2", 2.3, "float"], ["rc", "p12", "oc1", "oc2", 5.0, "float"]]
         self.assertEqual(list(rows(root_mapping, self._db_map)), expected)
 
 
