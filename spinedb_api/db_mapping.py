@@ -291,7 +291,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             ) from None
         with engine.begin() as connection:
             if sa_url.drivername == "sqlite":
-                connection.execute("BEGIN IMMEDIATE")
+                connection.execute("BEGIN EXCLUSIVE")
             # TODO: Do other dialects need to lock?
             migration_context = MigrationContext.configure(connection)
             try:
