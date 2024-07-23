@@ -26,6 +26,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    Enum,
     Float,
     ForeignKey,
     ForeignKeyConstraint,
@@ -511,7 +512,14 @@ def create_spine_metadata():
             nullable=False,
         ),
         Column("display_order", Integer, nullable=False),
-        Column("display_status", Text(), server_default=null()),
+        Column(
+            "display_status",
+            Enum(*DisplayStatus.values(), name="display_status_enum"),
+            server_default=DisplayStatus.VISIBLE,
+            nullable=False,
+        ),
+        Column("display_font_color", BigInteger, server_default=null()),
+        Column("display_background_color", BigInteger, server_default=null()),
         UniqueConstraint("display_mode_id", "entity_class_id", "display_order", name="uq_display_mode_class_order"),
     )
     Table(
@@ -943,3 +951,15 @@ def string_to_bool(string):
     if string in _FALSES:
         return False
     raise ValueError(string)
+
+
+class DisplayStatus:
+    """Custom enum for entity class display status"""
+
+    VISIBLE = "visible"
+    HIDDEN = "hidden"
+    GREYED_OUT = "greyed_out"
+
+    @classmethod
+    def values(cls):
+        return [cls.VISIBLE, cls.HIDDEN, cls.GREYED_OUT]

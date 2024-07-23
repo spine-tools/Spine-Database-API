@@ -549,7 +549,14 @@ def _get_entity_class_display_modes_for_import(db_map, data):
 
 
 def _get_display_mode__entity_classes_for_import(db_map, data):
-    key = ("display_mode_name", "entity_class_name", "display_order", "display_status")
+    key = (
+        "display_mode_name",
+        "entity_class_name",
+        "display_order",
+        "display_status",
+        "display_font_color",
+        "display_background_color",
+    )
     for display_mode_name, entity_class_name, display_order, *optionals in data:
         yield dict(zip(key, (display_mode_name, entity_class_name, display_order, *optionals)))
 

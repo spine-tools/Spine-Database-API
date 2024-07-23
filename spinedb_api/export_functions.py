@@ -143,7 +143,14 @@ def export_entity_class_display_modes(db_map, ids=Asterisk):
 
 def export_display_mode__entity_classes(db_map, ids=Asterisk):
     return sorted(
-        (x.display_mode_name, x.entity_class_name, x.display_order, x.display_status)
+        (
+            x.display_mode_name,
+            x.entity_class_name,
+            x.display_order,
+            x.display_status,
+            x.display_font_color,
+            x.display_background_color,
+        )
         for x in _get_items(db_map, "display_mode__entity_class", ids)
     )
 

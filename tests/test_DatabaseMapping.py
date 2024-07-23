@@ -28,7 +28,7 @@ from spinedb_api import (
     to_database,
 )
 from spinedb_api.db_mapping_base import PublicItem, Status
-from spinedb_api.helpers import Asterisk, name_from_elements
+from spinedb_api.helpers import Asterisk, DisplayStatus, name_from_elements
 from tests.custom_db_mapping import CustomDatabaseMapping
 from tests.mock_helpers import AssertSuccessTestCase
 
@@ -1552,14 +1552,18 @@ class TestDatabaseMappingQueries(unittest.TestCase):
     def test_display_mode__entity_class_sq(self):
         import_functions.import_entity_classes(self._db_map, (("ent_cls", ()),))
         import_functions.import_entity_class_display_modes(self._db_map, (("disp_mode", "Some desc."),))
-        import_functions.import_display_mode__entity_classes(self._db_map, (("disp_mode", "ent_cls", 1),))
+        import_functions.import_display_mode__entity_classes(
+            self._db_map, (("disp_mode", "ent_cls", 1, DisplayStatus.VISIBLE, 0xFFFFFF, 0),)
+        )
         self._db_map.commit_session("test")
         disp_mode_rows = self._db_map.query(self._db_map.display_mode__entity_class_sq).all()
         self.assertEqual(len(disp_mode_rows), 1)
-        self.assertEqual(disp_mode_rows[0].entity_class_id, 1)
         self.assertEqual(disp_mode_rows[0].display_mode_id, 1)
+        self.assertEqual(disp_mode_rows[0].entity_class_id, 1)
         self.assertEqual(disp_mode_rows[0].display_order, 1)
-        self.assertEqual(disp_mode_rows[0].display_status, None)
+        self.assertEqual(disp_mode_rows[0].display_status, DisplayStatus.VISIBLE)
+        self.assertEqual(disp_mode_rows[0].display_font_color, 0xFFFFFF)
+        self.assertEqual(disp_mode_rows[0].display_background_color, 0)
 
     def test_ext_linked_scenario_alternative_sq(self):
         import_functions.import_scenarios(self._db_map, (("scen1", True),))

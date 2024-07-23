@@ -12,7 +12,7 @@
 
 from operator import itemgetter
 from .db_mapping_base import MappedItemBase
-from .helpers import name_from_dimensions, name_from_elements
+from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
 from .parameter_value import ParameterValueFormatError, from_database, to_database
 
 
@@ -370,9 +370,11 @@ class DisplayModeEntityClassItem(MappedItemBase):
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "display_mode_name": {"type": int, "value": "The entity class display mode name."},
         "display_order": {"type": int, "value": "The display order."},
-        "display_status": {"type": str, "value": "The display status.", "optional": True},
+        "display_status": {"type": str, "value": "The display status."},
+        "display_font_color": {"type": int, "value": "The color of the font.", "optional": True},
+        "display_background_color": {"type": int, "value": "The  color of the background.", "optional": True},
     }
-    _defaults = {"display_status": None}
+    _defaults = {"display_status": DisplayStatus.VISIBLE, "display_font_color": None, "display_background_color": None}
     unique_keys = (
         (
             "entity_class_name",
@@ -381,10 +383,7 @@ class DisplayModeEntityClassItem(MappedItemBase):
         ),
     )
     corresponding_unique_id_keys = {"entity_class_name": "entity_class_id", "display_mode_name": "display_mode_id"}
-    _references = {
-        "entity_class_id": ("entity_class", "id"),
-        "display_mode_id": ("entity_class_display_mode", "id"),
-    }
+    _references = {"entity_class_id": ("entity_class", "id"), "display_mode_id": ("entity_class_display_mode", "id")}
     _external_fields = {
         "entity_class_name": ("entity_class_id", "name"),
         "display_mode_name": ("display_mode_id", "name"),

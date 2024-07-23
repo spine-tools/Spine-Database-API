@@ -13,6 +13,7 @@
 
 import unittest
 from spinedb_api.db_mapping import DatabaseMapping
+from spinedb_api.helpers import DisplayStatus
 from spinedb_api.import_functions import (
     import_alternatives,
     import_data,
@@ -1696,7 +1697,9 @@ class TestImportEntityClassDisplayModeEntityClass(unittest.TestCase):
                 "display_mode_id": 1,
                 "entity_class_id": 1,
                 "display_order": 98,
-                "display_status": None,
+                "display_status": DisplayStatus.VISIBLE,
+                "display_font_color": None,
+                "display_background_color": None,
             },
         )
         db_map.close()
