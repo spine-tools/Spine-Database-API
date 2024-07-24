@@ -9,10 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Module contains the :class:`Writer` base class and functions to write tabular data.
-
-"""
+""" Module contains the :class:`Writer` base class and functions to write tabular data. """
 from contextlib import contextmanager
 from copy import copy
 from sqlalchemy.exc import OperationalError
