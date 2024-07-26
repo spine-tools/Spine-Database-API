@@ -63,7 +63,7 @@ class GdxConnector(SourceConnection):
             **extras: ignored
         """
         if self._gams_dir is None:
-            raise IOError(f"Could not find GAMS directory. Make sure you have GAMS installed.")
+            raise IOError("Could not find GAMS directory. Make sure you have GAMS installed.")
         self._filename = source
         self._gdx_file = GdxFile(source, gams_dir=self._gams_dir)
 

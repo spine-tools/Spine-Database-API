@@ -309,7 +309,7 @@ def is_empty(db_url):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args)) from None
+        raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     insp = inspect(engine)
     if insp.get_table_names():
         return False
@@ -892,7 +892,7 @@ def remove_credentials_from_url(url):
     if "@" not in url:
         return url
     head, tail = url.rsplit("@", maxsplit=1)
-    scheme, credentials = head.split("://", maxsplit=1)
+    scheme, _ = head.split("://", maxsplit=1)
     return scheme + "://" + tail
 
 

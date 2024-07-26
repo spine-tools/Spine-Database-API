@@ -540,16 +540,16 @@ def _change_amount_of_dimensions(
     """
     mapping_list = mapping.flatten()
     if dimensions == 0:
-        if type(mapping_list[-1]) == expanded_value_mapping:
+        if isinstance(mapping_list[-1], expanded_value_mapping):
             position = mapping_list[-1].position
-            mapping_list = list(takewhile(lambda m: type(m) != index_name_mapping, mapping_list))
+            mapping_list = list(takewhile(lambda m: not isinstance(m, index_name_mapping), mapping_list))
             mapping_list.append(single_value_mapping(position))
             unflatten(mapping_list)
         return
-    if type(mapping_list[-1]) == single_value_mapping:
+    if isinstance(mapping_list[-1], single_value_mapping):
         position = mapping_list[-1].position
         mapping_list[-1] = expanded_value_mapping(position)
-    existing_dimensions = len([m for m in mapping_list if type(m) == index_mapping])
+    existing_dimensions = len([m for m in mapping_list if isinstance(m, index_mapping)])
     if existing_dimensions < dimensions:
         n = dimensions - existing_dimensions
         name_mappings = [index_name_mapping(Position.hidden) for _ in range(n)]

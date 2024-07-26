@@ -116,7 +116,7 @@ def _table_to_gdx(gdx_file, table, table_name, dimensions):
         gdx_file[table_name] = set_
     except TypeError as e:
         if isinstance(set_, GAMSSet):
-            raise WriterException(f"A column contains a mixture of numeric and non-numeric elements.")
+            raise WriterException("A column contains a mixture of numeric and non-numeric elements.")
         raise e
     except ValueError as e:
         if isinstance(set_, GAMSParameter):

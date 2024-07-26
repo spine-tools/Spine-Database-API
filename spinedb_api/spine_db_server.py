@@ -384,7 +384,7 @@ class _DBWorker:
             if sq is None:
                 continue
             result[sq_name] = [dict(x) for x in self._db_map.query(sq)]
-        return dict(result=result)
+        return {"result": result}
 
     def _do_filtered_query(self, **kwargs):
         result = {}
@@ -396,7 +396,7 @@ class _DBWorker:
             for field, value in filters.items():
                 qry = qry.filter_by(**{field: value})
             result[sq_name] = [x._asdict() for x in qry]
-        return dict(result=result)
+        return {"result": result}
 
     def _do_import_data(self, data, comment):
         count, errors = import_data(self._db_map, unparse_value=_unparse_value, **data)
@@ -405,18 +405,18 @@ class _DBWorker:
                 self._db_map.commit_session(comment)
             except DBAPIError:
                 self._db_map.rollback_session()
-        return dict(result=(count, errors))
+        return {"result": (count, errors)}
 
     def _do_export_data(self, **kwargs):
-        return dict(result=export_data(self._db_map, parse_value=_parse_value, **kwargs))
+        return {"result": export_data(self._db_map, parse_value=_parse_value, **kwargs)}
 
     def _do_call_method(self, method_name, *args, **kwargs):
         try:
             method = getattr(self._db_map, method_name)
             result = method(*args, **kwargs)
-            return dict(result=result)
+            return {"result": result}
         except Exception as err:
-            return dict(error=str(err))
+            return {"error": str(err)}
 
     def _do_clear_filters(self):
         self._db_map.restore_entity_sq_maker()
@@ -427,14 +427,14 @@ class _DBWorker:
         self._db_map.restore_alternative_sq_maker()
         self._db_map.restore_scenario_sq_maker()
         self._db_map.restore_scenario_alternative_sq_maker()
-        return dict(result=True)
+        return {"result": True}
 
     def _do_apply_filters(self, configs):
         try:
             apply_filter_stack(self._db_map, configs)
-            return dict(result=True)
+            return {"result": True}
         except Exception as error:  # pylint: disable=broad-except
-            return dict(error=str(error))
+            return {"error": str(error)}
 
 
 class _DBManager:
@@ -447,15 +447,15 @@ class _DBManager:
             try:
                 worker = self._workers[server_address] = _DBWorker(db_url, upgrade, memory)
             except Exception as error:  # pylint: disable=broad-except
-                return dict(error=str(error))
-        return dict(result=True)
+                return {"error": str(error)}
+        return {"result": True}
 
     def close_db_map(self, server_address):
         worker = self._workers.pop(server_address, None)
         if worker is None:
-            return dict(result=False)
+            return {"result": Frue}
         worker.shutdown()
-        return dict(result=True)
+        return {"result": True}
 
     def get_db_url(self, server_address):
         worker = self._workers.get(server_address)
@@ -566,15 +566,15 @@ class HandleDBMixin:
 
     def db_checkin(self):
         _ManagerRequestHandler(self.server_manager_queue).db_checkin(self.server_address)
-        return dict(result=True)
+        return {"result": True}
 
     def db_checkout(self):
         _ManagerRequestHandler(self.server_manager_queue).db_checkout(self.server_address)
-        return dict(result=True)
+        return {"result": True}
 
     def cancel_db_checkout(self):
         _ManagerRequestHandler(self.server_manager_queue).cancel_db_checkout(self.server_address)
-        return dict(result=True)
+        return {"result": True}
 
     def open_db_map(self, db_url, upgrade, memory):
         return _db_manager.open_db_map(self.server_address, db_url, upgrade, memory)
@@ -595,7 +595,7 @@ class HandleDBMixin:
         except ValueError:
             client_version = 0
         if client_version < _current_server_version:
-            return dict(error=1, result=_current_server_version)
+            return {"error": 1, "result": _current_server_version}
         handler = {
             "query": self.query,
             "filtered_query": self.filtered_query,
@@ -611,11 +611,11 @@ class HandleDBMixin:
             "close_db_map": self.close_db_map,
         }.get(request)
         if handler is None:
-            return dict(error=f"invalid request '{request}'")
+            return {"error": f"invalid request '{request}'"}
         try:
             return handler(*args, **kwargs)
         except Exception:  # pylint: disable=broad-except
-            return dict(error=traceback.format_exc())
+            return {"error": traceback.format_exc()}
 
     def handle_request(self, request):
         response = self._get_response(request)

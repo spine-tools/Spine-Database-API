@@ -268,20 +268,19 @@ class ImportMapping(Mapping):
             if source_data is None:
                 self._skip_row(state)
                 return
-            else:
-                try:
-                    self._import_row(source_data, state, mapped_data)
-                except KeyError as err:
-                    for key in err.args:
-                        msg = f"Required key '{key}' is invalid"
-                        error = InvalidMappingComponent(msg, self.rank, key)
-                        errors.append(error)
-                except KeyFix as fix:
-                    indexes = set()
-                    for key in fix.args:
-                        indexes |= {k for k, err in enumerate(errors) if err.key == key}
-                    for k in sorted(indexes, reverse=True):
-                        errors.pop(k)
+            try:
+                self._import_row(source_data, state, mapped_data)
+            except KeyError as err:
+                for key in err.args:
+                    msg = f"Required key '{key}' is invalid"
+                    error = InvalidMappingComponent(msg, self.rank, key)
+                    errors.append(error)
+            except KeyFix as fix:
+                indexes = set()
+                for key in fix.args:
+                    indexes |= {k for k, err in enumerate(errors) if err.key == key}
+                for k in sorted(indexes, reverse=True):
+                    errors.pop(k)
         if self.child is not None:
             self.child.import_row(source_row, state, mapped_data, errors=errors)
 
