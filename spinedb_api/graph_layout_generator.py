@@ -62,7 +62,7 @@ class GraphLayoutGenerator:
         if vertex_count == 0:
             vertex_count = 1
         if heavy_positions is None:
-            heavy_positions = dict()
+            heavy_positions = {}
         self.vertex_count = vertex_count
         self.src_inds = src_inds
         self.dst_inds = dst_inds
@@ -142,8 +142,8 @@ class GraphLayoutGenerator:
         )  # Upper triangular except diagonal
         np.random.seed(0)
         layout = np.random.rand(self.vertex_count, 2) * self.initial_diameter - self.initial_diameter / 2
-        heavy_ind_list = list()
-        heavy_pos_list = list()
+        heavy_ind_list = []
+        heavy_pos_list = []
         for ind, pos in self.heavy_positions.items():
             heavy_ind_list.append(ind)
             heavy_pos_list.append([pos["x"], pos["y"]])

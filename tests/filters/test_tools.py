@@ -211,7 +211,7 @@ class TestFilterConfigs(unittest.TestCase):
     def test_empty_query(self):
         url = r"sqlite:///C:\dbs\database.sqlite"
         filters = filter_configs(url)
-        self.assertEqual(filters, list())
+        self.assertEqual(filters, [])
 
     def test_single_query(self):
         url = append_filter_config(r"sqlite:///C:\dbs\database.sqlite", r"F:\fltr\a.json")
@@ -229,7 +229,7 @@ class TestPopFilterConfigs(unittest.TestCase):
     def test_pop_from_empty_query(self):
         url = r"sqlite:///C:\dbs\database.sqlite"
         filters, popped = pop_filter_configs(url)
-        self.assertEqual(filters, list())
+        self.assertEqual(filters, [])
         self.assertEqual(popped, url)
 
     def test_pop_single_query(self):

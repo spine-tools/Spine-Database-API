@@ -152,9 +152,9 @@ def compile_group_concat_mysql(element, compiler, **kw):
     str_group_concat_column = cast(group_concat_column, String)
     if order_by_column is not None:
         str_group_concat_column = str_group_concat_column.op("ORDER BY")(order_by_column)
-    return "group_concat(%s separator %s)" % (
-        compiler.process(str_group_concat_column, **kw),
-        compiler.process(separator, **kw),
+    return (
+        f"group_concat({compiler.process(str_group_concat_column, **kw)} "
+        f"separator {compiler.process(separator, **kw)})"
     )
 
 
@@ -309,7 +309,7 @@ def is_empty(db_url):
     try:
         engine = create_engine(db_url)
     except DatabaseError as e:
-        raise SpineDBAPIError("Could not connect to '{}': {}".format(db_url, e.orig.args)) from None
+        raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     insp = inspect(engine)
     if insp.get_table_names():
         return False
@@ -806,7 +806,7 @@ def _create_first_spine_database(db_url):
     try:
         meta.create_all(engine)
     except DatabaseError as e:
-        raise SpineDBAPIError(f"Unable to create Spine database: {e.orig.args}")
+        raise SpineDBAPIError(f"Unable to create Spine database: {e.orig.args}") from e
     return engine
 
 
@@ -892,7 +892,7 @@ def remove_credentials_from_url(url):
     if "@" not in url:
         return url
     head, tail = url.rsplit("@", maxsplit=1)
-    scheme, credentials = head.split("://", maxsplit=1)
+    scheme, _ = head.split("://", maxsplit=1)
     return scheme + "://" + tail
 
 

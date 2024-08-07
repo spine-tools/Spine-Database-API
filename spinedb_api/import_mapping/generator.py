@@ -57,7 +57,7 @@ def get_mapped_data(
     default_column_convert_fn=None,
     row_convert_fns=None,
     unparse_value=identity,
-    mapping_names=[],
+    mapping_names=None,
 ):
     """
     Args:
@@ -93,6 +93,8 @@ def get_mapped_data(
         row_convert_fns = {}
     if default_column_convert_fn is None:
         default_column_convert_fn = column_convert_fns[max(column_convert_fns)] if column_convert_fns else identity
+    if mapping_names is None:
+        mapping_names = []
     _ensure_mapping_name_consistency(mappings, mapping_names)
     for mapping, mapping_name in zip(mappings, mapping_names):
         read_state = {}
@@ -401,21 +403,21 @@ def _table_to_map(table, compress=False):
 
 
 def _table_to_dict(table):
-    map_dict = dict()
+    map_dict = {}
     for row in table:
         row = [item for item in row if item not in (None, "")]
         if len(row) < 2:
             continue
         d = map_dict
         for item in row[:-2]:
-            d = d.setdefault(item, dict())
+            d = d.setdefault(item, {})
         d[row[-2]] = row[-1]
     return map_dict
 
 
 def _dict_to_map_recursive(d):
-    indexes = list()
-    values = list()
+    indexes = []
+    values = []
     for key, value in d.items():
         if isinstance(value, dict):
             value = _dict_to_map_recursive(value)

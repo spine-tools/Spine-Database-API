@@ -59,7 +59,7 @@ class CsvWriter(Writer):
         self._file_name = os.path.join(self._path, table_name)
         if self._file_name not in self._finished_files and os.path.exists(self._file_name):
             os.remove(self._file_name)
-        self._file = open(self._file_name, "a", newline="")
+        self._file = open(self._file_name, "a", newline="", encoding="utf-8")
         self._out = csv.writer(self._file)
         return True
 

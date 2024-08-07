@@ -182,9 +182,9 @@ class ImportMapping(Mapping):
             try:
                 self.position = source_header.index(self.position)
                 return
-            except ValueError:
+            except ValueError as error:
                 msg = f"'{self.position}' is not in '{source_header}'"
-                raise InvalidMappingComponent(msg)
+                raise InvalidMappingComponent(msg) from error
         if self.position == Position.table_name:
             # Table name mapping, we set the fixed value to the table name
             self.value = table_name
@@ -205,16 +205,16 @@ class ImportMapping(Mapping):
                 try:
                     # Not in the header, maybe it's a stringified index?
                     self.value = int(self.value)
-                except ValueError:
+                except ValueError as error:
                     msg = f"'{self.value}' is not in header '{source_header}'"
-                    raise InvalidMappingComponent(msg)
+                    raise InvalidMappingComponent(msg) from error
             # Integer value, we try and get the actual value from that index in the header
             try:
                 self._index = self.value
                 self.value = source_header[self.value]
-            except IndexError:
+            except IndexError as error:
                 msg = f"'{self.value}' is not a valid index in header '{source_header}'"
-                raise InvalidMappingComponent(msg)
+                raise InvalidMappingComponent(msg) from error
         if isinstance(self.position, int) and self.position >= column_count > 0:
             msg = f'Column ref {self.position + 1} is out of range for the source table "{table_name}"'
             raise InvalidMappingComponent(msg)
@@ -268,20 +268,19 @@ class ImportMapping(Mapping):
             if source_data is None:
                 self._skip_row(state)
                 return
-            else:
-                try:
-                    self._import_row(source_data, state, mapped_data)
-                except KeyError as err:
-                    for key in err.args:
-                        msg = f"Required key '{key}' is invalid"
-                        error = InvalidMappingComponent(msg, self.rank, key)
-                        errors.append(error)
-                except KeyFix as fix:
-                    indexes = set()
-                    for key in fix.args:
-                        indexes |= {k for k, err in enumerate(errors) if err.key == key}
-                    for k in sorted(indexes, reverse=True):
-                        errors.pop(k)
+            try:
+                self._import_row(source_data, state, mapped_data)
+            except KeyError as err:
+                for key in err.args:
+                    msg = f"Required key '{key}' is invalid"
+                    error = InvalidMappingComponent(msg, self.rank, key)
+                    errors.append(error)
+            except KeyFix as fix:
+                indexes = set()
+                for key in fix.args:
+                    indexes |= {k for k, err in enumerate(errors) if err.key == key}
+                for k in sorted(indexes, reverse=True):
+                    errors.pop(k)
         if self.child is not None:
             self.child.import_row(source_row, state, mapped_data, errors=errors)
 
@@ -546,7 +545,7 @@ class ParameterDefinitionMapping(ImportMapping):
         parameter_definition_key = state[ImportKey.PARAMETER_DEFINITION] = entity_class_name, parameter_name
         default_values = state.get(ImportKey.PARAMETER_DEFAULT_VALUES)
         if default_values is None or parameter_definition_key not in default_values:
-            mapped_data.setdefault("parameter_definitions", dict())[parameter_definition_key] = definition_extras
+            mapped_data.setdefault("parameter_definitions", {})[parameter_definition_key] = definition_extras
 
 
 class ParameterTypeMapping(ImportMapping):

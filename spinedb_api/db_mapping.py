@@ -160,8 +160,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._filter_configs = filter_configs if apply_filters else None
         try:
             self.sa_url = make_url(db_url)
-        except ArgumentError:
-            raise SpineDBAPIError("Could not parse the given URL. Please check that it is valid.")
+        except ArgumentError as error:
+            raise SpineDBAPIError("Could not parse the given URL. Please check that it is valid.") from error
         self.username = username if username else "anon"
         self.codename = self._make_codename(codename)
         self._memory = memory
@@ -258,8 +258,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 database = os.path.join(folder_name, file_name + "." + v_err.current)
                 backup_url = str(URL("sqlite", database=database))
                 option_to_kwargs = {
-                    "Backup and upgrade": dict(upgrade=True, backup_url=backup_url),
-                    "Just upgrade": dict(upgrade=True),
+                    "Backup and upgrade": {"upgrade": True, "backup_url": backup_url},
+                    "Just upgrade": {"upgrade": True},
                 }
                 notes = {"Backup and upgrade": f"The backup will be written at '{backup_url}'"}
                 preferred = 0
@@ -390,6 +390,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             self._create_import_alternative()
         return self._import_alternative_name
 
+    # pylint: disable=method-hidden
     def _create_import_alternative(self):
         """Creates the alternative to be used as default for all import operations."""
         self._import_alternative_name = "Base"
@@ -803,7 +804,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             raise SpineDBAPIError("Commit message cannot be empty.")
         with self.engine.begin() as connection:
             commit = self._metadata.tables["commit"]
-            commit_item = dict(user=self.username, date=datetime.now(timezone.utc), comment=comment)
+            commit_item = {"user": self.username, "date": datetime.now(timezone.utc), "comment": comment}
             try:
                 # TODO: The below locks the DB in sqlite, how about other dialects?
                 commit_id = connection.execute(commit.insert(), commit_item).inserted_primary_key[0]

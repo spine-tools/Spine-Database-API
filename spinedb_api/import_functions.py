@@ -16,19 +16,8 @@ This functionality is equivalent to the one provided by :meth:`.DatabaseMapping.
 but the syntax is a little more compact.
 """
 from collections import defaultdict
-from contextlib import suppress
-from functools import partial
-from itertools import takewhile
 from .helpers import _parse_metadata
-from .parameter_value import (
-    RANK_1_TYPES,
-    Array,
-    TimePattern,
-    TimeSeries,
-    fancy_type_to_type_and_rank,
-    fix_conflict,
-    to_database,
-)
+from .parameter_value import fancy_type_to_type_and_rank, fix_conflict, to_database
 
 
 def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs):

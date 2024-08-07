@@ -33,7 +33,7 @@ def _windows_dlls_exist(gams_path):
     """Returns True if requred DLL files exist in given GAMS installation path."""
     bitness = _python_interpreter_bitness()
     # This DLL must exist on Windows installation
-    dll_name = "gdxdclib{}.dll".format(bitness)
+    dll_name = f"gdxdclib{bitness}.dll"
     dll_path = os.path.join(gams_path, dll_name)
     return os.path.isfile(dll_path)
 

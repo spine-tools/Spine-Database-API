@@ -65,7 +65,7 @@ class TestCsvWriter(unittest.TestCase):
         writer = CsvWriter(out_path.parent, out_path.name)
         write(db_map, writer, root_mapping)
         self.assertFalse(out_path.exists())
-        out_files = list()
+        out_files = []
         for real_out_path in Path(self._temp_dir.name).iterdir():
             out_files.append(real_out_path.name)
             expected = None

@@ -21,14 +21,14 @@ from spinedb_api.spine_io.exporters.writer import Writer, write
 
 class _TableWriter(Writer):
     def __init__(self):
-        self._tables = dict()
+        self._tables = {}
         self._current_table = None
 
     def finish_table(self):
         self._current_table = None
 
     def start_table(self, table_name, title_key):
-        self._current_table = self._tables.setdefault(table_name, list())
+        self._current_table = self._tables.setdefault(table_name, [])
         return True
 
     @property

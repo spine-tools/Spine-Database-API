@@ -219,7 +219,7 @@ class Mapping:
 
     def last_pivot_row(self):
         return max(
-            [-(m.position + 1) for m in self.flatten() if isinstance(m.position, int) and m.position < 0], default=-1
+            (-(m.position + 1) for m in self.flatten() if isinstance(m.position, int) and m.position < 0), default=-1
         )
 
     def query_parents(self, what):
