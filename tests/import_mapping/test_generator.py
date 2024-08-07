@@ -918,6 +918,43 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_import_parameter_types(self):
+        data_source = iter(
+            [
+                ["Widget", "x", "float"],
+                ["Widget", "x", "bool"],
+                ["Gadget", "p", "time_pattern"],
+                ["Gadget", "q", "str"],
+                ["Gadget", "p", "date_time"],
+                ["Object", "w", ""],
+            ]
+        )
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": 0},
+                {"map_type": "ParameterDefinition", "position": 1},
+                {"map_type": "ParameterType", "position": 2},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entity_classes": [("Widget",), ("Gadget",), ("Object",)],
+                "parameter_definitions": [("Widget", "x"), ("Gadget", "p"), ("Gadget", "q"), ("Object", "w")],
+                "parameter_types": [
+                    ("Widget", "x", "float"),
+                    ("Widget", "x", "bool"),
+                    ("Gadget", "p", "time_pattern"),
+                    ("Gadget", "q", "str"),
+                    ("Gadget", "p", "date_time"),
+                ],
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,7 +10,4 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests package for :mod:`spinedb_api`.
-
-"""
+""" Unit tests package for :mod:`spinedb_api`. """

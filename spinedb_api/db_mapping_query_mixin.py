@@ -38,6 +38,7 @@ class DatabaseMappingQueryMixin:
         self._relationship_sq = None
         self._entity_group_sq = None
         self._parameter_definition_sq = None
+        self._parameter_type_sq = None
         self._parameter_value_sq = None
         self._parameter_value_list_sq = None
         self._list_value_sq = None
@@ -48,6 +49,7 @@ class DatabaseMappingQueryMixin:
         # Special convenience subqueries that join two or more tables
         self._wide_entity_class_sq = None
         self._wide_entity_sq = None
+        self._wide_parameter_definition_sq = None
         self._ext_parameter_value_list_sq = None
         self._wide_parameter_value_list_sq = None
         self._ord_list_value_sq = None
@@ -283,7 +285,6 @@ class DatabaseMappingQueryMixin:
 
             SELECT
                 e.*,
-                count(ee.element_id) AS element_count
                 group_concat(ee.element_id) AS element_id_list
             FROM
                 entity AS e
@@ -450,6 +451,73 @@ class DatabaseMappingQueryMixin:
         if self._parameter_definition_sq is None:
             self._parameter_definition_sq = self._make_parameter_definition_sq()
         return self._parameter_definition_sq
+
+    @property
+    def wide_parameter_definition_sq(self) -> Alias:
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT
+                e.*,
+                group_concat(ee.element_id) AS element_id_list
+            FROM
+                entity AS e
+                entity_element AS ee
+            WHERE
+                e.id == ee.entity_id
+        """
+        if self._wide_parameter_definition_sq is None:
+            ext_parameter_definition_sq = (
+                self.query(
+                    self.parameter_definition_sq,
+                    self.parameter_type_sq.c.id.label("parameter_type_id"),
+                    self.parameter_type_sq.c.rank.label("parameter_type_rank"),
+                    self.parameter_type_sq.c.type,
+                )
+                .outerjoin(
+                    self.parameter_type_sq,
+                    self.parameter_definition_sq.c.id == self.parameter_type_sq.c.parameter_definition_id,
+                )
+                .order_by(self.parameter_definition_sq.c.id, self.parameter_type_sq.c.rank)
+            ).subquery("ext_parameter_definition_sq")
+            self._wide_parameter_definition_sq = (
+                self.query(
+                    ext_parameter_definition_sq.c.id,
+                    ext_parameter_definition_sq.c.entity_class_id,
+                    ext_parameter_definition_sq.c.name,
+                    ext_parameter_definition_sq.c.description,
+                    ext_parameter_definition_sq.c.default_type,
+                    ext_parameter_definition_sq.c.default_value,
+                    ext_parameter_definition_sq.c.parameter_value_list_id,
+                    group_concat(
+                        ext_parameter_definition_sq.c.parameter_type_id,
+                        ext_parameter_definition_sq.c.parameter_type_rank,
+                    ).label("parameter_type_id_list"),
+                    group_concat(
+                        ext_parameter_definition_sq.c.type, ext_parameter_definition_sq.c.parameter_type_rank
+                    ).label("parameter_type_list"),
+                    ext_parameter_definition_sq.c.commit_id,
+                )
+                .group_by(ext_parameter_definition_sq.c.id)
+                .subquery("wide_parameter_definition_sq")
+            )
+        return self._wide_parameter_definition_sq
+
+    @property
+    def parameter_type_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM parameter_type
+
+        Returns:
+            :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._parameter_type_sq is None:
+            self._parameter_type_sq = self._subquery("parameter_type")
+        return self._parameter_type_sq
 
     @property
     def parameter_value_sq(self):

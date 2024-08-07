@@ -503,6 +503,20 @@ def create_spine_metadata():
         UniqueConstraint("id", "parameter_value_list_id"),
     )
     Table(
+        "parameter_type",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column(
+            "parameter_definition_id",
+            Integer,
+            ForeignKey("parameter_definition.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        Column("rank", Integer, nullable=False),
+        Column("type", String(255), nullable=False),
+        UniqueConstraint("parameter_definition_id", "type", "rank"),
+    )
+    Table(
         "parameter_tag",
         meta,
         Column("id", Integer, primary_key=True),
