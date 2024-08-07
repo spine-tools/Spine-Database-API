@@ -102,7 +102,7 @@ def value_transformer_shorthand_to_config(shorthand):
         dict: value transformer configuration
     """
     tokens = shorthand.split(":")[1:]
-    instructions = dict()
+    instructions = {}
     while tokens:
         class_name = tokens.pop(0)
         param_name = tokens.pop(0)
@@ -146,7 +146,7 @@ class _ValueTransformerState:
                 & db_map.entity_parameter_definition_sq.c.parameter_name.in_(param_names)
             )
         }
-        transformed = dict()
+        transformed = {}
         for value_row in db_map.query(db_map.entity_parameter_value_sq).filter(
             db_map.entity_parameter_value_sq.c.parameter_id.in_(definition_ids)
         ):
@@ -298,13 +298,13 @@ def _generate_index(value, instruction):
         return Map([], [], str)
     try:
         compiled = compile(instruction["expression"], "<string>", "eval")
-    except (SyntaxError, ValueError):
-        raise SpineDBAPIError("Failed to compile index generator expression.")
+    except (SyntaxError, ValueError) as error:
+        raise SpineDBAPIError("Failed to compile index generator expression.") from error
     generate_index = partial(eval, compiled, {})
     try:
         indexes = [generate_index({"i": i}) for i in range(1, len(value) + 1)]  # pylint: disable=eval-used
-    except (AttributeError, NameError, ValueError):
-        raise SpineDBAPIError("Failed to evaluate index generator expression.")
+    except (AttributeError, NameError, ValueError) as error:
+        raise SpineDBAPIError("Failed to evaluate index generator expression.") from error
     if len(indexes) != len(set(indexes)):
         raise SpineDBAPIError(f"Expression '{instruction['expression']}' does not generate unique indexes.")
     return Map(indexes, value.values)

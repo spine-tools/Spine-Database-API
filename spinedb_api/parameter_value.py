@@ -84,6 +84,7 @@ use :func:`.from_database`::
 from collections.abc import Sequence
 from copy import copy
 from datetime import datetime
+from itertools import takewhile
 import json
 from json.decoder import JSONDecodeError
 import re
@@ -160,8 +161,8 @@ def duration_to_relativedelta(duration):
     try:
         count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
         count = int(count)
-    except ValueError:
-        raise ParameterValueFormatError(f'Could not parse duration "{duration}"')
+    except ValueError as error:
+        raise ParameterValueFormatError(f'Could not parse duration "{duration}"') from error
     unit = abbreviation if abbreviation is not None else full_unit
     if unit in ["s", "second", "seconds"]:
         return relativedelta(seconds=count)
@@ -239,7 +240,7 @@ def load_db_value(db_value, type_):
     except JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}") from err
     if isinstance(parsed, dict):
-        return {"type": type_, **parsed}
+        parsed["type"] = type_
     return parsed
 
 
@@ -256,10 +257,8 @@ def dump_db_value(parsed_value):
     Returns:
         tuple(str,str): database representation (value and type).
     """
-    value_type = parsed_value.pop("type") if isinstance(parsed_value, dict) else None
+    value_type = parsed_value["type"] if isinstance(parsed_value, dict) else type_for_scalar(parsed_value)
     db_value = json.dumps(parsed_value).encode("UTF8")
-    if isinstance(parsed_value, dict) and value_type is not None:
-        parsed_value["type"] = value_type
     return db_value, value_type
 
 
@@ -334,7 +333,7 @@ def from_dict(value):
             return _array_from_database(value)
         raise ParameterValueFormatError(f'Unknown or non-dictionary parameter value type "{value_type}"')
     except KeyError as error:
-        raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description')
+        raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description') from error
 
 
 def fix_conflict(new, old, on_conflict="merge"):
@@ -404,8 +403,8 @@ def _datetime_from_database(value):
     except ValueError:
         try:
             stamp = dateutil.parser.parse(value)
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not parse datetime from "{value}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(f'Could not parse datetime from "{value}"') from error
     return DateTime(stamp)
 
 
@@ -454,12 +453,14 @@ def _variable_resolution_time_series_info_from_index(value):
         data_index = value["index"]
         try:
             ignore_year = bool(data_index.get("ignore_year", False))
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not decode ignore_year from "{data_index["ignore_year"]}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(
+                f'Could not decode ignore_year from "{data_index["ignore_year"]}"'
+            ) from error
         try:
             repeat = bool(data_index.get("repeat", False))
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not decode repeat from "{data_index["repeat"]}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(f'Could not decode repeat from "{data_index["repeat"]}"') from error
     else:
         ignore_year = False
         repeat = False
@@ -476,13 +477,13 @@ def _time_series_from_dictionary(value_dict):
         TimeSeriesVariableResolution: restored time series
     """
     data = value_dict["data"]
-    stamps = list()
+    stamps = []
     values = np.empty(len(data))
     for index, (stamp, series_value) in enumerate(data.items()):
         try:
             stamp = np.datetime64(stamp, NUMPY_DATETIME64_UNIT)
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not decode time stamp "{stamp}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(f'Could not decode time stamp "{stamp}"') from error
         stamps.append(stamp)
         values[index] = series_value
     stamps = np.array(stamps)
@@ -506,15 +507,19 @@ def _time_series_from_single_column(value_dict):
         if "ignore_year" in value_index:
             try:
                 ignore_year = bool(value_index["ignore_year"])
-            except ValueError:
-                raise ParameterValueFormatError(f'Could not decode ignore_year value "{value_index["ignore_year"]}"')
+            except ValueError as error:
+                raise ParameterValueFormatError(
+                    f'Could not decode ignore_year value "{value_index["ignore_year"]}"'
+                ) from error
         else:
             ignore_year = "start" not in value_index
         if "repeat" in value_index:
             try:
                 repeat = bool(value_index["repeat"])
-            except ValueError:
-                raise ParameterValueFormatError(f'Could not decode repeat value "{value_index["ignore_year"]}"')
+            except ValueError as error:
+                raise ParameterValueFormatError(
+                    f'Could not decode repeat value "{value_index["ignore_year"]}"'
+                ) from error
         else:
             repeat = "start" not in value_index
     else:
@@ -525,7 +530,7 @@ def _time_series_from_single_column(value_dict):
     if isinstance(resolution, str) or not isinstance(resolution, Sequence):
         # Always work with lists to simplify the code.
         resolution = [resolution]
-    relativedeltas = list()
+    relativedeltas = []
     for duration in resolution:
         if not isinstance(duration, str):
             duration = str(duration) + _TIME_SERIES_PLAIN_INDEX_UNIT
@@ -535,8 +540,8 @@ def _time_series_from_single_column(value_dict):
     except ValueError:
         try:
             start = dateutil.parser.parse(start)
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not decode start value "{start}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(f'Could not decode start value "{start}"') from error
     values = np.array(value_dict["data"])
     return TimeSeriesFixedResolution(
         start, relativedeltas, values, ignore_year, repeat, value_dict.get("index_name", "")
@@ -553,15 +558,15 @@ def _time_series_from_two_columns(value_dict):
         TimeSeriesVariableResolution: restored time series
     """
     data = value_dict["data"]
-    stamps = list()
+    stamps = []
     values = np.empty(len(data))
     for index, element in enumerate(data):
         if not isinstance(element, Sequence) or len(element) != 2:
             raise ParameterValueFormatError("Invalid value in time series array")
         try:
             stamp = np.datetime64(element[0], NUMPY_DATETIME64_UNIT)
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not decode time stamp "{element[0]}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(f'Could not decode time stamp "{element[0]}"') from error
         stamps.append(stamp)
         values[index] = element[1]
     stamps = np.array(stamps)
@@ -599,11 +604,11 @@ def _map_from_database(value_dict):
         values = _map_values_from_database(data.values())
     elif isinstance(data, Sequence):
         if not data:
-            indexes = list()
-            values = list()
+            indexes = []
+            values = []
         else:
-            indexes_in_db = list()
-            values_in_db = list()
+            indexes_in_db = []
+            values_in_db = []
             for row in data:
                 if not isinstance(row, Sequence) or len(row) != 2:
                     raise ParameterValueFormatError('"data" is not a nested two column array.')
@@ -649,9 +654,8 @@ def _map_indexes_from_database(indexes_in_db, index_type):
     except ValueError as error:
         raise ParameterValueFormatError(
             f'Failed to read index of type "{_map_index_type_to_database(index_type)}": {error}'
-        )
-    else:
-        return indexes
+        ) from error
+    return indexes
 
 
 def _map_index_to_database(index):
@@ -672,15 +676,15 @@ def _map_value_to_database(value):
             rank = 1
         else:
             rank = 0
-        return dict(type=value.type_(), **value.to_dict()), rank
+        return {"type": value.type_(), **value.to_dict()}, rank
     return value, 0
 
 
 def _map_values_from_database(values_in_db):
     """Converts map's values from their database format."""
     if not values_in_db:
-        return list()
-    values = list()
+        return []
+    values = []
     for value_in_db in values_in_db:
         value = from_dict(value_in_db) if isinstance(value_in_db, dict) else value_in_db
         if isinstance(value, int):
@@ -712,10 +716,9 @@ def _array_from_database(value_dict):
     try:
         data = [value_type(x) for x in value_dict["data"]]
     except (TypeError, ParameterValueFormatError) as error:
-        raise ParameterValueFormatError(f"Failed to read values for Array: {error}")
-    else:
-        index_name = value_dict.get("index_name", Array.DEFAULT_INDEX_NAME)
-        return Array(data, value_type, index_name)
+        raise ParameterValueFormatError(f"Failed to read values for Array: {error}") from error
+    index_name = value_dict.get("index_name", Array.DEFAULT_INDEX_NAME)
+    return Array(data, value_type, index_name)
 
 
 class ParameterValue:
@@ -781,8 +784,8 @@ class DateTime(ParameterValue):
             except ValueError:
                 try:
                     value = dateutil.parser.parse(value)
-                except ValueError:
-                    raise ParameterValueFormatError(f'Could not parse datetime from "{value}"')
+                except ValueError as error:
+                    raise ParameterValueFormatError(f'Could not parse datetime from "{value}"') from error
         elif isinstance(value, DateTime):
             value = copy(value._value)
         elif not isinstance(value, datetime):
@@ -1056,7 +1059,10 @@ class IndexedValue(ParameterValue):
             return self
         new_indexes = np.unique(np.concatenate((self.indexes, other.indexes)))
         new_indexes.sort(kind="mergesort")
-        _merge = lambda value, other: other if value is None else merge_parsed(value, other)
+
+        def _merge(value, other):
+            return other if value is None else merge_parsed(value, other)
+
         new_values = [_merge(self.get_value(index), other.get_value(index)) for index in new_indexes]
         self.indexes = new_indexes
         self.values = new_values
@@ -1083,13 +1089,13 @@ class Array(IndexedValue):
             value_type = float
             try:
                 values = [value_type(x) for x in values]
-            except ValueError:
-                raise ParameterValueFormatError("Cannot convert array's values to float.")
+            except ValueError as error:
+                raise ParameterValueFormatError("Cannot convert array's values to float.") from error
         if not all(isinstance(x, value_type) for x in values):
             try:
                 values = [value_type(x) for x in values]
-            except ValueError:
-                raise ParameterValueFormatError("Not all array's values are of the same type.")
+            except ValueError as error:
+                raise ParameterValueFormatError("Not all array's values are of the same type.") from error
         super().__init__(values, value_type=value_type, index_name=index_name)
         self.indexes = range(len(values))
 
@@ -1162,19 +1168,20 @@ class _TimePatternIndexes(_Indexes):
                 lower_str, upper_str = lower_upper
                 try:
                     lower = int(lower_str)
-                except:
-                    raise ParameterValueFormatError(f"Invalid lower bound {lower_str}, must be an integer.")
+                except Exception as error:
+                    raise ParameterValueFormatError(f"Invalid lower bound {lower_str}, must be an integer.") from error
                 try:
                     upper = int(upper_str)
-                except:
-                    raise ParameterValueFormatError(f"Invalid upper bound {upper_str}, must be an integer.")
+                except Exception as error:
+                    raise ParameterValueFormatError(f"Invalid upper bound {upper_str}, must be an integer.") from error
                 if lower > upper:
                     raise ParameterValueFormatError(f"Lower bound {lower} can't be higher than upper bound {upper}.")
 
     def __array_finalize__(self, obj):
         """Checks indexes when building the array."""
-        for x in obj:
-            self._check_index(x)
+        if obj is not None:
+            for x in obj:
+                self._check_index(x)
         super().__array_finalize__(obj)
 
     def __eq__(self, other):
@@ -1388,8 +1395,8 @@ class TimeSeriesFixedResolution(TimeSeries):
             except ValueError:
                 try:
                     self._start = dateutil.parser.parse(start)
-                except ValueError:
-                    raise ParameterValueFormatError(f'Cannot parse start time "{start}"')
+                except ValueError as error:
+                    raise ParameterValueFormatError(f'Cannot parse start time "{start}"') from error
         elif isinstance(start, np.datetime64):
             self._start = start.tolist()
         else:
@@ -1470,10 +1477,10 @@ class TimeSeriesVariableResolution(TimeSeries):
                 else:
                     try:
                         date_times[i] = np.datetime64(index, NUMPY_DATETIME64_UNIT)
-                    except ValueError:
+                    except ValueError as error:
                         raise ParameterValueFormatError(
                             f'Cannot convert "{index}" of type {type(index).__name__} to time stamp.'
-                        )
+                        ) from error
             indexes = date_times
         self.indexes = indexes
 
@@ -1489,13 +1496,13 @@ class TimeSeriesVariableResolution(TimeSeries):
         )
 
     def to_dict(self):
-        value_dict = dict()
+        value_dict = {}
         value_dict["data"] = {str(index): float(value) for index, value in zip(self._indexes, self._values)}
         # Add "index" entry only if its contents are not set to their default values.
         if self._ignore_year:
-            value_dict.setdefault("index", dict())["ignore_year"] = self._ignore_year
+            value_dict.setdefault("index", {})["ignore_year"] = self._ignore_year
         if self._repeat:
-            value_dict.setdefault("index", dict())["repeat"] = self._repeat
+            value_dict.setdefault("index", {})["repeat"] = self._repeat
         if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
         return value_dict
@@ -1547,7 +1554,7 @@ class Map(IndexedValue):
 
     def value_to_database_data(self):
         """Returns map's database representation's 'data' dictionary."""
-        data = list()
+        data = []
         nested_ranks = [0]
         for index, value in zip(self._indexes, self._values):
             index_in_db = _map_index_to_database(index)
@@ -1612,7 +1619,7 @@ def convert_leaf_maps_to_specialized_containers(map_):
     converted_container = _try_convert_to_container(map_)
     if converted_container is not None:
         return converted_container
-    new_values = list()
+    new_values = []
     for _, value in zip(map_.indexes, map_.values):
         if isinstance(value, Map):
             converted = convert_leaf_maps_to_specialized_containers(value)
@@ -1639,7 +1646,7 @@ def convert_containers_to_maps(value):
     if isinstance(value, Map):
         if not value:
             return value
-        new_values = list()
+        new_values = []
         for _, x in zip(value.indexes, value.values):
             if isinstance(x, IndexedValue):
                 new_values.append(convert_containers_to_maps(x))
@@ -1677,8 +1684,8 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
         list of list: map's rows
     """
     if row_this_far is None:
-        row_this_far = list()
-    rows = list()
+        row_this_far = []
+    rows = []
     for index, value in zip(map_.indexes, map_.values):
         if not isinstance(value, Map):
             rows.append(row_this_far + [index, value])
@@ -1688,7 +1695,7 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
         max_length = 0
         for row in rows:
             max_length = max(max_length, len(row))
-        equal_length_rows = list()
+        equal_length_rows = []
         for row in rows:
             equal_length_row = row + (max_length - len(row)) * [empty]
             equal_length_rows.append(equal_length_row)
@@ -1708,7 +1715,7 @@ def convert_map_to_dict(map_):
     Returns:
         dict:
     """
-    d = dict()
+    d = {}
     for index, x in zip(map_.indexes, map_.values):
         if isinstance(x, Map):
             x = convert_map_to_dict(x)
@@ -1728,8 +1735,8 @@ def _try_convert_to_container(map_):
     """
     if not map_:
         return None
-    stamps = list()
-    values = list()
+    stamps = []
+    values = []
     for index, value in zip(map_.indexes, map_.values):
         if not isinstance(index, DateTime) or not isinstance(value, float):
             return None
@@ -1738,8 +1745,34 @@ def _try_convert_to_container(map_):
     return TimeSeriesVariableResolution(stamps, values, False, False, index_name=map_.index_name)
 
 
-# List of scalar types that are supported by the spinedb_api
-SUPPORTED_TYPES = (Duration, DateTime, float, str)
+# Value types that are supported by spinedb_api
+VALUE_TYPES = {
+    FLOAT_VALUE_TYPE,
+    BOOLEAN_VALUE_TYPE,
+    STRING_VALUE_TYPE,
+    Duration.type_(),
+    DateTime.type_(),
+    Array.type_(),
+    TimePattern.type_(),
+    TimeSeries.type_(),
+    Map.type_(),
+}
+
+RANK_1_TYPES = {Array.type_(), TimePattern.type_(), TimeSeries.type_()}
+
+
+def type_and_rank_to_fancy_type(value_type, rank):
+    if value_type == Map.type_():
+        return f"{rank}d_{value_type}"
+    return value_type
+
+
+def fancy_type_to_type_and_rank(fancy_type):
+    if fancy_type.endswith(f"d_{Map.type_()}"):
+        return Map.type_(), int("".join(takewhile(lambda x: x.isdigit(), fancy_type)))
+    if fancy_type in RANK_1_TYPES:
+        return fancy_type, 1
+    return fancy_type, 0
 
 
 def join_value_and_type(db_value, db_type):
@@ -1833,11 +1866,29 @@ def deep_copy_map(value):
     return Map(xs, ys, index_type=value.index_type, index_name=value.index_name)
 
 
+def type_for_value(value):
+    """Declares value's database type and rank.
+
+    Args:
+        value (Any): value to inspect
+
+    Returns:
+        tuple: type and rank
+    """
+    if isinstance(value, Map):
+        return Map.type_(), map_dimensions(value)
+    if isinstance(value, ParameterValue):
+        if value.type_() in RANK_1_TYPES:
+            return value.type_(), 1
+        return value.type_(), 0
+    return type_for_scalar(value), 0
+
+
 def type_for_scalar(parsed_value):
     """Declares scalar value's database type.
 
     Args:
-        parsed_value (float or string or bool): parsed scalar
+        parsed_value (float or string or bool or dict): parsed scalar
 
     Returns:
         str: value's type
@@ -1853,3 +1904,6 @@ def type_for_scalar(parsed_value):
     if isinstance(parsed_value, str):
         return STRING_VALUE_TYPE
     raise ParameterValueFormatError(f"Values of type {type(parsed_value).__name__} not supported.")
+
+
+UNPARSED_NULL_VALUE = to_database(None)[0]

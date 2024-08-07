@@ -1690,7 +1690,7 @@ class TestMappingIntegration(unittest.TestCase):
             "before_alternative_name": 2,
         }
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
+        expected = {}
         expected["scenario_alternatives"] = [
             ["scenario_A", "alternative1", "second_alternative"],
             ["scenario_A", "second_alternative", "last_one"],
@@ -1704,7 +1704,7 @@ class TestMappingIntegration(unittest.TestCase):
         data = iter(input_data)
         mappings = [{"map_type": "Scenario", "position": -1}, {"map_type": "ScenarioAlternative", "position": "hidden"}]
         out, errors = get_mapped_data(data, [mappings])
-        expected = dict()
+        expected = {}
         expected["scenario_alternatives"] = [
             ["scenario_A", "first_alternative"],
             ["scenario_A", "second_alternative"],
@@ -1784,7 +1784,7 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         mapping = {"map_type": "ObjectGroup", "name": 0, "groups": 1, "members": 2}
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
+        expected = {}
         expected["entity_classes"] = [("class_A",)]
         expected["entity_groups"] = {
             ("class_A", "group1", "object1"),
@@ -1805,7 +1805,7 @@ class TestMappingIntegration(unittest.TestCase):
         data_header = next(data)
         mapping = {"map_type": "ObjectGroup", "name": 0, "groups": 1, "members": 2, "import_objects": True}
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
+        expected = {}
         expected["entity_groups"] = {
             ("class_A", "group1", "object1"),
             ("class_A", "group1", "object2"),
@@ -1842,7 +1842,7 @@ class TestMappingIntegration(unittest.TestCase):
             },
         }
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = dict()
+        expected = {}
         expected["entity_classes"] = [("class_A",), ("class_B",)]
         expected["parameter_definitions"] = [
             ("class_A", "param1", 23.0, "listA"),

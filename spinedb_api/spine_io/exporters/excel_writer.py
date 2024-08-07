@@ -60,7 +60,7 @@ class ExcelWriter(Writer):
             try:
                 self._workbook = load_workbook(self._file_path)
             except InvalidFileException as e:
-                raise WriterException(f"Cannot open Excel file: {e}")
+                raise WriterException(f"Cannot open Excel file: {e}") from e
         else:
             self._workbook = Workbook()
             if not self._removable_sheet_names:

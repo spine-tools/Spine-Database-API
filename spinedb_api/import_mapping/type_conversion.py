@@ -104,8 +104,8 @@ class IntegerSequenceDateTimeConvertSpec(ConvertSpec):
             int_str = pattern.search(str(value)).group()
             int_value = int(int_str) - start_int
             return DateTime(start_datetime + int_value * duration)
-        except (ValueError, ParameterValueFormatError):
-            raise ValueError(f"Could not convert '{value}' to a DateTime")
+        except (ValueError, ParameterValueFormatError) as error:
+            raise ValueError(f"Could not convert '{value}' to a DateTime") from error
 
     def to_json_value(self):
         return {

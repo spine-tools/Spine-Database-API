@@ -12,12 +12,12 @@
 
 """
 Functions for importing data into a Spine database in a standard format.
-This functionaly is equivalent to the one provided by :meth:`.DatabaseMapping.add_update_item`,
+This functionality is equivalent to the one provided by :meth:`.DatabaseMapping.add_update_item`,
 but the syntax is a little more compact.
 """
 from collections import defaultdict
 from .helpers import _parse_metadata
-from .parameter_value import fix_conflict, to_database
+from .parameter_value import fancy_type_to_type_and_rank, fix_conflict, to_database
 
 
 def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs):
@@ -69,34 +69,19 @@ def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs
             )
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
+        unparse_value (Callable): function to call to parse parameter values
         on_conflict (str): Conflict resolution strategy for :func:`parameter_value.fix_conflict`
-        entity_classes (list(tuple(str,tuple,str,int)): tuples of
-            (name, dimension name tuple, description, display icon integer)
-        parameter_definitions (list(tuple(str,str,str,str)):
-            tuples of (class name, parameter name, default value, parameter value list name, description)
-        entities: (list(tuple(str,str or tuple(str)): tuples of (class name, entity name or element name list)
-        entity_alternatives: (list(tuple(str,str or tuple(str),str,bool): tuples of
-            (class name, entity name or element name list, alternative name, activity)
-        entity_groups (list(tuple(str,str,str))): tuples of (class name, group entity name, member entity name)
-        parameter_values (list(tuple(str,str or tuple(str),str,str|numeric,str]):
-            tuples of (class name, entity name or element name list, parameter name, value, alternative name)
-        alternatives (list(str,str)): tuples of (name, description)
-        scenarios (list(str,str)): tuples of (name, description)
-        scenario_alternatives (list(str,str,str)): tuples of
-            (scenario name, alternative name, preceeding alternative name)
-        parameter_value_lists (list(str,str|numeric)): tuples of (list name, value)
+        **kwargs: data to import
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: number of items imported and list of errors
     """
     all_errors = []
     num_imports = 0
-    for item_type, items in get_data_for_import(db_map, unparse_value=unparse_value, on_conflict=on_conflict, **kwargs):
-        if isinstance(items, tuple):
-            items, input_errors = items
-            all_errors.extend(input_errors)
+    for item_type, items in get_data_for_import(
+        db_map, all_errors, unparse_value=unparse_value, on_conflict=on_conflict, **kwargs
+    ):
         added, updated, errors = db_map.add_update_items(item_type, *items, strict=False)
         num_imports += len(added + updated)
         all_errors.extend(errors)
@@ -105,6 +90,7 @@ def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs
 
 def get_data_for_import(
     db_map,
+    all_errors,
     unparse_value=to_database,
     on_conflict="merge",
     entity_classes=(),
@@ -112,6 +98,7 @@ def get_data_for_import(
     entity_groups=(),
     entity_alternatives=(),
     parameter_definitions=(),
+    parameter_types=(),
     parameter_values=(),
     parameter_value_lists=(),
     alternatives=(),
@@ -146,12 +133,16 @@ def get_data_for_import(
     """Yields data to import into a Spine DB.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
+        all_errors (list of str): errors encountered during import
+        unparse_value (Callable): function to call when parsing parameter values
         on_conflict (str): Conflict resolution strategy for :func:`~spinedb_api.parameter_value.fix_conflict`
         entity_classes (list(tuple(str,tuple,str,int)): tuples of
             (name, dimension name tuple, description, display icon integer)
         parameter_definitions (list(tuple(str,str,str,str)):
             tuples of (class name, parameter name, default value, parameter value list name)
+        parameter_types (list(tuple(str,str,str))):
+            tuples of (class name, parameter name, type, preceding type)
         entities: (list(tuple(str,str or tuple(str)): tuples of (class name, entity name or element name list)
         entity_alternatives: (list(tuple(str,str or tuple(str),str,bool): tuples of
             (class name, entity name or element name list, alternative name, activity)
@@ -161,15 +152,16 @@ def get_data_for_import(
         alternatives (list(str,str)): tuples of (name, description)
         scenarios (list(str,str)): tuples of (name, description)
         scenario_alternatives (list(str,str,str)): tuples of
-            (scenario name, alternative name, preceeding alternative name)
+            (scenario name, alternative name, preceding alternative name)
         parameter_value_lists (list(str,str|numeric)): tuples of (list name, value)
-        metadata (str,str): tuples of (name, value)
-        entity_metadata (str,str or tuple(str),str,str):
-            tuples of (class name, entity name or element name list, metadata name, metadata value)
-        parameter_value_metadata (str,str,str or tuple(str),str,str,str): tuples of
-            (class name, parameter definition name, entity byname, alternative name, metadata name, metadata value)
-        superclass_subclasses (str,str): tuples of (superclass name, subclass name)
-        entity_class_display_modes (str,str): tuples of (name, description)
+        metadata (list(tuple(str,str))): tuples of (name, value)
+        entity_metadata (list(tuple(str,tuple,str,str))):
+            tuples of (class name, entity byname, metadata name, value)
+        parameter_value_metadata (list(tuple(str,tuple,str,str,str,str))):
+            tuples of (class name, entity byname, parameter name, metadata name, value, alternative name)
+        superclass_subclasses (list(tuple(str,str))): tuples of (superclass name, subclass name)
+        entity_class_display_modes (list(tuple(str,str))): tuples of (name, description)
+        display_mode__entity_classes (list(tuple(str,str,int))): tuples of (display mode name, entity class name, display order)
 
     Yields:
         str: item type
@@ -177,79 +169,95 @@ def get_data_for_import(
     """
     # NOTE: The order is important, because of references. E.g., we want to import alternatives before parameter_values
     if alternatives:
-        yield ("alternative", _get_alternatives_for_import(db_map, alternatives))
+        yield ("alternative", _get_alternatives_for_import(alternatives))
     if scenarios:
-        yield ("scenario", _get_scenarios_for_import(db_map, scenarios))
+        yield ("scenario", _get_scenarios_for_import(scenarios))
     if scenario_alternatives:
-        yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives))
+        yield ("scenario_alternative", _get_scenario_alternatives_for_import(db_map, scenario_alternatives, all_errors))
     if entity_classes:
-        for bucket in _get_entity_classes_for_import(db_map, entity_classes):
+        for bucket in _get_entity_classes_for_import(entity_classes):
             yield ("entity_class", bucket)
     if object_classes:  # Legacy
-        yield from get_data_for_import(db_map, entity_classes=_object_classes_to_entity_classes(object_classes))
+        yield from get_data_for_import(
+            db_map, all_errors, entity_classes=_object_classes_to_entity_classes(object_classes)
+        )
     if relationship_classes:  # Legacy
-        yield from get_data_for_import(db_map, entity_classes=relationship_classes)
+        yield from get_data_for_import(db_map, all_errors, entity_classes=relationship_classes)
     if superclass_subclasses:
-        yield ("superclass_subclass", _get_superclass_subclasses_for_import(db_map, superclass_subclasses))
+        yield ("superclass_subclass", _get_superclass_subclasses_for_import(superclass_subclasses))
     if entities:
-        for bucket in _get_entities_for_import(db_map, entities):
+        for bucket in _get_entities_for_import(entities):
             yield ("entity", bucket)
     if objects:  # Legacy
-        yield from get_data_for_import(db_map, entities=objects)
+        yield from get_data_for_import(db_map, all_errors, entities=objects)
     if relationships:  # Legacy
-        yield from get_data_for_import(db_map, entities=relationships)
+        yield from get_data_for_import(db_map, all_errors, entities=relationships)
     if entity_alternatives:
-        yield ("entity_alternative", _get_entity_alternatives_for_import(db_map, entity_alternatives))
+        yield ("entity_alternative", _get_entity_alternatives_for_import(entity_alternatives))
     if entity_groups:
-        yield ("entity_group", _get_entity_groups_for_import(db_map, entity_groups))
+        yield ("entity_group", _get_entity_groups_for_import(entity_groups))
     if object_groups:  # Legacy
-        yield from get_data_for_import(db_map, entity_groups=object_groups)
+        yield from get_data_for_import(db_map, all_errors, entity_groups=object_groups)
     if parameter_value_lists:
-        yield ("parameter_value_list", _get_parameter_value_lists_for_import(db_map, parameter_value_lists))
+        yield ("parameter_value_list", _get_parameter_value_lists_for_import(parameter_value_lists))
         yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, unparse_value))
     if parameter_definitions:
         yield (
             "parameter_definition",
-            _get_parameter_definitions_for_import(db_map, parameter_definitions, unparse_value),
+            _get_parameter_definitions_for_import(parameter_definitions, unparse_value),
         )
     if object_parameters:  # Legacy
-        yield from get_data_for_import(db_map, unparse_value=unparse_value, parameter_definitions=object_parameters)
+        yield from get_data_for_import(
+            db_map, all_errors, unparse_value=unparse_value, parameter_definitions=object_parameters
+        )
     if relationship_parameters:  # Legacy
         yield from get_data_for_import(
-            db_map, unparse_value=unparse_value, parameter_definitions=relationship_parameters
+            db_map, all_errors, unparse_value=unparse_value, parameter_definitions=relationship_parameters
         )
+    if parameter_types:
+        yield ("parameter_type", _get_parameter_types_for_import(parameter_types, all_errors))
     if parameter_values:
         yield (
             "parameter_value",
-            _get_parameter_values_for_import(db_map, parameter_values, unparse_value, on_conflict),
+            _get_parameter_values_for_import(db_map, parameter_values, all_errors, unparse_value, on_conflict),
         )
     if object_parameter_values:  # Legacy
         yield from get_data_for_import(
-            db_map, unparse_value=unparse_value, on_conflict=on_conflict, parameter_values=object_parameter_values
+            db_map,
+            all_errors,
+            unparse_value=unparse_value,
+            on_conflict=on_conflict,
+            parameter_values=object_parameter_values,
         )
     if relationship_parameter_values:  # Legacy
         yield from get_data_for_import(
-            db_map, unparse_value=unparse_value, on_conflict=on_conflict, parameter_values=relationship_parameter_values
+            db_map,
+            all_errors,
+            unparse_value=unparse_value,
+            on_conflict=on_conflict,
+            parameter_values=relationship_parameter_values,
         )
     if metadata:
-        yield ("metadata", _get_metadata_for_import(db_map, metadata))
+        yield ("metadata", _get_metadata_for_import(metadata))
     if entity_metadata:
-        yield ("metadata", _get_metadata_for_import(db_map, (ent_metadata[2] for ent_metadata in entity_metadata)))
-        yield ("entity_metadata", _get_entity_metadata_for_import(db_map, entity_metadata))
+        yield ("metadata", _get_metadata_for_import((ent_metadata[2] for ent_metadata in entity_metadata)))
+        yield ("entity_metadata", _get_entity_metadata_for_import(entity_metadata))
     if parameter_value_metadata:
         yield (
             "metadata",
-            _get_metadata_for_import(db_map, (pval_metadata[3] for pval_metadata in parameter_value_metadata)),
+            _get_metadata_for_import((pval_metadata[3] for pval_metadata in parameter_value_metadata)),
         )
         yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     if object_metadata:  # Legacy
-        yield from get_data_for_import(db_map, entity_metadata=object_metadata)
+        yield from get_data_for_import(db_map, all_errors, entity_metadata=object_metadata)
     if relationship_metadata:  # Legacy
-        yield from get_data_for_import(db_map, entity_metadata=relationship_metadata)
+        yield from get_data_for_import(db_map, all_errors, entity_metadata=relationship_metadata)
     if object_parameter_value_metadata:  # Legacy
-        yield from get_data_for_import(db_map, parameter_value_metadata=object_parameter_value_metadata)
+        yield from get_data_for_import(db_map, all_errors, parameter_value_metadata=object_parameter_value_metadata)
     if relationship_parameter_value_metadata:  # Legacy
-        yield from get_data_for_import(db_map, parameter_value_metadata=relationship_parameter_value_metadata)
+        yield from get_data_for_import(
+            db_map, all_errors, parameter_value_metadata=relationship_parameter_value_metadata
+        )
     if entity_class_display_modes:
         yield (
             "entity_class_display_mode",
@@ -266,7 +274,7 @@ def import_superclass_subclasses(db_map, data):
     """Imports superclass_subclasses into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data (list(tuple(str,tuple,str,int)): tuples of (superclass name, subclass name)
 
     Returns:
@@ -280,7 +288,7 @@ def import_entity_classes(db_map, data):
     """Imports entity classes into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data (list(tuple(str,tuple,str,int,bool)): tuples of
             (name, dimension name tuple, description, display icon integer, active by default flag)
 
@@ -295,7 +303,7 @@ def import_entities(db_map, data):
     """Imports entities into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data: (list(tuple(str,str or tuple(str)): tuples of (class name, entity name or element name list)
 
     Returns:
@@ -309,7 +317,7 @@ def import_entity_alternatives(db_map, data):
     """Imports entity alternatives into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data: (list(tuple(str,str or tuple(str),str,bool): tuples of
             (class name, entity name or element name list, alternative name, activity)
 
@@ -324,7 +332,7 @@ def import_entity_groups(db_map, data):
     """Imports entity groups into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data (list(tuple(str,str,str))): tuples of (class name, group entity name, member entity name)
 
     Returns:
@@ -338,9 +346,10 @@ def import_parameter_definitions(db_map, data, unparse_value=to_database):
     """Imports parameter definitions into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data (list(tuple(str,str,str,str)):
             tuples of (class name, parameter name, default value, parameter value list name)
+        unparse_value (Callable): function to parse parameter values
 
     Returns:
         int: number of items imported
@@ -349,13 +358,30 @@ def import_parameter_definitions(db_map, data, unparse_value=to_database):
     return import_data(db_map, parameter_definitions=data, unparse_value=unparse_value)
 
 
+def import_parameter_types(db_map, data, unparse_value=to_database):
+    """Imports parameter types into a Spine database using a standard format.
+
+    Args:
+        db_map (DatabaseMapping): database mapping
+        data (Iterable of Iterable):
+            Iterable of (class name, parameter name, type, [succeeding type])
+        unparse_value (Callable): function to parse parameter values
+
+    Returns:
+        int: number of items imported
+        list: errors
+    """
+    return import_data(db_map, parameter_types=data, unparse_value=unparse_value)
+
+
 def import_parameter_values(db_map, data, unparse_value=to_database, on_conflict="merge"):
     """Imports parameter values into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data (list(tuple(str,str or tuple(str),str,str|numeric,str]):
             tuples of (class name, entity name or element name list, parameter name, value, alternative name)
+        unparse_value (Callable): function to parse parameter values
         on_conflict (str): Conflict resolution strategy for :func:`~spinedb_api.parameter_value.fix_conflict`
 
     Returns:
@@ -369,7 +395,7 @@ def import_alternatives(db_map, data):
     """Imports alternatives into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data (list(str,str)): tuples of (name, description)
 
     Returns:
@@ -383,7 +409,7 @@ def import_scenarios(db_map, data):
     """Imports scenarios into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data (list(str, bool, str)): tuples of (name, <unused_bool>, description)
 
     Returns:
@@ -425,8 +451,8 @@ def import_scenario_alternatives(db_map, data):
     """Imports scenario alternatives into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
-        data (list(str,str,str)): tuples of (scenario name, alternative name, preceeding alternative name)
+        db_map (DatabaseMapping): database mapping
+        data (list(str,str,str)): tuples of (scenario name, alternative name, [succeeding alternative name])
 
     Returns:
         int: number of items imported
@@ -439,8 +465,9 @@ def import_parameter_value_lists(db_map, data, unparse_value=to_database):
     """Imports parameter value lists into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data (list(str,str|numeric)): tuples of (list name, value)
+        unparse_value (Callable): function to parse parameter values
 
     Returns:
         int: number of items imported
@@ -453,7 +480,7 @@ def import_metadata(db_map, data):
     """Imports metadata into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        db_map (DatabaseMapping): database mapping
         data (list(tuple(str,str))): tuples of (entry name, value)
 
     Returns:
@@ -515,7 +542,7 @@ def import_relationship_parameter_value_metadata(db_map, data):
     return import_data(db_map, relationship_parameter_value_metadata=data)
 
 
-def _get_entity_classes_for_import(db_map, data):
+def _get_entity_classes_for_import(data):
     dim_name_list_by_name = {}
     items = []
     key = ("name", "dimension_name_list", "description", "display_icon", "active_by_default")
@@ -538,7 +565,7 @@ def _get_entity_classes_for_import(db_map, data):
     return (items_by_ref_count[ref_count] for ref_count in sorted(items_by_ref_count))
 
 
-def _get_superclass_subclasses_for_import(db_map, data):
+def _get_superclass_subclasses_for_import(data):
     key = ("superclass_name", "subclass_name")
     return (dict(zip(key, x)) for x in data)
 
@@ -561,7 +588,7 @@ def _get_display_mode__entity_classes_for_import(db_map, data):
         yield dict(zip(key, (display_mode_name, entity_class_name, display_order, *optionals)))
 
 
-def _get_entities_for_import(db_map, data):
+def _get_entities_for_import(data):
     items_by_el_count = {}
     key = ("entity_class_name", "entity_byname", "description")
     for class_name, name_or_el_name_list, *optionals in data:
@@ -576,7 +603,7 @@ def _get_entities_for_import(db_map, data):
     return (items_by_el_count[el_count] for el_count in sorted(items_by_el_count))
 
 
-def _get_entity_alternatives_for_import(db_map, data):
+def _get_entity_alternatives_for_import(data):
     for class_name, entity_name_or_element_name_list, alternative, active in data:
         is_zero_dim = isinstance(entity_name_or_element_name_list, str)
         entity_byname = (entity_name_or_element_name_list,) if is_zero_dim else entity_name_or_element_name_list
@@ -584,12 +611,12 @@ def _get_entity_alternatives_for_import(db_map, data):
         yield dict(zip(key, (class_name, entity_byname, alternative, active)))
 
 
-def _get_entity_groups_for_import(db_map, data):
+def _get_entity_groups_for_import(data):
     key = ("entity_class_name", "group_name", "member_name")
     return (dict(zip(key, x)) for x in data)
 
 
-def _get_parameter_definitions_for_import(db_map, data, unparse_value):
+def _get_parameter_definitions_for_import(data, unparse_value):
     key = ("entity_class_name", "name", "default_value", "default_type", "parameter_value_list_name", "description")
     for class_name, parameter_name, *optionals in data:
         if not optionals:
@@ -600,10 +627,8 @@ def _get_parameter_definitions_for_import(db_map, data, unparse_value):
         yield dict(zip(key, (class_name, parameter_name, value, type_, *optionals)))
 
 
-def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
+def _get_parameter_values_for_import(db_map, data, all_errors, unparse_value, on_conflict):
     seen = set()
-    errors = []
-    items = []
     key = ("entity_class_name", "entity_byname", "parameter_definition_name", "alternative_name", "value", "type")
     for class_name, entity_byname, parameter_name, value, *optionals in data:
         if isinstance(entity_byname, str):
@@ -614,7 +639,7 @@ def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
         unique_values = (class_name, entity_byname, parameter_name, alternative_name)
         if unique_values in seen:
             dupe = dict(zip(key, unique_values))
-            errors.append(
+            all_errors.append(
                 f"attempting to import more than one parameter_value with {dupe} - only first will be considered"
             )
             continue
@@ -625,21 +650,20 @@ def _get_parameter_values_for_import(db_map, data, unparse_value, on_conflict):
         if pv:
             value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]), on_conflict)
         item.update({"value": value, "type": type_})
-        items.append(item)
-    return items, errors
+        yield item
 
 
-def _get_alternatives_for_import(db_map, data):
+def _get_alternatives_for_import(data):
     key = ("name", "description")
     return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
 
 
-def _get_scenarios_for_import(db_map, data):
+def _get_scenarios_for_import(data):
     key = ("name", "active", "description")
     return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
 
 
-def _get_scenario_alternatives_for_import(db_map, data):
+def _get_scenario_alternatives_for_import(db_map, data, all_errors):
     # FIXME: maybe when updating, we only want to match by (scen_name, alt_name) and not by (scen_name, rank)
     alt_name_list_by_scen_name = {}
     succ_by_pred_by_scen_name = defaultdict(dict)
@@ -663,20 +687,17 @@ def _get_scenario_alternatives_for_import(db_map, data):
             if not some_added:
                 break
         alternative_name_list.pop(-1)  # Remove the None
-    items = (
-        {"scenario_name": scen_name, "alternative_name": alt_name, "rank": k + 1}
-        for scen_name, alternative_name_list in alt_name_list_by_scen_name.items()
-        for k, alt_name in enumerate(alternative_name_list)
-    )
-    errors = (
-        f"can't insert alternative '{pred}' before '{succ}' because the latter is not in scenario '{scen_name}'"
+    all_errors += [
+        f"can't insert alternative '{pred}' before '{succ}' because the latter is not in scenario '{scen}'"
         for scen, succ_by_pred in succ_by_pred_by_scen_name.items()
         for pred, succ in succ_by_pred.items()
-    )
-    return items, errors
+    ]
+    for scen_name, alternative_name_list in alt_name_list_by_scen_name.items():
+        for k, alt_name in enumerate(alternative_name_list):
+            yield {"scenario_name": scen_name, "alternative_name": alt_name, "rank": k + 1}
 
 
-def _get_parameter_value_lists_for_import(db_map, data):
+def _get_parameter_value_lists_for_import(data):
     return ({"name": x} for x in {x[0]: None for x in data})
 
 
@@ -700,13 +721,36 @@ def _get_list_values_for_import(db_map, data, unparse_value):
         yield {"parameter_value_list_name": list_name, "value": value, "type": type_, "index": index}
 
 
-def _get_metadata_for_import(db_map, data):
+def _get_parameter_types_for_import(data, all_errors):
+    for class_name, definition_name, parameter_type, *optionals in data:
+        if not optionals:
+            if parameter_type == "map":
+                all_errors.append(f"Missing rank for map type for parameter {definition_name} in class {class_name}")
+                continue
+            try:
+                parameter_type, rank = fancy_type_to_type_and_rank(parameter_type)
+            except ValueError:
+                all_errors.append(
+                    f"Failed to read rank from type '{parameter_type}' for parameter {definition_name} in class {class_name}"
+                )
+                continue
+        else:
+            rank = optionals[0]
+        yield {
+            "entity_class_name": class_name,
+            "parameter_definition_name": definition_name,
+            "type": parameter_type,
+            "rank": rank,
+        }
+
+
+def _get_metadata_for_import(data):
     for metadata in data:
         for name, value in _parse_metadata(metadata):
             yield {"name": name, "value": value}
 
 
-def _get_entity_metadata_for_import(db_map, data):
+def _get_entity_metadata_for_import(data):
     key = ("entity_class_name", "entity_byname", "metadata_name", "metadata_value")
     for class_name, entity_byname, metadata in data:
         if isinstance(entity_byname, str):

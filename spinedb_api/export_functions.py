@@ -26,6 +26,7 @@ def export_data(
     entity_group_ids=Asterisk,
     parameter_value_list_ids=Asterisk,
     parameter_definition_ids=Asterisk,
+    parameter_type_ids=Asterisk,
     parameter_value_ids=Asterisk,
     alternative_ids=Asterisk,
     scenario_ids=Asterisk,
@@ -48,6 +49,7 @@ def export_data(
         entity_group_ids (Iterable, optional): If given, only exports groups with these ids
         parameter_value_list_ids (Iterable, optional): If given, only exports lists with these ids
         parameter_definition_ids (Iterable, optional): If given, only exports parameter definitions with these ids
+        parameter_type_ids (Iterable or Asterisk): If given, only exports parameter types with these ids
         parameter_value_ids (Iterable, optional): If given, only exports parameter values with these ids
         alternative_ids (Iterable, optional): If given, only exports alternatives with these ids
         scenario_ids (Iterable, optional): If given, only exports scenarios with these ids
@@ -71,6 +73,7 @@ def export_data(
         "parameter_definitions": export_parameter_definitions(
             db_map, parameter_definition_ids, parse_value=parse_value
         ),
+        "parameter_types": export_parameter_types(db_map, parameter_type_ids),
         "parameter_values": export_parameter_values(db_map, parameter_value_ids, parse_value=parse_value),
         "alternatives": export_alternatives(db_map, alternative_ids),
         "scenarios": export_scenarios(db_map, scenario_ids),
@@ -186,6 +189,13 @@ def export_parameter_definitions(db_map, ids=Asterisk, parse_value=from_database
             x.description,
         )
         for x in _get_items(db_map, "parameter_definition", ids)
+    )
+
+
+def export_parameter_types(db_map, ids=Asterisk):
+    return sorted(
+        (x.entity_class_name, x.parameter_definition_name, x.type, x.rank)
+        for x in _get_items(db_map, "parameter_type", ids)
     )
 
 

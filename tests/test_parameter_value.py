@@ -10,13 +10,10 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Tests for the parameter_value module.
-
-"""
-
+""" Tests for the parameter_value module. """
 from datetime import datetime
 import json
+import pickle
 import unittest
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
@@ -36,9 +33,12 @@ from spinedb_api.parameter_value import (
     convert_map_to_table,
     deep_copy_value,
     duration_to_relativedelta,
+    fancy_type_to_type_and_rank,
     from_database,
     relativedelta_to_duration,
     to_database,
+    type_and_rank_to_fancy_type,
+    type_for_value,
 )
 
 
@@ -1094,6 +1094,64 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(x, copy_of_x)
         self.assertIsNot(x, copy_of_x)
         self.assertIsNot(x.get_value("T1"), copy_of_x.get_value("T1"))
+
+
+class TestPickling(unittest.TestCase):
+    def test_array_is_picklable(self):
+        x = Array([2.3])
+        deserialized = pickle.loads(pickle.dumps(x))
+        self.assertEqual(deserialized, x)
+        x = Array([DateTime("2024-07-30T09:00:00")])
+        deserialized = pickle.loads(pickle.dumps(x))
+        self.assertEqual(deserialized, x)
+
+    def test_time_pattern_is_picklable(self):
+        x = TimePattern(["D1-7"], [2.3])
+        deserialized = pickle.loads(pickle.dumps(x))
+        self.assertEqual(deserialized, x)
+
+
+class TestTypeAndRankToFancyType(unittest.TestCase):
+    def test_function_works(self):
+        self.assertEqual(type_and_rank_to_fancy_type("float", 0), "float")
+        self.assertEqual(type_and_rank_to_fancy_type("str", 0), "str")
+        self.assertEqual(type_and_rank_to_fancy_type("bool", 0), "bool")
+        self.assertEqual(type_and_rank_to_fancy_type("date_time", 0), "date_time")
+        self.assertEqual(type_and_rank_to_fancy_type("duration", 0), "duration")
+        self.assertEqual(type_and_rank_to_fancy_type("array", 1), "array")
+        self.assertEqual(type_and_rank_to_fancy_type("time_pattern", 1), "time_pattern")
+        self.assertEqual(type_and_rank_to_fancy_type("time_series", 1), "time_series")
+        self.assertEqual(type_and_rank_to_fancy_type("map", 23), "23d_map")
+
+
+class TestFancyTypeToTypeAndRank(unittest.TestCase):
+    def test_function_works(self):
+        self.assertEqual(fancy_type_to_type_and_rank("float"), ("float", 0))
+        self.assertEqual(fancy_type_to_type_and_rank("str"), ("str", 0))
+        self.assertEqual(fancy_type_to_type_and_rank("bool"), ("bool", 0))
+        self.assertEqual(fancy_type_to_type_and_rank("date_time"), ("date_time", 0))
+        self.assertEqual(fancy_type_to_type_and_rank("duration"), ("duration", 0))
+        self.assertEqual(fancy_type_to_type_and_rank("array"), ("array", 1))
+        self.assertEqual(fancy_type_to_type_and_rank("time_pattern"), ("time_pattern", 1))
+        self.assertEqual(fancy_type_to_type_and_rank("time_series"), ("time_series", 1))
+        self.assertEqual(fancy_type_to_type_and_rank("23d_map"), ("map", 23))
+
+
+class TestTypeForValue(unittest.TestCase):
+    def test_function_works(self):
+        self.assertEqual(type_for_value(None), (None, 0))
+        self.assertEqual(type_for_value(2.3), ("float", 0))
+        self.assertEqual(type_for_value("debug"), ("str", 0))
+        self.assertEqual(type_for_value(False), ("bool", 0))
+        self.assertEqual(type_for_value(DateTime("2024-07-25T11:00:00")), ("date_time", 0))
+        self.assertEqual(type_for_value(Duration("23D")), ("duration", 0))
+        self.assertEqual(type_for_value(Array(["a", "b"])), ("array", 1))
+        self.assertEqual(type_for_value(TimePattern(["D1-7"], [8.0])), ("time_pattern", 1))
+        self.assertEqual(
+            type_for_value(TimeSeriesVariableResolution(["2024-07-24T11:00:00"], [2.3], False, False)),
+            ("time_series", 1),
+        )
+        self.assertEqual(type_for_value(Map(["a", "b"], [Map(["i"], [2.3]), 23.0])), ("map", 2))
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, group_f
         return straight
 
     if fixed_state is None:
-        fixed_state = dict()
+        fixed_state = {}
     if root_mapping.is_pivoted():
         root_mapping, value_column, regular_columns, hidden_columns, pivot_columns = make_regular(root_mapping)
         if root_mapping.has_header():

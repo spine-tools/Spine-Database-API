@@ -12,7 +12,7 @@ from spinedb_api.helpers import DisplayStatus
 
 # revision identifiers, used by Alembic.
 revision = "02581198a2d8"
-down_revision = "ca7a13da8ff6"
+down_revision = "c55527151b29"
 branch_labels = None
 depends_on = None
 

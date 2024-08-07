@@ -28,6 +28,10 @@ class TempId:
         return TempId(id_, item_type, temp_id_lookup)
 
     @property
+    def item_type(self):
+        return self._item_type
+
+    @property
     def private_id(self):
         return self._id
 

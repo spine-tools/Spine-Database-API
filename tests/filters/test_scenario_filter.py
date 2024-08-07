@@ -440,10 +440,10 @@ class TestScenarioFilter(unittest.TestCase):
         object_names = {o.id: o.name for o in self._db_map.query(self._db_map.object_sq).all()}
         alternative_names = {a.id: a.name for a in self._db_map.query(self._db_map.alternative_sq).all()}
         parameter_names = {d.id: d.name for d in self._db_map.query(self._db_map.parameter_definition_sq).all()}
-        datamined_values = dict()
+        datamined_values = {}
         for parameter in parameters:
             self.assertEqual(alternative_names[parameter.alternative_id], "alternative")
-            parameter_values = datamined_values.setdefault(object_names[parameter.entity_id], dict())
+            parameter_values = datamined_values.setdefault(object_names[parameter.entity_id], {})
             parameter_values[parameter_names[parameter.parameter_definition_id]] = parameter.value
         self.assertEqual(
             datamined_values,

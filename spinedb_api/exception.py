@@ -34,16 +34,16 @@ class SpineIntegrityError(SpineDBAPIError):
         id (int): the id the instance that caused a unique violation
     """
 
-    def __init__(self, msg=None, id=None):
+    def __init__(self, msg=None, id_=None):
         super().__init__(msg)
-        self.id = id
+        self.id = id_
 
 
 class SpineDBVersionError(SpineDBAPIError):
     """Database version error."""
 
     def __init__(self, url=None, current=None, expected=None, upgrade_available=True):
-        super().__init__(msg="The database at '{}' is not the expected version.".format(url))
+        super().__init__(msg=f"The database at '{url}' is not the expected version.")
         self.url = url
         self.current = current
         self.expected = expected

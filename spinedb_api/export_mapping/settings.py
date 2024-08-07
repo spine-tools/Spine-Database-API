@@ -83,9 +83,9 @@ def entity_export(
         ExportMapping: root mapping
     """
     if dimension_positions is None:
-        dimension_positions = list()
+        dimension_positions = []
     if element_positions is None:
-        element_positions = list()
+        element_positions = []
     entity_class = EntityClassMapping(entity_class_position)
     dimension = _generate_dimensions(entity_class, DimensionMapping, dimension_positions)
     entity = EntityMapping(entity_position)
@@ -158,9 +158,9 @@ def entity_parameter_value_export(
         ExportMapping: root mapping
     """
     if dimension_positions is None:
-        dimension_positions = list()
+        dimension_positions = []
     if element_positions is None:
-        element_positions = list()
+        element_positions = []
     entity_class = EntityClassMapping(entity_class_position)
     dimension = _generate_dimensions(entity_class, DimensionMapping, dimension_positions)
     value_list = ParameterValueListMapping(value_list_position)
@@ -257,9 +257,9 @@ def entity_dimension_parameter_value_export(
     """
     # TODO fix dimension highlighting
     if dimension_positions is None:
-        dimension_positions = list()
+        dimension_positions = []
     if element_positions is None:
-        element_positions = list()
+        element_positions = []
     entity_class = EntityClassMapping(entity_class_position, highlight_position=highlight_position)
     dimension = _generate_dimensions(entity_class, DimensionMapping, dimension_positions)
     value_list = ParameterValueListMapping(value_list_position)
@@ -540,16 +540,16 @@ def _change_amount_of_dimensions(
     """
     mapping_list = mapping.flatten()
     if dimensions == 0:
-        if type(mapping_list[-1]) == expanded_value_mapping:
+        if isinstance(mapping_list[-1], expanded_value_mapping):
             position = mapping_list[-1].position
-            mapping_list = list(takewhile(lambda m: type(m) != index_name_mapping, mapping_list))
+            mapping_list = list(takewhile(lambda m: not isinstance(m, index_name_mapping), mapping_list))
             mapping_list.append(single_value_mapping(position))
             unflatten(mapping_list)
         return
-    if type(mapping_list[-1]) == single_value_mapping:
+    if isinstance(mapping_list[-1], single_value_mapping):
         position = mapping_list[-1].position
         mapping_list[-1] = expanded_value_mapping(position)
-    existing_dimensions = len([m for m in mapping_list if type(m) == index_mapping])
+    existing_dimensions = len([m for m in mapping_list if isinstance(m, index_mapping)])
     if existing_dimensions < dimensions:
         n = dimensions - existing_dimensions
         name_mappings = [index_name_mapping(Position.hidden) for _ in range(n)]
