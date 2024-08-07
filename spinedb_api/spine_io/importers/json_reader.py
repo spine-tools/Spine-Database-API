@@ -53,7 +53,7 @@ class JSONConnector(SourceConnection):
 
     def get_tables(self):
         prefixes = {}
-        with open(self._filename) as f:
+        with open(self._filename, encoding="utf-8") as f:
             for prefix, event, _ in ijson.parse(f):
                 if event in ("start_map", "start_array"):
                     prefixes[".".join([self._root_prefix, prefix])] = None

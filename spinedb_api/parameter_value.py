@@ -161,8 +161,8 @@ def duration_to_relativedelta(duration):
     try:
         count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
         count = int(count)
-    except ValueError:
-        raise ParameterValueFormatError(f'Could not parse duration "{duration}"')
+    except ValueError as error:
+        raise ParameterValueFormatError(f'Could not parse duration "{duration}"') from error
     unit = abbreviation if abbreviation is not None else full_unit
     if unit in ["s", "second", "seconds"]:
         return relativedelta(seconds=count)
@@ -333,7 +333,7 @@ def from_dict(value):
             return _array_from_database(value)
         raise ParameterValueFormatError(f'Unknown or non-dictionary parameter value type "{value_type}"')
     except KeyError as error:
-        raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description')
+        raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description') from error
 
 
 def fix_conflict(new, old, on_conflict="merge"):
@@ -403,8 +403,8 @@ def _datetime_from_database(value):
     except ValueError:
         try:
             stamp = dateutil.parser.parse(value)
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not parse datetime from "{value}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(f'Could not parse datetime from "{value}"') from error
     return DateTime(stamp)
 
 
@@ -453,12 +453,14 @@ def _variable_resolution_time_series_info_from_index(value):
         data_index = value["index"]
         try:
             ignore_year = bool(data_index.get("ignore_year", False))
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not decode ignore_year from "{data_index["ignore_year"]}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(
+                f'Could not decode ignore_year from "{data_index["ignore_year"]}"'
+            ) from error
         try:
             repeat = bool(data_index.get("repeat", False))
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not decode repeat from "{data_index["repeat"]}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(f'Could not decode repeat from "{data_index["repeat"]}"') from error
     else:
         ignore_year = False
         repeat = False
@@ -480,8 +482,8 @@ def _time_series_from_dictionary(value_dict):
     for index, (stamp, series_value) in enumerate(data.items()):
         try:
             stamp = np.datetime64(stamp, NUMPY_DATETIME64_UNIT)
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not decode time stamp "{stamp}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(f'Could not decode time stamp "{stamp}"') from error
         stamps.append(stamp)
         values[index] = series_value
     stamps = np.array(stamps)
@@ -505,15 +507,19 @@ def _time_series_from_single_column(value_dict):
         if "ignore_year" in value_index:
             try:
                 ignore_year = bool(value_index["ignore_year"])
-            except ValueError:
-                raise ParameterValueFormatError(f'Could not decode ignore_year value "{value_index["ignore_year"]}"')
+            except ValueError as error:
+                raise ParameterValueFormatError(
+                    f'Could not decode ignore_year value "{value_index["ignore_year"]}"'
+                ) from error
         else:
             ignore_year = "start" not in value_index
         if "repeat" in value_index:
             try:
                 repeat = bool(value_index["repeat"])
-            except ValueError:
-                raise ParameterValueFormatError(f'Could not decode repeat value "{value_index["ignore_year"]}"')
+            except ValueError as error:
+                raise ParameterValueFormatError(
+                    f'Could not decode repeat value "{value_index["ignore_year"]}"'
+                ) from error
         else:
             repeat = "start" not in value_index
     else:
@@ -534,8 +540,8 @@ def _time_series_from_single_column(value_dict):
     except ValueError:
         try:
             start = dateutil.parser.parse(start)
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not decode start value "{start}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(f'Could not decode start value "{start}"') from error
     values = np.array(value_dict["data"])
     return TimeSeriesFixedResolution(
         start, relativedeltas, values, ignore_year, repeat, value_dict.get("index_name", "")
@@ -559,8 +565,8 @@ def _time_series_from_two_columns(value_dict):
             raise ParameterValueFormatError("Invalid value in time series array")
         try:
             stamp = np.datetime64(element[0], NUMPY_DATETIME64_UNIT)
-        except ValueError:
-            raise ParameterValueFormatError(f'Could not decode time stamp "{element[0]}"')
+        except ValueError as error:
+            raise ParameterValueFormatError(f'Could not decode time stamp "{element[0]}"') from error
         stamps.append(stamp)
         values[index] = element[1]
     stamps = np.array(stamps)
@@ -648,9 +654,8 @@ def _map_indexes_from_database(indexes_in_db, index_type):
     except ValueError as error:
         raise ParameterValueFormatError(
             f'Failed to read index of type "{_map_index_type_to_database(index_type)}": {error}'
-        )
-    else:
-        return indexes
+        ) from error
+    return indexes
 
 
 def _map_index_to_database(index):
@@ -671,7 +676,7 @@ def _map_value_to_database(value):
             rank = 1
         else:
             rank = 0
-        return dict(type=value.type_(), **value.to_dict()), rank
+        return {"type": value.type_(), **value.to_dict()}, rank
     return value, 0
 
 
@@ -711,10 +716,9 @@ def _array_from_database(value_dict):
     try:
         data = [value_type(x) for x in value_dict["data"]]
     except (TypeError, ParameterValueFormatError) as error:
-        raise ParameterValueFormatError(f"Failed to read values for Array: {error}")
-    else:
-        index_name = value_dict.get("index_name", Array.DEFAULT_INDEX_NAME)
-        return Array(data, value_type, index_name)
+        raise ParameterValueFormatError(f"Failed to read values for Array: {error}") from error
+    index_name = value_dict.get("index_name", Array.DEFAULT_INDEX_NAME)
+    return Array(data, value_type, index_name)
 
 
 class ParameterValue:
@@ -780,8 +784,8 @@ class DateTime(ParameterValue):
             except ValueError:
                 try:
                     value = dateutil.parser.parse(value)
-                except ValueError:
-                    raise ParameterValueFormatError(f'Could not parse datetime from "{value}"')
+                except ValueError as error:
+                    raise ParameterValueFormatError(f'Could not parse datetime from "{value}"') from error
         elif isinstance(value, DateTime):
             value = copy(value._value)
         elif not isinstance(value, datetime):
@@ -1055,7 +1059,10 @@ class IndexedValue(ParameterValue):
             return self
         new_indexes = np.unique(np.concatenate((self.indexes, other.indexes)))
         new_indexes.sort(kind="mergesort")
-        _merge = lambda value, other: other if value is None else merge_parsed(value, other)
+
+        def _merge(value, other):
+            return other if value is None else merge_parsed(value, other)
+
         new_values = [_merge(self.get_value(index), other.get_value(index)) for index in new_indexes]
         self.indexes = new_indexes
         self.values = new_values
@@ -1082,13 +1089,13 @@ class Array(IndexedValue):
             value_type = float
             try:
                 values = [value_type(x) for x in values]
-            except ValueError:
-                raise ParameterValueFormatError("Cannot convert array's values to float.")
+            except ValueError as error:
+                raise ParameterValueFormatError("Cannot convert array's values to float.") from error
         if not all(isinstance(x, value_type) for x in values):
             try:
                 values = [value_type(x) for x in values]
-            except ValueError:
-                raise ParameterValueFormatError("Not all array's values are of the same type.")
+            except ValueError as error:
+                raise ParameterValueFormatError("Not all array's values are of the same type.") from error
         super().__init__(values, value_type=value_type, index_name=index_name)
         self.indexes = range(len(values))
 
@@ -1161,12 +1168,12 @@ class _TimePatternIndexes(_Indexes):
                 lower_str, upper_str = lower_upper
                 try:
                     lower = int(lower_str)
-                except:
-                    raise ParameterValueFormatError(f"Invalid lower bound {lower_str}, must be an integer.")
+                except Exception as error:
+                    raise ParameterValueFormatError(f"Invalid lower bound {lower_str}, must be an integer.") from error
                 try:
                     upper = int(upper_str)
-                except:
-                    raise ParameterValueFormatError(f"Invalid upper bound {upper_str}, must be an integer.")
+                except Exception as error:
+                    raise ParameterValueFormatError(f"Invalid upper bound {upper_str}, must be an integer.") from error
                 if lower > upper:
                     raise ParameterValueFormatError(f"Lower bound {lower} can't be higher than upper bound {upper}.")
 
@@ -1388,8 +1395,8 @@ class TimeSeriesFixedResolution(TimeSeries):
             except ValueError:
                 try:
                     self._start = dateutil.parser.parse(start)
-                except ValueError:
-                    raise ParameterValueFormatError(f'Cannot parse start time "{start}"')
+                except ValueError as error:
+                    raise ParameterValueFormatError(f'Cannot parse start time "{start}"') from error
         elif isinstance(start, np.datetime64):
             self._start = start.tolist()
         else:
@@ -1470,10 +1477,10 @@ class TimeSeriesVariableResolution(TimeSeries):
                 else:
                     try:
                         date_times[i] = np.datetime64(index, NUMPY_DATETIME64_UNIT)
-                    except ValueError:
+                    except ValueError as error:
                         raise ParameterValueFormatError(
                             f'Cannot convert "{index}" of type {type(index).__name__} to time stamp.'
-                        )
+                        ) from error
             indexes = date_times
         self.indexes = indexes
 

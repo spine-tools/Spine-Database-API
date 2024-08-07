@@ -59,7 +59,7 @@ class GdxWriter(Writer):
         try:
             self._gdx_file = GdxFile(self._file_path, "w", self._gams_dir)
         except RuntimeError as e:
-            raise WriterException(f"Could not open .gdx file : {e}")
+            raise WriterException(f"Could not open .gdx file : {e}") from e
 
     def start_table(self, table_name, title_key):
         if not table_name:
@@ -109,18 +109,18 @@ def _table_to_gdx(gdx_file, table, table_name, dimensions):
             try:
                 set_ = GAMSSet(table, dimensions)
             except ValueError as e:
-                raise WriterException(f"Error writing empty table '{table_name}': {e}")
+                raise WriterException(f"Error writing empty table '{table_name}': {e}") from e
     else:
         set_ = GAMSParameter({}, dimensions[:-1]) if is_parameter else GAMSSet(table, dimensions)
     try:
         gdx_file[table_name] = set_
     except TypeError as e:
         if isinstance(set_, GAMSSet):
-            raise WriterException("A column contains a mixture of numeric and non-numeric elements.")
+            raise WriterException("A column contains a mixture of numeric and non-numeric elements.") from e
         raise e
     except ValueError as e:
         if isinstance(set_, GAMSParameter):
-            raise WriterException(f"Failed to create GAMS parameter in table '{table_name}': {e}")
+            raise WriterException(f"Failed to create GAMS parameter in table '{table_name}': {e}") from e
         raise e
 
 

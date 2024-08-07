@@ -58,7 +58,7 @@ def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, ma
                                 if not write_more or n + 1 == max_rows:
                                     break
                     except OperationalError as error:
-                        raise SpineDBAPIError(str(error))
+                        raise SpineDBAPIError(str(error)) from error
 
 
 class Writer:

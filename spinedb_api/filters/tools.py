@@ -98,7 +98,7 @@ def load_filters(configs):
     stack = []
     for config in configs:
         if isinstance(config, str):
-            with open(config) as config_file:
+            with open(config, encoding="utf-8") as config_file:
                 stack.append(load(config_file))
         else:
             stack.append(config)

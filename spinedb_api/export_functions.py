@@ -10,8 +10,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Functions for exporting data from a Spine database in a standard format. """
-from collections import defaultdict
-from functools import partial
 from operator import itemgetter
 from sqlalchemy.util import KeyedTuple
 from .helpers import Asterisk

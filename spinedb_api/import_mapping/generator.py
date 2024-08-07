@@ -57,7 +57,7 @@ def get_mapped_data(
     default_column_convert_fn=None,
     row_convert_fns=None,
     unparse_value=identity,
-    mapping_names=[],
+    mapping_names=None,
 ):
     """
     Args:
@@ -93,6 +93,8 @@ def get_mapped_data(
         row_convert_fns = {}
     if default_column_convert_fn is None:
         default_column_convert_fn = column_convert_fns[max(column_convert_fns)] if column_convert_fns else identity
+    if mapping_names is None:
+        mapping_names = []
     _ensure_mapping_name_consistency(mappings, mapping_names)
     for mapping, mapping_name in zip(mappings, mapping_names):
         read_state = {}

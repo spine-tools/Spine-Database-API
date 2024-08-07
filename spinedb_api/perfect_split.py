@@ -10,9 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-This module provides the :func:`perfect_split` function.
-"""
+""" This module provides the :func:`perfect_split` function. """
 from .db_mapping import DatabaseMapping
 from .export_functions import export_data
 from .import_functions import import_data
@@ -44,9 +42,8 @@ def perfect_split(input_urls, intersection_url, diff_urls):
         if intersection:
             intersection_data[tablename] = intersection
     diffs_data = {}
-    for left_url in input_data_sets:
+    for left_url, left_data_set in input_data_sets.items():
         right_urls = [url for url in input_data_sets if url != left_url]
-        left_data_set = input_data_sets[left_url]
         for tablename, left in left_data_set.items():
             left_diff = [x for x in left if all(x not in input_data_sets[url][tablename] for url in right_urls)]
             if left_diff:

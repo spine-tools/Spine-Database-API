@@ -177,8 +177,7 @@ def make_pivot(
                 row += [group_fn(leaf(pivot_branch, column_key)) for column_key in pivot_keys]
                 yield row
     else:
-        for row in half_pivot():
-            yield row
+        yield from half_pivot()
 
 
 def _convert_elements_to_strings(key):

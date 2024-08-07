@@ -152,9 +152,9 @@ def compile_group_concat_mysql(element, compiler, **kw):
     str_group_concat_column = cast(group_concat_column, String)
     if order_by_column is not None:
         str_group_concat_column = str_group_concat_column.op("ORDER BY")(order_by_column)
-    return "group_concat(%s separator %s)" % (
-        compiler.process(str_group_concat_column, **kw),
-        compiler.process(separator, **kw),
+    return (
+        f"group_concat({compiler.process(str_group_concat_column, **kw)} "
+        f"separator {compiler.process(separator, **kw)})"
     )
 
 
@@ -806,7 +806,7 @@ def _create_first_spine_database(db_url):
     try:
         meta.create_all(engine)
     except DatabaseError as e:
-        raise SpineDBAPIError(f"Unable to create Spine database: {e.orig.args}")
+        raise SpineDBAPIError(f"Unable to create Spine database: {e.orig.args}") from e
     return engine
 
 

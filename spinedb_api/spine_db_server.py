@@ -453,7 +453,7 @@ class _DBManager:
     def close_db_map(self, server_address):
         worker = self._workers.pop(server_address, None)
         if worker is None:
-            return {"result": Frue}
+            return {"result": True}
         worker.shutdown()
         return {"result": True}
 

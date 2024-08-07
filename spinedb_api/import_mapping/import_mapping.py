@@ -182,9 +182,9 @@ class ImportMapping(Mapping):
             try:
                 self.position = source_header.index(self.position)
                 return
-            except ValueError:
+            except ValueError as error:
                 msg = f"'{self.position}' is not in '{source_header}'"
-                raise InvalidMappingComponent(msg)
+                raise InvalidMappingComponent(msg) from error
         if self.position == Position.table_name:
             # Table name mapping, we set the fixed value to the table name
             self.value = table_name
@@ -205,16 +205,16 @@ class ImportMapping(Mapping):
                 try:
                     # Not in the header, maybe it's a stringified index?
                     self.value = int(self.value)
-                except ValueError:
+                except ValueError as error:
                     msg = f"'{self.value}' is not in header '{source_header}'"
-                    raise InvalidMappingComponent(msg)
+                    raise InvalidMappingComponent(msg) from error
             # Integer value, we try and get the actual value from that index in the header
             try:
                 self._index = self.value
                 self.value = source_header[self.value]
-            except IndexError:
+            except IndexError as error:
                 msg = f"'{self.value}' is not a valid index in header '{source_header}'"
-                raise InvalidMappingComponent(msg)
+                raise InvalidMappingComponent(msg) from error
         if isinstance(self.position, int) and self.position >= column_count > 0:
             msg = f'Column ref {self.position + 1} is out of range for the source table "{table_name}"'
             raise InvalidMappingComponent(msg)
