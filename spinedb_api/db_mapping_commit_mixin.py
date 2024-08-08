@@ -14,7 +14,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.expression import bindparam
 from .exception import SpineDBAPIError
-from .helpers import Asterisk, DisplayStatus, group_consecutive
+from .helpers import Asterisk, group_consecutive
 from .temp_id import TempId, resolve
 
 

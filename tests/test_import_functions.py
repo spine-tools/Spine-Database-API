@@ -10,8 +10,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Unit tests for import_functions.py. """
-import pathlib
-from tempfile import TemporaryDirectory
 import unittest
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.helpers import DisplayStatus
@@ -1808,7 +1806,7 @@ class TestImportEntityClassDisplayModeEntityClass(ImportsTestCase):
                 "entity_class_display_mode_id": 1,
                 "entity_class_id": 1,
                 "display_order": 98,
-                "display_status": DisplayStatus.VISIBLE,
+                "display_status": DisplayStatus.visible.name,
                 "display_font_color": None,
                 "display_background_color": None,
             },

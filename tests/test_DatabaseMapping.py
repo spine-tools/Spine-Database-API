@@ -1852,7 +1852,7 @@ class TestDatabaseMappingQueries(AssertSuccessTestCase):
             import_functions.import_entity_classes(db_map, (("ent_cls", ()),))
             import_functions.import_entity_class_display_modes(db_map, (("disp_mode", "Some desc."),))
             import_functions.import_display_mode__entity_classes(
-                db_map, (("disp_mode", "ent_cls", 1, DisplayStatus.VISIBLE, 0xFFFFFF, 0),)
+                db_map, (("disp_mode", "ent_cls", 1, DisplayStatus.greyed_out.name, 0xFFFFFF, 0),)
             )
             db_map.commit_session("test")
             disp_mode_rows = db_map.query(db_map.display_mode__entity_class_sq).all()
@@ -1860,7 +1860,7 @@ class TestDatabaseMappingQueries(AssertSuccessTestCase):
         self.assertEqual(disp_mode_rows[0].entity_class_display_mode_id, 1)
         self.assertEqual(disp_mode_rows[0].entity_class_id, 1)
         self.assertEqual(disp_mode_rows[0].display_order, 1)
-        self.assertEqual(disp_mode_rows[0].display_status, DisplayStatus.VISIBLE)
+        self.assertEqual(disp_mode_rows[0].display_status, DisplayStatus.greyed_out.name)
         self.assertEqual(disp_mode_rows[0].display_font_color, 0xFFFFFF)
         self.assertEqual(disp_mode_rows[0].display_background_color, 0)
 

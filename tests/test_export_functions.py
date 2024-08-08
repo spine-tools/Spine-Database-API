@@ -141,7 +141,7 @@ class TestExportFunctions(unittest.TestCase):
             self._assert_import_success(import_entity_class_display_modes(db_map, ["display_mode"]))
             self._assert_import_success(
                 import_display_mode__entity_classes(
-                    db_map, (("display_mode", "object_class", 1, DisplayStatus.VISIBLE),)
+                    db_map, (("display_mode", "object_class", 1, DisplayStatus.hidden.name),)
                 )
             )
             exported = export_data(db_map)
@@ -184,7 +184,7 @@ class TestExportFunctions(unittest.TestCase):
             self.assertIn("display_mode__entity_classes", exported)
             self.assertEqual(
                 exported["display_mode__entity_classes"],
-                [("display_mode", "object_class", 1, DisplayStatus.VISIBLE, None, None)],
+                [("display_mode", "object_class", 1, DisplayStatus.hidden.name, None, None)],
             )
 
 

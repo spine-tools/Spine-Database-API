@@ -32,8 +32,8 @@ def upgrade():
         sa.Column("display_order", sa.Integer, nullable=False),
         sa.Column(
             "display_status",
-            sa.Enum(*DisplayStatus.values(), name="display_status_enum"),
-            server_default=DisplayStatus.VISIBLE,
+            sa.Enum(DisplayStatus, name="display_status_enum"),
+            server_default=DisplayStatus.visible.name,
             nullable=False,
         ),
         sa.Column("display_font_color", sa.BigInteger, server_default=sa.null()),

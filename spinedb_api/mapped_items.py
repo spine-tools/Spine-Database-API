@@ -385,7 +385,11 @@ class DisplayModeEntityClassItem(MappedItemBase):
         "display_font_color": {"type": int, "value": "The color of the font.", "optional": True},
         "display_background_color": {"type": int, "value": "The  color of the background.", "optional": True},
     }
-    _defaults = {"display_status": DisplayStatus.VISIBLE, "display_font_color": None, "display_background_color": None}
+    _defaults = {
+        "display_status": DisplayStatus.visible.name,
+        "display_font_color": None,
+        "display_background_color": None,
+    }
     unique_keys = (
         (
             "entity_class_name",

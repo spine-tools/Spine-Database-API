@@ -11,6 +11,7 @@
 ######################################################################################################################
 """ General helper functions. """
 
+import enum
 from itertools import groupby
 import json
 from operator import itemgetter
@@ -513,8 +514,8 @@ def create_spine_metadata():
         Column("display_order", Integer, nullable=False),
         Column(
             "display_status",
-            Enum(*DisplayStatus.values(), name="display_status_enum"),
-            server_default=DisplayStatus.VISIBLE,
+            Enum(DisplayStatus, name="display_status_enum"),
+            server_default=DisplayStatus.visible.name,
             nullable=False,
         ),
         Column("display_font_color", BigInteger, server_default=null()),
@@ -966,13 +967,10 @@ def string_to_bool(string):
     raise ValueError(string)
 
 
-class DisplayStatus:
-    """Custom enum for entity class display status"""
+@enum.unique
+class DisplayStatus(enum.Enum):
+    """Custom enum for entity class display status."""
 
-    VISIBLE = "visible"
-    HIDDEN = "hidden"
-    GREYED_OUT = "greyed_out"
-
-    @classmethod
-    def values(cls):
-        return [cls.VISIBLE, cls.HIDDEN, cls.GREYED_OUT]
+    visible = enum.auto()
+    hidden = enum.auto()
+    greyed_out = enum.auto()
