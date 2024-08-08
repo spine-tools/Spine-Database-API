@@ -1857,7 +1857,7 @@ class TestDatabaseMappingQueries(AssertSuccessTestCase):
             db_map.commit_session("test")
             disp_mode_rows = db_map.query(db_map.display_mode__entity_class_sq).all()
         self.assertEqual(len(disp_mode_rows), 1)
-        self.assertEqual(disp_mode_rows[0].display_mode_id, 1)
+        self.assertEqual(disp_mode_rows[0].entity_class_display_mode_id, 1)
         self.assertEqual(disp_mode_rows[0].entity_class_id, 1)
         self.assertEqual(disp_mode_rows[0].display_order, 1)
         self.assertEqual(disp_mode_rows[0].display_status, DisplayStatus.VISIBLE)

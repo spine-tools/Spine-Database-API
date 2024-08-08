@@ -379,7 +379,7 @@ class EntityClassDisplayModeItem(MappedItemBase):
 class DisplayModeEntityClassItem(MappedItemBase):
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
-        "display_mode_name": {"type": int, "value": "The entity class display mode name."},
+        "entity_class_display_mode_name": {"type": int, "value": "The entity class display mode name."},
         "display_order": {"type": int, "value": "The display order."},
         "display_status": {"type": str, "value": "The display status."},
         "display_font_color": {"type": int, "value": "The color of the font.", "optional": True},
@@ -389,23 +389,28 @@ class DisplayModeEntityClassItem(MappedItemBase):
     unique_keys = (
         (
             "entity_class_name",
-            "display_mode_name",
-            "display_order",
+            "entity_class_display_mode_name",
         ),
     )
-    corresponding_unique_id_keys = {"entity_class_name": "entity_class_id", "display_mode_name": "display_mode_id"}
-    _references = {"entity_class_id": ("entity_class", "id"), "display_mode_id": ("entity_class_display_mode", "id")}
+    corresponding_unique_id_keys = {
+        "entity_class_name": "entity_class_id",
+        "entity_class_display_mode_name": "entity_class_display_mode_id",
+    }
+    _references = {
+        "entity_class_id": ("entity_class", "id"),
+        "entity_class_display_mode_id": ("entity_class_display_mode", "id"),
+    }
     _external_fields = {
         "entity_class_name": ("entity_class_id", "name"),
-        "display_mode_name": ("display_mode_id", "name"),
+        "entity_class_display_mode_name": ("entity_class_display_mode_id", "name"),
     }
     _alt_references = {
         ("entity_class_name",): ("entity_class", ("name",)),
-        ("display_mode_name",): ("entity_class_display_mode", ("name",)),
+        ("entity_class_display_mode_name",): ("entity_class_display_mode", ("name",)),
     }
     _internal_fields = {
         "entity_class_id": (("entity_class_name",), "id"),
-        "display_mode_id": (("display_mode_name",), "id"),
+        "entity_class_display_mode_id": (("entity_class_display_mode_name",), "id"),
     }
 
 

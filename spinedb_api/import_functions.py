@@ -261,12 +261,12 @@ def get_data_for_import(
     if entity_class_display_modes:
         yield (
             "entity_class_display_mode",
-            _get_entity_class_display_modes_for_import(db_map, entity_class_display_modes),
+            _get_entity_class_display_modes_for_import(entity_class_display_modes),
         )
     if display_mode__entity_classes:
         yield (
             "display_mode__entity_class",
-            _get_display_mode__entity_classes_for_import(db_map, display_mode__entity_classes),
+            _get_display_mode__entity_classes_for_import(display_mode__entity_classes),
         )
 
 
@@ -570,14 +570,14 @@ def _get_superclass_subclasses_for_import(data):
     return (dict(zip(key, x)) for x in data)
 
 
-def _get_entity_class_display_modes_for_import(db_map, data):
+def _get_entity_class_display_modes_for_import(data):
     key = ("name", "description")
     return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
 
 
-def _get_display_mode__entity_classes_for_import(db_map, data):
+def _get_display_mode__entity_classes_for_import(data):
     key = (
-        "display_mode_name",
+        "entity_class_display_mode_name",
         "entity_class_name",
         "display_order",
         "display_status",

@@ -1777,12 +1777,11 @@ class TestImportParameterValueMetadata(ImportsTestCase):
             )
 
 
-class TestImportEntityClassDisplayMode(unittest.TestCase):
+class TestImportEntityClassDisplayMode(ImportsTestCase):
     def test_import_single_entity_class_display_mode(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            count, errors = import_entity_class_display_modes(db_map, (("disp_mode", "Some desc."),))
+            count = self._assert_success(import_entity_class_display_modes(db_map, (("disp_mode", "Some desc."),)))
             self.assertEqual(count, 1)
-            self.assertFalse(errors)
             db_map.commit_session("test")
             display_modes = {a.name: a.description for a in db_map.query(db_map.entity_class_display_mode_sq)}
         self.assertEqual(len(display_modes), 1)
@@ -1790,18 +1789,15 @@ class TestImportEntityClassDisplayMode(unittest.TestCase):
         self.assertIn("Some desc.", display_modes.values())
 
 
-class TestImportEntityClassDisplayModeEntityClass(unittest.TestCase):
+class TestImportEntityClassDisplayModeEntityClass(ImportsTestCase):
     def test_import_single_display_mode__entity_class(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            count, errors = import_entity_classes(db_map, (("ent_cls", ()),))
+            count = self._assert_success(import_entity_classes(db_map, (("ent_cls", ()),)))
             self.assertEqual(count, 1)
-            self.assertFalse(errors)
-            count, errors = import_entity_class_display_modes(db_map, (("disp_mode", "Some desc."),))
+            count = self._assert_success(import_entity_class_display_modes(db_map, (("disp_mode", "Some desc."),)))
             self.assertEqual(count, 1)
-            self.assertFalse(errors)
-            count, errors = import_display_mode__entity_classes(db_map, (("disp_mode", "ent_cls", 98),))
+            count = self._assert_success(import_display_mode__entity_classes(db_map, (("disp_mode", "ent_cls", 98),)))
             self.assertEqual(count, 1)
-            self.assertFalse(errors)
             db_map.commit_session("test")
             display_modes = db_map.query(db_map.display_mode__entity_class_sq).all()
         self.assertEqual(len(display_modes), 1)
@@ -1809,7 +1805,7 @@ class TestImportEntityClassDisplayModeEntityClass(unittest.TestCase):
             dict(display_modes[0]),
             {
                 "id": 1,
-                "display_mode_id": 1,
+                "entity_class_display_mode_id": 1,
                 "entity_class_id": 1,
                 "display_order": 98,
                 "display_status": DisplayStatus.VISIBLE,

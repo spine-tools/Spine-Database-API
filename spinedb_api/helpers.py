@@ -495,20 +495,19 @@ def create_spine_metadata():
         meta,
         Column("id", Integer, primary_key=True),
         Column(
-            "display_mode_id",
+            "entity_class_display_mode_id",
             Integer,
             ForeignKey(
                 "entity_class_display_mode.id",
                 onupdate="CASCADE",
                 ondelete="CASCADE",
-                name="fk_display_mode_display_mode",
             ),
             nullable=False,
         ),
         Column(
             "entity_class_id",
             Integer,
-            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE", name="fk_display_mode_entity_class"),
+            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
             nullable=False,
         ),
         Column("display_order", Integer, nullable=False),
@@ -520,7 +519,7 @@ def create_spine_metadata():
         ),
         Column("display_font_color", BigInteger, server_default=null()),
         Column("display_background_color", BigInteger, server_default=null()),
-        UniqueConstraint("display_mode_id", "entity_class_id", "display_order", name="uq_display_mode_class_order"),
+        UniqueConstraint("entity_class_display_mode_id", "entity_class_id"),
     )
     Table(
         "parameter_definition",
