@@ -518,8 +518,8 @@ def create_spine_metadata():
             server_default=DisplayStatus.visible.name,
             nullable=False,
         ),
-        Column("display_font_color", BigInteger, server_default=null()),
-        Column("display_background_color", BigInteger, server_default=null()),
+        Column("display_font_color", Integer, server_default=null()),
+        Column("display_background_color", Integer, server_default=null()),
         UniqueConstraint("entity_class_display_mode_id", "entity_class_id"),
     )
     Table(

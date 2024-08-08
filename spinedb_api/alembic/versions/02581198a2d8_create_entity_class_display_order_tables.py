@@ -36,8 +36,8 @@ def upgrade():
             server_default=DisplayStatus.visible.name,
             nullable=False,
         ),
-        sa.Column("display_font_color", sa.BigInteger, server_default=sa.null()),
-        sa.Column("display_background_color", sa.BigInteger, server_default=sa.null()),
+        sa.Column("display_font_color", sa.Integer, server_default=sa.null()),
+        sa.Column("display_background_color", sa.Integer, server_default=sa.null()),
         sa.ForeignKeyConstraint(
             ["entity_class_display_mode_id"],
             ["entity_class_display_mode.id"],
