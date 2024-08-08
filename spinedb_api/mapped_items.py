@@ -9,8 +9,8 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
 from operator import itemgetter
+import re
 from .db_mapping_base import MappedItemBase
 from .exception import SpineDBAPIError
 from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
@@ -382,8 +382,8 @@ class DisplayModeEntityClassItem(MappedItemBase):
         "entity_class_display_mode_name": {"type": int, "value": "The entity class display mode name."},
         "display_order": {"type": int, "value": "The display order."},
         "display_status": {"type": str, "value": "The display status."},
-        "display_font_color": {"type": int, "value": "The color of the font.", "optional": True},
-        "display_background_color": {"type": int, "value": "The  color of the background.", "optional": True},
+        "display_font_color": {"type": str, "value": "The color of the font.", "optional": True},
+        "display_background_color": {"type": str, "value": "The  color of the background.", "optional": True},
     }
     _defaults = {
         "display_status": DisplayStatus.visible.name,
@@ -416,6 +416,18 @@ class DisplayModeEntityClassItem(MappedItemBase):
         "entity_class_id": (("entity_class_name",), "id"),
         "entity_class_display_mode_id": (("entity_class_display_mode_name",), "id"),
     }
+
+    COLOR_RE = re.compile("[a-fA-F0-9]{6}")
+
+    def first_invalid_key(self):
+        error = super().first_invalid_key()
+        if error:
+            return error
+        for color_field in ("display_font_color", "display_background_color"):
+            if (color := self[color_field]) is not None:
+                if self.COLOR_RE.match(color) is None:
+                    return color_field
+        return None
 
 
 class ParsedValueBase(MappedItemBase):
