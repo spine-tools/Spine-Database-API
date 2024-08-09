@@ -1711,6 +1711,37 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertTrue(value_item)
                 self.assertEqual(value_item["parsed_value"], Duration("90m"))
 
+    def test_invalid_color_values_get_rejected_in_display_mode__entity_class(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_entity_class_display_mode_item(name="important"))
+            _, error = db_map.add_display_mode__entity_class_item(
+                entity_class_name="Object", entity_class_display_mode_name="important", display_font_color=""
+            )
+            self.assertEqual(error, "invalid display_font_color for display_mode__entity_class")
+            _, error = db_map.add_display_mode__entity_class_item(
+                entity_class_name="Object", entity_class_display_mode_name="important", display_font_color="ff"
+            )
+            self.assertEqual(error, "invalid display_font_color for display_mode__entity_class")
+            _, error = db_map.add_display_mode__entity_class_item(
+                entity_class_name="Object", entity_class_display_mode_name="important", display_font_color="gggggg"
+            )
+            self.assertEqual(error, "invalid display_font_color for display_mode__entity_class")
+            _, error = db_map.add_display_mode__entity_class_item(
+                entity_class_name="Object", entity_class_display_mode_name="important", display_background_color=""
+            )
+            self.assertEqual(error, "invalid display_background_color for display_mode__entity_class")
+            _, error = db_map.add_display_mode__entity_class_item(
+                entity_class_name="Object", entity_class_display_mode_name="important", display_background_color="ff"
+            )
+            self.assertEqual(error, "invalid display_background_color for display_mode__entity_class")
+            _, error = db_map.add_display_mode__entity_class_item(
+                entity_class_name="Object",
+                entity_class_display_mode_name="important",
+                display_background_color="gggggg",
+            )
+            self.assertEqual(error, "invalid display_background_color for display_mode__entity_class")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
