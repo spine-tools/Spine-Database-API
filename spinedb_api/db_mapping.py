@@ -529,6 +529,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             existing_item
             and existing_item["id"].db_id is not None
             and existing_item.status != Status.committed
+            and not mapped_table.purged
             and not any(
                 self._mapped_tables[table].purged for table in existing_item.ref_types() if table in self._mapped_tables
             )
