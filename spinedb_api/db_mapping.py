@@ -527,7 +527,15 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             existing_item.invalidate_id()
             mapped_table.remove_unique(existing_item)
         checked_item = mapped_table.add_item(checked_item)
-        if existing_item and existing_item["id"].db_id is not None and not mapped_table.purged:
+        if (
+            existing_item
+            and existing_item["id"].db_id is not None
+            and existing_item.status != Status.committed
+            and not mapped_table.purged
+            and not any(
+                self._mapped_tables[table].purged for table in existing_item.ref_types() if table in self._mapped_tables
+            )
+        ):
             checked_item.status = Status.to_update
         return checked_item.public_item, error
 

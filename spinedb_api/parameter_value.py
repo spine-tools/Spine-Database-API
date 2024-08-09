@@ -854,7 +854,9 @@ class Duration(ParameterValue):
             value = duration_to_relativedelta(value)
         elif isinstance(value, Duration):
             value = copy(value._value)
-        if not isinstance(value, relativedelta):
+        elif isinstance(value, relativedelta):
+            value = value.normalized()
+        else:
             raise ParameterValueFormatError(f'Could not parse duration from "{value}"')
         self._value = value
 

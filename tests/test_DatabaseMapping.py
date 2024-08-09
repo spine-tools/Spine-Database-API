@@ -17,6 +17,7 @@ import threading
 import unittest
 from unittest import mock
 from unittest.mock import patch
+from dateutil.relativedelta import relativedelta
 from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.util import KeyedTuple
 from spinedb_api import (
@@ -29,7 +30,7 @@ from spinedb_api import (
 )
 from spinedb_api.db_mapping_base import PublicItem, Status
 from spinedb_api.helpers import Asterisk, DisplayStatus, name_from_elements
-from spinedb_api.parameter_value import type_for_scalar
+from spinedb_api.parameter_value import Duration, type_for_scalar
 from tests.custom_db_mapping import CustomDatabaseMapping
 from tests.mock_helpers import AssertSuccessTestCase
 
@@ -1520,6 +1521,195 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             value, value_type = to_database(2.3)
             definition.update(default_value=value, default_type=value_type)
             callback.assert_called_once_with(definition)
+
+    def test_adding_fractional_duration_converts_time_units_correctly(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            duration = Duration(value=relativedelta(hours=1.5))
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                self._assert_success(db_map.add_entity_item(name="object", entity_class_name="Object"))
+                self._assert_success(db_map.add_parameter_definition_item(name="count", entity_class_name="Object"))
+                value, value_type = to_database(duration)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Object",
+                        entity_byname=("object",),
+                        parameter_definition_name="count",
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                db_map.commit_session("Add test data")
+            with DatabaseMapping(url) as db_map:
+                value_item = db_map.get_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("object",),
+                    parameter_definition_name="count",
+                    alternative_name="Base",
+                )
+                self.assertEqual(value_item["parsed_value"], Duration("90m"))
+
+    def test_add_indirectly_purged_values_back(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            duration = Duration(value=relativedelta(hours=1.5))
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                self._assert_success(db_map.add_entity_item(name="object", entity_class_name="Object"))
+                self._assert_success(db_map.add_parameter_definition_item(name="count", entity_class_name="Object"))
+                value, value_type = to_database(duration)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Object",
+                        entity_byname=("object",),
+                        parameter_definition_name="count",
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                db_map.commit_session("Add test data")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("entity")
+                self._assert_success(db_map.add_entity_item(name="object", entity_class_name="Object"))
+                value, value_type = to_database(duration)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Object",
+                        entity_byname=("object",),
+                        parameter_definition_name="count",
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                value_item = db_map.get_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("object",),
+                    parameter_definition_name="count",
+                    alternative_name="Base",
+                )
+                self.assertTrue(value_item)
+                db_map.commit_session("Add purged data back.")
+            with DatabaseMapping(url) as db_map:
+                value_item = db_map.get_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("object",),
+                    parameter_definition_name="count",
+                    alternative_name="Base",
+                )
+                self.assertTrue(value_item)
+                self.assertEqual(value_item["parsed_value"], Duration("90m"))
+
+    def test_add_purged_values_back(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            duration = Duration(value=relativedelta(hours=1.5))
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                self._assert_success(db_map.add_entity_item(name="object", entity_class_name="Object"))
+                self._assert_success(db_map.add_parameter_definition_item(name="count", entity_class_name="Object"))
+                value, value_type = to_database(duration)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Object",
+                        entity_byname=("object",),
+                        parameter_definition_name="count",
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                db_map.commit_session("Add test data")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("parameter_value")
+                db_map.purge_items("entity")
+                db_map.commit_session("Purge items.")
+                self._assert_success(db_map.add_entity_item(name="object", entity_class_name="Object"))
+                value, value_type = to_database(duration)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Object",
+                        entity_byname=("object",),
+                        parameter_definition_name="count",
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                value_item = db_map.get_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("object",),
+                    parameter_definition_name="count",
+                    alternative_name="Base",
+                )
+                self.assertTrue(value_item)
+                db_map.commit_session("Add purged data back.")
+            with DatabaseMapping(url) as db_map:
+                value_item = db_map.get_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("object",),
+                    parameter_definition_name="count",
+                    alternative_name="Base",
+                )
+                self.assertTrue(value_item)
+                self.assertEqual(value_item["parsed_value"], Duration("90m"))
+
+    def test_add_purged_alternative_back_then_commit_and_add_other_items_back(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            duration = Duration(value=relativedelta(hours=1.5))
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                self._assert_success(db_map.add_entity_item(name="object", entity_class_name="Object"))
+                self._assert_success(db_map.add_parameter_definition_item(name="count", entity_class_name="Object"))
+                value, value_type = to_database(duration)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Object",
+                        entity_byname=("object",),
+                        parameter_definition_name="count",
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                db_map.commit_session("Add test data")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("parameter_value")
+                db_map.purge_items("entity")
+                db_map.purge_items("alternative")
+                self._assert_success(db_map.add_alternative_item(name="Base"))
+                db_map.commit_session("Purge items but add alternative back.")
+                self._assert_success(db_map.add_entity_item(name="object", entity_class_name="Object"))
+                value, value_type = to_database(duration)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Object",
+                        entity_byname=("object",),
+                        parameter_definition_name="count",
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                db_map.commit_session("Add data back.")
+            with DatabaseMapping(url) as db_map:
+                alternative_item = db_map.get_alternative_item(
+                    name="Base",
+                )
+                self.assertTrue(alternative_item)
+                self.assertEqual(alternative_item["name"], "Base")
+                value_item = db_map.get_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("object",),
+                    parameter_definition_name="count",
+                    alternative_name="Base",
+                )
+                self.assertTrue(value_item)
+                self.assertEqual(value_item["parsed_value"], Duration("90m"))
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
