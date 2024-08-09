@@ -9,11 +9,11 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
 from operator import itemgetter
+import re
 from .db_mapping_base import MappedItemBase
 from .exception import SpineDBAPIError
-from .helpers import name_from_dimensions, name_from_elements
+from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
 from .parameter_value import (
     RANK_1_TYPES,
     VALUE_TYPES,
@@ -34,6 +34,8 @@ def item_factory(item_type):
         "entity": EntityItem,
         "entity_alternative": EntityAlternativeItem,
         "entity_group": EntityGroupItem,
+        "entity_class_display_mode": EntityClassDisplayModeItem,
+        "display_mode__entity_class": DisplayModeEntityClassItem,
         "parameter_definition": ParameterDefinitionItem,
         "parameter_type": ParameterTypeItem,
         "parameter_value": ParameterValueItem,
@@ -363,6 +365,69 @@ class EntityAlternativeItem(MappedItemBase):
         "entity_id": (("entity_class_name", "entity_byname"), "id"),
         "alternative_id": (("alternative_name",), "id"),
     }
+
+
+class EntityClassDisplayModeItem(MappedItemBase):
+    fields = {
+        "name": {"type": str, "value": "The entity class display mode name."},
+        "description": {"type": str, "value": "The entity class display mode description.", "optional": True},
+    }
+    _defaults = {"description": None}
+    unique_keys = (("name",),)
+
+
+class DisplayModeEntityClassItem(MappedItemBase):
+    fields = {
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "entity_class_display_mode_name": {"type": int, "value": "The entity class display mode name."},
+        "display_order": {"type": int, "value": "The display order."},
+        "display_status": {"type": str, "value": "The display status."},
+        "display_font_color": {"type": str, "value": "The color of the font.", "optional": True},
+        "display_background_color": {"type": str, "value": "The  color of the background.", "optional": True},
+    }
+    _defaults = {
+        "display_status": DisplayStatus.visible.name,
+        "display_font_color": None,
+        "display_background_color": None,
+    }
+    unique_keys = (
+        (
+            "entity_class_name",
+            "entity_class_display_mode_name",
+        ),
+    )
+    corresponding_unique_id_keys = {
+        "entity_class_name": "entity_class_id",
+        "entity_class_display_mode_name": "entity_class_display_mode_id",
+    }
+    _references = {
+        "entity_class_id": ("entity_class", "id"),
+        "entity_class_display_mode_id": ("entity_class_display_mode", "id"),
+    }
+    _external_fields = {
+        "entity_class_name": ("entity_class_id", "name"),
+        "entity_class_display_mode_name": ("entity_class_display_mode_id", "name"),
+    }
+    _alt_references = {
+        ("entity_class_name",): ("entity_class", ("name",)),
+        ("entity_class_display_mode_name",): ("entity_class_display_mode", ("name",)),
+    }
+    _internal_fields = {
+        "entity_class_id": (("entity_class_name",), "id"),
+        "entity_class_display_mode_id": (("entity_class_display_mode_name",), "id"),
+    }
+
+    COLOR_RE = re.compile("[a-fA-F0-9]{6}")
+
+    def first_invalid_key(self):
+        error = super().first_invalid_key()
+        if error:
+            return error
+        for color_field in ("display_font_color", "display_background_color"):
+            if (color := self[color_field]) is not None:
+                if self.COLOR_RE.match(color) is None:
+                    return color_field
+        return None
 
 
 class ParsedValueBase(MappedItemBase):

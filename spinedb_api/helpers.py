@@ -11,6 +11,7 @@
 ######################################################################################################################
 """ General helper functions. """
 
+import enum
 from itertools import groupby
 import json
 from operator import itemgetter
@@ -26,6 +27,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    Enum,
     Float,
     ForeignKey,
     ForeignKeyConstraint,
@@ -483,6 +485,44 @@ def create_spine_metadata():
         UniqueConstraint("entity_id", "alternative_id"),
     )
     Table(
+        "entity_class_display_mode",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(255), nullable=False, unique=True),
+        Column("description", Text(), server_default=null()),
+    )
+    Table(
+        "display_mode__entity_class",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column(
+            "entity_class_display_mode_id",
+            Integer,
+            ForeignKey(
+                "entity_class_display_mode.id",
+                onupdate="CASCADE",
+                ondelete="CASCADE",
+            ),
+            nullable=False,
+        ),
+        Column(
+            "entity_class_id",
+            Integer,
+            ForeignKey("entity_class.id", onupdate="CASCADE", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        Column("display_order", Integer, nullable=False),
+        Column(
+            "display_status",
+            Enum(DisplayStatus, name="display_status_enum"),
+            server_default=DisplayStatus.visible.name,
+            nullable=False,
+        ),
+        Column("display_font_color", String(6), server_default=null()),
+        Column("display_background_color", String(6), server_default=null()),
+        UniqueConstraint("entity_class_display_mode_id", "entity_class_id"),
+    )
+    Table(
         "parameter_definition",
         meta,
         Column("id", Integer, primary_key=True),
@@ -925,3 +965,12 @@ def string_to_bool(string):
     if string in _FALSES:
         return False
     raise ValueError(string)
+
+
+@enum.unique
+class DisplayStatus(enum.Enum):
+    """Custom enum for entity class display status."""
+
+    visible = enum.auto()
+    hidden = enum.auto()
+    greyed_out = enum.auto()

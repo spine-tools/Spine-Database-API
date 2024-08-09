@@ -108,6 +108,8 @@ def get_data_for_import(
     entity_metadata=(),
     parameter_value_metadata=(),
     superclass_subclasses=(),
+    entity_class_display_modes=(),
+    display_mode__entity_classes=(),
     # legacy
     object_classes=(),
     relationship_classes=(),
@@ -158,6 +160,8 @@ def get_data_for_import(
         parameter_value_metadata (list(tuple(str,tuple,str,str,str,str))):
             tuples of (class name, entity byname, parameter name, metadata name, value, alternative name)
         superclass_subclasses (list(tuple(str,str))): tuples of (superclass name, subclass name)
+        entity_class_display_modes (list(tuple(str,str))): tuples of (name, description)
+        display_mode__entity_classes (list(tuple(str,str,int))): tuples of (display mode name, entity class name, display order)
 
     Yields:
         str: item type
@@ -253,6 +257,16 @@ def get_data_for_import(
     if relationship_parameter_value_metadata:  # Legacy
         yield from get_data_for_import(
             db_map, all_errors, parameter_value_metadata=relationship_parameter_value_metadata
+        )
+    if entity_class_display_modes:
+        yield (
+            "entity_class_display_mode",
+            _get_entity_class_display_modes_for_import(entity_class_display_modes),
+        )
+    if display_mode__entity_classes:
+        yield (
+            "display_mode__entity_class",
+            _get_display_mode__entity_classes_for_import(display_mode__entity_classes),
         )
 
 
@@ -405,6 +419,34 @@ def import_scenarios(db_map, data):
     return import_data(db_map, scenarios=data)
 
 
+def import_entity_class_display_modes(db_map, data):
+    """Imports entity class display modes into a Spine database using a standard format.
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        data (list(str, str)): tuples of (name, description)
+
+    Returns:
+        int: number of items imported
+        list: errors
+    """
+    return import_data(db_map, entity_class_display_modes=data)
+
+
+def import_display_mode__entity_classes(db_map, data):
+    """Imports entity class display mode entity classes into a Spine database using a standard format.
+
+    Args:
+        db_map (spinedb_api.DiffDatabaseMapping): database mapping
+        data (list(str,str,int)): tuples of (display mode name, entity class name, display order)
+
+    Returns:
+        int: number of items imported
+        list: errors
+    """
+    return import_data(db_map, display_mode__entity_classes=data)
+
+
 def import_scenario_alternatives(db_map, data):
     """Imports scenario alternatives into a Spine database using a standard format.
 
@@ -526,6 +568,24 @@ def _get_entity_classes_for_import(data):
 def _get_superclass_subclasses_for_import(data):
     key = ("superclass_name", "subclass_name")
     return (dict(zip(key, x)) for x in data)
+
+
+def _get_entity_class_display_modes_for_import(data):
+    key = ("name", "description")
+    return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
+
+
+def _get_display_mode__entity_classes_for_import(data):
+    key = (
+        "entity_class_display_mode_name",
+        "entity_class_name",
+        "display_order",
+        "display_status",
+        "display_font_color",
+        "display_background_color",
+    )
+    for display_mode_name, entity_class_name, display_order, *optionals in data:
+        yield dict(zip(key, (display_mode_name, entity_class_name, display_order, *optionals)))
 
 
 def _get_entities_for_import(data):

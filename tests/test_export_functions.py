@@ -20,6 +20,8 @@ from spinedb_api import (
     export_scenario_alternatives,
     export_scenarios,
     import_alternatives,
+    import_display_mode__entity_classes,
+    import_entity_class_display_modes,
     import_object_classes,
     import_object_parameter_values,
     import_object_parameters,
@@ -33,6 +35,7 @@ from spinedb_api import (
     import_scenarios,
 )
 from spinedb_api.export_functions import export_parameter_types
+from spinedb_api.helpers import DisplayStatus
 
 
 class TestExportFunctions(unittest.TestCase):
@@ -135,8 +138,14 @@ class TestExportFunctions(unittest.TestCase):
             self._assert_import_success(import_alternatives(db_map, ["alternative"]))
             self._assert_import_success(import_scenarios(db_map, ["scenario"]))
             self._assert_import_success(import_scenario_alternatives(db_map, [("scenario", "alternative")]))
+            self._assert_import_success(import_entity_class_display_modes(db_map, ["display_mode"]))
+            self._assert_import_success(
+                import_display_mode__entity_classes(
+                    db_map, (("display_mode", "object_class", 1, DisplayStatus.hidden.name),)
+                )
+            )
             exported = export_data(db_map)
-            self.assertEqual(len(exported), 8)
+            self.assertEqual(len(exported), 10)
             self.assertIn("entity_classes", exported)
             self.assertEqual(
                 exported["entity_classes"],
@@ -170,6 +179,13 @@ class TestExportFunctions(unittest.TestCase):
             self.assertEqual(exported["scenarios"], [("scenario", False, None)])
             self.assertIn("scenario_alternatives", exported)
             self.assertEqual(exported["scenario_alternatives"], [("scenario", "alternative", None)])
+            self.assertIn("entity_class_display_modes", exported)
+            self.assertEqual(exported["entity_class_display_modes"], [("display_mode", None)])
+            self.assertIn("display_mode__entity_classes", exported)
+            self.assertEqual(
+                exported["display_mode__entity_classes"],
+                [("display_mode", "object_class", 1, DisplayStatus.hidden.name, None, None)],
+            )
 
 
 if __name__ == "__main__":
