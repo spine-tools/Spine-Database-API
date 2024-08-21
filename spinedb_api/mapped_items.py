@@ -34,8 +34,8 @@ def item_factory(item_type):
         "entity": EntityItem,
         "entity_alternative": EntityAlternativeItem,
         "entity_group": EntityGroupItem,
+        "display_mode": DisplayModeItem,
         "entity_class_display_mode": EntityClassDisplayModeItem,
-        "display_mode__entity_class": DisplayModeEntityClassItem,
         "parameter_definition": ParameterDefinitionItem,
         "parameter_type": ParameterTypeItem,
         "parameter_value": ParameterValueItem,
@@ -367,19 +367,19 @@ class EntityAlternativeItem(MappedItemBase):
     }
 
 
-class EntityClassDisplayModeItem(MappedItemBase):
+class DisplayModeItem(MappedItemBase):
     fields = {
-        "name": {"type": str, "value": "The entity class display mode name."},
-        "description": {"type": str, "value": "The entity class display mode description.", "optional": True},
+        "name": {"type": str, "value": "The display mode name."},
+        "description": {"type": str, "value": "The display mode description.", "optional": True},
     }
     _defaults = {"description": None}
     unique_keys = (("name",),)
 
 
-class DisplayModeEntityClassItem(MappedItemBase):
+class EntityClassDisplayModeItem(MappedItemBase):
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
-        "entity_class_display_mode_name": {"type": int, "value": "The entity class display mode name."},
+        "display_mode_name": {"type": int, "value": "The display mode name."},
         "display_order": {"type": int, "value": "The display order."},
         "display_status": {"type": str, "value": "The display status."},
         "display_font_color": {"type": str, "value": "The color of the font.", "optional": True},
@@ -393,28 +393,28 @@ class DisplayModeEntityClassItem(MappedItemBase):
     unique_keys = (
         (
             "entity_class_name",
-            "entity_class_display_mode_name",
+            "display_mode_name",
         ),
     )
     corresponding_unique_id_keys = {
         "entity_class_name": "entity_class_id",
-        "entity_class_display_mode_name": "entity_class_display_mode_id",
+        "display_mode_name": "display_mode_id",
     }
     _references = {
         "entity_class_id": ("entity_class", "id"),
-        "entity_class_display_mode_id": ("entity_class_display_mode", "id"),
+        "display_mode_id": ("display_mode", "id"),
     }
     _external_fields = {
         "entity_class_name": ("entity_class_id", "name"),
-        "entity_class_display_mode_name": ("entity_class_display_mode_id", "name"),
+        "display_mode_name": ("display_mode_id", "name"),
     }
     _alt_references = {
         ("entity_class_name",): ("entity_class", ("name",)),
-        ("entity_class_display_mode_name",): ("entity_class_display_mode", ("name",)),
+        ("display_mode_name",): ("display_mode", ("name",)),
     }
     _internal_fields = {
         "entity_class_id": (("entity_class_name",), "id"),
-        "entity_class_display_mode_id": (("entity_class_display_mode_name",), "id"),
+        "display_mode_id": (("display_mode_name",), "id"),
     }
 
     COLOR_RE = re.compile("[a-fA-F0-9]{6}")

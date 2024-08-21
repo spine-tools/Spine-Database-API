@@ -46,8 +46,8 @@ class DatabaseMappingQueryMixin:
         self._parameter_value_metadata_sq = None
         self._entity_metadata_sq = None
         self._superclass_subclass_sq = None
+        self._display_mode_sq = None
         self._entity_class_display_mode_sq = None
-        self._display_mode__entity_class_sq = None
         # Special convenience subqueries that join two or more tables
         self._wide_entity_class_sq = None
         self._wide_entity_sq = None
@@ -349,6 +349,21 @@ class DatabaseMappingQueryMixin:
         return self._entity_group_sq
 
     @property
+    def display_mode_sq(self):
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM display_mode
+
+        Returns:
+            :class:`~sqlalchemy.sql.expression.Alias`
+        """
+        if self._display_mode_sq is None:
+            self._display_mode_sq = self._subquery("display_mode")
+        return self._display_mode_sq
+
+    @property
     def entity_class_display_mode_sq(self):
         """A subquery of the form:
 
@@ -362,21 +377,6 @@ class DatabaseMappingQueryMixin:
         if self._entity_class_display_mode_sq is None:
             self._entity_class_display_mode_sq = self._subquery("entity_class_display_mode")
         return self._entity_class_display_mode_sq
-
-    @property
-    def display_mode__entity_class_sq(self):
-        """A subquery of the form:
-
-        .. code-block:: sql
-
-            SELECT * FROM display_mode__entity_class
-
-        Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
-        """
-        if self._display_mode__entity_class_sq is None:
-            self._display_mode__entity_class_sq = self._subquery("display_mode__entity_class")
-        return self._display_mode__entity_class_sq
 
     @property
     def alternative_sq(self):

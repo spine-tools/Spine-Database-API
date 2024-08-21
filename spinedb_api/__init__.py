@@ -61,7 +61,7 @@ from .import_functions import (
     get_data_for_import,
     import_alternatives,
     import_data,
-    import_display_mode__entity_classes,
+    import_display_modes,
     import_entities,
     import_entity_alternatives,
     import_entity_class_display_modes,
