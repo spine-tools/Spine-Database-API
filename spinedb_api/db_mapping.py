@@ -246,9 +246,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             if v_err.upgrade_available:
                 title = "Incompatible database version"
                 text = (
-                    f"The database at <br><center>'{sa_url}'</center><br> is at revision <b>{v_err.current}</b> "
+                    f"The database at <br><center>'{sa_url}'</center><br> is at revision <b>{v_err.current}</b>. "
                     f"and needs to be upgraded to revision <b>{v_err.expected}</b> "
-                    "in order to be used with the current version of Spine."
+                    f"in order to be used with your current version of Spine_Database_API (and Spine Toolbox, if "
+                    f"using the database through Spine Toolbox)."
                     "<p><b>WARNING</b>: After the upgrade, the database may no longer be used with previous versions."
                 )
                 if sa_url.drivername == "sqlite":
@@ -268,9 +269,24 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             else:
                 title = "Unsupported database version"
                 text = (
-                    f"The database at <br><center>'{sa_url}'</center><br> is at revision <b>{v_err.current}</b> "
-                    f"while this version of Spine supports revisions up to <b>{v_err.expected}</b>."
-                    "<p>Please upgrade Spine to use this database."
+                    f"The database at <br><center>'{sa_url}'</center><br> is at revision <b>{v_err.current}</b>. "
+                    f"This revision requires a newer version of Spine_Database_API (and Spine Toolbox, if using "
+                    f"the database through Spine Toolbox). Your current Spine_Database_API "
+                    f"supports revisions only up to <b>{v_err.expected}</b>."
+                    f"<p>Please upgrade Spine Toolbox (and Spine_Database_API as a consequence) to use this database. "
+                    f"Alternatively, re-do your work in a compatible database version, or use a back-up if you have "
+                    f"one. This database cannot be reverted back to an older version."
+                    f"<ul>"
+                    f"  <li>If you have installed through pip, and there is "
+                    f"<a href=""https://github.com/spine-tools/Spine-Toolbox#upgrade-when-using-pipx"">no newer "
+                    f"Toolbox version available</a>, you need to "
+                    f"<a href=""https://github.com/spine-tools/Spine-Toolbox#installation-from-sources-using-git"">"
+                    f"install using git</a> or wait for the next release (could be a month).</li>"
+                    f"  <li>If you have grabbed a Toolbox zip-file, then you need to try to "
+                    f"<a href=""https://github.com/spine-tools/Spine-Toolbox#installation-with-python-and-pipx"">"
+                    f"install using pip</a> or, to be safe, "
+                    f"<a href=""https://github.com/spine-tools/Spine-Toolbox#installation-from-sources-using-git"">"
+                    f"install from sources using git</a> to get the latest Spine Toolbox."
                 )
                 option_to_kwargs = {}
                 notes = None
