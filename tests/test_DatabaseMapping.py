@@ -1711,36 +1711,36 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertTrue(value_item)
                 self.assertEqual(value_item["parsed_value"], Duration("90m"))
 
-    def test_invalid_color_values_get_rejected_in_display_mode__entity_class(self):
+    def test_invalid_color_values_get_rejected_in_entity_class_display_mode(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="Object"))
-            self._assert_success(db_map.add_entity_class_display_mode_item(name="important"))
-            _, error = db_map.add_display_mode__entity_class_item(
-                entity_class_name="Object", entity_class_display_mode_name="important", display_font_color=""
+            self._assert_success(db_map.add_display_mode_item(name="important"))
+            _, error = db_map.add_entity_class_display_mode_item(
+                entity_class_name="Object", display_mode_name="important", display_font_color=""
             )
-            self.assertEqual(error, "invalid display_font_color for display_mode__entity_class")
-            _, error = db_map.add_display_mode__entity_class_item(
-                entity_class_name="Object", entity_class_display_mode_name="important", display_font_color="ff"
+            self.assertEqual(error, "invalid display_font_color for entity_class_display_mode")
+            _, error = db_map.add_entity_class_display_mode_item(
+                entity_class_name="Object", display_mode_name="important", display_font_color="ff"
             )
-            self.assertEqual(error, "invalid display_font_color for display_mode__entity_class")
-            _, error = db_map.add_display_mode__entity_class_item(
-                entity_class_name="Object", entity_class_display_mode_name="important", display_font_color="gggggg"
+            self.assertEqual(error, "invalid display_font_color for entity_class_display_mode")
+            _, error = db_map.add_entity_class_display_mode_item(
+                entity_class_name="Object", display_mode_name="important", display_font_color="gggggg"
             )
-            self.assertEqual(error, "invalid display_font_color for display_mode__entity_class")
-            _, error = db_map.add_display_mode__entity_class_item(
-                entity_class_name="Object", entity_class_display_mode_name="important", display_background_color=""
+            self.assertEqual(error, "invalid display_font_color for entity_class_display_mode")
+            _, error = db_map.add_entity_class_display_mode_item(
+                entity_class_name="Object", display_mode_name="important", display_background_color=""
             )
-            self.assertEqual(error, "invalid display_background_color for display_mode__entity_class")
-            _, error = db_map.add_display_mode__entity_class_item(
-                entity_class_name="Object", entity_class_display_mode_name="important", display_background_color="ff"
+            self.assertEqual(error, "invalid display_background_color for entity_class_display_mode")
+            _, error = db_map.add_entity_class_display_mode_item(
+                entity_class_name="Object", display_mode_name="important", display_background_color="ff"
             )
-            self.assertEqual(error, "invalid display_background_color for display_mode__entity_class")
-            _, error = db_map.add_display_mode__entity_class_item(
+            self.assertEqual(error, "invalid display_background_color for entity_class_display_mode")
+            _, error = db_map.add_entity_class_display_mode_item(
                 entity_class_name="Object",
-                entity_class_display_mode_name="important",
+                display_mode_name="important",
                 display_background_color="gggggg",
             )
-            self.assertEqual(error, "invalid display_background_color for display_mode__entity_class")
+            self.assertEqual(error, "invalid display_background_color for entity_class_display_mode")
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
@@ -2059,26 +2059,26 @@ class TestDatabaseMappingQueries(AssertSuccessTestCase):
         self.assertEqual(scenario_rows[0].description, "test scenario")
         self.assertTrue(scenario_rows[0].active)
 
-    def test_entity_class_display_mode_sq(self):
+    def test_display_mode_sq(self):
         with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
-            import_functions.import_entity_class_display_modes(db_map, (("disp_mode", "Some desc."),))
+            import_functions.import_display_modes(db_map, (("disp_mode", "Some desc."),))
             db_map.commit_session("test")
-            disp_mode_rows = db_map.query(db_map.entity_class_display_mode_sq).all()
+            disp_mode_rows = db_map.query(db_map.display_mode_sq).all()
         self.assertEqual(len(disp_mode_rows), 1)
         self.assertEqual(disp_mode_rows[0].name, "disp_mode")
         self.assertEqual(disp_mode_rows[0].description, "Some desc.")
 
-    def test_display_mode__entity_class_sq(self):
+    def test_entity_class_display_mode_sq(self):
         with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
             import_functions.import_entity_classes(db_map, (("ent_cls", ()),))
-            import_functions.import_entity_class_display_modes(db_map, (("disp_mode", "Some desc."),))
-            import_functions.import_display_mode__entity_classes(
+            import_functions.import_display_modes(db_map, (("disp_mode", "Some desc."),))
+            import_functions.import_entity_class_display_modes(
                 db_map, (("disp_mode", "ent_cls", 1, DisplayStatus.greyed_out.name, "deadbe", "efdead"),)
             )
             db_map.commit_session("test")
-            disp_mode_rows = db_map.query(db_map.display_mode__entity_class_sq).all()
+            disp_mode_rows = db_map.query(db_map.entity_class_display_mode_sq).all()
         self.assertEqual(len(disp_mode_rows), 1)
-        self.assertEqual(disp_mode_rows[0].entity_class_display_mode_id, 1)
+        self.assertEqual(disp_mode_rows[0].display_mode_id, 1)
         self.assertEqual(disp_mode_rows[0].entity_class_id, 1)
         self.assertEqual(disp_mode_rows[0].display_order, 1)
         self.assertEqual(disp_mode_rows[0].display_status, DisplayStatus.greyed_out.name)

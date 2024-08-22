@@ -20,7 +20,7 @@ from spinedb_api import (
     export_scenario_alternatives,
     export_scenarios,
     import_alternatives,
-    import_display_mode__entity_classes,
+    import_display_modes,
     import_entity_class_display_modes,
     import_object_classes,
     import_object_parameter_values,
@@ -138,9 +138,9 @@ class TestExportFunctions(unittest.TestCase):
             self._assert_import_success(import_alternatives(db_map, ["alternative"]))
             self._assert_import_success(import_scenarios(db_map, ["scenario"]))
             self._assert_import_success(import_scenario_alternatives(db_map, [("scenario", "alternative")]))
-            self._assert_import_success(import_entity_class_display_modes(db_map, ["display_mode"]))
+            self._assert_import_success(import_display_modes(db_map, ["display_mode"]))
             self._assert_import_success(
-                import_display_mode__entity_classes(
+                import_entity_class_display_modes(
                     db_map, (("display_mode", "object_class", 1, DisplayStatus.hidden.name),)
                 )
             )
@@ -179,11 +179,11 @@ class TestExportFunctions(unittest.TestCase):
             self.assertEqual(exported["scenarios"], [("scenario", False, None)])
             self.assertIn("scenario_alternatives", exported)
             self.assertEqual(exported["scenario_alternatives"], [("scenario", "alternative", None)])
+            self.assertIn("display_modes", exported)
+            self.assertEqual(exported["display_modes"], [("display_mode", None)])
             self.assertIn("entity_class_display_modes", exported)
-            self.assertEqual(exported["entity_class_display_modes"], [("display_mode", None)])
-            self.assertIn("display_mode__entity_classes", exported)
             self.assertEqual(
-                exported["display_mode__entity_classes"],
+                exported["entity_class_display_modes"],
                 [("display_mode", "object_class", 1, DisplayStatus.hidden.name, None, None)],
             )
 

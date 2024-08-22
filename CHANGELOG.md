@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - parameter_type table was added to the database. It defines valid value types for a parameter definition.
   The types are not currently enforced.
+- display_mode and entity_class_display_mode tables were added to the database.
+  They define available display modes and how each class should be displayed under each mode.
+  This is for visualization purposes only.
 
 ### Changed
 
