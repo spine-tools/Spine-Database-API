@@ -63,6 +63,7 @@ class CommitItem(MappedItemBase):
         "user": {"type": str, "value": "Username of the committer."},
     }
     unique_keys = (("date",),)
+    required_key_combinations = (("date",), ("comment",), ("user",))
     is_protected = True
 
     def commit(self, commit_id):
@@ -99,6 +100,7 @@ class EntityClassItem(MappedItemBase):
         "active_by_default": True,
     }
     unique_keys = (("name",),)
+    required_key_combinations = (("name",),)
     _references = {"dimension_id_list": ("entity_class", "id")}
     _external_fields = {"dimension_name_list": ("dimension_id_list", "name")}
     _alt_references = {("dimension_name_list",): ("entity_class", ("name",))}
@@ -149,7 +151,7 @@ class EntityItem(MappedItemBase):
 
     _defaults = {"description": None}
     unique_keys = (("entity_class_name", "name"), ("entity_class_name", "entity_byname"))
-    corresponding_unique_id_keys = {"entity_class_name": "class_id"}
+    required_key_combinations = (("name", "entity_byname"), ("entity_class_name", "class_id"))
     _references = {"class_id": ("entity_class", "id"), "element_id_list": ("entity", "id")}
     _external_fields = {
         "entity_class_name": ("class_id", "name"),
@@ -286,11 +288,11 @@ class EntityGroupItem(MappedItemBase):
         "member_name": {"type": str, "value": "The member entity name."},
     }
     unique_keys = (("entity_class_name", "group_name", "member_name"),)
-    corresponding_unique_id_keys = {
-        "entity_class_name": "entity_class_id",
-        "group_name": "entity_id",
-        "member_name": "member_id",
-    }
+    required_key_combinations = (
+        ("entity_class_name", "entity_class_id", "entity_id"),
+        ("group_name", "entity_id"),
+        ("member_name", "member_id"),
+    )
     _references = {
         "entity_class_id": ("entity_class", "id"),
         "entity_id": ("entity", "id"),
@@ -340,7 +342,11 @@ class EntityAlternativeItem(MappedItemBase):
     }
     _defaults = {"active": True}
     unique_keys = (("entity_class_name", "entity_byname", "alternative_name"),)
-    corresponding_unique_id_keys = {"entity_class_name": "entity_class_id", "alternative_name": "alternative_id"}
+    required_key_combinations = (
+        ("entity_class_name", "entity_class_id", "entity_id"),
+        ("entity_byname", "entity_id"),
+        ("alternative_name", "alternative_id"),
+    )
     _references = {
         "entity_id": ("entity", "id"),
         "entity_class_id": ("entity_class", "id"),
@@ -374,6 +380,7 @@ class DisplayModeItem(MappedItemBase):
     }
     _defaults = {"description": None}
     unique_keys = (("name",),)
+    required_key_combinations = (("name",),)
 
 
 class EntityClassDisplayModeItem(MappedItemBase):
@@ -396,10 +403,7 @@ class EntityClassDisplayModeItem(MappedItemBase):
             "display_mode_name",
         ),
     )
-    corresponding_unique_id_keys = {
-        "entity_class_name": "entity_class_id",
-        "display_mode_name": "display_mode_id",
-    }
+    required_key_combinations = (("entity_class_name", "entity_class_id"), ("display_mode_name", "display_mode_id"))
     _references = {
         "entity_class_id": ("entity_class", "id"),
         "display_mode_id": ("display_mode", "id"),
@@ -576,7 +580,7 @@ class ParameterDefinitionItem(ParameterItemBase):
     }
     _defaults = {"description": None, "default_value": None, "default_type": None, "parameter_value_list_id": None}
     unique_keys = (("entity_class_name", "name"),)
-    corresponding_unique_id_keys = {"entity_class_name": "entity_class_id"}
+    required_key_combinations = (("entity_class_name", "entity_class_id"), ("name",))
     _references = {"entity_class_id": ("entity_class", "id"), "parameter_value_list_id": ("parameter_value_list", "id")}
     _soft_references = {"parameter_value_list_id"}
     _external_fields = {
@@ -755,10 +759,12 @@ class ParameterTypeItem(MappedItemBase):
         "type": {"type": str, "value": "The value type."},
     }
     unique_keys = (("entity_class_name", "parameter_definition_name", "type", "rank"),)
-    corresponding_unique_id_keys = {
-        "entity_class_name": "entity_class_id",
-        "parameter_definition_name": "parameter_definition_id",
-    }
+    required_key_combinations = (
+        ("entity_class_name", "entity_class_id"),
+        ("parameter_definition_name", "parameter_definition_id"),
+        ("type",),
+        ("rank",),
+    )
     _references = {"entity_class_id": ("entity_class", "id"), "parameter_definition_id": ("parameter_definition", "id")}
     _external_fields = {
         "entity_class_id": ("parameter_definition_id", "entity_class_id"),
@@ -810,12 +816,12 @@ class ParameterValueItem(ParameterItemBase):
         "alternative_name": {"type": str, "value": "The alternative name - defaults to 'Base'.", "optional": True},
     }
     unique_keys = (("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),)
-    corresponding_unique_id_keys = {
-        "entity_class_name": "entity_id",
-        "parameter_definition_name": "parameter_definition_id",
-        "entity_byname": "entity_id",
-        "alternative_name": "alternative_id",
-    }
+    required_key_combinations = (
+        ("entity_class_name", "entity_class_id", "parameter_definition_id", "entity_id"),
+        ("parameter_definition_name", "parameter_definition_id"),
+        ("entity_byname", "entity_id"),
+        ("alternative_name", "alternative_id"),
+    )
     _references = {
         "entity_class_id": ("entity_class", "id"),
         "parameter_definition_id": ("parameter_definition", "id"),
@@ -877,6 +883,7 @@ class ParameterValueItem(ParameterItemBase):
 class ParameterValueListItem(MappedItemBase):
     fields = {"name": {"type": str, "value": "The parameter value list name."}}
     unique_keys = (("name",),)
+    required_key_combinations = (("name",),)
 
 
 class ListValueItem(ParsedValueBase):
@@ -887,7 +894,18 @@ class ListValueItem(ParsedValueBase):
         "index": {"type": int, "value": "The value index.", "optional": True},
     }
     unique_keys = (("parameter_value_list_name", "value_and_type"), ("parameter_value_list_name", "index"))
-    corresponding_unique_id_keys = {"parameter_value_list_name": "parameter_value_list_id"}
+    required_key_combinations = (
+        ("parameter_value_list_name", "parameter_value_list_id"),
+        (
+            "value_and_type",
+            "type",
+        ),
+        (
+            "value_and_type",
+            "value",
+        ),
+        ("index",),
+    )
     _references = {"parameter_value_list_id": ("parameter_value_list", "id")}
     _external_fields = {"parameter_value_list_name": ("parameter_value_list_id", "name")}
     _alt_references = {("parameter_value_list_name",): ("parameter_value_list", ("name",))}
@@ -914,6 +932,7 @@ class AlternativeItem(MappedItemBase):
     }
     _defaults = {"description": None}
     unique_keys = (("name",),)
+    required_key_combinations = (("name",),)
 
 
 class ScenarioItem(MappedItemBase):
@@ -924,6 +943,7 @@ class ScenarioItem(MappedItemBase):
     }
     _defaults = {"active": False, "description": None}
     unique_keys = (("name",),)
+    required_key_combinations = (("name",),)
 
     def __getitem__(self, key):
         if key == "alternative_id_list":
@@ -950,7 +970,7 @@ class ScenarioAlternativeItem(MappedItemBase):
         "rank": {"type": int, "value": "The rank - higher has precedence."},
     }
     unique_keys = (("scenario_name", "alternative_name"), ("scenario_name", "rank"))
-    corresponding_unique_id_keys = {"scenario_name": "scenario_id", "alternative_name": "alternative_id"}
+    required_key_combinations = (("scenario_name", "scenario_id"), ("alternative_name", "alternative_id"), ("rank",))
     _references = {"scenario_id": ("scenario", "id"), "alternative_id": ("alternative", "id")}
     _external_fields = {"scenario_name": ("scenario_id", "name"), "alternative_name": ("alternative_id", "name")}
     _alt_references = {("scenario_name",): ("scenario", ("name",)), ("alternative_name",): ("alternative", ("name",))}
@@ -978,6 +998,7 @@ class MetadataItem(MappedItemBase):
         "value": {"type": str, "value": "The metadata entry value."},
     }
     unique_keys = (("name", "value"),)
+    required_key_combinations = (("name",), ("value",))
 
 
 class EntityMetadataItem(MappedItemBase):
@@ -988,12 +1009,12 @@ class EntityMetadataItem(MappedItemBase):
         "metadata_value": {"type": str, "value": "The metadata entry value."},
     }
     unique_keys = (("entity_class_name", "entity_byname", "metadata_name", "metadata_value"),)
-    corresponding_unique_id_keys = {
-        "entity_class_name": "entity_id",
-        "entity_byname": "entity_id",
-        "metadata_name": "metadata_id",
-        "metadata_value": "metadata_id",
-    }
+    required_key_combinations = (
+        ("entity_class_name", "entity_class_id", "entity_id"),
+        ("entity_byname", "entity_id"),
+        ("metadata_name", "metadata_id"),
+        ("metadata_value", "metadata_id"),
+    )
     _references = {
         "entity_id": ("entity", "id"),
         "metadata_id": ("metadata", "id"),
@@ -1039,14 +1060,14 @@ class ParameterValueMetadataItem(MappedItemBase):
             "metadata_value",
         ),
     )
-    corresponding_unique_id_keys = {
-        "entity_class_name": "parameter_value_id",
-        "parameter_definition_name": "parameter_value_id",
-        "entity_byname": "parameter_value_id",
-        "alternative_name": "parameter_value_id",
-        "metadata_name": "metadata_id",
-        "metadata_value": "metadata_id",
-    }
+    required_key_combinations = (
+        ("entity_class_name", "entity_class_id", "parameter_definition_id", "entity_id", "parameter_value_id"),
+        ("entity_byname", "entity_id", "parameter_value_id"),
+        ("parameter_definition_name", "parameter_definition_id", "parameter_value_id"),
+        ("alternative_name", "alternative_id", "parameter_value_id"),
+        ("metadata_name", "metadata_id"),
+        ("metadata_value", "metadata_id"),
+    )
     _references = {"parameter_value_id": ("parameter_value", "id"), "metadata_id": ("metadata", "id")}
     _external_fields = {
         "entity_class_name": ("parameter_value_id", "entity_class_name"),
@@ -1078,7 +1099,10 @@ class SuperclassSubclassItem(MappedItemBase):
         "subclass_name": {"type": str, "value": "The subclass name."},
     }
     unique_keys = (("subclass_name",),)
-    corresponding_unique_id_keys = {"subclass_name": "subclass_id"}
+    required_key_combinations = (
+        ("superclass_name", "superclass_id"),
+        ("subclass_name", "subclass_id"),
+    )
     _references = {"superclass_id": ("entity_class", "id"), "subclass_id": ("entity_class", "id")}
     _external_fields = {
         "superclass_name": ("superclass_id", "name"),

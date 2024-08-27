@@ -480,7 +480,7 @@ class _MappedTable(dict):
             full_item, merge_error = item, None
         candidate_item = self._make_item(full_item)
         if current_item is None:
-            error = self._check_unique_keys(candidate_item)
+            error = self._check_required_keys(candidate_item)
             if error:
                 return None, error
         error = self._prepare_item(candidate_item, current_item, item)
@@ -490,8 +490,8 @@ class _MappedTable(dict):
         self.check_fields(candidate_item._asdict(), valid_types=valid_types)
         return candidate_item, merge_error
 
-    def _check_unique_keys(self, item):
-        """Checks that unique keys are set in given item for addition.
+    def _check_required_keys(self, item):
+        """Checks that required keys are set in given item for addition.
 
         Args:
             item (MappedItemBase): item to check
@@ -499,15 +499,10 @@ class _MappedTable(dict):
         Returns:
             str: error or empty string if item is OK
         """
-        missing = []
-        for key_set in item.unique_keys:
-            missing = [key for key in key_set if key not in item]
-            if not missing:
-                return ""
-            missing = [key for key in missing if item.corresponding_unique_id_keys.get(key) not in item]
-            if not missing:
-                return ""
-        return f"missing values for unique keys {missing}" if missing else ""
+        for required_key_set in item.required_key_combinations:
+            if not any(key in item for key in required_key_set):
+                return f"missing {' or '.join(required_key_set)}"
+        return ""
 
     def _prepare_item(self, candidate_item, current_item, original_item):
         """Prepares item for insertion or update, returns any errors.
@@ -691,8 +686,8 @@ class MappedItemBase(dict):
     """A dictionary mapping fields to their default values."""
     unique_keys = ()
     """A tuple where each element is itself a tuple of fields corresponding to a unique key."""
-    corresponding_unique_id_keys = {}
-    """A dictionary mapping unique keys to corresponding id keys."""
+    required_key_combinations = ()
+    """Tuple containing tuples of required keys and their possible alternatives."""
     _references = {}
     """A dictionary mapping source fields, to a tuple of reference item type and reference field.
     Used to access external fields.
@@ -943,11 +938,11 @@ class MappedItemBase(dict):
 
     @classmethod
     def unique_values_for_item(cls, item, skip_keys=()):
-        for key in cls.unique_keys:
-            if key not in skip_keys:
-                value = tuple(item.get(k) for k in key)
+        for key_set in cls.unique_keys:
+            if key_set not in skip_keys:
+                value = tuple(item.get(key) for key in key_set)
                 if None not in value:
-                    yield key, value
+                    yield key_set, value
 
     def unique_key_values(self, skip_keys=()):
         """Yields tuples of unique keys and their values.
@@ -1199,7 +1194,7 @@ class MappedItemBase(dict):
             referrer.cascade_remove_unique()
 
     def is_committed(self):
-        """Returns whether or not this item is committed to the DB.
+        """Returns whether this item is committed to the DB.
 
         Returns:
             bool

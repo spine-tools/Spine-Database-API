@@ -877,7 +877,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
     def test_add_alternative_without_name_gives_error(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             item, error = db_map.add_alternative_item()
-            self.assertEqual(error, "missing values for unique keys ['name']")
+            self.assertEqual(error, "missing name")
             self.assertIsNone(item)
 
     def test_byname_versus_element_name_list(self):
@@ -990,7 +990,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             original_scenario = self._assert_success(db_map.add_scenario_item(name="high lows"))
             scenario_alternative = self._assert_success(
-                db_map.add_scenario_alternative_item(scenario_name="high lows", alternative_name="Base")
+                db_map.add_scenario_alternative_item(scenario_name="high lows", alternative_name="Base", rank=1)
             )
             original_scenario.remove()
             self.assertFalse(scenario_alternative.is_valid())
@@ -1741,6 +1741,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 display_background_color="gggggg",
             )
             self.assertEqual(error, "invalid display_background_color for entity_class_display_mode")
+
+    def test_missing_unique_key_in_non_first_unique_key_set_gets_caught(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_scenario_item(name="Keys"))
+            self._assert_success(db_map.add_alternative_item(name="ctrl"))
+            _, error = db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="ctrl")
+            self.assertEqual(error, "missing rank")
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
