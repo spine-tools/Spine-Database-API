@@ -760,7 +760,7 @@ class ParameterTypeItem(MappedItemBase):
     }
     unique_keys = (("entity_class_name", "parameter_definition_name", "type", "rank"),)
     required_key_combinations = (
-        ("entity_class_name", "entity_class_id"),
+        ("entity_class_name", "entity_class_id", "parameter_definition_id"),
         ("parameter_definition_name", "parameter_definition_id"),
         ("type",),
         ("rank",),
