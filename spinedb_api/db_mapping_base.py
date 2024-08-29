@@ -175,6 +175,9 @@ class DatabaseMappingBase:
                     to_add.append(item)
                 elif item.status == Status.to_update:
                     to_update.append(item)
+                if item.replaced_item_waiting_for_removal is not None:
+                    to_remove.append(item.replaced_item_waiting_for_removal)
+                    item.replaced_item_waiting_for_removal = None
             if item_type in purged_item_types:
                 to_remove.append(mapped_table.wildcard_item)
                 to_remove.extend(mapped_table.values())
@@ -183,6 +186,9 @@ class DatabaseMappingBase:
                     item.validate()
                     if item.status == Status.to_remove and item.has_valid_id:
                         to_remove.append(item)
+                    if item.status == Status.added_and_removed and item.replaced_item_waiting_for_removal is not None:
+                        to_remove.append(item.replaced_item_waiting_for_removal)
+                        item.replaced_item_waiting_for_removal = None
             if to_add or to_update or to_remove:
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items
@@ -583,7 +589,10 @@ class _MappedTable(dict):
         mapped_item = self.find_item_by_unique_key(item, fetch=False, valid_only=False)
         if mapped_item and (is_db_clean or self._same_item(mapped_item, item)):
             mapped_item.force_id(item["id"])
-            if mapped_item.status == Status.to_add:
+            if mapped_item.status == Status.to_add and (
+                mapped_item.replaced_item_waiting_for_removal is None
+                or mapped_item.replaced_item_waiting_for_removal["id"].db_id != item["id"]
+            ):
                 # We could test if the non-unique fields of mapped_item and db item are equal
                 # and set status to Status.committed
                 # but that is potentially complex operation (for e.g. large parameter values)
@@ -736,6 +745,7 @@ class MappedItemBase(dict):
         self._removal_source = None
         self._status_when_removed = None
         self._status_when_committed = None
+        self.replaced_item_waiting_for_removal = None
         self._backup = None
         self.public_item = PublicItem(self)
 
