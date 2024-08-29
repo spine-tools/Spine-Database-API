@@ -1182,13 +1182,19 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.fetch_more("parameter_value_list")
                 value_list = db_map.get_parameter_value_list_item(name="yes_no")
                 value_list.remove()
-                self._assert_success(db_map.add_parameter_value_list_item(name="yes_no"))
+                new_value_list = self._assert_success(db_map.add_parameter_value_list_item(name="yes_no"))
                 self._assert_success(
                     db_map.add_list_value_item(
                         parameter_value_list_name="yes_no", index=0, value=value, type=value_type
                     )
                 )
                 db_map.commit_session("Readd value list.")
+                self.assertIsNone(new_value_list.mapped_item.replaced_item_waiting_for_removal)
+                list_values = db_map.get_list_value_items()
+                self.assertEqual(len(list_values), 1)
+                self.assertEqual(list_values[0]["parameter_value_list_name"], "yes_no")
+                self.assertEqual(from_database(list_values[0]["value"], list_values[0]["type"]), "yes")
+                self.assertIsNone(list_values[0].mapped_item.replaced_item_waiting_for_removal)
 
     def test_add_referrer_called_only_once_for_fetched_items(self):
         with TemporaryDirectory() as temp_dir:
@@ -1748,6 +1754,94 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self._assert_success(db_map.add_alternative_item(name="ctrl"))
             _, error = db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="ctrl")
             self.assertEqual(error, "missing rank")
+
+    def test_list_values_get_removed_in_cascade_even_when_they_havent_been_fetched(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_parameter_value_list_item(name="Enum"))
+                value, value_type = to_database("yes!")
+                self._assert_success(
+                    db_map.add_list_value_item(parameter_value_list_name="Enum", index=1, value=value, type=value_type)
+                )
+                db_map.commit_session("Add value list")
+            with DatabaseMapping(url) as db_map:
+                value_list = db_map.get_parameter_value_list_item(name="Enum")
+                value_list.remove()
+                db_map.commit_session("Remove value list")
+            with DatabaseMapping(url) as db_map:
+                list_value_rows = db_map.query(db_map.list_value_sq).all()
+                self.assertEqual(len(list_value_rows), 0)
+
+    def test_scenario_alternative_ids_dont_get_messed_up(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_scenario_item(name="Keys"))
+            self._assert_success(db_map.add_alternative_item(name="ctrl"))
+            self._assert_success(db_map.add_alternative_item(name="alt"))
+            original_base = self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="Base", rank=1)
+            )
+            original_ctrl = self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="ctrl", rank=2)
+            )
+            original_alt = self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="alt", rank=3)
+            )
+            db_map.commit_session("Add scenario")
+            self._assert_success(original_base.remove())
+            self._assert_success(original_ctrl.remove())
+            self._assert_success(original_alt.remove())
+            shuffled_alt = self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="alt", rank=1)
+            )
+            self._assert_success(shuffled_alt.remove())
+            db_map.commit_session("Shuffled scenario alternatives")
+            scenario_alternatives = db_map.get_scenario_alternative_items()
+            self.assertEqual(len(scenario_alternatives), 0)
+
+    def test_swapping_scenario_alternatives_then_deleting_highest_rank_doesnt_violate_unique_constraints(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_scenario_item(name="Keys"))
+            self._assert_success(db_map.add_alternative_item(name="alt"))
+            self._assert_success(db_map.add_alternative_item(name="ctrl"))
+            original_alt = self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="alt", rank=1)
+            )
+            original_ctrl = self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="ctrl", rank=2)
+            )
+            db_map.commit_session("Add scenario")
+            self._assert_success(original_alt.remove())
+            self._assert_success(original_ctrl.remove())
+            self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="ctrl", rank=1)
+            )
+            shuffled_alt = self._assert_success(
+                db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="alt", rank=2)
+            )
+            self._assert_success(shuffled_alt.remove())
+            db_map.commit_session("Shuffled scenario alternatives")
+            scenario_alternatives = db_map.get_scenario_alternative_items()
+            self.assertEqual(len(scenario_alternatives), 1)
+
+    def test_restore_item_whose_db_id_has_been_invalidated_by_id(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_alternative_item(name="alt"))
+                db_map.commit_session("Add alternative")
+            with DatabaseMapping(url) as db_map:
+                alternative_in_db = db_map.get_alternative_item(name="alt")
+                self.assertNotEqual(alternative_in_db, {})
+                alternative_in_db.remove()
+                replacement_alternative = self._assert_success(db_map.add_alternative_item(name="alt"))
+                db_map.commit_session("Replace alternative")
+                self._assert_success(replacement_alternative.remove())
+                self._assert_success(alternative_in_db.restore())
+                db_map.commit_session("No net changes")
+            with DatabaseMapping(url) as db_map:
+                restored_alternative = db_map.get_alternative_item(name="alt")
+                self.assertEqual(restored_alternative["name"], "alt")
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
@@ -4264,7 +4358,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 db_map.commit_session("Add initial data.")
                 items = db_map.fetch_more("entity")
                 self.assertEqual(len(items), 1)
-                db_map.remove_item("entity", original_id)
+                self._assert_success(db_map.remove_item("entity", original_id))
                 db_map.commit_session("Removed entity.")
                 self.assertEqual(len(db_map.get_entity_items()), 0)
                 with DatabaseMapping(url) as shadow_db_map:
@@ -4278,8 +4372,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self.assertEqual(items[0]["name"], "other_entity")
                 all_items = db_map.get_entity_items()
                 self.assertEqual(len(all_items), 1)
-                restored_item, error = db_map.restore_item("entity", original_id)
-                self.assertEqual(error, "")
+                restored_item = self._assert_success(db_map.restore_item("entity", original_id))
                 self.assertEqual(restored_item["name"], "my_entity")
                 all_items = db_map.get_entity_items()
                 self.assertEqual(len(all_items), 2)

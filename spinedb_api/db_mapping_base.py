@@ -144,7 +144,7 @@ class DatabaseMappingBase:
 
     def make_item(self, item_type, **item):
         factory = self.item_factory(item_type)
-        return factory(self, item_type, **item)
+        return factory(self, **item)
 
     def dirty_ids(self, item_type):
         return {
@@ -175,6 +175,9 @@ class DatabaseMappingBase:
                     to_add.append(item)
                 elif item.status == Status.to_update:
                     to_update.append(item)
+                if item.replaced_item_waiting_for_removal is not None:
+                    to_remove.append(item.replaced_item_waiting_for_removal)
+                    item.replaced_item_waiting_for_removal = None
             if item_type in purged_item_types:
                 to_remove.append(mapped_table.wildcard_item)
                 to_remove.extend(mapped_table.values())
@@ -183,6 +186,9 @@ class DatabaseMappingBase:
                     item.validate()
                     if item.status == Status.to_remove and item.has_valid_id:
                         to_remove.append(item)
+                    if item.status == Status.added_and_removed and item.replaced_item_waiting_for_removal is not None:
+                        to_remove.append(item.replaced_item_waiting_for_removal)
+                        item.replaced_item_waiting_for_removal = None
             if to_add or to_update or to_remove:
                 dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items
@@ -367,7 +373,8 @@ class _MappedTable(dict):
         self._item_type = item_type
         self._ids_by_unique_key_value = {}
         self._temp_id_lookup = {}
-        self.wildcard_item = MappedItemBase(self._db_map, self._item_type, id=Asterisk)
+        self.wildcard_item = MappedItemBase(self._db_map, id=Asterisk)
+        self.wildcard_item.item_type = self._item_type
 
     @property
     def purged(self):
@@ -582,7 +589,10 @@ class _MappedTable(dict):
         mapped_item = self.find_item_by_unique_key(item, fetch=False, valid_only=False)
         if mapped_item and (is_db_clean or self._same_item(mapped_item, item)):
             mapped_item.force_id(item["id"])
-            if mapped_item.status == Status.to_add:
+            if mapped_item.status == Status.to_add and (
+                mapped_item.replaced_item_waiting_for_removal is None
+                or mapped_item.replaced_item_waiting_for_removal["id"].db_id != item["id"]
+            ):
                 # We could test if the non-unique fields of mapped_item and db item are equal
                 # and set status to Status.committed
                 # but that is potentially complex operation (for e.g. large parameter values)
@@ -679,6 +689,7 @@ class _MappedTable(dict):
 class MappedItemBase(dict):
     """A dictionary that represents a db item."""
 
+    item_type = "not implemented"
     fields = {}
     """A dictionary mapping fields to a another dict mapping "type" to a Python type,
     "value" to a description of the value for the key, and "optional" to a bool."""
@@ -714,14 +725,14 @@ class MappedItemBase(dict):
     """A set with fields that should be ignored in validations."""
     is_protected = False
 
-    def __init__(self, db_map, item_type, **kwargs):
+    def __init__(self, db_map, **kwargs):
         """
         Args:
             db_map (DatabaseMappingBase): the DB where this item belongs.
+            **kwargs: parameter passed to dict constructor
         """
         super().__init__(**kwargs)
         self._db_map = db_map
-        self._item_type = item_type
         self._referrers = {}
         self._weak_referrers = {}
         self.restore_callbacks = set()
@@ -734,6 +745,7 @@ class MappedItemBase(dict):
         self._removal_source = None
         self._status_when_removed = None
         self._status_when_committed = None
+        self.replaced_item_waiting_for_removal = None
         self._backup = None
         self.public_item = PublicItem(self)
 
@@ -798,15 +810,6 @@ class MappedItemBase(dict):
         return self._removed
 
     @property
-    def item_type(self):
-        """Returns this item's type
-
-        Returns:
-            str
-        """
-        return self._item_type
-
-    @property
     def key(self):
         """Returns a tuple (item_type, id) for convenience, or None if this item doesn't yet have an id.
 
@@ -816,7 +819,7 @@ class MappedItemBase(dict):
         id_ = dict.get(self, "id")
         if not isinstance(id_, TempId):
             return None
-        return (self._item_type, id_)
+        return (self.item_type, id_)
 
     @property
     def has_valid_id(self):
@@ -890,7 +893,7 @@ class MappedItemBase(dict):
             MappedItemBase
         """
         if self.status == Status.to_update:
-            db_item = self._db_map.make_item(self._item_type, **self.backup)
+            db_item = self._db_map.make_item(self.item_type, **self.backup)
             db_item.polish()
             return db_item
         return self
@@ -1181,14 +1184,14 @@ class MappedItemBase(dict):
 
     def cascade_add_unique(self):
         """Adds item and all its referrers unique keys and ids in cascade."""
-        mapped_table = self._db_map.mapped_table(self._item_type)
+        mapped_table = self._db_map.mapped_table(self.item_type)
         mapped_table.add_unique(self)
         for referrer in self._referrers.values():
             referrer.cascade_add_unique()
 
     def cascade_remove_unique(self):
         """Removes item and all its referrers unique keys and ids in cascade."""
-        mapped_table = self._db_map.mapped_table(self._item_type)
+        mapped_table = self._db_map.mapped_table(self.item_type)
         mapped_table.remove_unique(self)
         for referrer in self._referrers.values():
             referrer.cascade_remove_unique()
@@ -1210,7 +1213,7 @@ class MappedItemBase(dict):
 
     def __repr__(self):
         """Overridden to return a more verbose representation."""
-        return f"{self._item_type}{self._extended()}"
+        return f"{self.item_type}{self._extended()}"
 
     def __getattr__(self, name):
         """Overridden to return the dictionary key named after the attribute, or None if it doesn't exist."""

@@ -278,14 +278,22 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                     f"one. This database cannot be reverted back to an older version."
                     f"<ul>"
                     f"  <li>If you have installed through pip, and there is "
-                    f"<a href=""https://github.com/spine-tools/Spine-Toolbox#upgrade-when-using-pipx"">no newer "
+                    f"<a href="
+                    "https://github.com/spine-tools/Spine-Toolbox#upgrade-when-using-pipx"
+                    ">no newer "
                     f"Toolbox version available</a>, you need to "
-                    f"<a href=""https://github.com/spine-tools/Spine-Toolbox#installation-from-sources-using-git"">"
+                    f"<a href="
+                    "https://github.com/spine-tools/Spine-Toolbox#installation-from-sources-using-git"
+                    ">"
                     f"install using git</a> or wait for the next release (could be a month).</li>"
                     f"  <li>If you have grabbed a Toolbox zip-file, then you need to try to "
-                    f"<a href=""https://github.com/spine-tools/Spine-Toolbox#installation-with-python-and-pipx"">"
+                    f"<a href="
+                    "https://github.com/spine-tools/Spine-Toolbox#installation-with-python-and-pipx"
+                    ">"
                     f"install using pip</a> or, to be safe, "
-                    f"<a href=""https://github.com/spine-tools/Spine-Toolbox#installation-from-sources-using-git"">"
+                    f"<a href="
+                    "https://github.com/spine-tools/Spine-Toolbox#installation-from-sources-using-git"
+                    ">"
                     f"install from sources using git</a> to get the latest Spine Toolbox."
                 )
                 option_to_kwargs = {}
@@ -552,7 +560,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 self._mapped_tables[table].purged for table in existing_item.ref_types() if table in self._mapped_tables
             )
         ):
-            checked_item.status = Status.to_update
+            checked_item.replaced_item_waiting_for_removal = existing_item
         return checked_item.public_item, error
 
     def add_items(self, item_type, *items, check=True, strict=False):
@@ -731,7 +739,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
         restored_item = mapped_table.restore_item(id_)
-        return (restored_item.public_item, "") if restored_item else (None, "failed to restore item")
+        return (restored_item.public_item, None) if restored_item else (None, "failed to restore item")
 
     def restore_items(self, item_type, *ids):
         """Restores many previously removed items into the in-memory mapping.

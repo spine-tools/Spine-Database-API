@@ -66,18 +66,18 @@ class TestMappedTable(unittest.TestCase):
 class TestMappedItemBase(unittest.TestCase):
     def test_id_is_valid_initially(self):
         db_map = TestDBMapping()
-        item = MappedItemBase(db_map, "cutlery")
+        item = MappedItemBase(db_map)
         self.assertTrue(item.has_valid_id)
 
     def test_id_can_be_invalidated(self):
         db_map = TestDBMapping()
-        item = MappedItemBase(db_map, "cutlery")
+        item = MappedItemBase(db_map)
         item.invalidate_id()
         self.assertFalse(item.has_valid_id)
 
     def test_setting_new_id_validates_it(self):
         db_map = TestDBMapping()
-        item = MappedItemBase(db_map, "cutlery")
+        item = MappedItemBase(db_map)
         item.invalidate_id()
         self.assertFalse(item.has_valid_id)
         item["id"] = 23

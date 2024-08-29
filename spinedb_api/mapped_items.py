@@ -9,6 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
+import inspect
 from operator import itemgetter
 import re
 from .db_mapping_base import MappedItemBase
@@ -27,27 +28,7 @@ from .parameter_value import (
 
 
 def item_factory(item_type):
-    return {
-        "commit": CommitItem,
-        "entity_class": EntityClassItem,
-        "superclass_subclass": SuperclassSubclassItem,
-        "entity": EntityItem,
-        "entity_alternative": EntityAlternativeItem,
-        "entity_group": EntityGroupItem,
-        "display_mode": DisplayModeItem,
-        "entity_class_display_mode": EntityClassDisplayModeItem,
-        "parameter_definition": ParameterDefinitionItem,
-        "parameter_type": ParameterTypeItem,
-        "parameter_value": ParameterValueItem,
-        "parameter_value_list": ParameterValueListItem,
-        "list_value": ListValueItem,
-        "alternative": AlternativeItem,
-        "scenario": ScenarioItem,
-        "scenario_alternative": ScenarioAlternativeItem,
-        "metadata": MetadataItem,
-        "entity_metadata": EntityMetadataItem,
-        "parameter_value_metadata": ParameterValueMetadataItem,
-    }.get(item_type, MappedItemBase)
+    return ITEM_CLASS_BY_TYPE.get(item_type, MappedItemBase)
 
 
 _ENTITY_BYNAME_VALUE = (
@@ -57,6 +38,7 @@ _ENTITY_BYNAME_VALUE = (
 
 
 class CommitItem(MappedItemBase):
+    item_type = "commit"
     fields = {
         "comment": {"type": str, "value": "A comment describing the commit."},
         "date": {"type": str, "value": "Date and time of the commit in ISO 8601 format."},
@@ -71,6 +53,7 @@ class CommitItem(MappedItemBase):
 
 
 class EntityClassItem(MappedItemBase):
+    item_type = "entity_class"
     fields = {
         "name": {"type": str, "value": "The class name."},
         "dimension_name_list": {
@@ -138,6 +121,7 @@ class EntityClassItem(MappedItemBase):
 
 
 class EntityItem(MappedItemBase):
+    item_type = "entity"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "name": {"type": str, "value": "The entity name."},
@@ -282,6 +266,7 @@ class EntityItem(MappedItemBase):
 
 
 class EntityGroupItem(MappedItemBase):
+    item_type = "entity_group"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "group_name": {"type": str, "value": "The group entity name."},
@@ -327,6 +312,7 @@ class EntityGroupItem(MappedItemBase):
 
 
 class EntityAlternativeItem(MappedItemBase):
+    item_type = "entity_alternative"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "entity_byname": {
@@ -374,6 +360,7 @@ class EntityAlternativeItem(MappedItemBase):
 
 
 class DisplayModeItem(MappedItemBase):
+    item_type = "display_mode"
     fields = {
         "name": {"type": str, "value": "The display mode name."},
         "description": {"type": str, "value": "The display mode description.", "optional": True},
@@ -384,6 +371,7 @@ class DisplayModeItem(MappedItemBase):
 
 
 class EntityClassDisplayModeItem(MappedItemBase):
+    item_type = "entity_class_display_mode"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "display_mode_name": {"type": int, "value": "The display mode name."},
@@ -565,6 +553,7 @@ class ParameterItemBase(ParsedValueBase):
 
 
 class ParameterDefinitionItem(ParameterItemBase):
+    item_type = "parameter_definition"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "name": {"type": str, "value": "The parameter name."},
@@ -598,8 +587,8 @@ class ParameterDefinitionItem(ParameterItemBase):
         "parameter_value_list_id": (("parameter_value_list_name",), "id"),
     }
 
-    def __init__(self, db_map, item_type, **kwargs):
-        super().__init__(db_map, item_type, **kwargs)
+    def __init__(self, db_map, **kwargs):
+        super().__init__(db_map, **kwargs)
         self._init_type_list = kwargs.get("parameter_type_list")
 
     @property
@@ -752,6 +741,7 @@ class ParameterDefinitionItem(ParameterItemBase):
 
 
 class ParameterTypeItem(MappedItemBase):
+    item_type = "parameter_type"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "parameter_definition_name": {"type": str, "value": "The parameter name."},
@@ -760,7 +750,7 @@ class ParameterTypeItem(MappedItemBase):
     }
     unique_keys = (("entity_class_name", "parameter_definition_name", "type", "rank"),)
     required_key_combinations = (
-        ("entity_class_name", "entity_class_id"),
+        ("entity_class_name", "entity_class_id", "parameter_definition_id"),
         ("parameter_definition_name", "parameter_definition_id"),
         ("type",),
         ("rank",),
@@ -804,6 +794,7 @@ class ParameterTypeItem(MappedItemBase):
 
 
 class ParameterValueItem(ParameterItemBase):
+    item_type = "parameter_value"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "parameter_definition_name": {"type": str, "value": "The parameter name."},
@@ -881,12 +872,14 @@ class ParameterValueItem(ParameterItemBase):
 
 
 class ParameterValueListItem(MappedItemBase):
+    item_type = "parameter_value_list"
     fields = {"name": {"type": str, "value": "The parameter value list name."}}
     unique_keys = (("name",),)
     required_key_combinations = (("name",),)
 
 
 class ListValueItem(ParsedValueBase):
+    item_type = "list_value"
     fields = {
         "parameter_value_list_name": {"type": str, "value": "The parameter value list name."},
         "value": {"type": bytes, "value": "The value."},
@@ -926,6 +919,7 @@ class ListValueItem(ParsedValueBase):
 
 
 class AlternativeItem(MappedItemBase):
+    item_type = "alternative"
     fields = {
         "name": {"type": str, "value": "The alternative name."},
         "description": {"type": str, "value": "The alternative description.", "optional": True},
@@ -936,6 +930,7 @@ class AlternativeItem(MappedItemBase):
 
 
 class ScenarioItem(MappedItemBase):
+    item_type = "scenario"
     fields = {
         "name": {"type": str, "value": "The scenario name."},
         "description": {"type": str, "value": "The scenario description.", "optional": True},
@@ -964,6 +959,7 @@ class ScenarioItem(MappedItemBase):
 
 
 class ScenarioAlternativeItem(MappedItemBase):
+    item_type = "scenario_alternative"
     fields = {
         "scenario_name": {"type": str, "value": "The scenario name."},
         "alternative_name": {"type": str, "value": "The alternative name."},
@@ -993,6 +989,7 @@ class ScenarioAlternativeItem(MappedItemBase):
 
 
 class MetadataItem(MappedItemBase):
+    item_type = "metadata"
     fields = {
         "name": {"type": str, "value": "The metadata entry name."},
         "value": {"type": str, "value": "The metadata entry value."},
@@ -1002,6 +999,7 @@ class MetadataItem(MappedItemBase):
 
 
 class EntityMetadataItem(MappedItemBase):
+    item_type = "entity_metadata"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "entity_byname": {"type": tuple, "value": _ENTITY_BYNAME_VALUE},
@@ -1039,6 +1037,7 @@ class EntityMetadataItem(MappedItemBase):
 
 
 class ParameterValueMetadataItem(MappedItemBase):
+    item_type = "parameter_value_metadata"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "parameter_definition_name": {"type": str, "value": "The parameter name."},
@@ -1094,6 +1093,7 @@ class ParameterValueMetadataItem(MappedItemBase):
 
 
 class SuperclassSubclassItem(MappedItemBase):
+    item_type = "superclass_subclass"
     fields = {
         "superclass_name": {"type": str, "value": "The superclass name."},
         "subclass_name": {"type": str, "value": "The subclass name."},
@@ -1124,3 +1124,9 @@ class SuperclassSubclassItem(MappedItemBase):
 
     def commit(self, _commit_id):
         super().commit(None)
+
+
+ITEM_CLASSES = tuple(
+    x for x in tuple(locals().values()) if inspect.isclass(x) and issubclass(x, MappedItemBase) and x != MappedItemBase
+)
+ITEM_CLASS_BY_TYPE = {klass.item_type: klass for klass in ITEM_CLASSES}
