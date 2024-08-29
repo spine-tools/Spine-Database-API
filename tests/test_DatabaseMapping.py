@@ -1749,6 +1749,24 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             _, error = db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="ctrl")
             self.assertEqual(error, "missing rank")
 
+    def test_list_values_get_removed_in_cascade_even_when_they_havent_been_fetched(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_parameter_value_list_item(name="Enum"))
+                value, value_type = to_database("yes!")
+                self._assert_success(
+                    db_map.add_list_value_item(parameter_value_list_name="Enum", index=1, value=value, type=value_type)
+                )
+                db_map.commit_session("Add value list")
+            with DatabaseMapping(url) as db_map:
+                value_list = db_map.get_parameter_value_list_item(name="Enum")
+                value_list.remove()
+                db_map.commit_session("Remove value list")
+            with DatabaseMapping(url) as db_map:
+                list_value_rows = db_map.query(db_map.list_value_sq).all()
+                self.assertEqual(len(list_value_rows), 0)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
