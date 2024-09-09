@@ -873,7 +873,7 @@ class MappedItemBase(dict):
             return None, ""
         merged = {**self._extended(), **other}
         if not isinstance(merged["id"], int):
-            merged["id"] = self["id"]
+            merged["id"] = dict.__getitem__(self, "id")
         return merged, ""
 
     def _something_to_update(self, other):
@@ -936,11 +936,11 @@ class MappedItemBase(dict):
         if isinstance(src_val, tuple):
             ref = tuple(find_by_id(x) for x in src_val)
             if all(ref):
-                self[src_key] = tuple(r["id"] for r in ref)
+                self[src_key] = tuple(dict.__getitem__(r, "id") for r in ref)
             return ref
         ref = find_by_id(src_val)
         if ref:
-            self[src_key] = ref["id"]
+            self[src_key] = dict.__getitem__(ref, "id")
         return ref
 
     @classmethod
@@ -1269,7 +1269,7 @@ class MappedItemBase(dict):
                         self._invalidate_ref(ref_type, {"id": x})
                 else:
                     self._invalidate_ref(ref_type, {"id": src_val})
-        id_ = self["id"]
+        id_ = dict.__getitem__(self, "id")
         super().update(other)
         self["id"] = id_
         if self._asdict() == self._backup:
@@ -1282,14 +1282,14 @@ class MappedItemBase(dict):
         Args:
             id_ (int): The most recent id_ of the item as fetched from the DB.
         """
-        mapped_id = self["id"]
+        mapped_id = dict.__getitem__(self, "id")
         if mapped_id == id_:
             return
         mapped_id.resolve(id_)
 
     def handle_id_steal(self):
         """Called when a new item is fetched from the DB with this item's id."""
-        self["id"].unresolve()
+        dict.__getitem__(self, "id").unresolve()
         # TODO: Test if the below works...
         if self.is_committed():
             self._status = self._status_when_committed
