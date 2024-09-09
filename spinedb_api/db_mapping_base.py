@@ -112,12 +112,10 @@ class DatabaseMappingBase:
                 qry = qry.filter(getattr(sq.c, key) == value)
             elif key in self.item_factory(item_type)._external_fields:
                 src_key, key = self.item_factory(item_type)._external_fields[key]
-                ref_type, ref_key = self.item_factory(item_type)._references[src_key]
+                ref_type = self.item_factory(item_type)._references[src_key]
                 ref_sq = self._make_sq(ref_type)
                 try:
-                    qry = qry.filter(
-                        getattr(sq.c, src_key) == getattr(ref_sq.c, ref_key), getattr(ref_sq.c, key) == value
-                    )
+                    qry = qry.filter(getattr(sq.c, src_key) == getattr(ref_sq.c, "id"), getattr(ref_sq.c, key) == value)
                 except AttributeError:
                     pass
         return qry
@@ -332,6 +330,7 @@ class DatabaseMappingBase:
         # Otherwise items that refer to other items that come later in the query will be seen as corrupted
         for item in new_items:
             mapped_table.add_unique(item)
+            item.become_referrer()
         return items
 
     def _get_commit_count(self):
@@ -651,6 +650,7 @@ class _MappedTable(dict):
     def add_item(self, item):
         item = self._make_and_add_item(item)
         self.add_unique(item)
+        item.become_referrer()
         item.status = Status.to_add
         item.added_to_mapped_table()
         return item
@@ -700,9 +700,12 @@ class MappedItemBase(dict):
     required_key_combinations = ()
     """Tuple containing tuples of required keys and their possible alternatives."""
     _references = {}
-    """A dictionary mapping source fields, to a tuple of reference item type and reference field.
+    """A dictionary mapping source fields to reference item type.
     Used to access external fields.
     """
+    _weak_references = {}
+    """A dictionary mapping source field, to a tuple of reference item type.
+    Used to access external fields that may be None."""
     _soft_references = set()
     """A set of reference source fields that are OK to have no external field value."""
     _external_fields = {}
@@ -766,7 +769,7 @@ class MappedItemBase(dict):
         Returns:
             set(str)
         """
-        return set(ref_type for ref_type, _ref_key in cls._references.values())
+        return set(cls._references.values())
 
     @property
     def db_map(self) -> DatabaseMappingBase:
@@ -914,8 +917,8 @@ class MappedItemBase(dict):
         Yields:
             tuple(str,MappedItem or None): the source field and resolved ref.
         """
-        for src_key, (ref_type, ref_key) in self._references.items():
-            ref = self._get_full_ref(src_key, ref_type, ref_key)
+        for src_key, ref_type in self._references.items():
+            ref = self._get_full_ref(src_key, ref_type)
             if not ref and src_key in self._soft_references:
                 continue
             if isinstance(ref, tuple):
@@ -924,18 +927,19 @@ class MappedItemBase(dict):
             else:
                 yield src_key, ref
 
-    def _get_full_ref(self, src_key, ref_type, ref_key, strong=True):
+    def _get_full_ref(self, src_key, ref_type):
         try:
             src_val = self[src_key]
         except KeyError:
             return {}
+        find_by_id = self._db_map.mapped_table(ref_type).find_item_by_id
         if isinstance(src_val, tuple):
-            ref = tuple(self._get_ref(ref_type, {ref_key: x}, strong=strong) for x in src_val)
-            if all(ref) and ref_key == "id":
+            ref = tuple(find_by_id(x) for x in src_val)
+            if all(ref):
                 self[src_key] = tuple(r["id"] for r in ref)
             return ref
-        ref = self._get_ref(ref_type, {ref_key: src_val}, strong=strong)
-        if ref and ref_key == "id":
+        ref = find_by_id(src_val)
+        if ref:
             self[src_key] = ref["id"]
         return ref
 
@@ -1017,31 +1021,6 @@ class MappedItemBase(dict):
         """
         return ""
 
-    def _get_ref(self, ref_type, key_val, strong=True):
-        """Collects a reference from the in-memory mapping.
-        Adds this item to the reference's list of referrers if strong is True;
-        or weak referrers if strong is False.
-
-        Args:
-            ref_type (str): The reference's type
-            key_val (dict): The reference's key and value to match
-            strong (bool): True if the reference corresponds to a foreign key, False otherwise
-
-        Returns:
-            MappedItemBase or dict
-        """
-        mapped_table = self._db_map.mapped_table(ref_type)
-        ref = mapped_table.find_item(key_val, fetch=True)
-        if not ref:
-            return {}
-        if strong:
-            ref.add_referrer(self)
-        else:
-            ref.add_weak_referrer(self)
-            if ref.removed:
-                return {}
-        return ref
-
     def _invalidate_ref(self, ref_type, key_val):
         """Invalidates a reference previously collected from the in-memory mapping.
 
@@ -1082,8 +1061,8 @@ class MappedItemBase(dict):
         """
         key = referrer.key
         if key is None:
-            return
-        self._referrers[key] = self._weak_referrers.pop(key, referrer)
+            raise RuntimeError("Referre's key is None")
+        self._referrers[key] = referrer
 
     def remove_referrer(self, referrer):
         """Removes a strong referrer.
@@ -1104,13 +1083,39 @@ class MappedItemBase(dict):
         """
         key = referrer.key
         if key is None:
-            return
-        if key not in self._referrers:
-            self._weak_referrers[key] = referrer
+            raise RuntimeError("Weak referrers key is None")
+        self._weak_referrers[key] = referrer
 
     def _update_weak_referrers(self):
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
+
+    def become_referrer(self):
+        for field, ref_table in self._references.items():
+            field_value = self[field]
+            if not field_value:
+                return
+            if isinstance(field_value, tuple):
+                for id_ in field_value:
+                    ref = self._db_map.mapped_table(ref_table).find_item_by_id(id_, fetch=False)
+                    if not ref:
+                        raise RuntimeError(f"Reference id {id_} not found")
+                    ref.add_referrer(self)
+            else:
+                ref = self._db_map.mapped_table(ref_table).find_item_by_id(field_value, fetch=False)
+                if not ref:
+                    raise RuntimeError(f"Reference id {field_value} not found")
+                ref.add_referrer(self)
+        for field, ref_table in self._weak_references.items():
+            try:
+                id_ = self[field]
+            except KeyError:
+                continue
+            if not id_:
+                continue
+            ref = self._db_map.mapped_table(ref_table).find_item_by_id(id_, fetch=False)
+            if ref:
+                ref.add_weak_referrer(self)
 
     def cascade_restore(self, source=None):
         """Restores this item (if removed) and all its referrers in cascade.
@@ -1226,8 +1231,8 @@ class MappedItemBase(dict):
         source_and_target_key = self._external_fields.get(key)
         if source_and_target_key:
             source_key, target_key = source_and_target_key
-            ref_type, ref_key = self._references[source_key]
-            ref = self._get_full_ref(source_key, ref_type, ref_key)
+            ref_type = self._references[source_key]
+            ref = self._get_full_ref(source_key, ref_type)
             if isinstance(ref, tuple):
                 return tuple(r.get(target_key) for r in ref)
             return ref.get(target_key)
@@ -1253,7 +1258,7 @@ class MappedItemBase(dict):
             self._backup = self._asdict()
         elif self._status in (Status.to_remove, Status.added_and_removed):
             raise RuntimeError("invalid status of item being updated")
-        for src_key, (ref_type, ref_key) in self._references.items():
+        for src_key, ref_type in self._references.items():
             src_val = self[src_key]
             if src_val is None and src_key in self._soft_references:
                 continue
@@ -1261,9 +1266,9 @@ class MappedItemBase(dict):
                 # Invalidate references
                 if isinstance(src_val, tuple):
                     for x in src_val:
-                        self._invalidate_ref(ref_type, {ref_key: x})
+                        self._invalidate_ref(ref_type, {"id": x})
                 else:
-                    self._invalidate_ref(ref_type, {ref_key: src_val})
+                    self._invalidate_ref(ref_type, {"id": src_val})
         id_ = self["id"]
         super().update(other)
         self["id"] = id_
