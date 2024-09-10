@@ -9,6 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
+from contextlib import suppress
 from difflib import SequenceMatcher
 from enum import Enum, auto, unique
 from multiprocessing import RLock
@@ -49,7 +50,7 @@ class DatabaseMappingBase:
         self._sorted_item_types = []
         while item_types:
             item_type = item_types.pop(0)
-            if self.item_factory(item_type).ref_types() & set(item_types):
+            if not self.item_factory(item_type).ref_types().isdisjoint(item_types):
                 item_types.append(item_type)
             else:
                 self._sorted_item_types.append(item_type)
@@ -257,8 +258,10 @@ class DatabaseMappingBase:
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
         self._add_descendants(item_types)
         for item_type in item_types:
-            self._mapped_tables.pop(item_type, None)
-            self._fetched.pop(item_type, None)
+            with suppress(KeyError):
+                del self._mapped_tables[item_type]
+            with suppress(KeyError):
+                del self._fetched[item_type]
 
     def reset_purging(self):
         """Resets purging status for all item types.
@@ -273,7 +276,7 @@ class DatabaseMappingBase:
         while True:
             changed = False
             for item_type in set(self.item_types()) - item_types:
-                if self.item_factory(item_type).ref_types() & item_types:
+                if not self.item_factory(item_type).ref_types().isdisjoint(item_types):
                     item_types.add(item_type)
                     changed = True
             if not changed:
