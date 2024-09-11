@@ -357,10 +357,13 @@ class DatabaseMappingBase:
         """
         if commit_count is None:
             commit_count = self._get_commit_count()
-        with self._locks.setdefault(item_type, RLock()):
-            if self._fetched.get(item_type, -1) < commit_count:
-                self._fetched[item_type] = commit_count
-                self.do_fetch_more(item_type, offset=0, limit=None)
+        if self._fetched.get(item_type, -1) < commit_count:
+            self._fetched[item_type] = commit_count
+            if item_type not in self._locks:
+                self._locks[item_type] = RLock()
+            lock = self._locks[item_type]
+            with lock:
+                self.do_fetch_more(item_type, offset=0, limit=None, commit_count=commit_count)
 
 
 class _MappedTable(dict):
@@ -550,7 +553,7 @@ class _MappedTable(dict):
     def item_to_remove_and_error(self, id_):
         if id_ is Asterisk:
             return self.wildcard_item, None
-        current_item = self.find_item({"id": id_})
+        current_item = self.find_item_by_id(id_)
         if not current_item:
             return None, None
         return current_item, current_item.check_mutability()
@@ -683,7 +686,7 @@ class _MappedTable(dict):
             for current_item in self.values():
                 current_item.cascade_restore()
             return self.wildcard_item
-        current_item = self.find_item({"id": id_})
+        current_item = self.find_item_by_id(id_)
         if current_item:
             current_item.cascade_restore()
         return current_item
