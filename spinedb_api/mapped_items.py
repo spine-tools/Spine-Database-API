@@ -253,15 +253,15 @@ class EntityItem(MappedItemBase):
             for dim_name, el_name in zip(dim_name_lst, el_name_lst):
                 if not self._db_map.get_item("entity", entity_class_name=dim_name, name=el_name, fetch=False):
                     return f"element '{el_name}' is not an instance of class '{dim_name}'"
-        if self.get("name") is not None:
+        if "name" in self:
             return
         base_name = name_from_elements(self["element_name_list"])
         name = base_name
         index = 1
         while any(
-            self._db_map.get_item("entity", entity_class_name=self[k], name=name)
+            self._db_map.get_item("entity", entity_class_name=class_name, name=name)
             for k in ("entity_class_name", "superclass_name")
-            if self[k] is not None
+            if (class_name := self[k]) is not None
         ):
             name = f"{base_name}_{index}"
             index += 1

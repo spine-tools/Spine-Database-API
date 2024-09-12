@@ -762,6 +762,7 @@ class MappedItemBase(dict):
         self._status_when_committed = None
         self.replaced_item_waiting_for_removal = None
         self._backup = None
+        self._referenced_value_cache = {}
         self.public_item = PublicItem(self)
 
     def handle_refetch(self):
@@ -991,6 +992,7 @@ class MappedItemBase(dict):
             error = self._do_resolve_internal_field(key)
             if error:
                 return error
+        self._referenced_value_cache.clear()
 
     def _do_resolve_internal_field(self, key):
         src_key, target_key = self._internal_fields[key]
@@ -1133,6 +1135,7 @@ class MappedItemBase(dict):
         """Restores this item (if removed) and all its referrers in cascade.
         Also, updates items' status and calls their restore callbacks.
         """
+        self._referenced_value_cache.clear()
         if not self._removed:
             return
         if source is not self._removal_source:
@@ -1187,6 +1190,7 @@ class MappedItemBase(dict):
         """
         if self._removed:
             return
+        self._referenced_value_cache.clear()
         self.call_update_callbacks()
         for referrer in self._referrers.values():
             referrer.cascade_update()
@@ -1201,6 +1205,7 @@ class MappedItemBase(dict):
 
     def cascade_add_unique(self):
         """Adds item and all its referrers unique keys and ids in cascade."""
+        self._referenced_value_cache.clear()
         mapped_table = self._db_map.mapped_table(self.item_type)
         mapped_table.add_unique(self)
         for referrer in self._referrers.values():
@@ -1242,12 +1247,18 @@ class MappedItemBase(dict):
         """Overridden to return references."""
         source_and_target_key = self._external_fields.get(key)
         if source_and_target_key:
+            if source_and_target_key in self._referenced_value_cache:
+                return self._referenced_value_cache[source_and_target_key]
             source_key, target_key = source_and_target_key
             ref_type = self._references[source_key]
             ref = self._get_full_ref(source_key, ref_type)
             if isinstance(ref, tuple):
-                return tuple(r.get(target_key) for r in ref)
-            return ref.get(target_key)
+                value = tuple(r.get(target_key) for r in ref)
+                self._referenced_value_cache[source_and_target_key] = value
+                return value
+            value = ref.get(target_key)
+            self._referenced_value_cache[source_and_target_key] = value
+            return value
         return super().__getitem__(key)
 
     def __setitem__(self, key, value):
