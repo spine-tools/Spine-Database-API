@@ -465,12 +465,9 @@ class _MappedTable(dict):
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch, valid_only=valid_only)
             if current_item:
                 return current_item
-        # Maybe item is missing some key stuff, so try with a resolved and polished MappedItem too...
+        # Maybe item is missing some key stuff, so try with a resolved MappedItem too...
         mapped_item = self._make_item(item)
         error = mapped_item.resolve_internal_fields(skip_keys=item.keys())
-        if error:
-            return {}
-        error = mapped_item.polish()
         if error:
             return {}
         for key, value in mapped_item.unique_key_values(skip_keys=skip_keys):
