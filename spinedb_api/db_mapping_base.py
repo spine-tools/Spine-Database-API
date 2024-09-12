@@ -416,8 +416,11 @@ class _MappedTable(dict):
 
     def _unique_key_value_to_item(self, key, value, fetch=True, valid_only=True):
         id_ = self._unique_key_value_to_id(key, value, fetch=fetch)
-        mapped_item = self.get(id_)
-        if mapped_item is None:
+        if id_ is None:
+            return None
+        try:
+            mapped_item = self[id_]
+        except KeyError:
             return None
         if valid_only and not mapped_item.is_valid():
             return None
@@ -460,11 +463,17 @@ class _MappedTable(dict):
             current_item = self.get(id_, {})
         return current_item
 
-    def find_item_by_unique_key(self, item, skip_keys=(), fetch=True, valid_only=True):
+    def _find_fully_qualified_item_by_unique_key(self, item, skip_keys, fetch, valid_only):
         for key, value in self._db_map.item_factory(self._item_type).unique_values_for_item(item, skip_keys=skip_keys):
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch, valid_only=valid_only)
             if current_item:
                 return current_item
+        return {}
+
+    def find_item_by_unique_key(self, item, skip_keys=(), fetch=True, valid_only=True):
+        current_item = self._find_fully_qualified_item_by_unique_key(item, skip_keys, fetch, valid_only)
+        if current_item:
+            return current_item
         # Maybe item is missing some key stuff, so try with a resolved MappedItem too...
         mapped_item = self._make_item(item)
         error = mapped_item.resolve_internal_fields(skip_keys=item.keys())
@@ -588,7 +597,7 @@ class _MappedTable(dict):
         Returns:
             tuple(MappedItem, bool): A mapped item and whether it needs to be added to the unique key values dict.
         """
-        mapped_item = self.find_item_by_unique_key(item, fetch=False, valid_only=False)
+        mapped_item = self._find_fully_qualified_item_by_unique_key(item, (), fetch=False, valid_only=False)
         if mapped_item and (is_db_clean or self._same_item(mapped_item, item)):
             mapped_item.force_id(item["id"])
             if mapped_item.status == Status.to_add and (
