@@ -1035,17 +1035,6 @@ class MappedItemBase(dict):
         """
         return ""
 
-    def _invalidate_ref(self, ref_type, key_val):
-        """Invalidates a reference previously collected from the in-memory mapping.
-
-        Args:
-            ref_type (str): The reference's type
-            key_val (dict): The reference's key and value to match
-        """
-        mapped_table = self._db_map.mapped_table(ref_type)
-        ref = mapped_table.find_item(key_val)
-        ref.remove_referrer(self)
-
     def is_valid(self):
         """Checks if this item has all its references.
         Removes the item from the in-memory mapping if not valid by calling ``cascade_remove``.
@@ -1277,22 +1266,28 @@ class MappedItemBase(dict):
 
     def update(self, other):
         """Overridden to update the item status and also to invalidate references that become obsolete."""
+
+        def invalidate_ref(ref_id):
+            ref = find_by_id(ref_id)
+            ref.remove_referrer(self)
+
         if self._status == Status.committed:
             self._status = Status.to_update
             self._backup = self._asdict()
         elif self._status in (Status.to_remove, Status.added_and_removed):
             raise RuntimeError("invalid status of item being updated")
         for src_key, ref_type in self._references.items():
+            find_by_id = self._db_map.mapped_table(ref_type).find_item_by_id
             src_val = self[src_key]
             if src_val is None and src_key in self._soft_references:
                 continue
             if src_key in other and other[src_key] != src_val:
                 # Invalidate references
                 if isinstance(src_val, tuple):
-                    for x in src_val:
-                        self._invalidate_ref(ref_type, {"id": x})
+                    for id_ in src_val:
+                        invalidate_ref(id_)
                 else:
-                    self._invalidate_ref(ref_type, {"id": src_val})
+                    invalidate_ref(src_val)
         id_ = dict.__getitem__(self, "id")
         super().update(other)
         self["id"] = id_
