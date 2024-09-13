@@ -1858,6 +1858,20 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 gadgets = db_map.get_items("entity", entity_class_name="Gadget")
                 self.assertEqual(len(gadgets), 1)
 
+    def test_add_parameter_definition_to_database_with_parameter_types_does_not_raise_key_error(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Key"))
+            repeat_rate = self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="repeat rate", entity_class_name="Key", parameter_type_list=("float",)
+                )
+            )
+            self.assertEqual(repeat_rate["parameter_type_list"], ("float",))
+            is_useful = self._assert_success(
+                db_map.add_parameter_definition_item(name="is useful", entity_class_name="Key")
+            )
+            self.assertNotEqual(is_useful, {})
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

@@ -626,11 +626,21 @@ class ParameterDefinitionItem(ParameterItemBase):
 
     def _sorted_parameter_types(self):
         self._db_map.do_fetch_all("parameter_type")
+        if "id" in self:
+            return sorted(
+                (
+                    x
+                    for x in self._db_map.mapped_table("parameter_type").valid_values()
+                    if x["parameter_definition_id"] == dict.__getitem__(self, "id")
+                ),
+                key=lambda i: (i["type"], i["rank"]),
+            )
         return sorted(
             (
                 x
                 for x in self._db_map.mapped_table("parameter_type").valid_values()
-                if x["parameter_definition_id"] == self["id"]
+                if x["parameter_definition_name"] == dict.__getitem__(self, "name")
+                and x["entity_class_name"] == dict.__getitem__(self, "entity_class_name")
             ),
             key=lambda i: (i["type"], i["rank"]),
         )
