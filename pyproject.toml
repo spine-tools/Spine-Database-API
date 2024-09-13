@@ -21,7 +21,7 @@ dependencies = [
     "numpy >=1.20.2",
     "scipy >=1.7.1",
     "openpyxl >=3.0.7, !=3.1.1",
-    "GDX2py >=2.1.1",
+    "GDX2py >=2.2.0",
     "ijson >=3.1.4",
     "chardet >=4.0.0",
     "PyMySQL >=1.0.2",

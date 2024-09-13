@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- ``GdxWriter`` now uses ``gamsapi`` module instead of ``gdxcc``.
+  A relatively recent version of GAMS may be needed to use the facility.
+
 ### Deprecated
 
 ### Removed

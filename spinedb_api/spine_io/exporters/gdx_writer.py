@@ -11,16 +11,16 @@
 ######################################################################################################################
 """ Module contains a .gdx writer implementation. """
 import math
+from gams.core import gdx
 from gdx2py import GAMSParameter, GAMSScalar, GAMSSet, GdxFile
 from gdx2py.gdxfile import EPS_VALUE
-import gdxcc
 from .writer import Writer, WriterException
 
 SPECIAL_CONVERSIONS = {
-    EPS_VALUE: gdxcc.GMS_SV_EPS,
-    1e-10: gdxcc.GMS_SV_EPS,
-    math.inf: gdxcc.GMS_SV_PINF,
-    -math.inf: gdxcc.GMS_SV_MINF,
+    EPS_VALUE: gdx.GMS_SV_EPS,
+    1e-10: gdx.GMS_SV_EPS,
+    math.inf: gdx.GMS_SV_PINF,
+    -math.inf: gdx.GMS_SV_MINF,
 }
 
 
@@ -135,8 +135,8 @@ def _convert_to_gams(x):
     """
     if not isinstance(x, float):
         if x == "EPS":
-            return gdxcc.GMS_SV_EPS
+            return gdx.GMS_SV_EPS
         return x
     if math.isnan(x):
-        return gdxcc.GMS_SV_UNDEF
+        return gdx.GMS_SV_UNDEF
     return SPECIAL_CONVERSIONS.get(x, x)
