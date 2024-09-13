@@ -13,6 +13,7 @@ from contextlib import suppress
 from difflib import SequenceMatcher
 from enum import Enum, auto, unique
 from multiprocessing import RLock
+from typing import Set
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
 from .temp_id import TempId, resolve
@@ -634,12 +635,13 @@ class _MappedTable(dict):
 
     def check_fields(self, item, valid_types=()):
         factory = self._db_map.item_factory(self._item_type)
+        field_union = factory.internal_external_private_fields() | {
+            "id",
+            "commit_id",
+        }
 
         def _error(key, value, valid_types):
-            if key in set(factory._internal_fields) | set(factory._external_fields) | factory._private_fields | {
-                "id",
-                "commit_id",
-            }:
+            if key in field_union:
                 # The user seems to know what they're doing
                 return
             f_dict = factory.fields.get(key)
@@ -780,9 +782,18 @@ class MappedItemBase(dict):
         """Returns a set of item types that this class refers.
 
         Returns:
-            set(str)
+            set of str
         """
         return set(cls._references.values())
+
+    @classmethod
+    def internal_external_private_fields(cls) -> Set[str]:
+        """Returns a union of internal, external and private fields.
+
+        Returns:
+            set of str: field union
+        """
+        return set(cls._internal_fields) | set(cls._external_fields) | cls._private_fields
 
     @property
     def db_map(self) -> DatabaseMappingBase:
