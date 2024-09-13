@@ -84,7 +84,8 @@ class EntityClassItem(MappedItemBase):
     }
     unique_keys = (("name",),)
     required_key_combinations = (("name",),)
-    _references = {"dimension_id_list": ("entity_class", "id")}
+    _references = {"dimension_id_list": "entity_class"}
+    _weak_references = {"superclass_name": "superclass_subclass"}
     _external_fields = {"dimension_name_list": ("dimension_id_list", "name")}
     _alt_references = {("dimension_name_list",): ("entity_class", ("name",))}
     _internal_fields = {"dimension_id_list": (("dimension_name_list",), "id")}
@@ -103,7 +104,8 @@ class EntityClassItem(MappedItemBase):
 
     def __getitem__(self, key):
         if key in ("superclass_id", "superclass_name"):
-            return self._get_ref("superclass_subclass", {"subclass_id": self["id"]}, strong=False).get(key)
+            mapped_table = self._db_map.mapped_table("superclass_subclass")
+            return mapped_table.find_item({"subclass_id": self["id"]}, fetch=True).get(key)
         return super().__getitem__(key)
 
     def merge(self, other):
@@ -136,7 +138,7 @@ class EntityItem(MappedItemBase):
     _defaults = {"description": None}
     unique_keys = (("entity_class_name", "name"), ("entity_class_name", "entity_byname"))
     required_key_combinations = (("name", "entity_byname"), ("entity_class_name", "class_id"))
-    _references = {"class_id": ("entity_class", "id"), "element_id_list": ("entity", "id")}
+    _references = {"class_id": "entity_class", "element_id_list": "entity"}
     _external_fields = {
         "entity_class_name": ("class_id", "name"),
         "dimension_id_list": ("class_id", "dimension_id_list"),
@@ -180,8 +182,9 @@ class EntityItem(MappedItemBase):
         if not element_id_list:
             yield entity["name"]
         else:
+            find_by_id = self._db_map.mapped_table("entity").find_item_by_id
             for el_id in element_id_list:
-                element = self._get_ref("entity", {"id": el_id})
+                element = find_by_id(el_id)
                 yield from self._byname_iter(element)
 
     def __getitem__(self, key):
@@ -250,15 +253,15 @@ class EntityItem(MappedItemBase):
             for dim_name, el_name in zip(dim_name_lst, el_name_lst):
                 if not self._db_map.get_item("entity", entity_class_name=dim_name, name=el_name, fetch=False):
                     return f"element '{el_name}' is not an instance of class '{dim_name}'"
-        if self.get("name") is not None:
+        if "name" in self:
             return
         base_name = name_from_elements(self["element_name_list"])
         name = base_name
         index = 1
         while any(
-            self._db_map.get_item("entity", entity_class_name=self[k], name=name)
+            self._db_map.get_item("entity", entity_class_name=class_name, name=name)
             for k in ("entity_class_name", "superclass_name")
-            if self[k] is not None
+            if (class_name := self[k]) is not None
         ):
             name = f"{base_name}_{index}"
             index += 1
@@ -279,9 +282,9 @@ class EntityGroupItem(MappedItemBase):
         ("member_name", "member_id"),
     )
     _references = {
-        "entity_class_id": ("entity_class", "id"),
-        "entity_id": ("entity", "id"),
-        "member_id": ("entity", "id"),
+        "entity_class_id": "entity_class",
+        "entity_id": "entity",
+        "member_id": "entity",
     }
     _external_fields = {
         "entity_class_name": ("entity_class_id", "name"),
@@ -334,9 +337,9 @@ class EntityAlternativeItem(MappedItemBase):
         ("alternative_name", "alternative_id"),
     )
     _references = {
-        "entity_id": ("entity", "id"),
-        "entity_class_id": ("entity_class", "id"),
-        "alternative_id": ("alternative", "id"),
+        "entity_id": "entity",
+        "entity_class_id": "entity_class",
+        "alternative_id": "alternative",
     }
     _external_fields = {
         "entity_class_id": ("entity_id", "class_id"),
@@ -393,8 +396,8 @@ class EntityClassDisplayModeItem(MappedItemBase):
     )
     required_key_combinations = (("entity_class_name", "entity_class_id"), ("display_mode_name", "display_mode_id"))
     _references = {
-        "entity_class_id": ("entity_class", "id"),
-        "display_mode_id": ("display_mode", "id"),
+        "entity_class_id": "entity_class",
+        "display_mode_id": "display_mode",
     }
     _external_fields = {
         "entity_class_name": ("entity_class_id", "name"),
@@ -570,7 +573,8 @@ class ParameterDefinitionItem(ParameterItemBase):
     _defaults = {"description": None, "default_value": None, "default_type": None, "parameter_value_list_id": None}
     unique_keys = (("entity_class_name", "name"),)
     required_key_combinations = (("entity_class_name", "entity_class_id"), ("name",))
-    _references = {"entity_class_id": ("entity_class", "id"), "parameter_value_list_id": ("parameter_value_list", "id")}
+    _references = {"entity_class_id": "entity_class", "parameter_value_list_id": "parameter_value_list"}
+    _weak_references = {"list_value_id": "list_value"}
     _soft_references = {"parameter_value_list_id"}
     _external_fields = {
         "entity_class_name": ("entity_class_id", "name"),
@@ -610,12 +614,13 @@ class ParameterDefinitionItem(ParameterItemBase):
         if key == "parameter_value_list_id":
             return dict.get(self, key)
         if key == "parameter_value_list_name":
-            return self._get_full_ref("parameter_value_list_id", "parameter_value_list", "id", strong=False).get("name")
+            return self._get_full_ref("parameter_value_list_id", "parameter_value_list").get("name")
         if key in ("default_value", "default_type"):
             list_value_id = self["list_value_id"]
             if list_value_id is not None:
                 list_value_key = {"default_value": "value", "default_type": "type"}[key]
-                return self._get_ref("list_value", {"id": list_value_id}, strong=False).get(list_value_key)
+                mapped_table = self._db_map.mapped_table("list_value")
+                return mapped_table.find_item_by_id(list_value_id).get(list_value_key)
             return dict.get(self, key)
         return super().__getitem__(key)
 
@@ -755,7 +760,7 @@ class ParameterTypeItem(MappedItemBase):
         ("type",),
         ("rank",),
     )
-    _references = {"entity_class_id": ("entity_class", "id"), "parameter_definition_id": ("parameter_definition", "id")}
+    _references = {"entity_class_id": "entity_class", "parameter_definition_id": "parameter_definition"}
     _external_fields = {
         "entity_class_id": ("parameter_definition_id", "entity_class_id"),
         "entity_class_name": ("entity_class_id", "name"),
@@ -814,11 +819,12 @@ class ParameterValueItem(ParameterItemBase):
         ("alternative_name", "alternative_id"),
     )
     _references = {
-        "entity_class_id": ("entity_class", "id"),
-        "parameter_definition_id": ("parameter_definition", "id"),
-        "entity_id": ("entity", "id"),
-        "alternative_id": ("alternative", "id"),
+        "entity_class_id": "entity_class",
+        "parameter_definition_id": "parameter_definition",
+        "entity_id": "entity",
+        "alternative_id": "alternative",
     }
+    _weak_references = {"value_list_id": "value_list"}
     _external_fields = {
         "entity_class_name": ("entity_class_id", "name"),
         "dimension_id_list": ("entity_class_id", "dimension_id_list"),
@@ -861,7 +867,8 @@ class ParameterValueItem(ParameterItemBase):
         if key in ("value", "type"):
             list_value_id = self["list_value_id"]
             if list_value_id:
-                return self._get_ref("list_value", {"id": list_value_id}, strong=False).get(key)
+                mapped_table = self._db_map.mapped_table("list_value")
+                return mapped_table.find_item_by_id(list_value_id).get(key)
         return super().__getitem__(key)
 
     def _value_not_in_list_error(self, parsed_value, list_name):
@@ -899,7 +906,7 @@ class ListValueItem(ParsedValueBase):
         ),
         ("index",),
     )
-    _references = {"parameter_value_list_id": ("parameter_value_list", "id")}
+    _references = {"parameter_value_list_id": "parameter_value_list"}
     _external_fields = {"parameter_value_list_name": ("parameter_value_list_id", "name")}
     _alt_references = {("parameter_value_list_name",): ("parameter_value_list", ("name",))}
     _internal_fields = {"parameter_value_list_id": (("parameter_value_list_name",), "id")}
@@ -967,7 +974,7 @@ class ScenarioAlternativeItem(MappedItemBase):
     }
     unique_keys = (("scenario_name", "alternative_name"), ("scenario_name", "rank"))
     required_key_combinations = (("scenario_name", "scenario_id"), ("alternative_name", "alternative_id"), ("rank",))
-    _references = {"scenario_id": ("scenario", "id"), "alternative_id": ("alternative", "id")}
+    _references = {"scenario_id": "scenario", "alternative_id": "alternative"}
     _external_fields = {"scenario_name": ("scenario_id", "name"), "alternative_name": ("alternative_id", "name")}
     _alt_references = {("scenario_name",): ("scenario", ("name",)), ("alternative_name",): ("alternative", ("name",))}
     _internal_fields = {"scenario_id": (("scenario_name",), "id"), "alternative_id": (("alternative_name",), "id")}
@@ -978,9 +985,11 @@ class ScenarioAlternativeItem(MappedItemBase):
         # the second will have the third, etc., and the last will have None.
         # Note that alternatives with higher ranks overwrite the values of those with lower ranks.
         if key == "before_alternative_name":
-            return self._get_ref("alternative", {"id": self["before_alternative_id"]}, strong=False).get("name")
+            mapped_table = self._db_map.mapped_table("alternative")
+            return mapped_table.find_item_by_id(self["before_alternative_id"]).get("name")
         if key == "before_alternative_id":
-            scenario = self._get_ref("scenario", {"id": self["scenario_id"]}, strong=False)
+            mapped_table = self._db_map.mapped_table("scenario")
+            scenario = mapped_table.find_item_by_id(self["scenario_id"])
             try:
                 return scenario["alternative_id_list"][self["rank"]]
             except IndexError:
@@ -1014,8 +1023,8 @@ class EntityMetadataItem(MappedItemBase):
         ("metadata_value", "metadata_id"),
     )
     _references = {
-        "entity_id": ("entity", "id"),
-        "metadata_id": ("metadata", "id"),
+        "entity_id": "entity",
+        "metadata_id": "metadata",
     }
     _external_fields = {
         "entity_class_name": ("entity_id", "entity_class_name"),
@@ -1067,7 +1076,7 @@ class ParameterValueMetadataItem(MappedItemBase):
         ("metadata_name", "metadata_id"),
         ("metadata_value", "metadata_id"),
     )
-    _references = {"parameter_value_id": ("parameter_value", "id"), "metadata_id": ("metadata", "id")}
+    _references = {"parameter_value_id": "parameter_value", "metadata_id": "metadata"}
     _external_fields = {
         "entity_class_name": ("parameter_value_id", "entity_class_name"),
         "parameter_definition_name": ("parameter_value_id", "parameter_definition_name"),
@@ -1103,7 +1112,7 @@ class SuperclassSubclassItem(MappedItemBase):
         ("superclass_name", "superclass_id"),
         ("subclass_name", "subclass_id"),
     )
-    _references = {"superclass_id": ("entity_class", "id"), "subclass_id": ("entity_class", "id")}
+    _references = {"superclass_id": "entity_class", "subclass_id": "entity_class"}
     _external_fields = {
         "superclass_name": ("superclass_id", "name"),
         "subclass_name": ("subclass_id", "name"),

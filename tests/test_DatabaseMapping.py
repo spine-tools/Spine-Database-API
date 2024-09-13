@@ -238,9 +238,9 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 parameter_definition_name="color",
                 alternative_name="Base",
             )
-            self.assertIsNotNone(color)
+            self.assertEqual(color["entity_byname"], ("Nemo",))
             fish = db_map.get_item("entity", entity_class_name="fish", name="Nemo")
-            self.assertIsNotNone(fish)
+            self.assertNotEqual(fish, {})
             fish.update(name="NotNemo")
             self.assertEqual(fish["name"], "NotNemo")
             not_color_anymore = db_map.get_item(
@@ -258,7 +258,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 parameter_definition_name="color",
                 alternative_name="Base",
             )
-            self.assertIsNotNone(color)
+            self.assertEqual(color["entity_byname"], ("NotNemo",))
 
     def test_update_entity_metadata_by_changing_its_entity(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1211,7 +1211,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with DatabaseMapping(url) as db_map:
                 value_list = db_map.get_parameter_value_list_item(name="list of values")
                 db_map.get_list_value_item(parameter_value_list_name="list_of_values", index=0)
-                self.assertEqual(len(value_list._mapped_item._referrers), 1)
+                self.assertEqual(len(value_list.mapped_item._referrers), 1)
 
     def test_remove_scenario_alternative_from_middle(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1842,6 +1842,21 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with DatabaseMapping(url) as db_map:
                 restored_alternative = db_map.get_alternative_item(name="alt")
                 self.assertEqual(restored_alternative["name"], "alt")
+
+    def test_do_fetch_more_in_chunks(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Widget"))
+                self._assert_success(db_map.add_entity_item(name="widget1", entity_class_name="Widget"))
+                self._assert_success(db_map.add_entity_class_item(name="Gadget"))
+                self._assert_success(db_map.add_entity_item(name="gadget1", entity_class_name="Gadget"))
+                db_map.commit_session("Add data.")
+            with DatabaseMapping(url) as db_map:
+                widgets = db_map.get_items("entity", entity_class_name="Widget")
+                self.assertEqual(len(widgets), 1)
+                gadgets = db_map.get_items("entity", entity_class_name="Gadget")
+                self.assertEqual(len(gadgets), 1)
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
