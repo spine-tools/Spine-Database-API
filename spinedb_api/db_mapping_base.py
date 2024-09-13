@@ -1105,21 +1105,22 @@ class MappedItemBase(dict):
             weak_referrer.call_update_callbacks()
 
     def become_referrer(self):
+        def add_self_as_referrer(ref_id):
+            ref = find_by_id(ref_id, fetch=False)
+            if not ref:
+                raise RuntimeError(f"Reference id {ref_id} not found")
+            ref.add_referrer(self)
+
         for field, ref_table in self._references.items():
+            find_by_id = self._db_map.mapped_table(ref_table).find_item_by_id
             field_value = self[field]
             if not field_value:
                 return
             if isinstance(field_value, tuple):
                 for id_ in field_value:
-                    ref = self._db_map.mapped_table(ref_table).find_item_by_id(id_, fetch=False)
-                    if not ref:
-                        raise RuntimeError(f"Reference id {id_} not found")
-                    ref.add_referrer(self)
+                    add_self_as_referrer(id_)
             else:
-                ref = self._db_map.mapped_table(ref_table).find_item_by_id(field_value, fetch=False)
-                if not ref:
-                    raise RuntimeError(f"Reference id {field_value} not found")
-                ref.add_referrer(self)
+                add_self_as_referrer(field_value)
         for field, ref_table in self._weak_references.items():
             try:
                 id_ = self[field]
