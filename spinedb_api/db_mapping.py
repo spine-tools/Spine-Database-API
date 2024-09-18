@@ -788,9 +788,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             *item_types: One or more of <spine_item_types>. If none given, then the entire DB is fetched.
         """
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
+        commit_count = self._query_commit_count()
         for item_type in item_types:
             item_type = self.real_item_type(item_type)
-            self.do_fetch_more(item_type)
+            self.do_fetch_all(item_type, commit_count)
 
     def query(self, *args, **kwargs):
         """Returns a :class:`~spinedb_api.query.Query` object to execute against the mapped DB.
