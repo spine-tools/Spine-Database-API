@@ -300,11 +300,15 @@ class DatabaseMappingBase:
             return [dict(x) for x in qry]
         return [dict(x) for x in qry.limit(limit).offset(offset)]
 
-    def do_fetch_more(self, item_type, offset=0, limit=None, **kwargs):
+    def do_fetch_more(self, item_type, offset=0, limit=None, real_commit_count=None, **kwargs):
         """Fetches items from the DB and adds them to the mapping.
 
         Args:
-            item_type (str)
+            item_type (str): item type to fetch
+            offset (int): number of records to skip from beginning
+            limit (int, optional): number of records to fetch
+            real_commit_count (int, optional): current commit count
+            **kwargs: database query filters
 
         Returns:
             list(MappedItem): items fetched from the DB.
@@ -312,7 +316,8 @@ class DatabaseMappingBase:
         chunk = self._get_next_chunk(item_type, offset, limit, **kwargs)
         if not chunk:
             return []
-        real_commit_count = self._query_commit_count()
+        if real_commit_count is None:
+            real_commit_count = self._query_commit_count()
         is_db_dirty = self._get_commit_count() != real_commit_count
         if is_db_dirty:
             # We need to fetch the most recent references because their ids might have changed in the DB
@@ -364,7 +369,7 @@ class DatabaseMappingBase:
                 self._locks[item_type] = RLock()
             lock = self._locks[item_type]
             with lock:
-                self.do_fetch_more(item_type, offset=0, limit=None, commit_count=commit_count)
+                self.do_fetch_more(item_type, offset=0, limit=None, real_commit_count=commit_count)
 
 
 class _MappedTable(dict):
