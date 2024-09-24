@@ -1872,6 +1872,39 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             )
             self.assertNotEqual(is_useful, {})
 
+    def test_non_existent_elements_in_multidimensional_entity_addition_get_caught(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="A"))
+            self._assert_success(db_map.add_entity_class_item(name="B"))
+            a_b_class = self._assert_success(db_map.add_entity_class_item(dimension_name_list=("A", "B")))
+            b_a_class = self._assert_success(db_map.add_entity_class_item(dimension_name_list=("B", "A")))
+            abba_class = self._assert_success(
+                db_map.add_entity_class_item(dimension_name_list=(a_b_class["name"], b_a_class["name"]))
+            )
+            item, error = db_map.add_entity_item(
+                entity_byname=("a", "b", "b", "a"), entity_class_name=abba_class["name"]
+            )
+            self.assertEqual(error, "non-existent elements in byname ['a', 'b'] for class A__B")
+            self.assertIsNone(item)
+            item, error = db_map.add_entity_item(entity_byname=("a", "b"), entity_class_name=a_b_class["name"])
+            self.assertEqual(error, "non-existent elements in byname ['a', 'b'] for class A__B")
+            self.assertIsNone(item)
+            self._assert_success(db_map.add_entity_item(name="a", entity_class_name="A"))
+            item, error = db_map.add_entity_item(entity_byname=("a", "b"), entity_class_name=a_b_class["name"])
+            self.assertEqual(error, "non-existent elements in byname ['a', 'b'] for class A__B")
+            self.assertIsNone(item)
+            self._assert_success(db_map.add_entity_item(name="b", entity_class_name="B"))
+            self._assert_success(db_map.add_entity_item(entity_byname=("a", "b"), entity_class_name=a_b_class["name"]))
+            item, error = db_map.add_entity_item(
+                entity_byname=("a", "b", "b", "a"), entity_class_name=abba_class["name"]
+            )
+            self.assertEqual(error, "non-existent elements in byname ['a', 'b', 'b', 'a'] for class A__B__B__A")
+            self.assertIsNone(item)
+            self._assert_success(db_map.add_entity_item(entity_byname=("b", "a"), entity_class_name=b_a_class["name"]))
+            self._assert_success(
+                db_map.add_entity_item(entity_byname=("a", "b", "b", "a"), entity_class_name=abba_class["name"])
+            )
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

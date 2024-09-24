@@ -193,7 +193,7 @@ class EntityItem(MappedItemBase):
         return super().__getitem__(key)
 
     def resolve_internal_fields(self, skip_keys=()):
-        """Overriden to translate byname into element name list."""
+        """Overridden to translate byname into element name list."""
         error = super().resolve_internal_fields(skip_keys=skip_keys)
         if error:
             return error
@@ -205,9 +205,10 @@ class EntityItem(MappedItemBase):
             self["name"] = byname[0]
             return
         byname_remainder = list(byname)
-        element_name_list, _ = self._element_name_list_recursive(self["entity_class_name"], byname_remainder)
-        if len(element_name_list) < dim_count:
-            return f"too few elements given for entity ({byname})"
+        try:
+            element_name_list, _ = self._element_name_list_recursive(self["entity_class_name"], byname_remainder)
+        except SpineDBAPIError as error:
+            return str(error)
         if byname_remainder:
             return f"too many elements given for entity ({byname})"
         self["element_name_list"] = element_name_list
@@ -225,6 +226,8 @@ class EntityItem(MappedItemBase):
             dimension_name_list = self._db_map.get_item("entity_class", name=class_name_).get("dimension_name_list")
             if not dimension_name_list:
                 continue
+            if len(entity_byname) < len(dimension_name_list):
+                raise SpineDBAPIError(f"too few elements given for entity ({entity_byname}) in class {class_name}")
             byname_backup = list(entity_byname)
             element_name_list = tuple(
                 self._db_map.get_item(
@@ -240,6 +243,13 @@ class EntityItem(MappedItemBase):
             )
             if None not in element_name_list:
                 return element_name_list, class_name_
+            if class_name_ == class_names[-1]:
+                list_containing_missing_element = (
+                    byname_backup if not entity_byname else byname_backup[: -len(entity_byname)]
+                )
+                raise SpineDBAPIError(
+                    f"non-existent elements in byname {list_containing_missing_element} for class {class_name}"
+                )
             entity_byname = byname_backup
         name = entity_byname.pop(0) if entity_byname else None
         return (name,), class_name
