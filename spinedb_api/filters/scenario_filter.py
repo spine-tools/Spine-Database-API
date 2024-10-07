@@ -32,6 +32,8 @@ def apply_scenario_filter_to_subqueries(db_map, scenario):
     db_map.override_entity_element_sq_maker(make_entity_element_sq)
     make_entity_sq = partial(_make_scenario_filtered_entity_sq, state=state)
     db_map.override_entity_sq_maker(make_entity_sq)
+    make_entity_alternative_sq = partial(_make_scenario_filtered_entity_alternative_sq, state=state)
+    db_map.override_eneity_alternative_sq_maker(make_entity_alternative_sq)
     make_parameter_value_sq = partial(_make_scenario_filtered_parameter_value_sq, state=state)
     db_map.override_parameter_value_sq_maker(make_parameter_value_sq)
     make_alternative_sq = partial(_make_scenario_filtered_alternative_sq, state=state)
@@ -130,6 +132,7 @@ class _ScenarioFilterState:
         """
         self.original_entity_sq = db_map.entity_sq
         self.original_entity_element_sq = db_map.entity_element_sq
+        self.original_entity_alternative_sq = db_map.entity_alternative_sq
         self.original_parameter_value_sq = db_map.parameter_value_sq
         self.original_scenario_sq = db_map.scenario_sq
         self.original_scenario_alternative_sq = db_map.scenario_alternative_sq
@@ -193,17 +196,18 @@ def _ext_entity_sq(db_map, state):
                 order_by=desc(db_map.scenario_alternative_sq.c.rank),
             )
             .label("desc_rank_row_number"),
-            db_map.entity_alternative_sq.c.active,
+            state.original_entity_alternative_sq.c.active,
             db_map.entity_class_sq.c.active_by_default,
             db_map.scenario_alternative_sq.c.scenario_id,
         )
         .outerjoin(
-            db_map.entity_alternative_sq, state.original_entity_sq.c.id == db_map.entity_alternative_sq.c.entity_id
+            state.original_entity_alternative_sq,
+            state.original_entity_sq.c.id == state.original_entity_alternative_sq.c.entity_id,
         )
         .outerjoin(db_map.entity_class_sq, state.original_entity_sq.c.class_id == db_map.entity_class_sq.c.id)
         .outerjoin(
             db_map.scenario_alternative_sq,
-            db_map.entity_alternative_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id,
+            state.original_entity_alternative_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id,
         )
         .filter(
             or_(
@@ -213,8 +217,9 @@ def _ext_entity_sq(db_map, state):
         )
         .filter(
             or_(
-                db_map.entity_alternative_sq.c.alternative_id == None,
-                db_map.entity_alternative_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id,
+                state.original_entity_alternative_sq.c.alternative_id == None,
+                state.original_entity_alternative_sq.c.alternative_id
+                == db_map.scenario_alternative_sq.c.alternative_id,
             )
         )
     ).subquery()
@@ -316,6 +321,31 @@ def _make_scenario_filtered_entity_sq(db_map, state):
     )
 
 
+def _make_scenario_filtered_entity_alternative_sq(db_map, state):
+    """
+    Returns a scenario filtering subquery similar to :func:`DatabaseMapping.entity_alternative_sq`.
+
+    This function can be used as replacement for entity_alternative subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_ScenarioFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for entity alternatives filtered by selected scenario
+    """
+    ext_entity_sq = _ext_entity_sq(db_map, state)
+    return (
+        db_map.query(state.original_entity_alternative_sq)
+        .filter(state.original_entity_alternative_sq.c.entity_id == ext_entity_sq.c.id)
+        .filter(
+            ext_entity_sq.c.desc_rank_row_number == 1,
+            or_(ext_entity_sq.c.active == True, ext_entity_sq.c.active == None),
+        )
+        .subquery()
+    )
+
+
 def _make_scenario_filtered_parameter_value_sq(db_map, state):
     """
     Returns a scenario filtering subquery similar to :func:`DatabaseMapping.parameter_value_sq`.
@@ -329,6 +359,7 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
     Returns:
         Alias: a subquery for parameter value filtered by selected scenario
     """
+    ext_entity_sq = _ext_entity_sq(db_map, state)
     ext_parameter_value_sq = (
         db_map.query(
             state.original_parameter_value_sq,
@@ -345,7 +376,16 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
         .filter(state.original_parameter_value_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id)
         .filter(db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id)
     ).subquery()
-    return db_map.query(ext_parameter_value_sq).filter(ext_parameter_value_sq.c.desc_rank_row_number == 1).subquery()
+    return (
+        db_map.query(ext_parameter_value_sq)
+        .filter(ext_parameter_value_sq.c.desc_rank_row_number == 1)
+        .filter(ext_parameter_value_sq.c.entity_id == ext_entity_sq.c.id)
+        .filter(
+            ext_entity_sq.c.desc_rank_row_number == 1,
+            or_(ext_entity_sq.c.active == True, ext_entity_sq.c.active == None),
+        )
+        .subquery()
+    )
 
 
 def _make_scenario_filtered_alternative_sq(db_map, state):

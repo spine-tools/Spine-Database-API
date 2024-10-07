@@ -24,11 +24,13 @@ from spinedb_api import (
     DatabaseMapping,
     SpineDBAPIError,
     SpineIntegrityError,
+    append_filter_config,
     from_database,
     import_functions,
     to_database,
 )
 from spinedb_api.db_mapping_base import PublicItem, Status
+from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.helpers import Asterisk, DisplayStatus, name_from_elements
 from spinedb_api.parameter_value import Duration, type_for_scalar
 from tests.custom_db_mapping import CustomDatabaseMapping
@@ -1904,6 +1906,28 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self._assert_success(
                 db_map.add_entity_item(entity_byname=("a", "b", "b", "a"), entity_class_name=abba_class["name"])
             )
+
+    def test_becoming_referrer_when_reference_has_been_filtered_out(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                self._assert_success(db_map.add_entity_item(name="widget", entity_class_name="Object"))
+                self._assert_success(
+                    db_map.add_entity_alternative_item(
+                        entity_class_name="Object", entity_byname=("widget",), alternative_name="Base", active=False
+                    )
+                )
+                self._assert_success(db_map.add_scenario_item(name="HideWidget"))
+                self._assert_success(
+                    db_map.add_scenario_alternative_item(scenario_name="HideWidget", alternative_name="Base", rank=1)
+                )
+                db_map.commit_session("Add test data")
+            filtered_url = append_filter_config(url, scenario_filter_config("HideWidget"))
+            with DatabaseMapping(filtered_url) as db_map:
+                db_map.fetch_all("entity_alternative")
+                entity_alternatives = db_map.get_entity_alternative_items()
+                self.assertEqual(len(entity_alternatives), 0)
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):

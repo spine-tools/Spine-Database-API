@@ -16,6 +16,7 @@ import unittest
 from spinedb_api import (
     DatabaseMapping,
     SpineDBAPIError,
+    append_filter_config,
     apply_filter_stack,
     apply_scenario_filter_to_subqueries,
     to_database,
@@ -790,6 +791,75 @@ class TestScenarioFilter(DataBuilderTestCase):
                         }
                     ],
                 )
+
+    def test_filters_entity_alternatives(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                self._assert_success(db_map.add_entity_item(name="invisible widget", entity_class_name="Object"))
+                self._assert_success(db_map.add_entity_item(name="visible widget", entity_class_name="Object"))
+                self._assert_success(
+                    db_map.add_entity_alternative_item(
+                        entity_class_name="Object",
+                        entity_byname=("invisible widget",),
+                        alternative_name="Base",
+                        active=False,
+                    )
+                )
+                self._assert_success(
+                    db_map.add_entity_alternative_item(
+                        entity_class_name="Object",
+                        entity_byname=("visible widget",),
+                        alternative_name="Base",
+                        active=True,
+                    )
+                )
+                self._assert_success(db_map.add_scenario_item(name="Scenario"))
+                self._assert_success(
+                    db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=1)
+                )
+                db_map.commit_session("Add test data")
+            filtered_url = append_filter_config(url, scenario_filter_config("Scenario"))
+            with DatabaseMapping(filtered_url) as db_map:
+                entity_alternatives = db_map.query(db_map.entity_alternative_sq).all()
+                self.assertEqual(len(entity_alternatives), 1)
+
+    def test_parameter_values_for_entities_that_have_been_filtered_out(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Object"))
+                self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+                self._assert_success(db_map.add_entity_item(name="invisible widget", entity_class_name="Object"))
+                self._assert_success(
+                    db_map.add_entity_alternative_item(
+                        entity_class_name="Object",
+                        entity_byname=("invisible widget",),
+                        alternative_name="Base",
+                        active=False,
+                    )
+                )
+                value, value_type = to_database(2.3)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Object",
+                        parameter_definition_name="y",
+                        entity_byname=("invisible widget",),
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                self._assert_success(db_map.add_scenario_item(name="Scenario"))
+                self._assert_success(
+                    db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=1)
+                )
+                db_map.commit_session("Add test data")
+            filtered_url = append_filter_config(url, scenario_filter_config("Scenario"))
+            with DatabaseMapping(filtered_url) as db_map:
+                values = db_map.query(db_map.parameter_value_sq).all()
+                self.assertEqual(len(values), 0)
 
 
 class TestScenarioFilterUtils(DataBuilderTestCase):
