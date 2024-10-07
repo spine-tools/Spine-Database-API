@@ -435,7 +435,7 @@ class DatabaseMappingQueryMixin:
             :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_alternative_sq is None:
-            self._entity_alternative_sq = self._subquery("entity_alternative")
+            self._entity_alternative_sq = self._make_entity_alternative_sq()
         return self._entity_alternative_sq
 
     @property
@@ -1285,6 +1285,15 @@ class DatabaseMappingQueryMixin:
         """
         return self._subquery("entity_element")
 
+    def _make_entity_alternative_sq(self):
+        """
+        Creates a subquery for entity-alternatives.
+
+        Returns:
+            Alias: an entity_alternative subquery
+        """
+        return self._subquery("entity_alternative")
+
     def _make_parameter_definition_sq(self):
         """
         Creates a subquery for parameter definitions.
@@ -1407,6 +1416,17 @@ class DatabaseMappingQueryMixin:
         """
         self._make_entity_element_sq = MethodType(method, self)
         self._clear_subqueries("entity_element")
+
+    def override_eneity_alternative_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``entity_alternative_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
+                returns entity alternative subquery as an :class:`Alias` object
+        """
+        self._make_entity_alternative_sq = MethodType(method, self)
+        self._clear_subqueries("entity_alternative")
 
     def override_parameter_definition_sq_maker(self, method):
         """
