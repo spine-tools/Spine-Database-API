@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.31.6]
+
+### Fixed
+
+- Fixed a bug in scenario filter
+
 ## [0.31.5]
 
 ### Changed
