@@ -80,3 +80,10 @@ class InvalidMappingComponent(InvalidMapping):
 
 class ConnectorError(SpineDBAPIError):
     """Failure in import/export connector."""
+
+
+class NothingToCommit(SpineDBAPIError):
+    """A notification that the session contains no changes."""
+
+    def __init__(self):
+        super().__init__("Nothing to commit.")

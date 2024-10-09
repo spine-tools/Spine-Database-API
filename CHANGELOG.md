@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- ``commit_session()`` now raises ``NothingToCommit`` when there is nothing to commit.
+  Previously, it would raise ``SpineDBAPIException``.
+
 ### Deprecated
 
 ### Removed
