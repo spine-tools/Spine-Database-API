@@ -37,7 +37,7 @@ from .compatibility import compatibility_transformations
 from .db_mapping_base import DatabaseMappingBase, Status
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
-from .exception import SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
+from .exception import NothingToCommit, SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
 from .filters.tools import apply_filter_stack, load_filters, pop_filter_configs
 from .helpers import (
     Asterisk,
@@ -848,7 +848,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             dirty_items = self._dirty_items()
             if not dirty_items:
                 connection.execute(commit.delete().where(commit.c.id == commit_id))
-                raise SpineDBAPIError("Nothing to commit.")
+                raise NothingToCommit()
             for tablename, (to_add, to_update, to_remove) in dirty_items:
                 for item in to_add + to_update + to_remove:
                     item.commit(commit_id)
