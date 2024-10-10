@@ -59,7 +59,7 @@ jobs:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   call-toolbox-unit-tests:
     name: Toolbox unit tests
-    uses: spine-tools/Spine-Toolbox/.github/workflows/unit_tests.yml
+    uses: spine-tools/Spine-Toolbox/.github/workflows/unit_tests.yml@master
     with:
       host-os: ubuntu-22.04
       python-version: 3.9
@@ -69,7 +69,7 @@ jobs:
     secrets: inherit
   call-toolbox-execution-tests:
     name: Toolbox execution tests
-    uses: spine-tools/Spine-Toolbox/.github/workflows/execution_tests.yml
+    uses: spine-tools/Spine-Toolbox/.github/workflows/execution_tests.yml@master
     with:
       host-os: ubuntu-22.04
       python-version: 3.9
