@@ -76,3 +76,14 @@ jobs:
       repository: spine-tools/Spine-Toolbox
       post-installation-command: python -m pip install git+${{ github.server_url }}/${{ github.repository }}.git@${{ github.ref_name }}
     secrets: inherit
+  call-spine-interface-test:
+    name: SpineInterface.jl test
+    uses: spine-tools/SpineInterface.jl/.github/workflows/Test.yml@master
+    with:
+      host-os: ubuntu-22.04
+      julia-version: "1"
+      python-version: "3.12"
+      repository: spine-tools/SpineInterface.jl
+      spinedb-api-ref-name: ${{ github.ref_name }}
+      coverage: false
+    secrets: inherit
