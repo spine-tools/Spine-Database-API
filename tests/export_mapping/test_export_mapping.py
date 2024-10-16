@@ -55,6 +55,7 @@ from spinedb_api.export_mapping.export_mapping import (
     ParameterValueMapping,
     ParameterValueTypeMapping,
     ScenarioAlternativeMapping,
+    ScenarioBeforeAlternativeMapping,
     ScenarioDescriptionMapping,
     ScenarioMapping,
     drop_non_positioned_tail,
@@ -972,7 +973,38 @@ class TestExportMapping(AssertSuccessTestCase):
         tables = {}
         for title, title_key in titles(scenario_mapping, db_map):
             tables[title] = list(rows(scenario_mapping, db_map, title_key))
-        self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a2"], ["s2", "a2"], ["s2", "a3"]]})
+        self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a2"], ["s2", "a3"], ["s2", "a2"]]})
+        db_map.close()
+
+    def test_scenario_alternative_mapping_exports_alternatives_in_correct_order(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_alternatives(db_map, ("a1", "a2", "a3"))
+        import_scenarios(db_map, ("s1",))
+        import_scenario_alternatives(db_map, (("s1", "a2"), ("s1", "a1", "a2"), ("s1", "a3", "a2")))
+        db_map.commit_session("Add test data.")
+        scenario_mapping = ScenarioMapping(0)
+        scenario_alternative_mapping = ScenarioAlternativeMapping(1)
+        scenario_mapping.child = scenario_alternative_mapping
+        tables = {}
+        for title, title_key in titles(scenario_mapping, db_map):
+            tables[title] = list(rows(scenario_mapping, db_map, title_key))
+        self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a3"], ["s1", "a2"]]})
+        db_map.close()
+
+    def test_legacy_scenario_alternative_mapping_with_before_alternatives(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_alternatives(db_map, ("a1", "a2", "a3"))
+        import_scenarios(db_map, ("s1",))
+        import_scenario_alternatives(db_map, (("s1", "a2"), ("s1", "a1", "a2"), ("s1", "a3", "a2")))
+        db_map.commit_session("Add test data.")
+        scenario_mapping = ScenarioMapping(0)
+        scenario_alternative_mapping = ScenarioAlternativeMapping(1)
+        scenario_mapping.child = scenario_alternative_mapping
+        scenario_alternative_mapping.child = ScenarioBeforeAlternativeMapping(2)
+        tables = {}
+        for title, title_key in titles(scenario_mapping, db_map):
+            tables[title] = list(rows(scenario_mapping, db_map, title_key))
+        self.assertEqual(tables, {None: [["s1", "a1", "a3"], ["s1", "a3", "a2"]]})
         db_map.close()
 
     def test_header(self):

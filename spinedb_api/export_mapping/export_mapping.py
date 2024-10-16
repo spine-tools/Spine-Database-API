@@ -1309,12 +1309,25 @@ class ScenarioAlternativeMapping(ExportMapping):
     MAP_TYPE = "ScenarioAlternative"
 
     def add_query_columns(self, db_map, query):
+        if self._child is None:
+            return query.add_columns(
+                db_map.ext_scenario_sq.c.alternative_id,
+                db_map.ext_scenario_sq.c.alternative_name,
+                db_map.ext_scenario_sq.c.rank,
+            )
+        # Legacy: expecting child to be ScenarioBeforeAlternativeMapping
         return query.add_columns(
             db_map.ext_linked_scenario_alternative_sq.c.alternative_id,
             db_map.ext_linked_scenario_alternative_sq.c.alternative_name,
         )
 
     def filter_query(self, db_map, query):
+        if self._child is None:
+            return query.outerjoin(
+                db_map.ext_scenario_sq,
+                db_map.ext_scenario_sq.c.id == db_map.scenario_sq.c.id,
+            ).order_by(db_map.ext_scenario_sq.c.name, db_map.ext_scenario_sq.c.rank)
+        # Legacy: expecting child to be ScenarioBeforeAlternativeMapping
         return query.outerjoin(
             db_map.ext_linked_scenario_alternative_sq,
             db_map.ext_linked_scenario_alternative_sq.c.scenario_id == db_map.scenario_sq.c.id,

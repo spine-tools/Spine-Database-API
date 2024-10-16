@@ -333,24 +333,19 @@ def scenario_export(
     return scenario_mapping
 
 
-def scenario_alternative_export(
-    scenario_position=Position.hidden, alternative_position=Position.hidden, before_alternative_position=Position.hidden
-):
+def scenario_alternative_export(scenario_position=Position.hidden, alternative_position=Position.hidden):
     """
     Sets up export mappings for exporting scenario alternatives.
 
     Args:
         scenario_position (int or Position): position of scenarios
         alternative_position (int or Position): position of alternatives
-        before_alternative_position (int or Position): position of 'before' alternatives
-            (for each row, the 'alternative' goes *before* the 'before alternative' in the scenario rank)
 
     Returns:
         Mapping: root mapping
     """
     scenario_mapping = ScenarioMapping(scenario_position)
-    alternative_mapping = scenario_mapping.child = ScenarioAlternativeMapping(alternative_position)
-    alternative_mapping.child = ScenarioBeforeAlternativeMapping(before_alternative_position)
+    scenario_mapping.child = ScenarioAlternativeMapping(alternative_position)
     return scenario_mapping
 
 

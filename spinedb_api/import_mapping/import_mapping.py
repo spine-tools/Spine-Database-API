@@ -974,8 +974,7 @@ def _default_scenario_alternative_mapping():
         ScenarioAlternativeMapping: root mapping
     """
     root_mapping = ScenarioMapping(Position.hidden)
-    scen_alt_mapping = root_mapping.child = ScenarioAlternativeMapping(Position.hidden)
-    scen_alt_mapping.child = ScenarioBeforeAlternativeMapping(Position.hidden)
+    root_mapping.child = ScenarioAlternativeMapping(Position.hidden)
     return root_mapping
 
 
