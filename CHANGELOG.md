@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Spine-Database-API now requires Python 3.9 or later.
+
 ### Added
 
 ### Changed
