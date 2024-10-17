@@ -955,6 +955,28 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_skip_first_row_when_importing_pivoted_data(self):
+        data_source = iter(
+            [
+                [None, "alternative1", "alternative2", "alternative3"],
+                ["Scenario1", "Base", "fixed_prices", None],
+            ]
+        )
+        mappings = [
+            [
+                {"map_type": "Scenario", "position": 0, "read_start_row": 1},
+                {"map_type": "ScenarioAlternative", "position": -1},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "string", 3: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {"scenario_alternatives": [["Scenario1", "Base"], ["Scenario1", "fixed_prices"]]},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
