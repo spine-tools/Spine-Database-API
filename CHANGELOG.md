@@ -5,24 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.32.0]
 
-Spine-Database-API now requires Python 3.9 or later.
-
-### Added
+Dropped support for Python 3.8.
+Spine-Database-API now requires Python 3.9 or later, up to 3.12.
 
 ### Changed
 
 - ``commit_session()`` now raises ``NothingToCommit`` when there is nothing to commit.
   Previously, it would raise ``SpineDBAPIException``.
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
 
 ## [0.31.6]
 

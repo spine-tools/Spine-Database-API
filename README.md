@@ -24,9 +24,9 @@ To upgrade to the most recent version, run:
 
     $ pip install --upgrade spinedb_api
 
-You can also specify a branch, or a tag, for instance:
+You can also specify a version, for instance:
 
-    $ pip install spinedb_api==0.12.1
+    $ pip install spinedb_api==0.32.0
 
 To install the latest development version use the Git repository url:
 
