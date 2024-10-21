@@ -15,7 +15,6 @@ This module defines the :class:`.DatabaseMapping` class, the main mean to commun
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
 :ref:`db_mapping_schema`.
 """
-
 from datetime import datetime, timezone
 from functools import partialmethod
 import logging
@@ -26,16 +25,18 @@ from alembic.environment import EnvironmentContext
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from alembic.util.exc import CommandError
-from sqlalchemy import MetaData, create_engine, inspect
+from sqlalchemy import MetaData, create_engine, inspect, text
 from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.event import listen
 from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
+from sqlalchemy.orm import Query, Session
 from sqlalchemy.pool import NullPool
 from .compatibility import compatibility_transformations
 from .db_mapping_base import DatabaseMappingBase, Status
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .exception import NothingToCommit, SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
+from .export_functions import export_data
 from .filters.tools import apply_filter_stack, load_filters, pop_filter_configs
 from .helpers import (
     Asterisk,
@@ -45,8 +46,8 @@ from .helpers import (
     create_new_spine_database_from_bind,
     model_meta,
 )
+from .import_functions import import_data
 from .mapped_items import item_factory
-from .query import Query
 from .spine_db_client import get_db_url_from_server
 
 logging.getLogger("alembic").setLevel(logging.CRITICAL)
@@ -152,7 +153,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if isinstance(db_url, str):
             filter_configs, db_url = pop_filter_configs(db_url)
         elif isinstance(db_url, URL):
-            filter_configs = db_url.query.pop("spinedbfilter", [])
+            filter_configs = db_url.query.get("spinedbfilter", [])
+            db_url = db_url.difference_update_query("spinedbfilter")
         else:
             filter_configs = []
         self._filter_configs = filter_configs if apply_filters else None
@@ -171,18 +173,30 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         listen(self.engine, "close", self._receive_engine_close)
         if self._memory:
             copy_database_bind(self.engine, self._original_engine)
-        self._metadata = MetaData(self.engine)
-        self._metadata.reflect()
+        self._metadata = MetaData()
+        self._metadata.reflect(self.engine)
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
+        self._connection = None
+        self._session = None
+        self._context_open_count = 0
         if self._filter_configs is not None:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
 
     def __enter__(self):
+        self.closed = False
+        self._context_open_count += 1
+        if self._connection is None:
+            self._connection = self.engine.connect()
+        if self._session is None:
+            self._session = Session(self._connection)
         return self
 
     def __exit__(self, _exc_type, _exc_val, _exc_tb):
-        self.close()
+        self._context_open_count -= 1
+        if self._context_open_count == 0:
+            self.close()
+        return False
 
     def __del__(self):
         self.close()
@@ -302,7 +316,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             ) from None
         with engine.begin() as connection:
             if sa_url.drivername == "sqlite":
-                connection.execute("BEGIN IMMEDIATE")
+                connection.execute(text("BEGIN IMMEDIATE"))
             # TODO: Do other dialects need to lock?
             migration_context = MigrationContext.configure(connection)
             try:
@@ -777,7 +791,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             item_type = self.real_item_type(item_type)
             self.do_fetch_all(item_type, commit_count)
 
-    def query(self, *args, **kwargs):
+    def query(self, *entities, **kwargs):
         """Returns a :class:`~spinedb_api.query.Query` object to execute against the mapped DB.
 
         To perform custom ``SELECT`` statements, call this method with one or more of the documented
@@ -805,9 +819,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             ).group_by(db_map.entity_class_sq.c.name).all()
 
         Returns:
-            :class:`~spinedb_api.query.Query`: The resulting query.
+            :class:`~sqlalchemy.orm.Query`: The resulting query.
         """
-        return Query(self.engine, *args)
+        return self._session.query(*entities, **kwargs)
 
     def commit_session(self, comment, apply_compatibility_transforms=True):
         """Commits the changes from the in-memory mapping to the database.
@@ -821,28 +835,27 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         if not comment:
             raise SpineDBAPIError("Commit message cannot be empty.")
-        with self.engine.begin() as connection:
-            commit = self._metadata.tables["commit"]
-            commit_item = {"user": self.username, "date": datetime.now(timezone.utc), "comment": comment}
-            try:
-                # TODO: The below locks the DB in sqlite, how about other dialects?
-                commit_id = connection.execute(commit.insert(), commit_item).inserted_primary_key[0]
-            except DBAPIError as e:
-                raise SpineDBAPIError(f"Fail to commit: {e.orig.args}") from e
-            dirty_items = self._dirty_items()
-            if not dirty_items:
-                connection.execute(commit.delete().where(commit.c.id == commit_id))
-                raise NothingToCommit()
-            for tablename, (to_add, to_update, to_remove) in dirty_items:
-                for item in to_add + to_update + to_remove:
-                    item.commit(commit_id)
-                # Remove before add, to help with keeping integrity constraints
-                self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
-                self._do_update_items(connection, tablename, *to_update)
-                self._do_add_items(connection, tablename, *to_add)
-            if self._memory:
-                self._memory_dirty = True
-            transformation_info = compatibility_transformations(connection, apply=apply_compatibility_transforms)
+        dirty_items = self._dirty_items()
+        if not dirty_items:
+            raise NothingToCommit()
+        commit = self._metadata.tables["commit"]
+        commit_item = {"user": self.username, "date": datetime.now(timezone.utc), "comment": comment}
+        try:
+            # TODO: The below locks the DB in sqlite, how about other dialects?
+            commit_id = self._connection.execute(commit.insert(), commit_item).inserted_primary_key[0]
+        except DBAPIError as e:
+            raise SpineDBAPIError(f"Fail to commit: {e.orig.args}") from e
+        for tablename, (to_add, to_update, to_remove) in dirty_items:
+            for item in to_add + to_update + to_remove:
+                item.commit(commit_id)
+            # Remove before add, to help with keeping integrity constraints
+            self._do_remove_items(self._connection, tablename, *{x["id"] for x in to_remove})
+            self._do_update_items(self._connection, tablename, *to_update)
+            self._do_add_items(self._connection, tablename, *to_add)
+        self._session.commit()
+        if self._memory:
+            self._memory_dirty = True
+        transformation_info = compatibility_transformations(self._connection, apply=apply_compatibility_transforms)
         self._commit_count = self._query_commit_count()
         return transformation_info
 
@@ -866,7 +879,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return self._commit_count != self._query_commit_count()
 
     def close(self):
-        """Closes this DB mapping. This is only needed if you're keeping a long-lived session.
+        """Closes this DB mapping.
         For instance::
 
             class MyDBMappingWrapper:
@@ -885,6 +898,13 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 ...
                 # db_map.close() is automatically called when leaving this block
         """
+        if self._session is not None:
+            self._session.commit()
+            self._session.close()
+            self._session = None
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
         self.closed = True
 
     def add_ext_entity_metadata(self, *items, **kwargs):

@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking change:** The required SQLAlchemy version is now 1.4.
+  This may break clients that use the low-level query interface of `DatabaseMapping`,
+  e.g. `entity_sq`, as the queries now return proper SQLAlchemy 1.4 `Result` objects.
+  The high-level functions (`get_item`, `add_item` etc.) work as usual.
+
 ### Deprecated
 
 ### Removed

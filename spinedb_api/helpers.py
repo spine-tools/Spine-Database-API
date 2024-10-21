@@ -45,6 +45,7 @@ from sqlalchemy import (
     inspect,
     null,
     select,
+    text,
     true,
 )
 from sqlalchemy.dialects.mysql import DOUBLE, TINYINT
@@ -52,6 +53,7 @@ from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import FunctionElement, bindparam, cast
+from sqlalchemy.sql.selectable import Select
 from .exception import SpineDBAPIError, SpineDBVersionError
 
 SUPPORTED_DIALECTS = {
@@ -106,19 +108,6 @@ def name_from_dimensions(dimensions):
     return name_from_elements(dimensions)
 
 
-# NOTE: Deactivated since foreign keys are too difficult to get right in the diff tables.
-# For example, the diff_object table would need a `class_id` field and a `diff_class_id` field,
-# plus a CHECK constraint that at least one of the two is NOT NULL.
-# @event.listens_for(Engine, "connect")
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    module_name = dbapi_connection.__class__.__module__
-    if not module_name.lower().startswith("sqlite"):
-        return
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
-
-
 @compiles(TINYINT, "sqlite")
 def compile_TINYINT_mysql_sqlite(element, compiler, **kw):
     """Handles mysql TINYINT datatype as INTEGER in sqlite."""
@@ -134,6 +123,7 @@ def compile_DOUBLE_mysql_sqlite(element, compiler, **kw):
 class group_concat(FunctionElement):
     type = String()
     name = "group_concat"
+    inherit_cache = True
 
 
 def _parse_group_concat_clauses(clauses):
@@ -514,7 +504,7 @@ def create_spine_metadata():
         Column("display_order", Integer, nullable=False),
         Column(
             "display_status",
-            Enum(DisplayStatus, name="display_status_enum"),
+            Enum(DisplayStatus, name="display_status_enum", create_constraint=True),
             server_default=DisplayStatus.visible.name,
             nullable=False,
         ),
@@ -682,17 +672,17 @@ def create_new_spine_database(db_url):
 
 def create_new_spine_database_from_bind(bind):
     # Drop existing tables. This is a Spine db now...
-    meta = MetaData(bind)
-    meta.reflect()
-    meta.drop_all()
+    meta = MetaData()
+    meta.reflect(bind)
+    meta.drop_all(bind)
     # Create new tables
     meta = create_spine_metadata()
     version = get_head_alembic_version()
     try:
         meta.create_all(bind)
-        bind.execute("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
-        bind.execute("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)")
-        bind.execute(f"INSERT INTO alembic_version VALUES ('{version}')")
+        bind.execute(text("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')"))
+        bind.execute(text("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)"))
+        bind.execute(text(f"INSERT INTO alembic_version VALUES ('{version}')"))
     except DatabaseError as e:
         raise SpineDBAPIError(f"Unable to create Spine database: {e}") from None
 
@@ -706,8 +696,8 @@ def _create_first_spine_database(db_url):
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     # Drop existing tables. This is a Spine db now...
-    meta = MetaData(engine)
-    meta.reflect()
+    meta = MetaData()
+    meta.reflect(engine)
     meta.drop_all(engine)
     # Create new tables
     meta = MetaData(naming_convention=naming_convention)
@@ -875,7 +865,7 @@ def forward_sweep(root, fn, *args):
             continue
         # No (more) siblings, go back to parent
         current = current_parent
-        if current == root:
+        if current is root:
             break
 
 

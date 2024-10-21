@@ -624,7 +624,7 @@ class TestImportParameterDefinition(AssertSuccessTestCase):
             count = self._assert_imports(import_object_parameters(db_map, (("my_object_class", "my_parameter"),)))
             self.assertEqual(count, 1)
             db_map.commit_session("Add test data.")
-            parameter_definitions = [dict(row) for row in db_map.query(db_map.object_parameter_definition_sq)]
+            parameter_definitions = [row._asdict() for row in db_map.query(db_map.object_parameter_definition_sq)]
             self.assertEqual(
                 parameter_definitions,
                 [
@@ -653,7 +653,7 @@ class TestImportParameterDefinition(AssertSuccessTestCase):
             )
             self.assertEqual(count, 1)
             db_map.commit_session("Add test data.")
-            parameter_definitions = [dict(row) for row in db_map.query(db_map.object_parameter_definition_sq)]
+            parameter_definitions = [row._asdict() for row in db_map.query(db_map.object_parameter_definition_sq)]
             self.assertEqual(
                 parameter_definitions,
                 [
@@ -682,7 +682,7 @@ class TestImportParameterDefinition(AssertSuccessTestCase):
             )
             self.assertEqual(count, 1)
             db_map.commit_session("Add test data.")
-            parameter_definitions = [dict(row) for row in db_map.query(db_map.object_parameter_definition_sq)]
+            parameter_definitions = [row._asdict() for row in db_map.query(db_map.object_parameter_definition_sq)]
             self.assertEqual(
                 parameter_definitions,
                 [
@@ -1761,7 +1761,7 @@ class TestImportParameterValueMetadata(AssertSuccessTestCase):
             metadata = db_map.query(db_map.ext_parameter_value_metadata_sq).all()
             self.assertEqual(len(metadata), 2)
             self.assertEqual(
-                dict(metadata[0]),
+                metadata[0]._asdict(),
                 {
                     "alternative_name": "Base",
                     "entity_name": "object",
@@ -1775,7 +1775,7 @@ class TestImportParameterValueMetadata(AssertSuccessTestCase):
                 },
             )
             self.assertEqual(
-                dict(metadata[1]),
+                metadata[1]._asdict(),
                 {
                     "alternative_name": "Base",
                     "entity_name": "object",
@@ -1810,7 +1810,7 @@ class TestImportParameterValueMetadata(AssertSuccessTestCase):
             metadata = db_map.query(db_map.ext_parameter_value_metadata_sq).all()
             self.assertEqual(len(metadata), 2)
             self.assertEqual(
-                dict(metadata[0]),
+                metadata[0]._asdict(),
                 {
                     "alternative_name": "Base",
                     "entity_name": "object__",
@@ -1824,7 +1824,7 @@ class TestImportParameterValueMetadata(AssertSuccessTestCase):
                 },
             )
             self.assertEqual(
-                dict(metadata[1]),
+                metadata[1]._asdict(),
                 {
                     "alternative_name": "Base",
                     "entity_name": "object__",
@@ -1864,7 +1864,7 @@ class TestImportEntityClassDisplayModeEntityClass(AssertSuccessTestCase):
             display_modes = db_map.query(db_map.entity_class_display_mode_sq).all()
         self.assertEqual(len(display_modes), 1)
         self.assertEqual(
-            dict(display_modes[0]),
+            display_modes[0]._asdict(),
             {
                 "id": 1,
                 "display_mode_id": 1,

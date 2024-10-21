@@ -42,7 +42,7 @@ class DatabaseMappingBase:
     """
 
     def __init__(self):
-        self.closed = False
+        self.closed = True
         self._mapped_tables = {}
         self._fetched = {}
         self._locker_lock = Lock()
@@ -298,8 +298,8 @@ class DatabaseMappingBase:
         if not qry:
             return []
         if not limit:
-            return [dict(x) for x in qry]
-        return [dict(x) for x in qry.limit(limit).offset(offset)]
+            return [x._asdict() for x in qry]
+        return [x._asdict() for x in qry.limit(limit).offset(offset)]
 
     def do_fetch_more(self, item_type, offset=0, limit=None, real_commit_count=None, **kwargs):
         """Fetches items from the DB and adds them to the mapping.

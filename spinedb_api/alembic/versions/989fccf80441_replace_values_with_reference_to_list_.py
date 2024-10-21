@@ -25,8 +25,8 @@ def upgrade():
     conn = op.get_bind()
     Session = sessionmaker(bind=conn)
     session = Session()
-    meta = MetaData(conn)
-    meta.reflect()
+    meta = MetaData()
+    meta.reflect(conn)
     list_value = meta.tables["list_value"]
     parameter_definition = meta.tables["parameter_definition"]
     parameter_value = meta.tables["parameter_value"]

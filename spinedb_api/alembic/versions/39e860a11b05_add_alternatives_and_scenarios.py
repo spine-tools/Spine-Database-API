@@ -9,6 +9,7 @@ Create Date: 2020-03-05 14:04:00.854936
 from datetime import datetime, timezone
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import sessionmaker
 
@@ -90,8 +91,8 @@ def alter_tables_after_update():
             None, "alternative", ("alternative_id",), ("id",), onupdate="CASCADE", ondelete="CASCADE"
         )
 
-    m = sa.MetaData(op.get_bind())
-    m.reflect()
+    m = sa.MetaData()
+    m.reflect(op.get_bind())
     if "next_id" in m.tables:
         with op.batch_alter_table("next_id") as batch_op:
             batch_op.add_column(sa.Column("alternative_id", sa.Integer, server_default=sa.null()))
@@ -101,7 +102,8 @@ def alter_tables_after_update():
         date = datetime.utcnow()
         conn = op.get_bind()
         conn.execute(
-            """
+            text(
+                """
             UPDATE next_id
             SET
                 user = :user,
@@ -109,7 +111,8 @@ def alter_tables_after_update():
                 alternative_id = 2,
                 scenario_id = 1,
                 scenario_alternative_id = 1
-            """,
+            """
+            ),
             user=user,
             date=date,
         )

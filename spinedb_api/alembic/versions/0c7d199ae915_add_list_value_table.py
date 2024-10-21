@@ -30,8 +30,8 @@ def upgrade():
     tfm = session.query(Base.classes.tool_feature_method).all()
     session.query(Base.classes.parameter_value_list).delete()
     session.query(Base.classes.tool_feature_method).delete()
-    m = sa.MetaData(op.get_bind())
-    m.reflect()
+    m = sa.MetaData()
+    m.reflect(op.get_bind())
     # Change schema
     if "next_id" in m.tables:
         with op.batch_alter_table("next_id") as batch_op:

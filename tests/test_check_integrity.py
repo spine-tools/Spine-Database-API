@@ -32,32 +32,36 @@ class TestCheckIntegrity(unittest.TestCase):
         ]
         self.value_type = {"bool": 1, "float": 2, "str": 3}
         self.db_map = DatabaseMapping("sqlite://", create=True)
-        self.db_map.add_items("entity_class", {"id": 1, "name": "cat"})
-        self.db_map.add_items(
-            "entity",
-            {"id": 1, "name": "Tom", "class_id": 1},
-            {"id": 2, "name": "Felix", "class_id": 1},
-            {"id": 3, "name": "Jansson", "class_id": 1},
-        )
-        self.db_map.add_items(
-            "parameter_value_list", {"id": 1, "name": "list1"}, {"id": 2, "name": "list2"}, {"id": 3, "name": "list3"}
-        )
-        self.db_map.add_items(
-            "list_value",
-            {"id": 1, **_val_dict(True), "index": 0, "parameter_value_list_id": 1},
-            {"id": 2, **_val_dict(False), "index": 1, "parameter_value_list_id": 1},
-            {"id": 3, **_val_dict(42), "index": 0, "parameter_value_list_id": 2},
-            {"id": 4, **_val_dict(-2), "index": 1, "parameter_value_list_id": 2},
-            {"id": 5, **_val_dict("foo"), "index": 0, "parameter_value_list_id": 3},
-            {"id": 6, **_val_dict("Bar"), "index": 1, "parameter_value_list_id": 3},
-            {"id": 7, **_val_dict("BAZ"), "index": 2, "parameter_value_list_id": 3},
-        )
-        self.db_map.add_items(
-            "parameter_definition",
-            {"id": 1, "name": "par1", "entity_class_id": 1, "parameter_value_list_id": 1},
-            {"id": 2, "name": "par2", "entity_class_id": 1, "parameter_value_list_id": 2},
-            {"id": 3, "name": "par3", "entity_class_id": 1, "parameter_value_list_id": 3},
-        )
+        with self.db_map:
+            self.db_map.add_items("entity_class", {"id": 1, "name": "cat"})
+            self.db_map.add_items(
+                "entity",
+                {"id": 1, "name": "Tom", "class_id": 1},
+                {"id": 2, "name": "Felix", "class_id": 1},
+                {"id": 3, "name": "Jansson", "class_id": 1},
+            )
+            self.db_map.add_items(
+                "parameter_value_list",
+                {"id": 1, "name": "list1"},
+                {"id": 2, "name": "list2"},
+                {"id": 3, "name": "list3"},
+            )
+            self.db_map.add_items(
+                "list_value",
+                {"id": 1, **_val_dict(True), "index": 0, "parameter_value_list_id": 1},
+                {"id": 2, **_val_dict(False), "index": 1, "parameter_value_list_id": 1},
+                {"id": 3, **_val_dict(42), "index": 0, "parameter_value_list_id": 2},
+                {"id": 4, **_val_dict(-2), "index": 1, "parameter_value_list_id": 2},
+                {"id": 5, **_val_dict("foo"), "index": 0, "parameter_value_list_id": 3},
+                {"id": 6, **_val_dict("Bar"), "index": 1, "parameter_value_list_id": 3},
+                {"id": 7, **_val_dict("BAZ"), "index": 2, "parameter_value_list_id": 3},
+            )
+            self.db_map.add_items(
+                "parameter_definition",
+                {"id": 1, "name": "par1", "entity_class_id": 1, "parameter_value_list_id": 1},
+                {"id": 2, "name": "par2", "entity_class_id": 1, "parameter_value_list_id": 2},
+                {"id": 3, "name": "par3", "entity_class_id": 1, "parameter_value_list_id": 3},
+            )
 
     @staticmethod
     def get_item(id_: int, val: bytes, type_: str, entity_id: int):
@@ -78,7 +82,8 @@ class TestCheckIntegrity(unittest.TestCase):
             for k, value in enumerate(fail):
                 with self.subTest(type=type_, value=value):
                     item = self.get_item(id_, value, type_, 1)
-                    _, errors = self.db_map.add_items("parameter_value", item)
+                    with self.db_map:
+                        _, errors = self.db_map.add_items("parameter_value", item)
                     self.assertEqual(len(errors), 1)
                     parsed_value = json.loads(value.decode("utf8"))
                     if isinstance(parsed_value, Number):
@@ -87,5 +92,6 @@ class TestCheckIntegrity(unittest.TestCase):
             for k, value in enumerate(pass_):
                 with self.subTest(type=type_, value=value):
                     item = self.get_item(id_, value, type_, k + 1)
-                    _, errors = self.db_map.add_items("parameter_value", item)
+                    with self.db_map:
+                        _, errors = self.db_map.add_items("parameter_value", item)
                     self.assertEqual(errors, [])

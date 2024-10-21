@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for ``value_transformer`` module.
-
-"""
+""" Unit tests for ``value_transformer`` module. """
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -35,6 +32,7 @@ from spinedb_api.filters.value_transformer import (
     value_transformer_config_to_shorthand,
     value_transformer_shorthand_to_config,
 )
+from tests.mock_helpers import AssertSuccessTestCase
 
 
 class TestValueTransformerFunctions(unittest.TestCase):
@@ -92,125 +90,118 @@ class TestValueTransformerFunctions(unittest.TestCase):
         self.assertEqual(config, expected)
 
 
-class TestValueTransformerUsingDatabase(unittest.TestCase):
-    _db_url = None
-    _temp_dir = None
-
-    @classmethod
-    def setUpClass(cls):
-        cls._temp_dir = TemporaryDirectory()
-        cls._db_url = URL("sqlite", database=Path(cls._temp_dir.name, "test_value_transformer.sqlite").as_posix())
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._temp_dir.cleanup()
-
-    def setUp(self):
-        create_new_spine_database(self._db_url)
-        self._out_db_map = DatabaseMapping(self._db_url)
-
-    def tearDown(self):
-        self._out_db_map.close()
-
+class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
     def test_negate_manipulator(self):
-        import_object_classes(self._out_db_map, ("class",))
-        import_object_parameters(self._out_db_map, (("class", "parameter"),))
-        import_objects(self._out_db_map, (("class", "object"),))
-        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", -2.3),))
-        self._out_db_map.commit_session("Add test data.")
-        instructions = {"class": {"parameter": [{"operation": "negate"}]}}
-        config = value_transformer_config(instructions)
-        url = append_filter_config(str(self._db_url), config)
-        db_map = DatabaseMapping(url)
-        try:
-            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
-            self.assertEqual(values, [2.3])
-        finally:
-            db_map.close()
+        with TemporaryDirectory() as temp_dir:
+            db_url = URL.create("sqlite", database=Path(temp_dir, "test_value_transformer.sqlite").as_posix())
+            with DatabaseMapping(db_url, create=True) as out_db_map:
+                self._assert_imports(import_object_classes(out_db_map, ("class",)))
+                self._assert_imports(import_object_parameters(out_db_map, (("class", "parameter"),)))
+                self._assert_imports(import_objects(out_db_map, (("class", "object"),)))
+                self._assert_imports(
+                    import_object_parameter_values(out_db_map, (("class", "object", "parameter", -2.3),))
+                )
+                out_db_map.commit_session("Add test data.")
+            instructions = {"class": {"parameter": [{"operation": "negate"}]}}
+            config = value_transformer_config(instructions)
+            url = append_filter_config(str(db_url), config)
+            with DatabaseMapping(url) as db_map:
+                values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
+                self.assertEqual(values, [2.3])
 
     def test_negate_manipulator_with_nested_map(self):
-        import_object_classes(self._out_db_map, ("class",))
-        import_object_parameters(self._out_db_map, (("class", "parameter"),))
-        import_objects(self._out_db_map, (("class", "object"),))
-        value = Map(["A"], [Map(["1"], [2.3])])
-        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", value),))
-        self._out_db_map.commit_session("Add test data.")
-        instructions = {"class": {"parameter": [{"operation": "negate"}]}}
-        config = value_transformer_config(instructions)
-        url = append_filter_config(str(self._db_url), config)
-        db_map = DatabaseMapping(url)
-        try:
-            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
-            expected = Map(["A"], [Map(["1"], [-2.3])])
-            self.assertEqual(values, [expected])
-        finally:
-            db_map.close()
+        with TemporaryDirectory() as temp_dir:
+            db_url = URL.create("sqlite", database=Path(temp_dir, "test_value_transformer.sqlite").as_posix())
+            with DatabaseMapping(db_url, create=True) as out_db_map:
+                self._assert_imports(import_object_classes(out_db_map, ("class",)))
+                self._assert_imports(import_object_parameters(out_db_map, (("class", "parameter"),)))
+                self._assert_imports(import_objects(out_db_map, (("class", "object"),)))
+                value = Map(["A"], [Map(["1"], [2.3])])
+                self._assert_imports(
+                    import_object_parameter_values(out_db_map, (("class", "object", "parameter", value),))
+                )
+                out_db_map.commit_session("Add test data.")
+            instructions = {"class": {"parameter": [{"operation": "negate"}]}}
+            config = value_transformer_config(instructions)
+            url = append_filter_config(str(db_url), config)
+            with DatabaseMapping(url) as db_map:
+                values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
+                expected = Map(["A"], [Map(["1"], [-2.3])])
+                self.assertEqual(values, [expected])
 
     def test_multiply_manipulator(self):
-        import_object_classes(self._out_db_map, ("class",))
-        import_object_parameters(self._out_db_map, (("class", "parameter"),))
-        import_objects(self._out_db_map, (("class", "object"),))
-        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", -2.3),))
-        self._out_db_map.commit_session("Add test data.")
-        instructions = {"class": {"parameter": [{"operation": "multiply", "rhs": 10.0}]}}
-        config = value_transformer_config(instructions)
-        url = append_filter_config(str(self._db_url), config)
-        db_map = DatabaseMapping(url)
-        try:
-            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
-            self.assertEqual(values, [-23.0])
-        finally:
-            db_map.close()
+        with TemporaryDirectory() as temp_dir:
+            db_url = URL.create("sqlite", database=Path(temp_dir, "test_value_transformer.sqlite").as_posix())
+            with DatabaseMapping(db_url, create=True) as out_db_map:
+                self._assert_imports(import_object_classes(out_db_map, ("class",)))
+                self._assert_imports(import_object_parameters(out_db_map, (("class", "parameter"),)))
+                self._assert_imports(import_objects(out_db_map, (("class", "object"),)))
+                self._assert_imports(
+                    import_object_parameter_values(out_db_map, (("class", "object", "parameter", -2.3),))
+                )
+                out_db_map.commit_session("Add test data.")
+            instructions = {"class": {"parameter": [{"operation": "multiply", "rhs": 10.0}]}}
+            config = value_transformer_config(instructions)
+            url = append_filter_config(str(db_url), config)
+            with DatabaseMapping(url) as db_map:
+                values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
+                self.assertEqual(values, [-23.0])
 
     def test_invert_manipulator(self):
-        import_object_classes(self._out_db_map, ("class",))
-        import_object_parameters(self._out_db_map, (("class", "parameter"),))
-        import_objects(self._out_db_map, (("class", "object"),))
-        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", -2.3),))
-        self._out_db_map.commit_session("Add test data.")
-        instructions = {"class": {"parameter": [{"operation": "invert"}]}}
-        config = value_transformer_config(instructions)
-        url = append_filter_config(str(self._db_url), config)
-        db_map = DatabaseMapping(url)
-        try:
-            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
-            self.assertEqual(values, [-1.0 / 2.3])
-        finally:
-            db_map.close()
+        with TemporaryDirectory() as temp_dir:
+            db_url = URL.create("sqlite", database=Path(temp_dir, "test_value_transformer.sqlite").as_posix())
+            with DatabaseMapping(db_url, create=True) as out_db_map:
+                self._assert_imports(import_object_classes(out_db_map, ("class",)))
+                self._assert_imports(import_object_parameters(out_db_map, (("class", "parameter"),)))
+                self._assert_imports(import_objects(out_db_map, (("class", "object"),)))
+                self._assert_imports(
+                    import_object_parameter_values(out_db_map, (("class", "object", "parameter", -2.3),))
+                )
+                out_db_map.commit_session("Add test data.")
+            instructions = {"class": {"parameter": [{"operation": "invert"}]}}
+            config = value_transformer_config(instructions)
+            url = append_filter_config(str(db_url), config)
+            with DatabaseMapping(url) as db_map:
+                values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
+                self.assertEqual(values, [-1.0 / 2.3])
 
     def test_multiple_instructions(self):
-        import_object_classes(self._out_db_map, ("class",))
-        import_object_parameters(self._out_db_map, (("class", "parameter"),))
-        import_objects(self._out_db_map, (("class", "object"),))
-        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", -2.3),))
-        self._out_db_map.commit_session("Add test data.")
-        instructions = {"class": {"parameter": [{"operation": "invert"}, {"operation": "negate"}]}}
-        config = value_transformer_config(instructions)
-        url = append_filter_config(str(self._db_url), config)
-        db_map = DatabaseMapping(url)
-        try:
-            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
-            self.assertEqual(values, [1.0 / 2.3])
-        finally:
-            db_map.close()
+        with TemporaryDirectory() as temp_dir:
+            db_url = URL.create("sqlite", database=Path(temp_dir, "test_value_transformer.sqlite").as_posix())
+            with DatabaseMapping(db_url, create=True) as out_db_map:
+                self._assert_imports(import_object_classes(out_db_map, ("class",)))
+                self._assert_imports(import_object_parameters(out_db_map, (("class", "parameter"),)))
+                self._assert_imports(import_objects(out_db_map, (("class", "object"),)))
+                self._assert_imports(
+                    import_object_parameter_values(out_db_map, (("class", "object", "parameter", -2.3),))
+                )
+                out_db_map.commit_session("Add test data.")
+            instructions = {"class": {"parameter": [{"operation": "invert"}, {"operation": "negate"}]}}
+            config = value_transformer_config(instructions)
+            url = append_filter_config(str(db_url), config)
+            with DatabaseMapping(url) as db_map:
+                values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
+                self.assertEqual(values, [1.0 / 2.3])
 
     def test_index_generator_on_time_series(self):
-        import_object_classes(self._out_db_map, ("class",))
-        import_object_parameters(self._out_db_map, (("class", "parameter"),))
-        import_objects(self._out_db_map, (("class", "object"),))
-        value = TimeSeriesFixedResolution("2021-06-07T08:00", "1D", [-5.0, -2.3], False, False)
-        import_object_parameter_values(self._out_db_map, (("class", "object", "parameter", value),))
-        self._out_db_map.commit_session("Add test data.")
-        instructions = {"class": {"parameter": [{"operation": "generate_index", "expression": "float(i)"}]}}
-        config = value_transformer_config(instructions)
-        url = append_filter_config(str(self._db_url), config)
-        db_map = DatabaseMapping(url)
-        try:
-            values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
-            expected = Map([1.0, 2.0], [-5.0, -2.3])
-            self.assertEqual(values, [expected])
-        finally:
-            db_map.close()
+        with TemporaryDirectory() as temp_dir:
+            db_url = URL.create("sqlite", database=Path(temp_dir, "test_value_transformer.sqlite").as_posix())
+            with DatabaseMapping(db_url, create=True) as out_db_map:
+                self._assert_imports(import_object_classes(out_db_map, ("class",)))
+                self._assert_imports(import_object_parameters(out_db_map, (("class", "parameter"),)))
+                self._assert_imports(import_objects(out_db_map, (("class", "object"),)))
+                value = TimeSeriesFixedResolution("2021-06-07T08:00", "1D", [-5.0, -2.3], False, False)
+                self._assert_imports(
+                    import_object_parameter_values(out_db_map, (("class", "object", "parameter", value),))
+                )
+                out_db_map.commit_session("Add test data.")
+            instructions = {"class": {"parameter": [{"operation": "generate_index", "expression": "float(i)"}]}}
+            config = value_transformer_config(instructions)
+            url = append_filter_config(str(db_url), config)
+            with DatabaseMapping(url) as db_map:
+                values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
+                expected = Map([1.0, 2.0], [-5.0, -2.3])
+                self.assertEqual(values, [expected])
 
 
 if __name__ == "__main__":

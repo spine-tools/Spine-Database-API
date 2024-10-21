@@ -80,8 +80,9 @@ def apply_filter_stack(db_map, stack):
         SCENARIO_FILTER_TYPE: scenario_filter_from_dict,
         VALUE_TRANSFORMER_TYPE: value_transformer_from_dict,
     }
-    for filter_ in stack:
-        appliers[filter_["type"]](db_map, filter_)
+    with db_map:
+        for filter_ in stack:
+            appliers[filter_["type"]](db_map, filter_)
 
 
 def load_filters(configs):

@@ -39,8 +39,8 @@ def purge_url(url, purge_settings, logger=None):
         if logger:
             logger.msg_warning.emit(f"Failed to purge url <b>{sanitized_url}</b>: {err}")
         return False
-    success = purge(db_map, purge_settings, logger=logger)
-    db_map.close()
+    with db_map:
+        success = purge(db_map, purge_settings, logger=logger)
     return success
 
 

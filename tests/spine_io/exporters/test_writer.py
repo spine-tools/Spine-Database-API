@@ -9,14 +9,12 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Unit tests for ``writer`` module.
-
-"""
+""" Unit tests for ``writer`` module. """
 import unittest
 from spinedb_api import DatabaseMapping, import_object_classes, import_objects
 from spinedb_api.export_mapping.settings import entity_export
 from spinedb_api.spine_io.exporters.writer import Writer, write
+from tests.mock_helpers import AssertSuccessTestCase
 
 
 class _TableWriter(Writer):
@@ -40,51 +38,51 @@ class _TableWriter(Writer):
         return True
 
 
-class TestWrite(unittest.TestCase):
-    def setUp(self):
-        self._db_map = DatabaseMapping("sqlite://", create=True)
-
-    def tearDown(self):
-        self._db_map.close()
-
+class TestWrite(AssertSuccessTestCase):
     def test_max_rows(self):
-        import_object_classes(self._db_map, ("class1", "class2"))
-        import_objects(
-            self._db_map,
-            (
-                ("class1", "obj1"),
-                ("class1", "obj2"),
-                ("class1", "obj3"),
-                ("class2", "obj4"),
-                ("class2", "obj5"),
-                ("class2", "obj6"),
-            ),
-        )
-        self._db_map.commit_session("Add test data.")
-        writer = _TableWriter()
-        root_mapping = entity_export(0, 1)
-        write(self._db_map, writer, root_mapping, max_rows=2)
-        self.assertEqual(writer.tables, {None: [["class1", "obj1"], ["class1", "obj2"]]})
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_object_classes(db_map, ("class1", "class2")))
+            self._assert_imports(
+                import_objects(
+                    db_map,
+                    (
+                        ("class1", "obj1"),
+                        ("class1", "obj2"),
+                        ("class1", "obj3"),
+                        ("class2", "obj4"),
+                        ("class2", "obj5"),
+                        ("class2", "obj6"),
+                    ),
+                )
+            )
+            db_map.commit_session("Add test data.")
+            writer = _TableWriter()
+            root_mapping = entity_export(0, 1)
+            write(db_map, writer, root_mapping, max_rows=2)
+            self.assertEqual(writer.tables, {None: [["class1", "obj1"], ["class1", "obj2"]]})
 
     def test_max_rows_with_filter(self):
-        import_object_classes(self._db_map, ("class1", "class2"))
-        import_objects(
-            self._db_map,
-            (
-                ("class1", "obj1"),
-                ("class1", "obj2"),
-                ("class1", "obj3"),
-                ("class2", "obj4"),
-                ("class2", "obj5"),
-                ("class2", "obj6"),
-            ),
-        )
-        self._db_map.commit_session("Add test data.")
-        writer = _TableWriter()
-        root_mapping = entity_export(0, 1)
-        root_mapping.child.filter_re = "obj6"
-        write(self._db_map, writer, root_mapping, max_rows=1)
-        self.assertEqual(writer.tables, {None: [["class2", "obj6"]]})
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_object_classes(db_map, ("class1", "class2")))
+            self._assert_imports(
+                import_objects(
+                    db_map,
+                    (
+                        ("class1", "obj1"),
+                        ("class1", "obj2"),
+                        ("class1", "obj3"),
+                        ("class2", "obj4"),
+                        ("class2", "obj5"),
+                        ("class2", "obj6"),
+                    ),
+                )
+            )
+            db_map.commit_session("Add test data.")
+            writer = _TableWriter()
+            root_mapping = entity_export(0, 1)
+            root_mapping.child.filter_re = "obj6"
+            write(db_map, writer, root_mapping, max_rows=1)
+            self.assertEqual(writer.tables, {None: [["class2", "obj6"]]})
 
 
 if __name__ == "__main__":

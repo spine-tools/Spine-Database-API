@@ -354,23 +354,23 @@ class _DBWorker:
         except Exception as error:  # pylint: disable=broad-except
             self._out_queue.put(error)
             return
-        while True:
-            input_ = self._in_queue.get()
-            if input_ == self._CLOSE:
-                self._db_map.close()
-                break
-            request, args, kwargs = input_
-            handler = {
-                "query": self._do_query,
-                "filtered_query": self._do_filtered_query,
-                "import_data": self._do_import_data,
-                "export_data": self._do_export_data,
-                "call_method": self._do_call_method,
-                "apply_filters": self._do_apply_filters,
-                "clear_filters": self._do_clear_filters,
-            }[request]
-            result = handler(*args, **kwargs)
-            self._out_queue.put(result)
+        with self._db_map:
+            while True:
+                input_ = self._in_queue.get()
+                if input_ == self._CLOSE:
+                    break
+                request, args, kwargs = input_
+                handler = {
+                    "query": self._do_query,
+                    "filtered_query": self._do_filtered_query,
+                    "import_data": self._do_import_data,
+                    "export_data": self._do_export_data,
+                    "call_method": self._do_call_method,
+                    "apply_filters": self._do_apply_filters,
+                    "clear_filters": self._do_clear_filters,
+                }[request]
+                result = handler(*args, **kwargs)
+                self._out_queue.put(result)
 
     def run(self, request, args, kwargs):
         with self._lock:

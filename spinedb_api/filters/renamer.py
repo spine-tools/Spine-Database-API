@@ -202,8 +202,8 @@ def _make_renaming_entity_class_sq(db_map, state):
     subquery = state.original_entity_class_sq
     if not state.id_to_name:
         return subquery
-    cases = [(subquery.c.id == id, new_name) for id, new_name in state.id_to_name.items()]
-    new_class_name = case(cases, else_=subquery.c.name)  # if not in the name map, just keep the original name
+    cases = ((subquery.c.id == id_, new_name) for id_, new_name in state.id_to_name.items())
+    new_class_name = case(*cases, else_=subquery.c.name)  # if not in the name map, just keep the original name
     entity_class_sq = db_map.query(
         subquery.c.id,
         new_class_name.label("name"),
@@ -262,8 +262,8 @@ def _make_renaming_parameter_definition_sq(db_map, state):
     subquery = state.original_parameter_definition_sq
     if not state.id_to_name:
         return subquery
-    cases = [(subquery.c.id == id, new_name) for id, new_name in state.id_to_name.items()]
-    new_parameter_name = case(cases, else_=subquery.c.name)  # if not in the name map, just keep the original name
+    cases = ((subquery.c.id == id, new_name) for id, new_name in state.id_to_name.items())
+    new_parameter_name = case(*cases, else_=subquery.c.name)  # if not in the name map, just keep the original name
     parameter_definition_sq = db_map.query(
         subquery.c.id,
         new_parameter_name.label("name"),

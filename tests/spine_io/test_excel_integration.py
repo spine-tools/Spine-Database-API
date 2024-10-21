@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Integration tests for Excel import and export.
-
-"""
+""" Integration tests for Excel import and export. """
 
 import json
 from pathlib import PurePath
@@ -22,12 +19,13 @@ import unittest
 from spinedb_api import DatabaseMapping, from_database, import_data
 from spinedb_api.spine_io.exporters.excel import export_spine_database_to_xlsx
 from spinedb_api.spine_io.importers.excel_reader import get_mapped_data_from_xlsx
+from tests.mock_helpers import AssertSuccessTestCase
 from tests.test_import_functions import assert_import_equivalent
 
 _TEMP_EXCEL_FILENAME = "excel.xlsx"
 
 
-class TestExcelIntegration(unittest.TestCase):
+class TestExcelIntegration(AssertSuccessTestCase):
     def test_array(self):
         array = b'{"type": "array", "data": [1, 2, 3]}'
         array = from_database(array, type_="array")
@@ -108,26 +106,25 @@ class TestExcelIntegration(unittest.TestCase):
             "parameter_definitions": [("dog", "bone")],
             "parameter_values": [("dog", "pluto", "bone", val)],
         }
-        db_map = DatabaseMapping("sqlite://", create=True)
-        import_data(db_map, **input_data)
-        db_map.commit_session("yeah")
-        with TemporaryDirectory() as directory:
-            path = str(PurePath(directory, _TEMP_EXCEL_FILENAME))
-            export_spine_database_to_xlsx(db_map, path)
-            output_data, errors = get_mapped_data_from_xlsx(path)
-        db_map.close()
-        self.assertEqual([], errors)
-        input_param_vals = input_data.pop("parameter_values")
-        output_param_vals = output_data.pop("parameter_values")
-        self.assertEqual(1, len(output_param_vals))
-        input_obj_param_val = input_param_vals[0]
-        output_obj_param_val = output_param_vals[0]
-        for input_, output in zip(input_obj_param_val[:3], output_obj_param_val[:3]):
-            self.assertEqual(input_, output)
-        input_val = input_obj_param_val[3]
-        output_val = output_obj_param_val[3]
-        self.assertEqual(set(indexed_values(output_val)), set(indexed_values(input_val)))
-        assert_import_equivalent(self, input_data, output_data, strict=False)
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_data(db_map, **input_data))
+            db_map.commit_session("yeah")
+            with TemporaryDirectory() as directory:
+                path = str(PurePath(directory, _TEMP_EXCEL_FILENAME))
+                export_spine_database_to_xlsx(db_map, path)
+                output_data, errors = get_mapped_data_from_xlsx(path)
+            self.assertEqual([], errors)
+            input_param_vals = input_data.pop("parameter_values")
+            output_param_vals = output_data.pop("parameter_values")
+            self.assertEqual(1, len(output_param_vals))
+            input_obj_param_val = input_param_vals[0]
+            output_obj_param_val = output_param_vals[0]
+            for input_, output in zip(input_obj_param_val[:3], output_obj_param_val[:3]):
+                self.assertEqual(input_, output)
+            input_val = input_obj_param_val[3]
+            output_val = output_obj_param_val[3]
+            self.assertEqual(set(indexed_values(output_val)), set(indexed_values(input_val)))
+            assert_import_equivalent(self, input_data, output_data, strict=False)
 
 
 def indexed_values(value, k=1, prefix=()):

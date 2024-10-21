@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from itertools import cycle, dropwhile, islice
 from typing import ClassVar, Optional
 from sqlalchemy import and_
-from sqlalchemy.sql.expression import literal
+from sqlalchemy.sql.expression import literal, null, select
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
 from ..parameter_value import (
     IndexedValue,
@@ -149,19 +149,13 @@ class ExportMapping(Mapping):
         mapping.set_ignorable(ignorable)
         return mapping
 
-    def add_query_columns(self, db_map, query):
-        """Adds columns to the mapping query if needed, and returns the new query.
-
-        The base class implementation just returns the same query without adding any new columns.
+    def build_query_columns(self, db_map, columns):
+        """Appends columns needed to query the mapping's data into a list.
 
         Args:
-            db_map (DatabaseMapping)
-            query (Alias or dict)
-
-        Returns:
-            Alias: expanded query, or the same if nothing to add.
+            db_map (DatabaseMapping): database mapping
+            columns (list of Column): list of columns to append to
         """
-        return query
 
     def filter_query(self, db_map, query):
         """Filters the mapping query if needed, and returns the new query.
@@ -170,10 +164,10 @@ class ExportMapping(Mapping):
 
         Args:
             db_map (DatabaseMapping)
-            query (Alias or dict)
+            query (Subquery or dict)
 
         Returns:
-            Alias: filtered query, or the same if nothing to add.
+            Subquery: filtered query, or the same if nothing to add.
         """
         return query
 
@@ -205,10 +199,13 @@ class ExportMapping(Mapping):
         """
         mappings = self.flatten()
         # Start with empty query
-        qry = db_map.query(literal(None))
         # Add columns
+        columns = []
         for m in mappings:
-            qry = m.add_query_columns(db_map, qry)
+            m.build_query_columns(db_map, columns)
+        if not columns:
+            return None
+        qry = db_map.query(*columns)
         # Apply filters
         for m in mappings:
             qry = m.filter_query(db_map, qry)
@@ -237,11 +234,12 @@ class ExportMapping(Mapping):
             if mappings[-1].position == Position.table_name:
                 break
             mappings.pop(-1)
-        # Start with empty query
-        qry = db_map.query(literal(None))
-        # Add columns
+        columns = []
         for m in mappings:
-            qry = m.add_query_columns(db_map, qry)
+            m.build_query_columns(db_map, columns)
+        if not columns:
+            return None
+        qry = db_map.query(*columns)
         # Apply filters
         for m in mappings:
             qry = m.filter_query(db_map, qry)
@@ -265,18 +263,17 @@ class ExportMapping(Mapping):
             if m.position in (Position.header, Position.table_name) or m in flat_buddies:
                 break
             mappings.pop(-1)
-        # Start with empty query
-        qry = db_map.query(literal(None))
-        # Add columns
+        columns = []
         for m in mappings:
-            qry = m.add_query_columns(db_map, qry)
-        # Apply filters
+            m.build_query_columns(db_map, columns)
+        if not columns:
+            return None
+        qry = db_map.query(*columns)
         for m in mappings:
             qry = m.filter_query(db_map, qry)
         # Apply special title filters (first, so we clean up the state)
         for m in mappings:
             qry = m.filter_query_by_title(qry, title_state)
-        # Apply standard title filters
         if not title_state:
             return qry
         # Use a _FilteredQuery, since building a subquery to query it again leads to parser stack overflow
@@ -290,7 +287,7 @@ class ExportMapping(Mapping):
         The base class implementation returns the field given by ``name_field``.
 
         Args:
-            row (KeyedTuple)
+            row (Row)
 
         Returns:
             any
@@ -332,7 +329,7 @@ class ExportMapping(Mapping):
         """Yields rows issued by this mapping for given database row.
 
         Args:
-            db_row (KeyedTuple)
+            db_row (Row)
 
         Returns:
             generator(dict)
@@ -351,7 +348,7 @@ class ExportMapping(Mapping):
         """Takes a database row and yields rows issued by this mapping and its children combined.
 
         Args:
-            db_row (KeyedTuple)
+            db_row (Row)
 
         Returns:
             generator(dict)
@@ -376,6 +373,9 @@ class ExportMapping(Mapping):
             generator(dict)
         """
         qry = self._build_query(db_map, title_state)
+        if qry is None:
+            yield {}
+            return
         for db_row in qry:
             yield from self.get_rows_recursive(db_row)
 
@@ -398,7 +398,7 @@ class ExportMapping(Mapping):
         to the corresponding field from the row.
 
         Args:
-            db_row (KeyedTuple)
+            db_row (Row)
 
         Returns:
             dict
@@ -412,7 +412,7 @@ class ExportMapping(Mapping):
         """Yields pairs (title, title state) issued by this mapping for given database row.
 
         Args:
-            db_row (KeyedTuple)
+            db_row (Row)
             limit (int, optional): yield only this many items
 
         Returns:
@@ -435,7 +435,7 @@ class ExportMapping(Mapping):
         """Takes a database row and yields pairs (title, title state) issued by this mapping and its children combined.
 
         Args:
-            db_row (KeyedTuple)
+            db_row (Row)
             limit (int, optional): yield only this many items
 
         Returns:
@@ -461,6 +461,9 @@ class ExportMapping(Mapping):
             tuple(str,dict): title, and associated title state dictionary
         """
         qry = self._build_title_query(db_map)
+        if qry is None:
+            yield from self.get_titles_recursive((), limit=limit)
+            return
         for db_row in qry:
             yield from self.get_titles_recursive(db_row, limit=limit)
 
@@ -495,9 +498,7 @@ class ExportMapping(Mapping):
         """Builds the header recursively.
 
         Args:
-            build_header_query (callable): a function that any mapping in the hierarchy can call to get the query
-            db_map (DatabaseMapping): database map
-            title_state (dict): title state
+            query (Query, optional): export query
             buddies (list of tuple): buddy mappings
 
         Returns
@@ -508,7 +509,7 @@ class ExportMapping(Mapping):
                 return {}
             return {self.position: self.header}
         header = self.child.make_header_recursive(query, buddies)
-        if self.position == Position.header:
+        if self.position == Position.header and query is not None:
             buddy = find_my_buddy(self, buddies)
             if buddy is not None:
                 query.rewind()
@@ -530,7 +531,9 @@ class ExportMapping(Mapping):
         Returns
             dict: a mapping from column index to string header
         """
-        query = _Rewindable(self._build_header_query(db_map, title_state, buddies))
+        query = self._build_header_query(db_map, title_state, buddies)
+        if query is not None:
+            query = _Rewindable(query)
         return self.make_header_recursive(query, buddies)
 
 
@@ -565,8 +568,8 @@ class FixedValueMapping(ExportMapping):
         Args:
             position (int or Position, optional): mapping's position
             value (Any): value to yield
-            header (str, optional); A string column header that's yielt as 'first row', if not empty.
-                The default is an empty string (so it's not yielt).
+            header (str, optional); A string column header that's yielded as 'first row', if not empty.
+                The default is an empty string (so it's not yielded).
             filter_re (str, optional): A regular expression to filter the mapped values by
         """
         super().__init__(position, value, header, filter_re)
@@ -586,16 +589,15 @@ class EntityClassMapping(ExportMapping):
         super().__init__(position, value, header, filter_re)
         self.highlight_position = highlight_position
 
-    def add_query_columns(self, db_map, query):
-        query = query.add_columns(
+    def build_query_columns(self, db_map, columns):
+        columns += [
             db_map.wide_entity_class_sq.c.id.label("entity_class_id"),
             db_map.wide_entity_class_sq.c.name.label("entity_class_name"),
             db_map.wide_entity_class_sq.c.dimension_id_list.label("dimension_id_list"),
             db_map.wide_entity_class_sq.c.dimension_name_list.label("dimension_name_list"),
-        )
+        ]
         if self.highlight_position is not None:
-            query = query.add_columns(db_map.entity_class_dimension_sq.c.dimension_id.label("highlighted_dimension_id"))
-        return query
+            columns.append(db_map.entity_class_dimension_sq.c.dimension_id.label("highlighted_dimension_id"))
 
     def filter_query(self, db_map, query):
         if any(isinstance(m, (DimensionMapping, ElementMapping)) for m in self.flatten()):
@@ -645,16 +647,15 @@ class EntityMapping(ExportMapping):
     name_field = "entity_name"
     id_field = "entity_id"
 
-    def add_query_columns(self, db_map, query):
-        query = query.add_columns(
+    def build_query_columns(self, db_map, columns):
+        columns += [
             db_map.wide_entity_sq.c.id.label("entity_id"),
             db_map.wide_entity_sq.c.name.label("entity_name"),
             db_map.wide_entity_sq.c.element_id_list,
             db_map.wide_entity_sq.c.element_name_list,
-        )
+        ]
         if self.query_parents("highlight_position") is not None:
-            query = query.add_columns(db_map.entity_element_sq.c.element_id.label("highlighted_element_id"))
-        return query
+            columns.append(db_map.entity_element_sq.c.element_id.label("highlighted_element_id"))
 
     def filter_query(self, db_map, query):
         query = query.outerjoin(
@@ -691,8 +692,8 @@ class EntityGroupMapping(ExportMapping):
     name_field = "group_name"
     id_field = "group_id"
 
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.ext_entity_group_sq.c.group_id, db_map.ext_entity_group_sq.c.group_name)
+    def build_query_columns(self, db_map, columns):
+        columns += [db_map.ext_entity_group_sq.c.group_id, db_map.ext_entity_group_sq.c.group_name]
 
     def filter_query(self, db_map, query):
         return query.outerjoin(
@@ -714,10 +715,8 @@ class EntityGroupEntityMapping(ExportMapping):
     name_field = "entity_name"
     id_field = "entity_id"
 
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.wide_entity_sq.c.id.label("entity_id"), db_map.wide_entity_sq.c.name.label("entity_name")
-        )
+    def build_query_columns(self, db_map, columns):
+        columns += [db_map.wide_entity_sq.c.id.label("entity_id"), db_map.wide_entity_sq.c.name.label("entity_name")]
 
     def filter_query(self, db_map, query):
         return query.filter(db_map.ext_entity_group_sq.c.member_id == db_map.wide_entity_sq.c.id)
@@ -804,11 +803,11 @@ class ParameterDefinitionMapping(ExportMapping):
     name_field = "parameter_definition_name"
     id_field = "parameter_definition_id"
 
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
+    def build_query_columns(self, db_map, columns):
+        columns += [
             db_map.parameter_definition_sq.c.id.label("parameter_definition_id"),
             db_map.parameter_definition_sq.c.name.label("parameter_definition_name"),
-        )
+        ]
 
     def filter_query(self, db_map, query):
         if self.query_parents("highlight_position") is not None:
@@ -830,10 +829,8 @@ class ParameterDefaultValueMapping(ExportMapping):
 
     MAP_TYPE = "ParameterDefaultValue"
 
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
-            db_map.parameter_definition_sq.c.default_value, db_map.parameter_definition_sq.c.default_type
-        )
+    def build_query_columns(self, db_map, columns):
+        columns += [db_map.parameter_definition_sq.c.default_value, db_map.parameter_definition_sq.c.default_type]
 
     def _data(self, row):
         return from_database_to_single_value(row.default_value, row.default_type)
@@ -910,12 +907,10 @@ class ParameterDefaultValueIndexMapping(_MappingWithLeafMixin, ExportMapping):
 
     MAP_TYPE = "ParameterDefaultValueIndex"
 
-    def add_query_columns(self, db_map, query):
-        if "default_value" in set(query.column_names()):
-            return query
-        return query.add_columns(
-            db_map.parameter_definition_sq.c.default_value, db_map.parameter_definition_sq.c.default_type
-        )
+    def build_query_columns(self, db_map, columns):
+        if any(c.name == "default_value" for c in columns):
+            return
+        columns += [db_map.parameter_definition_sq.c.default_value, db_map.parameter_definition_sq.c.default_type]
 
     def _expand_data(self, data):
         yield from _expand_indexed_data(data, self)
@@ -956,11 +951,11 @@ class ParameterValueMapping(ExportMapping):
     MAP_TYPE = "ParameterValue"
     _selects_value = False
 
-    def add_query_columns(self, db_map, query):
-        if "value" in set(query.column_names()):
-            return query
+    def build_query_columns(self, db_map, columns):
+        if any(c.name == "value" for c in columns):
+            return
         self._selects_value = True
-        return query.add_columns(db_map.parameter_value_sq.c.value, db_map.parameter_value_sq.c.type)
+        columns += [db_map.parameter_value_sq.c.value, db_map.parameter_value_sq.c.type]
 
     def filter_query(self, db_map, query):
         if not self._selects_value:
@@ -1015,7 +1010,7 @@ class ParameterValueTypeMapping(ParameterValueMapping):
         pv = title_state.pop("type_and_dimensions", None)
         if pv is None:
             return query
-        if "value" not in set(query.column_names()):
+        if all(d["name"] != "value" for d in query.column_descriptions):
             return query
         return _FilteredQuery(
             query, lambda db_row: (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type) == pv)
@@ -1088,11 +1083,11 @@ class ParameterValueListMapping(ExportMapping):
     name_field = "parameter_value_list_name"
     id_field = "parameter_value_list_id"
 
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
+    def build_query_columns(self, db_map, columns):
+        columns += [
             db_map.parameter_value_list_sq.c.id.label("parameter_value_list_id"),
             db_map.parameter_value_list_sq.c.name.label("parameter_value_list_name"),
-        )
+        ]
 
     def filter_query(self, db_map, query):
         if self.parent is None:
@@ -1112,8 +1107,8 @@ class ParameterValueListValueMapping(ExportMapping):
 
     MAP_TYPE = "ParameterValueListValue"
 
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(db_map.ord_list_value_sq.c.value, db_map.ord_list_value_sq.c.type)
+    def build_query_columns(self, db_map, columns):
+        columns += [db_map.ord_list_value_sq.c.value, db_map.ord_list_value_sq.c.type]
 
     def filter_query(self, db_map, query):
         return query.filter(db_map.ord_list_value_sq.c.parameter_value_list_id == db_map.parameter_value_list_sq.c.id)
@@ -1136,12 +1131,12 @@ class AlternativeMapping(ExportMapping):
     name_field = "alternative_name"
     id_field = "alternative_id"
 
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
+    def build_query_columns(self, db_map, columns):
+        columns += [
             db_map.alternative_sq.c.id.label("alternative_id"),
             db_map.alternative_sq.c.name.label("alternative_name"),
             db_map.alternative_sq.c.description.label("description"),
-        )
+        ]
 
     def filter_query(self, db_map, query):
         parent = self.parent
@@ -1162,12 +1157,12 @@ class ScenarioMapping(ExportMapping):
     name_field = "scenario_name"
     id_field = "scenario_id"
 
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
+    def build_query_columns(self, db_map, columns):
+        columns += [
             db_map.scenario_sq.c.id.label("scenario_id"),
             db_map.scenario_sq.c.name.label("scenario_name"),
             db_map.scenario_sq.c.description.label("description"),
-        )
+        ]
 
 
 class ScenarioAlternativeMapping(ExportMapping):
@@ -1180,18 +1175,19 @@ class ScenarioAlternativeMapping(ExportMapping):
     name_field = "alternative_name"
     id_field = "alternative_id"
 
-    def add_query_columns(self, db_map, query):
+    def build_query_columns(self, db_map, columns):
         if self._child is None:
-            return query.add_columns(
+            columns += [
                 db_map.ext_scenario_sq.c.alternative_id,
                 db_map.ext_scenario_sq.c.alternative_name,
                 db_map.ext_scenario_sq.c.rank,
-            )
-        # Legacy: expecting child to be ScenarioBeforeAlternativeMapping
-        return query.add_columns(
-            db_map.ext_linked_scenario_alternative_sq.c.alternative_id,
-            db_map.ext_linked_scenario_alternative_sq.c.alternative_name,
-        )
+            ]
+        else:
+            # Legacy: expecting child to be ScenarioBeforeAlternativeMapping
+            columns += [
+                db_map.ext_linked_scenario_alternative_sq.c.alternative_id,
+                db_map.ext_linked_scenario_alternative_sq.c.alternative_name,
+            ]
 
     def filter_query(self, db_map, query):
         if self._child is None:
@@ -1220,11 +1216,11 @@ class ScenarioBeforeAlternativeMapping(ExportMapping):
     name_field = "before_alternative_name"
     id_field = "before_alternative_id"
 
-    def add_query_columns(self, db_map, query):
-        return query.add_columns(
+    def build_query_columns(self, db_map, columns):
+        columns += [
             db_map.ext_linked_scenario_alternative_sq.c.before_alternative_id,
             db_map.ext_linked_scenario_alternative_sq.c.before_alternative_name,
-        )
+        ]
 
     @staticmethod
     def is_buddy(parent):

@@ -44,7 +44,7 @@ class TestScenarioFilterInMemory(AssertSuccessTestCase):
             apply_filter_stack(db_map, [scenario_filter_config("S")])
             entities = db_map.query(db_map.wide_entity_sq).all()
             self.assertEqual(len(entities), 1)
-            self.assertEqual(entities[0]["name"], "visible_object")
+            self.assertEqual(entities[0].name, "visible_object")
 
     def test_filter_entities_with_default_activity(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -79,8 +79,8 @@ class TestScenarioFilterInMemory(AssertSuccessTestCase):
             apply_filter_stack(db_map, [scenario_filter_config("S")])
             entities = db_map.query(db_map.wide_entity_sq).all()
             self.assertEqual(len(entities), 2)
-            self.assertEqual(entities[0]["name"], "visible")
-            self.assertEqual(entities[1]["name"], "visible")
+            self.assertEqual(entities[0].name, "visible")
+            self.assertEqual(entities[1].name, "visible")
 
     def test_filter_entity_that_is_not_active_in_scenario(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -323,14 +323,14 @@ class TestScenarioFilter(DataBuilderTestCase):
             url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_scenario(db_map)
-            with DatabaseMapping(url, create=True):
+            with DatabaseMapping(url) as db_map:
                 apply_scenario_filter_to_subqueries(db_map, "scenario")
                 parameters = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(parameters), 1)
                 self.assertEqual(parameters[0].value, b"23.0")
-                alternatives = [dict(a) for a in db_map.query(db_map.alternative_sq)]
+                alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
                 self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
-                scenarios = [dict(s) for s in db_map.query(db_map.wide_scenario_sq).all()]
+                scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq)]
                 self.assertEqual(
                     scenarios,
                     [
@@ -353,7 +353,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                 apply_scenario_filter_to_subqueries(db_map, "scenario")
             parameters = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(parameters), 0)
-            alternatives = [dict(a) for a in db_map.query(db_map.alternative_sq)]
+            alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
             self.assertEqual(
                 alternatives, [{"name": "Base", "description": "Base alternative", "id": 1, "commit_id": 1}]
             )
@@ -438,7 +438,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                 entity_names = {
                     name
                     for x in entities
-                    for name in (x["element_name_list"].split(",") if x["element_name_list"] else (x["name"],))
+                    for name in (x.element_name_list.split(",") if x.element_name_list else (x.name,))
                 }
                 self.assertFalse("obj2" in entity_names)
 
@@ -452,9 +452,9 @@ class TestScenarioFilter(DataBuilderTestCase):
                 parameters = db_map.query(db_map.object_parameter_value_sq).all()
                 self.assertEqual(len(parameters), 1)
                 self.assertEqual(parameters[0].value, b"23.0")
-                alternatives = [dict(a) for a in db_map.query(db_map.alternative_sq)]
+                alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
                 self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
-                scenarios = [dict(s) for s in db_map.query(db_map.wide_scenario_sq).all()]
+                scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq)]
                 self.assertEqual(
                     scenarios,
                     [
@@ -514,9 +514,9 @@ class TestScenarioFilter(DataBuilderTestCase):
                 parameters = db_map.query(db_map.relationship_parameter_value_sq).all()
                 self.assertEqual(len(parameters), 1)
                 self.assertEqual((parameters[0].value, parameters[0].type), to_database(23.0))
-                alternatives = [dict(a) for a in db_map.query(db_map.alternative_sq)]
+                alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
                 self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
-                scenarios = [dict(s) for s in db_map.query(db_map.wide_scenario_sq).all()]
+                scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq)]
                 self.assertEqual(
                     scenarios,
                     [
@@ -610,7 +610,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                 parameters = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(parameters), 1)
                 self.assertEqual((parameters[0].value, parameters[0].type), to_database(2000.0))
-                alternatives = [dict(a) for a in db_map.query(db_map.alternative_sq)]
+                alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
                 self.assertEqual(
                     alternatives,
                     [
@@ -619,7 +619,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                         {"name": "alternative2", "description": None, "id": 4, "commit_id": 2},
                     ],
                 )
-                scenarios = [dict(s) for s in db_map.query(db_map.wide_scenario_sq).all()]
+                scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq)]
                 self.assertEqual(
                     scenarios,
                     [
@@ -735,7 +735,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                 parameters = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(parameters), 1)
                 self.assertEqual((parameters[0].value, parameters[0].type), to_database(2000.0))
-                alternatives = [dict(a) for a in db_map.query(db_map.alternative_sq)]
+                alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
                 self.assertEqual(
                     alternatives,
                     [
@@ -744,7 +744,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                         {"name": "alternative2", "description": None, "id": 4, "commit_id": 2},
                     ],
                 )
-                scenarios = [dict(s) for s in db_map.query(db_map.wide_scenario_sq).all()]
+                scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq)]
                 self.assertEqual(
                     scenarios,
                     [
@@ -875,9 +875,9 @@ class TestScenarioFilter(DataBuilderTestCase):
                 apply_scenario_filter_to_subqueries(db_map, "scenario")
                 parameters = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(parameters), 4)
-                object_names = {o.id: o.name for o in db_map.query(db_map.object_sq).all()}
-                alternative_names = {a.id: a.name for a in db_map.query(db_map.alternative_sq).all()}
-                parameter_names = {d.id: d.name for d in db_map.query(db_map.parameter_definition_sq).all()}
+                object_names = {o.id: o.name for o in db_map.query(db_map.object_sq)}
+                alternative_names = {a.id: a.name for a in db_map.query(db_map.alternative_sq)}
+                parameter_names = {d.id: d.name for d in db_map.query(db_map.parameter_definition_sq)}
                 datamined_values = {}
                 for parameter in parameters:
                     self.assertEqual(alternative_names[parameter.alternative_id], "alternative")
@@ -890,9 +890,9 @@ class TestScenarioFilter(DataBuilderTestCase):
                         "object2": {"parameter1": b"20.0", "parameter2": b"22.0"},
                     },
                 )
-                alternatives = [dict(a) for a in db_map.query(db_map.alternative_sq)]
+                alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
                 self.assertEqual(alternatives, [{"name": "alternative", "description": None, "id": 2, "commit_id": 2}])
-                scenarios = [dict(s) for s in db_map.query(db_map.wide_scenario_sq).all()]
+                scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq)]
                 self.assertEqual(
                     scenarios,
                     [
@@ -940,7 +940,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                 db_map.commit_session("Add test data.")
             with DatabaseMapping(url, create=True) as db_map:
                 apply_scenario_filter_to_subqueries(db_map, "scenario2")
-                alternatives = [dict(a) for a in db_map.query(db_map.alternative_sq)]
+                alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
                 self.assertEqual(
                     alternatives,
                     [
@@ -948,7 +948,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                         {"name": "alternative3", "description": None, "id": 4, "commit_id": 2},
                     ],
                 )
-                scenarios = [dict(s) for s in db_map.query(db_map.wide_scenario_sq).all()]
+                scenarios = [s._asdict() for s in db_map.query(db_map.wide_scenario_sq)]
                 self.assertEqual(
                     scenarios,
                     [
@@ -1074,10 +1074,10 @@ class TestScenarioFilter(DataBuilderTestCase):
             with DatabaseMapping(filtered_url) as db_map:
                 entities = db_map.query(db_map.entity_sq).all()
                 self.assertEqual(len(entities), 1)
-                self.assertEqual(entities[0]["name"], "visible widget")
+                self.assertEqual(entities[0].name, "visible widget")
                 values = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(values), 1)
-                self.assertEqual(from_database(values[0]["value"], values[0]["type"]), 2.3)
+                self.assertEqual(from_database(values[0].value, values[0].type), 2.3)
 
     def test_parameter_values_for_entities_that_swim_against_active_by_default(self):
         with TemporaryDirectory() as temp_dir:
@@ -1136,10 +1136,10 @@ class TestScenarioFilter(DataBuilderTestCase):
             with DatabaseMapping(filtered_url) as db_map:
                 entities = db_map.query(db_map.entity_sq).all()
                 self.assertEqual(len(entities), 1)
-                self.assertEqual(entities[0]["name"], "invisible widget")
+                self.assertEqual(entities[0].name, "invisible widget")
                 values = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(values), 1)
-                self.assertEqual(from_database(values[0]["value"], values[0]["type"]), -2.3)
+                self.assertEqual(from_database(values[0].value, values[0].type), -2.3)
 
     def test_parameter_values_of_multidimensional_entity_whose_elements_have_entity_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
