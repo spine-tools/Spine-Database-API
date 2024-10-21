@@ -7,14 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Spine-Database-API now requires Python 3.9 or later.
-
 ### Added
 
 ### Changed
-
-- ``commit_session()`` now raises ``NothingToCommit`` when there is nothing to commit.
-  Previously, it would raise ``SpineDBAPIException``.
 
 ### Deprecated
 
@@ -23,6 +18,16 @@ Spine-Database-API now requires Python 3.9 or later.
 ### Fixed
 
 ### Security
+
+## [0.32.0]
+
+Dropped support for Python 3.8.
+Spine-Database-API now requires Python 3.9 or later, up to 3.12.
+
+### Changed
+
+- ``commit_session()`` now raises ``NothingToCommit`` when there is nothing to commit.
+  Previously, it would raise ``SpineDBAPIException``.
 
 ## [0.31.6]
 
