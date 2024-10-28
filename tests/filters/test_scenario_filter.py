@@ -19,6 +19,7 @@ from spinedb_api import (
     append_filter_config,
     apply_filter_stack,
     apply_scenario_filter_to_subqueries,
+    from_database,
     to_database,
 )
 from spinedb_api.filters.scenario_filter import (
@@ -860,6 +861,114 @@ class TestScenarioFilter(DataBuilderTestCase):
             with DatabaseMapping(filtered_url) as db_map:
                 values = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(values), 0)
+
+    def test_parameter_values_for_entities_that_have_been_filtered_out_by_default(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Invisible", active_by_default=False))
+                self._assert_success(db_map.add_entity_class_item(name="Visible", active_by_default=True))
+                self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Invisible"))
+                self._assert_success(db_map.add_parameter_definition_item(name="z", entity_class_name="Visible"))
+                self._assert_success(db_map.add_entity_item(name="invisible widget", entity_class_name="Invisible"))
+                self._assert_success(db_map.add_entity_item(name="visible widget", entity_class_name="Visible"))
+                value, value_type = to_database(-2.3)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Invisible",
+                        parameter_definition_name="y",
+                        entity_byname=("invisible widget",),
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                value, value_type = to_database(2.3)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Visible",
+                        parameter_definition_name="z",
+                        entity_byname=("visible widget",),
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                self._assert_success(db_map.add_scenario_item(name="Scenario"))
+                self._assert_success(
+                    db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=1)
+                )
+                db_map.commit_session("Add test data")
+            filtered_url = append_filter_config(url, scenario_filter_config("Scenario"))
+            with DatabaseMapping(filtered_url) as db_map:
+                entities = db_map.query(db_map.entity_sq).all()
+                self.assertEqual(len(entities), 1)
+                self.assertEqual(entities[0]["name"], "visible widget")
+                values = db_map.query(db_map.parameter_value_sq).all()
+                self.assertEqual(len(values), 1)
+                self.assertEqual(from_database(values[0]["value"], values[0]["type"]), 2.3)
+
+    def test_parameter_values_for_entities_that_swim_against_active_by_default(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="Invisible", active_by_default=False))
+                self._assert_success(db_map.add_entity_class_item(name="Visible", active_by_default=True))
+                self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Invisible"))
+                self._assert_success(db_map.add_parameter_definition_item(name="z", entity_class_name="Visible"))
+                self._assert_success(db_map.add_entity_item(name="invisible widget", entity_class_name="Invisible"))
+                self._assert_success(db_map.add_entity_item(name="visible widget", entity_class_name="Visible"))
+                self._assert_success(
+                    db_map.add_entity_alternative_item(
+                        entity_class_name="Invisible",
+                        entity_byname=("invisible widget",),
+                        alternative_name="Base",
+                        active=True,
+                    )
+                )
+                self._assert_success(
+                    db_map.add_entity_alternative_item(
+                        entity_class_name="Visible",
+                        entity_byname=("visible widget",),
+                        alternative_name="Base",
+                        active=False,
+                    )
+                )
+                value, value_type = to_database(-2.3)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Invisible",
+                        parameter_definition_name="y",
+                        entity_byname=("invisible widget",),
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                value, value_type = to_database(2.3)
+                self._assert_success(
+                    db_map.add_parameter_value_item(
+                        entity_class_name="Visible",
+                        parameter_definition_name="z",
+                        entity_byname=("visible widget",),
+                        alternative_name="Base",
+                        value=value,
+                        type=value_type,
+                    )
+                )
+                self._assert_success(db_map.add_scenario_item(name="Scenario"))
+                self._assert_success(
+                    db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=1)
+                )
+                db_map.commit_session("Add test data")
+            filtered_url = append_filter_config(url, scenario_filter_config("Scenario"))
+            with DatabaseMapping(filtered_url) as db_map:
+                entities = db_map.query(db_map.entity_sq).all()
+                self.assertEqual(len(entities), 1)
+                self.assertEqual(entities[0]["name"], "invisible widget")
+                values = db_map.query(db_map.parameter_value_sq).all()
+                self.assertEqual(len(values), 1)
+                self.assertEqual(from_database(values[0]["value"], values[0]["type"]), -2.3)
 
 
 class TestScenarioFilterUtils(DataBuilderTestCase):
