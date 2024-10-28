@@ -382,7 +382,10 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
         .filter(ext_parameter_value_sq.c.entity_id == ext_entity_sq.c.id)
         .filter(
             ext_entity_sq.c.desc_rank_row_number == 1,
-            or_(ext_entity_sq.c.active == True, ext_entity_sq.c.active == None),
+            or_(
+                ext_entity_sq.c.active == True,
+                and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
+            ),
         )
         .subquery()
     )
