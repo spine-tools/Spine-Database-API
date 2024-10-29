@@ -12,7 +12,7 @@
 from contextlib import suppress
 from difflib import SequenceMatcher
 from enum import Enum, auto, unique
-from multiprocessing import RLock
+from multiprocessing import Lock, RLock
 from typing import Set
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
@@ -45,7 +45,7 @@ class DatabaseMappingBase:
         self.closed = False
         self._mapped_tables = {}
         self._fetched = {}
-        self._locker_lock = RLock()
+        self._locker_lock = Lock()
         self._locks = {}
         self._commit_count = None
         item_types = self.item_types()
