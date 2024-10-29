@@ -977,6 +977,38 @@ class TestGetMappedData(unittest.TestCase):
             {"scenario_alternatives": [["Scenario1", "Base"], ["Scenario1", "fixed_prices"]]},
         )
 
+    def test_leaf_mapping_with_position_on_row_is_still_considered_as_pivoted(self):
+        data_source = iter(
+            [
+                [None, "Scenario1", "Scenario2"],
+                ["Base", "Base", "Base"],
+                ["alternative 1", "alt1", "alt1"],
+                ["alternative 1", None, "alt2"],
+            ]
+        )
+        mappings = [
+            [
+                {"map_type": "Scenario", "position": -1},
+                {"map_type": "ScenarioAlternative", "position": -3},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "scenario_alternatives": [
+                    ["Scenario1", "Base"],
+                    ["Scenario1", "alt1"],
+                    ["Scenario2", "Base"],
+                    ["Scenario2", "alt1"],
+                    ["Scenario2", "alt2"],
+                ]
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for :mod:`spinedb_api.mapping`.
-
-"""
+""" Unit tests for :mod:`spinedb_api.mapping`. """
 import unittest
 from spinedb_api.mapping import Mapping, Position, unflatten, value_index
 

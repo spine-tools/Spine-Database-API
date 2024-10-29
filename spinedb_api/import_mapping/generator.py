@@ -130,8 +130,7 @@ def get_mapped_data(
         )
         if not unpivoted_column_pos:
             continue
-        if not is_pivoted(last.position):
-            last.position = -1
+        last.position = -1
         # Reposition row convert functions
         row_convert_fns = {k: row_convert_fns[pos] for k, pos in enumerate(pivoted_pos) if pos in row_convert_fns}
         # If there are only pivoted mappings, we can just feed the unpivoted rows
