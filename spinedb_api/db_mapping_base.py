@@ -45,6 +45,7 @@ class DatabaseMappingBase:
         self.closed = False
         self._mapped_tables = {}
         self._fetched = {}
+        self._locker_lock = RLock()
         self._locks = {}
         self._commit_count = None
         item_types = self.item_types()
@@ -361,14 +362,15 @@ class DatabaseMappingBase:
             item_type (str)
             commit_count (int,optional)
         """
-        if commit_count is None:
-            commit_count = self._get_commit_count()
-        if self._fetched.get(item_type, -1) < commit_count:
-            self._fetched[item_type] = commit_count
+        with self._locker_lock:
             if item_type not in self._locks:
                 self._locks[item_type] = RLock()
             lock = self._locks[item_type]
-            with lock:
+        with lock:
+            if commit_count is None:
+                commit_count = self._get_commit_count()
+            if self._fetched.get(item_type, -1) < commit_count:
+                self._fetched[item_type] = commit_count
                 self.do_fetch_more(item_type, offset=0, limit=None, real_commit_count=commit_count)
 
 
@@ -1113,7 +1115,7 @@ class MappedItemBase(dict):
         def add_self_as_referrer(ref_id):
             ref = find_by_id(ref_id, fetch=False)
             if not ref:
-                raise RuntimeError(f"Reference id {ref_id} not found")
+                raise RuntimeError(f"Reference id {ref_id} in '{ref_table}' table not found")
             ref.add_referrer(self)
 
         for field, ref_table in self._references.items():
