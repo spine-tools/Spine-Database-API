@@ -40,6 +40,7 @@ from spinedb_api.import_functions import (
     import_scenarios,
 )
 from spinedb_api.parameter_value import (
+    Map,
     TimePattern,
     TimeSeriesFixedResolution,
     dump_db_value,
@@ -998,6 +999,39 @@ class TestImportParameterValue(AssertSuccessTestCase):
             )
             self.assertTrue(value_item)
             self.assertEqual(value_item["parsed_value"], value)
+
+    def test_import_existing_map_on_conflict_merge(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="X", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="widget", entity_class_name="Object"))
+            value = Map(["T1", "T2"], [1.1, 1.2])
+            db_value, value_type = to_database(value)
+            self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("widget",),
+                    parameter_definition_name="X",
+                    alternative_name="Base",
+                    value=db_value,
+                    type=value_type,
+                )
+            )
+            extended_value = Map(["T3", "T4"], [1.3, 1.4])
+            self._assert_imports(
+                import_parameter_values(
+                    db_map, [["Object", "widget", "X", extended_value, "Base"]], on_conflict="merge"
+                )
+            )
+            value_item = db_map.get_parameter_value_item(
+                entity_class_name="Object",
+                entity_byname=("widget",),
+                parameter_definition_name="X",
+                alternative_name="Base",
+            )
+            self.assertTrue(value_item)
+            merged_value = Map(["T1", "T2", "T3", "T4"], [1.1, 1.2, 1.3, 1.4])
+            self.assertEqual(value_item["parsed_value"], merged_value)
 
     def test_import_duplicate_object_parameter_value(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:

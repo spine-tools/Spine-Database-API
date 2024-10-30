@@ -336,31 +336,6 @@ def from_dict(value):
         raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description') from error
 
 
-def fix_conflict(new, old, on_conflict="merge"):
-    """Resolves conflicts between parameter values:
-
-    :meta private:
-
-    Args:
-        new (:class:`ParameterValue`, float, str, bool or None): new parameter value to be written.
-        old (:class:`ParameterValue`, float, str, bool or None): an existing parameter value in the db.
-        on_conflict (str): conflict resolution strategy:
-            - 'merge': Merge indexes if possible, otherwise replace.
-            - 'replace': Replace old with new.
-            - 'keep': Keep old.
-
-    Returns:
-        :class:`ParameterValue`, float, str, bool or None: a new parameter value with conflicts resolved.
-    """
-    funcs = {"keep": lambda new, old: old, "replace": lambda new, old: new, "merge": merge}
-    func = funcs.get(on_conflict)
-    if func is None:
-        raise RuntimeError(
-            f"Invalid conflict resolution strategy {on_conflict}, valid strategies are {', '.join(funcs)}"
-        )
-    return func(new, old)
-
-
 def merge(value, other):
     """Merges the DB representation of two parameter values.
 
@@ -384,6 +359,28 @@ def merge_parsed(parsed_value, parsed_other):
     if not hasattr(parsed_value, "merge"):
         return parsed_value
     return parsed_value.merge(parsed_other)
+
+
+_MERGE_FUNCTIONS = {"keep": lambda new, old: old, "replace": lambda new, old: new, "merge": merge}
+
+
+def get_conflict_fixer(on_conflict):
+    """
+    :meta private:
+    Returns parameter value conflict resolution function.
+
+    Args:
+        on_conflict (str): resolution action name
+
+    Returns:
+        Callable: conflict resolution function
+    """
+    try:
+        return _MERGE_FUNCTIONS[on_conflict]
+    except KeyError:
+        raise RuntimeError(
+            f"Invalid conflict resolution strategy {on_conflict}, valid strategies are {', '.join(_MERGE_FUNCTIONS)}"
+        )
 
 
 def _break_dictionary(data):
@@ -1065,7 +1062,7 @@ class IndexedValue(ParameterValue):
             # Avoid sorting when indices are arbitrary strings
             existing = set(self.indexes)
             additional = [x for x in other.indexes if x not in existing]
-            new_indexes = np.concat((self.indexes, additional))
+            new_indexes = np.concat((additional, self.indexes))
 
         def _merge(value, other):
             return other if value is None else merge_parsed(value, other)

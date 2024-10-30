@@ -17,7 +17,7 @@ but the syntax is a little more compact.
 """
 from collections import defaultdict
 from .helpers import _parse_metadata
-from .parameter_value import fancy_type_to_type_and_rank, fix_conflict, to_database
+from .parameter_value import fancy_type_to_type_and_rank, get_conflict_fixer, to_database
 
 
 def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs):
@@ -79,8 +79,9 @@ def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs
     """
     all_errors = []
     num_imports = 0
+    conflict_fixer = get_conflict_fixer(on_conflict)
     for item_type, items in get_data_for_import(
-        db_map, all_errors, unparse_value=unparse_value, on_conflict=on_conflict, **kwargs
+        db_map, all_errors, unparse_value=unparse_value, fix_value_conflict=conflict_fixer, **kwargs
     ):
         added, updated, errors = db_map.add_update_items(item_type, *items, strict=False)
         num_imports += len(added + updated)
@@ -92,7 +93,7 @@ def get_data_for_import(
     db_map,
     all_errors,
     unparse_value=to_database,
-    on_conflict="merge",
+    fix_value_conflict=get_conflict_fixer("merge"),
     entity_classes=(),
     entities=(),
     entity_groups=(),
@@ -136,7 +137,7 @@ def get_data_for_import(
         db_map (DatabaseMapping): database mapping
         all_errors (list of str): errors encountered during import
         unparse_value (Callable): function to call when parsing parameter values
-        on_conflict (str): Conflict resolution strategy for :func:`~spinedb_api.parameter_value.fix_conflict`
+        fix_value_conflict (Callable): parameter value conflict resolution function
         entity_classes (list(tuple(str,tuple,str,int)): tuples of
             (name, dimension name tuple, description, display icon integer)
         parameter_definitions (list(tuple(str,str,str,str)):
@@ -219,14 +220,14 @@ def get_data_for_import(
     if parameter_values:
         yield (
             "parameter_value",
-            _get_parameter_values_for_import(db_map, parameter_values, all_errors, unparse_value, on_conflict),
+            _get_parameter_values_for_import(db_map, parameter_values, all_errors, unparse_value, fix_value_conflict),
         )
     if object_parameter_values:  # Legacy
         yield from get_data_for_import(
             db_map,
             all_errors,
             unparse_value=unparse_value,
-            on_conflict=on_conflict,
+            fix_value_conflict=fix_value_conflict,
             parameter_values=object_parameter_values,
         )
     if relationship_parameter_values:  # Legacy
@@ -234,7 +235,7 @@ def get_data_for_import(
             db_map,
             all_errors,
             unparse_value=unparse_value,
-            on_conflict=on_conflict,
+            fix_value_conflict=fix_value_conflict,
             parameter_values=relationship_parameter_values,
         )
     if metadata:
@@ -627,7 +628,7 @@ def _get_parameter_definitions_for_import(data, unparse_value):
         yield dict(zip(key, (class_name, parameter_name, value, type_, *optionals)))
 
 
-def _get_parameter_values_for_import(db_map, data, all_errors, unparse_value, on_conflict):
+def _get_parameter_values_for_import(db_map, data, all_errors, unparse_value, fix_conflict):
     seen = set()
     key = ("entity_class_name", "entity_byname", "parameter_definition_name", "alternative_name", "value", "type")
     for class_name, entity_byname, parameter_name, value, *optionals in data:
@@ -648,7 +649,7 @@ def _get_parameter_values_for_import(db_map, data, all_errors, unparse_value, on
         item = dict(zip(key, unique_values + (None, None)))
         pv = db_map.mapped_table("parameter_value").find_item(item)
         if pv:
-            value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]), on_conflict)
+            value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]))
         item.update({"value": value, "type": type_})
         yield item
 
