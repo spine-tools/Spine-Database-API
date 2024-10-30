@@ -17,3 +17,8 @@ class AssertSuccessTestCase(unittest.TestCase):
         item, error = result
         self.assertIsNone(error)
         return item
+
+    def _assert_imports(self, result):
+        count, errors = result
+        self.assertEqual(errors, [])
+        return count

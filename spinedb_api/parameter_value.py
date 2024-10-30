@@ -1059,8 +1059,13 @@ class IndexedValue(ParameterValue):
     def merge(self, other):
         if not isinstance(other, type(self)):
             return self
-        new_indexes = np.unique(np.concatenate((self.indexes, other.indexes)))
-        new_indexes.sort(kind="mergesort")
+        if self.indexes and not isinstance(self.indexes[0], str):
+            new_indexes = np.unique(np.concatenate((self.indexes, other.indexes)))
+        else:
+            # Avoid sorting when indices are arbitrary strings
+            existing = set(self.indexes)
+            additional = [x for x in other.indexes if x not in existing]
+            new_indexes = np.concat((self.indexes, additional))
 
         def _merge(value, other):
             return other if value is None else merge_parsed(value, other)
