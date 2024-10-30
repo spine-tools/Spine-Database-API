@@ -129,7 +129,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         username=None,
         upgrade=False,
         backup_url="",
-        codename=None,
         create=False,
         apply_filters=True,
         memory=False,
@@ -165,7 +164,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         except ArgumentError as error:
             raise SpineDBAPIError("Could not parse the given URL. Please check that it is valid.") from error
         self.username = username if username else "anon"
-        self.codename = self._make_codename(codename)
         self._memory = memory
         self._memory_dirty = False
         self._original_engine = self.create_engine(
@@ -211,9 +209,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         sq_name = self._sq_name_by_item_type[item_type]
         return getattr(self, sq_name)
 
-    def _make_codename(self, codename):
-        if codename:
-            return str(codename)
+    def suggest_display_name(self):
+        """Returns a short name for the database mapping.
+
+        Returns:
+            str: suggested name for the database for display purposes.
+        """
         if not self.sa_url.drivername.startswith("sqlite"):
             return self.sa_url.database
         if self.sa_url.database is not None:
