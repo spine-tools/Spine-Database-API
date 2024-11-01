@@ -18,10 +18,8 @@ If you're planning to use this class, it is probably a good idea to first famili
 
 from datetime import datetime, timezone
 from functools import partialmethod
-import hashlib
 import logging
 import os
-import time
 from types import MethodType
 from alembic.config import Config
 from alembic.environment import EnvironmentContext
@@ -129,7 +127,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         username=None,
         upgrade=False,
         backup_url="",
-        codename=None,
         create=False,
         apply_filters=True,
         memory=False,
@@ -143,7 +140,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             upgrade (bool, optional): Whether the DB at the given `url` should be upgraded to the most recent
                 version.
             backup_url (str, optional): A URL to backup the DB before upgrading.
-            codename (str, optional): A name to identify this object in your application.
             create (bool, optional): Whether to create a new Spine DB at the given `url` if it's not already one.
             apply_filters (bool, optional): Whether to apply filters in the `url`'s query segment.
             memory (bool, optional): Whether to use a SQLite memory DB as replacement for the original one.
@@ -165,7 +161,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         except ArgumentError as error:
             raise SpineDBAPIError("Could not parse the given URL. Please check that it is valid.") from error
         self.username = username if username else "anon"
-        self.codename = self._make_codename(codename)
         self._memory = memory
         self._memory_dirty = False
         self._original_engine = self.create_engine(
@@ -210,17 +205,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def _make_sq(self, item_type):
         sq_name = self._sq_name_by_item_type[item_type]
         return getattr(self, sq_name)
-
-    def _make_codename(self, codename):
-        if codename:
-            return str(codename)
-        if not self.sa_url.drivername.startswith("sqlite"):
-            return self.sa_url.database
-        if self.sa_url.database is not None:
-            return os.path.splitext(os.path.basename(self.sa_url.database))[0]
-        hashing = hashlib.sha1()
-        hashing.update(bytes(str(time.time()), "utf-8"))
-        return hashing.hexdigest()
 
     @staticmethod
     def get_upgrade_db_prompt_data(url, create=False):

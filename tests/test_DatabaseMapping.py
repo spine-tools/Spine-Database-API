@@ -2717,11 +2717,11 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_class_with_same_name_as_existing_one(self):
         """Test that adding a relationship class with an already taken name raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(CustomDatabaseMapping, "query") as mock_query, mock.patch.object(
-            CustomDatabaseMapping, "object_class_sq"
-        ) as mock_object_class_sq, mock.patch.object(
-            CustomDatabaseMapping, "wide_relationship_class_sq"
-        ) as mock_wide_rel_cls_sq:
+        with (
+            mock.patch.object(CustomDatabaseMapping, "query") as mock_query,
+            mock.patch.object(CustomDatabaseMapping, "object_class_sq") as mock_object_class_sq,
+            mock.patch.object(CustomDatabaseMapping, "wide_relationship_class_sq") as mock_wide_rel_cls_sq,
+        ):
             mock_query.side_effect = query_wrapper
             mock_object_class_sq.return_value = [
                 KeyedTuple([1, "fish"], labels=["id", "name"]),
@@ -2738,9 +2738,11 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_class_with_invalid_object_class(self):
         """Test that adding a relationship class with a non existing object class raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(CustomDatabaseMapping, "query") as mock_query, mock.patch.object(
-            CustomDatabaseMapping, "object_class_sq"
-        ) as mock_object_class_sq, mock.patch.object(CustomDatabaseMapping, "wide_relationship_class_sq"):
+        with (
+            mock.patch.object(CustomDatabaseMapping, "query") as mock_query,
+            mock.patch.object(CustomDatabaseMapping, "object_class_sq") as mock_object_class_sq,
+            mock.patch.object(CustomDatabaseMapping, "wide_relationship_class_sq"),
+        ):
             mock_query.side_effect = query_wrapper
             mock_object_class_sq.return_value = [KeyedTuple([1, "fish"], labels=["id", "name"])]
             with self.assertRaises(SpineIntegrityError):
@@ -2791,13 +2793,12 @@ class TestDatabaseMappingAdd(unittest.TestCase):
         raises an integrity error.
         """
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(CustomDatabaseMapping, "query") as mock_query, mock.patch.object(
-            CustomDatabaseMapping, "object_sq"
-        ) as mock_object_sq, mock.patch.object(
-            CustomDatabaseMapping, "wide_relationship_class_sq"
-        ) as mock_wide_rel_cls_sq, mock.patch.object(
-            CustomDatabaseMapping, "wide_relationship_sq"
-        ) as mock_wide_rel_sq:
+        with (
+            mock.patch.object(CustomDatabaseMapping, "query") as mock_query,
+            mock.patch.object(CustomDatabaseMapping, "object_sq") as mock_object_sq,
+            mock.patch.object(CustomDatabaseMapping, "wide_relationship_class_sq") as mock_wide_rel_cls_sq,
+            mock.patch.object(CustomDatabaseMapping, "wide_relationship_sq") as mock_wide_rel_sq,
+        ):
             mock_query.side_effect = query_wrapper
             mock_object_sq.return_value = [
                 KeyedTuple([1, 10, "nemo"], labels=["id", "class_id", "name"]),
@@ -2817,12 +2818,11 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_with_invalid_class(self):
         """Test that adding a relationship with an invalid class raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(CustomDatabaseMapping, "query") as mock_query, mock.patch.object(
-            CustomDatabaseMapping, "object_sq"
-        ) as mock_object_sq, mock.patch.object(
-            CustomDatabaseMapping, "wide_relationship_class_sq"
-        ) as mock_wide_rel_cls_sq, mock.patch.object(
-            CustomDatabaseMapping, "wide_relationship_sq"
+        with (
+            mock.patch.object(CustomDatabaseMapping, "query") as mock_query,
+            mock.patch.object(CustomDatabaseMapping, "object_sq") as mock_object_sq,
+            mock.patch.object(CustomDatabaseMapping, "wide_relationship_class_sq") as mock_wide_rel_cls_sq,
+            mock.patch.object(CustomDatabaseMapping, "wide_relationship_sq"),
         ):
             mock_query.side_effect = query_wrapper
             mock_object_sq.return_value = [
@@ -2840,12 +2840,11 @@ class TestDatabaseMappingAdd(unittest.TestCase):
     def test_add_relationship_with_invalid_object(self):
         """Test that adding a relationship with an invalid object raises an integrity error."""
         query_wrapper = create_query_wrapper(self._db_map)
-        with mock.patch.object(CustomDatabaseMapping, "query") as mock_query, mock.patch.object(
-            CustomDatabaseMapping, "object_sq"
-        ) as mock_object_sq, mock.patch.object(
-            CustomDatabaseMapping, "wide_relationship_class_sq"
-        ) as mock_wide_rel_cls_sq, mock.patch.object(
-            CustomDatabaseMapping, "wide_relationship_sq"
+        with (
+            mock.patch.object(CustomDatabaseMapping, "query") as mock_query,
+            mock.patch.object(CustomDatabaseMapping, "object_sq") as mock_object_sq,
+            mock.patch.object(CustomDatabaseMapping, "wide_relationship_class_sq") as mock_wide_rel_cls_sq,
+            mock.patch.object(CustomDatabaseMapping, "wide_relationship_sq"),
         ):
             mock_query.side_effect = query_wrapper
             mock_object_sq.return_value = [
