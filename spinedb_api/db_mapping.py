@@ -18,10 +18,8 @@ If you're planning to use this class, it is probably a good idea to first famili
 
 from datetime import datetime, timezone
 from functools import partialmethod
-import hashlib
 import logging
 import os
-import time
 from types import MethodType
 from alembic.config import Config
 from alembic.environment import EnvironmentContext
@@ -142,7 +140,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             upgrade (bool, optional): Whether the DB at the given `url` should be upgraded to the most recent
                 version.
             backup_url (str, optional): A URL to backup the DB before upgrading.
-            codename (str, optional): A name to identify this object in your application.
             create (bool, optional): Whether to create a new Spine DB at the given `url` if it's not already one.
             apply_filters (bool, optional): Whether to apply filters in the `url`'s query segment.
             memory (bool, optional): Whether to use a SQLite memory DB as replacement for the original one.
@@ -208,20 +205,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def _make_sq(self, item_type):
         sq_name = self._sq_name_by_item_type[item_type]
         return getattr(self, sq_name)
-
-    def suggest_display_name(self):
-        """Returns a short name for the database mapping.
-
-        Returns:
-            str: suggested name for the database for display purposes.
-        """
-        if not self.sa_url.drivername.startswith("sqlite"):
-            return self.sa_url.database
-        if self.sa_url.database is not None:
-            return os.path.splitext(os.path.basename(self.sa_url.database))[0]
-        hashing = hashlib.sha1()
-        hashing.update(bytes(str(time.time()), "utf-8"))
-        return hashing.hexdigest()
 
     @staticmethod
     def get_upgrade_db_prompt_data(url, create=False):

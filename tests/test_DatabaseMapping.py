@@ -93,12 +93,6 @@ class TestDatabaseMappingConstruction(unittest.TestCase):
 
 
 class TestDatabaseMapping(AssertSuccessTestCase):
-    def test_suggest_display_name(self):
-        with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "my_precious_database.sqlite")
-            with DatabaseMapping(url, create=True) as db_map:
-                self.assertEqual(db_map.suggest_display_name(), "my_precious_database")
-
     def test_active_by_default_is_initially_true_for_zero_dimensional_entity_class(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             item = self._assert_success(db_map.add_entity_class_item(name="Entity"))
