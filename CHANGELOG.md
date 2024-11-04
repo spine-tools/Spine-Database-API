@@ -15,11 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- The ``codename`` field and related stuff has been removed from ``DatabaseMapping``.
-
 ### Fixed
 
 ### Security
+
+## [0.32.1]
+
+### Removed
+
+- The ``codename`` field and related stuff has been removed from ``DatabaseMapping``.
 
 ## [0.32.0]
 
