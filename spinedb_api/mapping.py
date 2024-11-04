@@ -165,8 +165,8 @@ class Mapping:
         Returns:
             bool: True if mapping is effectively the last child, False otherwise
         """
-        return self._child is None or any(
-            child.position in (Position.hidden, Position.table_name) for child in self._child.flatten()
+        return self._child is None or all(
+            child.position in (Position.hidden, Position.table_name) for child in self._child.flatten()[:-1]
         )
 
     def is_pivoted(self):
