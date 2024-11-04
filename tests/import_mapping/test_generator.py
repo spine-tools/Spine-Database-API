@@ -1009,6 +1009,34 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_column_header_position_while_leaf_is_hidden(self):
+        header = ["Widget"]
+        data_source = iter(
+            [
+                ["gadget"],
+            ]
+        )
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "header", "value": 0},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "EntityMetadata", "position": "hidden"},
+            ]
+        ]
+        convert_function_specs = {0: "string"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entity_classes": [
+                    ("Widget",),
+                ],
+                "entities": [("Widget", "gadget")],
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
