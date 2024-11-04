@@ -32,6 +32,7 @@ from spinedb_api.import_mapping.import_mapping import (
     ParameterValueTypeMapping,
     check_validity,
     default_import_mapping,
+    from_dict,
 )
 from spinedb_api.import_mapping.import_mapping_compat import (
     import_mapping_from_dict,
@@ -197,6 +198,21 @@ class TestPolishImportMapping(unittest.TestCase):
         mapping.polish(table_name, header, mapping_name)
         self.assertEqual(mapping.position, Position.mapping_name)
         self.assertEqual(mapping.value, "some_mapping_name")
+
+    def test_polishing_pivoted_mapping_for_preview_with_column_headers_doesnt_break_it(self):
+        mapping_dicts = [
+            {"map_type": "EntityClass", "position": "table_name"},
+            {"map_type": "Dimension", "position": "header", "value": 0},
+            {"map_type": "Entity", "position": "hidden"},
+            {"map_type": "Element", "position": 0},
+            {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+            {"map_type": "ParameterDefinition", "position": "header"},
+            {"map_type": "ParameterValue", "position": "hidden"},
+        ]
+        root_mapping = from_dict(mapping_dicts)
+        self.assertEqual(root_mapping.child.value, 0)
+        root_mapping.polish("table name", ["entity class", "1st parameter"], "Test mapping", for_preview=True)
+        self.assertEqual(root_mapping.child.value, 0)
 
 
 class TestImportMappingIO(unittest.TestCase):
