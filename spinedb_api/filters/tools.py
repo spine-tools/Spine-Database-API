@@ -9,7 +9,6 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
 """ Tools and utilities to work with filters, manipulators and database URLs. """
 from itertools import dropwhile, takewhile
 from json import dump, load

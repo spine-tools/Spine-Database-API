@@ -9,12 +9,9 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Provides functions to apply filtering based on alternatives to parameter value subqueries.
-
-"""
+""" Provides functions to apply filtering based on alternatives to parameter value subqueries. """
 from functools import partial
+from sqlalchemy import and_, func, or_
 from ..exception import SpineDBAPIError
 
 ALTERNATIVE_FILTER_TYPE = "alternative_filter"
@@ -30,8 +27,20 @@ def apply_alternative_filter_to_parameter_value_sq(db_map, alternatives):
         alternatives (Iterable of str or int, optional): alternative names or ids;
     """
     state = _AlternativeFilterState(db_map, alternatives)
-    filtering = partial(_make_alternative_filtered_parameter_value_sq, state=state)
-    db_map.override_parameter_value_sq_maker(filtering)
+    make_alternative_sq = partial(_make_alternative_filtered_alternative_sq, state=state)
+    db_map.override_alternative_sq_maker(make_alternative_sq)
+    make_scenario_alternative_sq = partial(_make_alternative_filtered_scenario_alternative_sq, state=state)
+    db_map.override_scenario_alternative_sq_maker(make_scenario_alternative_sq)
+    make_scenario_sq = partial(_make_alternative_filtered_scenario_sq, state=state)
+    db_map.override_scenario_sq_maker(make_scenario_sq)
+    make_entity_element_sq = partial(_make_alternative_filtered_entity_element_sq, state=state)
+    db_map.override_entity_element_sq_maker(make_entity_element_sq)
+    make_entity_sq = partial(_make_alternative_filtered_entity_sq, state=state)
+    db_map.override_entity_sq_maker(make_entity_sq)
+    make_entity_alternative_sq = partial(_make_alternative_filtered_entity_alternative_sq, state=state)
+    db_map.override_entity_alternative_sq_maker(make_entity_alternative_sq)
+    make_parameter_value_sq = partial(_make_alternative_filtered_parameter_value_sq, state=state)
+    db_map.override_parameter_value_sq_maker(make_parameter_value_sq)
 
 
 def alternative_filter_config(alternatives):
@@ -106,13 +115,7 @@ def alternative_filter_shorthand_to_config(shorthand):
 
 
 class _AlternativeFilterState:
-    """
-    Internal state for :func:`_make_alternative_filtered_parameter_value_sq`
-
-    Attributes:
-        original_parameter_value_sq (Alias): previous ``parameter_value_sq``
-        alternatives (Iterable of int): ids of alternatives
-    """
+    """Internal state for :func:`_make_alternative_filtered_parameter_value_sq`."""
 
     def __init__(self, db_map, alternatives):
         """
@@ -120,8 +123,15 @@ class _AlternativeFilterState:
             db_map (DatabaseMapping): database the state applies to
             alternatives (Iterable of str or int): alternative names or ids;
         """
+        self.original_entity_sq = db_map.entity_sq
+        self.original_entity_element_sq = db_map.entity_element_sq
+        self.original_entity_alternative_sq = db_map.entity_alternative_sq
         self.original_parameter_value_sq = db_map.parameter_value_sq
+        self.original_scenario_sq = db_map.scenario_sq
+        self.original_scenario_alternative_sq = db_map.scenario_alternative_sq
+        self.original_alternative_sq = db_map.alternative_sq
         self.alternatives = self._alternative_ids(db_map, alternatives) if alternatives is not None else None
+        self.scenarios = self._scenario_ids(db_map, self.alternatives)
 
     @staticmethod
     def _alternative_ids(db_map, alternatives):
@@ -157,6 +167,218 @@ class _AlternativeFilterState:
         ids += ids_in_db
         return ids
 
+    @staticmethod
+    def _scenario_ids(db_map, alternative_ids):
+        """
+        Finds active scenario ids.
+
+        Arg:
+            db_map (DatabaseMapping): database mapping
+            alternative_ids (Iterable of int): active alternative ids
+
+        Returns:
+            list of int: active scenario ids
+        """
+        scenario_ids = {row.id for row in db_map.query(db_map.scenario_sq.c.id)}
+        alternative_ids = set(alternative_ids)
+        for scenario_alternative in db_map.query(db_map.scenario_alternative_sq):
+            if scenario_alternative.alternative_id not in alternative_ids:
+                scenario_ids.discard(scenario_alternative.scenario_id)
+        return list(scenario_ids)
+
+
+def _ext_entity_sq(db_map, state):
+    return (
+        db_map.query(
+            state.original_entity_sq,
+            state.original_entity_alternative_sq.c.active,
+            db_map.entity_class_sq.c.active_by_default,
+        )
+        .outerjoin(
+            state.original_entity_alternative_sq,
+            state.original_entity_sq.c.id == state.original_entity_alternative_sq.c.entity_id,
+        )
+        .outerjoin(db_map.entity_class_sq, state.original_entity_sq.c.class_id == db_map.entity_class_sq.c.id)
+        .filter(
+            or_(
+                state.original_entity_alternative_sq.c.alternative_id == None,
+                state.original_entity_alternative_sq.c.alternative_id.in_(state.alternatives),
+            )
+        )
+    ).subquery()
+
+
+def _make_alternative_filtered_entity_alternative_sq(db_map, state):
+    """
+    Returns an entity alternative filtering subquery similar to :func:`DatabaseMapping.entity_alternative_sq`.
+
+    This function can be used as replacement for entity_alternative subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_AlternativeFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for entity alternatives filtered by selected alternatives
+    """
+    ext_entity_sq = _ext_entity_sq(db_map, state)
+    return (
+        db_map.query(state.original_entity_alternative_sq)
+        .filter(state.original_entity_alternative_sq.c.entity_id == ext_entity_sq.c.id)
+        .filter(
+            or_(ext_entity_sq.c.active == True, ext_entity_sq.c.active == None),
+        )
+        .subquery()
+    )
+
+
+def _make_alternative_filtered_entity_element_sq(db_map, state):
+    """Returns an alternative filtering subquery similar to :func:`DatabaseMapping.entity_element_sq`.
+
+    This function can be used as replacement for entity_element subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_AlternativeFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for entity_element filtered by selected alternatives
+    """
+    ext_entity_sq = _ext_entity_sq(db_map, state)
+    entity_sq = ext_entity_sq.alias()
+    element_sq = ext_entity_sq.alias()
+    return (
+        db_map.query(state.original_entity_element_sq)
+        .filter(state.original_entity_element_sq.c.entity_id == entity_sq.c.id)
+        .filter(state.original_entity_element_sq.c.element_id == element_sq.c.id)
+        .filter(
+            or_(entity_sq.c.active == True, entity_sq.c.active == None),
+        )
+        .filter(
+            or_(element_sq.c.active == True, and_(element_sq.c.active == None, element_sq.c.active_by_default == True)),
+        )
+        .subquery()
+    )
+
+
+def _make_alternative_filtered_entity_sq(db_map, state):
+    """Returns an alternative filtering subquery similar to :func:`DatabaseMapping.entity_sq`.
+
+    This function can be used as replacement for entity subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_AlternativeFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for entity filtered by selected alternatives
+    """
+    ext_entity_sq = _ext_entity_sq(db_map, state)
+    ext_entity_element_count_sq = (
+        db_map.query(
+            db_map.entity_element_sq.c.entity_id,
+            func.count(db_map.entity_element_sq.c.element_id).label("element_count"),
+        )
+        .group_by(db_map.entity_element_sq.c.entity_id)
+        .subquery()
+    )
+    ext_entity_class_dimension_count_sq = (
+        db_map.query(
+            db_map.entity_class_dimension_sq.c.entity_class_id,
+            func.count(db_map.entity_class_dimension_sq.c.dimension_id).label("dimension_count"),
+        )
+        .group_by(db_map.entity_class_dimension_sq.c.entity_class_id)
+        .subquery()
+    )
+    return (
+        db_map.query(
+            ext_entity_sq.c.id,
+            ext_entity_sq.c.class_id,
+            ext_entity_sq.c.name,
+            ext_entity_sq.c.description,
+            ext_entity_sq.c.commit_id,
+        )
+        .filter(
+            or_(
+                ext_entity_sq.c.active == True,
+                and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
+            ),
+        )
+        .outerjoin(
+            ext_entity_element_count_sq,
+            ext_entity_element_count_sq.c.entity_id == ext_entity_sq.c.id,
+        )
+        .outerjoin(
+            ext_entity_class_dimension_count_sq,
+            ext_entity_class_dimension_count_sq.c.entity_class_id == ext_entity_sq.c.class_id,
+        )
+        .filter(
+            or_(
+                and_(
+                    ext_entity_element_count_sq.c.element_count == None,
+                    ext_entity_class_dimension_count_sq.c.dimension_count == None,
+                ),
+                ext_entity_element_count_sq.c.element_count == ext_entity_class_dimension_count_sq.c.dimension_count,
+            )
+        )
+        .subquery()
+    )
+
+
+def _make_alternative_filtered_alternative_sq(db_map, state):
+    """
+    Returns an alternative filtering subquery similar to :func:`DatabaseMapping.alternative_sq`.
+
+    This function can be used as replacement for alternative subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_AlternativeFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for alternative filtered by selected alternatives
+    """
+    alternative_sq = state.original_alternative_sq
+    return db_map.query(alternative_sq).filter(alternative_sq.c.id.in_(state.alternatives)).subquery()
+
+
+def _make_alternative_filtered_scenario_sq(db_map, state):
+    """
+    Returns a scenario filtering subquery similar to :func:`DatabaseMapping.scenario_sq`.
+
+    This function can be used as replacement for scenario subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_AlternativeFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for scenario filtered by selected alternatives
+    """
+    scenario_sq = state.original_scenario_sq
+    return db_map.query(scenario_sq).filter(scenario_sq.c.id.in_(state.scenarios)).subquery()
+
+
+def _make_alternative_filtered_scenario_alternative_sq(db_map, state):
+    """
+    Returns a scenario alternative filtering subquery similar to :func:`DatabaseMapping.scenario_alternative_sq`.
+
+    This function can be used as replacement for scenario alternative subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_AlternativeFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for scenario alternative filtered by selected alternatives
+    """
+    scenario_alternative_sq = state.original_scenario_alternative_sq
+    return (
+        db_map.query(scenario_alternative_sq)
+        .filter(scenario_alternative_sq.c.scenario_id.in_(state.scenarios))
+        .subquery()
+    )
+
 
 def _make_alternative_filtered_parameter_value_sq(db_map, state):
     """
@@ -172,4 +394,16 @@ def _make_alternative_filtered_parameter_value_sq(db_map, state):
         Alias: a subquery for parameter value filtered by selected alternatives
     """
     subquery = state.original_parameter_value_sq
-    return db_map.query(subquery).filter(subquery.c.alternative_id.in_(state.alternatives)).subquery()
+    ext_entity_sq = _ext_entity_sq(db_map, state)
+    return (
+        db_map.query(subquery)
+        .filter(subquery.c.alternative_id.in_(state.alternatives))
+        .filter(subquery.c.entity_id == ext_entity_sq.c.id)
+        .filter(
+            or_(
+                ext_entity_sq.c.active == True,
+                and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
+            )
+        )
+        .subquery()
+    )

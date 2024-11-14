@@ -9,11 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Provides a database query manipulator that applies mathematical transformations to parameter values.
-
-"""
+""" Provides a database query manipulator that applies mathematical transformations to parameter values. """
 from functools import partial
 from numbers import Number
 from sqlalchemy import Integer, LargeBinary, String, case, literal

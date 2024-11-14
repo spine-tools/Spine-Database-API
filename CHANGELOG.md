@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Alternative filter now filters entities, metadata, alternatives and scenarios.
+
 ### Deprecated
 
 ### Removed
@@ -45,8 +47,8 @@ Spine-Database-API now requires Python 3.9 or later, up to 3.12.
 
 ### Changed
 
-- ``GdxWriter`` now uses ``gamsapi`` module instead of ``gdxcc``.
-  A relatively recent version of GAMS may be needed to use the facility.
+- ``spine_io`` now uses ``gamsapi`` module instead of ``gdxcc``.
+  GAMS version 42 or later is required for ``.gdx`` import/export functionality.
 
 ## [0.31.4]
 
