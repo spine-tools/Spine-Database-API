@@ -1417,7 +1417,7 @@ class DatabaseMappingQueryMixin:
         self._make_entity_element_sq = MethodType(method, self)
         self._clear_subqueries("entity_element")
 
-    def override_eneity_alternative_sq_maker(self, method):
+    def override_entity_alternative_sq_maker(self, method):
         """
         Overrides the function that creates the ``entity_alternative_sq`` property.
 

@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains GDXConnector class and a help function.
-
-"""
+""" Contains GDXConnector class and a help function. """
 
 from gdx2py import GAMSParameter, GAMSScalar, GAMSSet, GdxFile
 from spinedb_api import SpineDBAPIError

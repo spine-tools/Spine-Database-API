@@ -33,7 +33,7 @@ def apply_scenario_filter_to_subqueries(db_map, scenario):
     make_entity_sq = partial(_make_scenario_filtered_entity_sq, state=state)
     db_map.override_entity_sq_maker(make_entity_sq)
     make_entity_alternative_sq = partial(_make_scenario_filtered_entity_alternative_sq, state=state)
-    db_map.override_eneity_alternative_sq_maker(make_entity_alternative_sq)
+    db_map.override_entity_alternative_sq_maker(make_entity_alternative_sq)
     make_parameter_value_sq = partial(_make_scenario_filtered_parameter_value_sq, state=state)
     db_map.override_parameter_value_sq_maker(make_parameter_value_sq)
     make_alternative_sq = partial(_make_scenario_filtered_alternative_sq, state=state)
@@ -323,7 +323,7 @@ def _make_scenario_filtered_entity_sq(db_map, state):
 
 def _make_scenario_filtered_entity_alternative_sq(db_map, state):
     """
-    Returns a scenario filtering subquery similar to :func:`DatabaseMapping.entity_alternative_sq`.
+    Returns an entity alternative filtering subquery similar to :func:`DatabaseMapping.entity_alternative_sq`.
 
     This function can be used as replacement for entity_alternative subquery maker in :class:`DatabaseMapping`.
 

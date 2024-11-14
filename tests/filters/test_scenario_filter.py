@@ -32,12 +32,7 @@ from spinedb_api.filters.scenario_filter import (
 from tests.mock_helpers import AssertSuccessTestCase
 
 
-class TestScenarioFilterInMemory(unittest.TestCase):
-    def _assert_success(self, result):
-        item, error = result
-        self.assertIsNone(error)
-        return item
-
+class TestScenarioFilterInMemory(AssertSuccessTestCase):
     def test_filter_entities_with_default_activity_only(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="visible", active_by_default=True))
