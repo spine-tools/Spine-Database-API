@@ -1062,7 +1062,7 @@ class IndexedValue(ParameterValue):
             # Avoid sorting when indices are arbitrary strings
             existing = set(self.indexes)
             additional = [x for x in other.indexes if x not in existing]
-            new_indexes = np.concat((additional, self.indexes))
+            new_indexes = np.concatenate((additional, self.indexes))
 
         def _merge(value, other):
             return other if value is None else merge_parsed(value, other)
