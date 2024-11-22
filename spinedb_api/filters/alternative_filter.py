@@ -11,8 +11,9 @@
 ######################################################################################################################
 """ Provides functions to apply filtering based on alternatives to parameter value subqueries. """
 from functools import partial
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, or_
 from ..exception import SpineDBAPIError
+from .query_utils import filter_by_active_elements
 
 ALTERNATIVE_FILTER_TYPE = "alternative_filter"
 ALTERNATIVE_FILTER_SHORTHAND_TAG = "alternatives"
@@ -274,55 +275,19 @@ def _make_alternative_filtered_entity_sq(db_map, state):
         Alias: a subquery for entity filtered by selected alternatives
     """
     ext_entity_sq = _ext_entity_sq(db_map, state)
-    ext_entity_element_count_sq = (
-        db_map.query(
-            db_map.entity_element_sq.c.entity_id,
-            func.count(db_map.entity_element_sq.c.element_id).label("element_count"),
-        )
-        .group_by(db_map.entity_element_sq.c.entity_id)
-        .subquery()
+    filtered_by_activity = db_map.query(
+        ext_entity_sq.c.id,
+        ext_entity_sq.c.class_id,
+        ext_entity_sq.c.name,
+        ext_entity_sq.c.description,
+        ext_entity_sq.c.commit_id,
+    ).filter(
+        or_(
+            ext_entity_sq.c.active == True,
+            and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
+        ),
     )
-    ext_entity_class_dimension_count_sq = (
-        db_map.query(
-            db_map.entity_class_dimension_sq.c.entity_class_id,
-            func.count(db_map.entity_class_dimension_sq.c.dimension_id).label("dimension_count"),
-        )
-        .group_by(db_map.entity_class_dimension_sq.c.entity_class_id)
-        .subquery()
-    )
-    return (
-        db_map.query(
-            ext_entity_sq.c.id,
-            ext_entity_sq.c.class_id,
-            ext_entity_sq.c.name,
-            ext_entity_sq.c.description,
-            ext_entity_sq.c.commit_id,
-        )
-        .filter(
-            or_(
-                ext_entity_sq.c.active == True,
-                and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
-            ),
-        )
-        .outerjoin(
-            ext_entity_element_count_sq,
-            ext_entity_element_count_sq.c.entity_id == ext_entity_sq.c.id,
-        )
-        .outerjoin(
-            ext_entity_class_dimension_count_sq,
-            ext_entity_class_dimension_count_sq.c.entity_class_id == ext_entity_sq.c.class_id,
-        )
-        .filter(
-            or_(
-                and_(
-                    ext_entity_element_count_sq.c.element_count == None,
-                    ext_entity_class_dimension_count_sq.c.dimension_count == None,
-                ),
-                ext_entity_element_count_sq.c.element_count == ext_entity_class_dimension_count_sq.c.dimension_count,
-            )
-        )
-        .subquery()
-    )
+    return filter_by_active_elements(db_map, filtered_by_activity, ext_entity_sq).subquery()
 
 
 def _make_alternative_filtered_alternative_sq(db_map, state):
@@ -395,7 +360,7 @@ def _make_alternative_filtered_parameter_value_sq(db_map, state):
     """
     subquery = state.original_parameter_value_sq
     ext_entity_sq = _ext_entity_sq(db_map, state)
-    return (
+    filtered_by_activity = (
         db_map.query(subquery)
         .filter(subquery.c.alternative_id.in_(state.alternatives))
         .filter(subquery.c.entity_id == ext_entity_sq.c.id)
@@ -405,5 +370,5 @@ def _make_alternative_filtered_parameter_value_sq(db_map, state):
                 and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
             )
         )
-        .subquery()
     )
+    return filter_by_active_elements(db_map, filtered_by_activity, ext_entity_sq).subquery()
