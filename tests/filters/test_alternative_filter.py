@@ -338,6 +338,58 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             self.assertEqual(len(values), 1)
             self.assertEqual(from_database(values[0]["value"], values[0]["type"]), -2.3)
 
+    def test_filters_parameter_values_of_multidimensional_entities_inactive_by_elements(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_entity_item(name="invisible", entity_class_name="Object"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_class_name="Object", entity_byname=("invisible",), alternative_name="Base", active=False
+                )
+            )
+            self._assert_success(db_map.add_entity_item(name="visible", entity_class_name="Object"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_class_name="Object", entity_byname=("visible",), alternative_name="Base", active=True
+                )
+            )
+            self._assert_success(db_map.add_entity_class_item(name="Relationship", dimension_name_list=("Object",)))
+            self._assert_success(
+                db_map.add_entity_item(element_name_list=("invisible",), entity_class_name="Relationship")
+            )
+            self._assert_success(
+                db_map.add_entity_item(element_name_list=("visible",), entity_class_name="Relationship")
+            )
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Relationship"))
+            value, value_type = to_database(2.3)
+            self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Relationship",
+                    entity_byname=("invisible",),
+                    parameter_definition_name="y",
+                    alternative_name="Base",
+                    value=value,
+                    type=value_type,
+                )
+            )
+            value, value_type = to_database(-2.3)
+            self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Relationship",
+                    entity_byname=("visible",),
+                    parameter_definition_name="y",
+                    alternative_name="Base",
+                    value=value,
+                    type=value_type,
+                )
+            )
+            db_map.commit_session("Add values.")
+            config = alternative_filter_config(["Base"])
+            alternative_filter_from_dict(db_map, config)
+            values = db_map.query(db_map.parameter_value_sq).all()
+            self.assertEqual(len(values), 1)
+            self.assertEqual(from_database(values[0]["value"], values[0]["type"]), -2.3)
+
     def _build_data_without_alternatives(self, db_map, commit=True):
         self._assert_imports(import_entity_classes(db_map, ["object_class"]))
         self._assert_imports(import_entities(db_map, [("object_class", "object")]))

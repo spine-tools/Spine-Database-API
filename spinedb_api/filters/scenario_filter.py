@@ -14,6 +14,7 @@
 from functools import partial
 from sqlalchemy import and_, desc, func, or_
 from ..exception import SpineDBAPIError
+from .query_utils import filter_by_active_elements
 
 SCENARIO_FILTER_TYPE = "scenario_filter"
 SCENARIO_SHORTHAND_TAG = "scenario"
@@ -269,56 +270,20 @@ def _make_scenario_filtered_entity_sq(db_map, state):
         Alias: a subquery for entity filtered by selected scenario
     """
     ext_entity_sq = _ext_entity_sq(db_map, state)
-    ext_entity_element_count_sq = (
-        db_map.query(
-            db_map.entity_element_sq.c.entity_id,
-            func.count(db_map.entity_element_sq.c.element_id).label("element_count"),
-        )
-        .group_by(db_map.entity_element_sq.c.entity_id)
-        .subquery()
+    filtered_by_activity = db_map.query(
+        ext_entity_sq.c.id,
+        ext_entity_sq.c.class_id,
+        ext_entity_sq.c.name,
+        ext_entity_sq.c.description,
+        ext_entity_sq.c.commit_id,
+    ).filter(
+        ext_entity_sq.c.desc_rank_row_number == 1,
+        or_(
+            ext_entity_sq.c.active == True,
+            and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
+        ),
     )
-    ext_entity_class_dimension_count_sq = (
-        db_map.query(
-            db_map.entity_class_dimension_sq.c.entity_class_id,
-            func.count(db_map.entity_class_dimension_sq.c.dimension_id).label("dimension_count"),
-        )
-        .group_by(db_map.entity_class_dimension_sq.c.entity_class_id)
-        .subquery()
-    )
-    return (
-        db_map.query(
-            ext_entity_sq.c.id,
-            ext_entity_sq.c.class_id,
-            ext_entity_sq.c.name,
-            ext_entity_sq.c.description,
-            ext_entity_sq.c.commit_id,
-        )
-        .filter(
-            ext_entity_sq.c.desc_rank_row_number == 1,
-            or_(
-                ext_entity_sq.c.active == True,
-                and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
-            ),
-        )
-        .outerjoin(
-            ext_entity_element_count_sq,
-            ext_entity_element_count_sq.c.entity_id == ext_entity_sq.c.id,
-        )
-        .outerjoin(
-            ext_entity_class_dimension_count_sq,
-            ext_entity_class_dimension_count_sq.c.entity_class_id == ext_entity_sq.c.class_id,
-        )
-        .filter(
-            or_(
-                and_(
-                    ext_entity_element_count_sq.c.element_count == None,
-                    ext_entity_class_dimension_count_sq.c.dimension_count == None,
-                ),
-                ext_entity_element_count_sq.c.element_count == ext_entity_class_dimension_count_sq.c.dimension_count,
-            )
-        )
-        .subquery()
-    )
+    return filter_by_active_elements(db_map, filtered_by_activity, ext_entity_sq).subquery()
 
 
 def _make_scenario_filtered_entity_alternative_sq(db_map, state):
@@ -360,22 +325,6 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
         Alias: a subquery for parameter value filtered by selected scenario
     """
     ext_entity_sq = _ext_entity_sq(db_map, state)
-    ext_entity_element_count_sq = (
-        db_map.query(
-            db_map.entity_element_sq.c.entity_id,
-            func.count(db_map.entity_element_sq.c.element_id).label("element_count"),
-        )
-        .group_by(db_map.entity_element_sq.c.entity_id)
-        .subquery()
-    )
-    ext_entity_class_dimension_count_sq = (
-        db_map.query(
-            db_map.entity_class_dimension_sq.c.entity_class_id,
-            func.count(db_map.entity_class_dimension_sq.c.dimension_id).label("dimension_count"),
-        )
-        .group_by(db_map.entity_class_dimension_sq.c.entity_class_id)
-        .subquery()
-    )
     ext_parameter_value_sq = (
         db_map.query(
             state.original_parameter_value_sq,
@@ -392,7 +341,7 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
         .filter(state.original_parameter_value_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id)
         .filter(db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id)
     ).subquery()
-    return (
+    filtered_by_entity_activity = (
         db_map.query(ext_parameter_value_sq)
         .filter(ext_parameter_value_sq.c.desc_rank_row_number == 1)
         .filter(ext_parameter_value_sq.c.entity_id == ext_entity_sq.c.id)
@@ -403,24 +352,8 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
                 and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
             ),
         )
-        .outerjoin(
-            ext_entity_element_count_sq, ext_entity_element_count_sq.c.entity_id == ext_parameter_value_sq.c.entity_id
-        )
-        .outerjoin(
-            ext_entity_class_dimension_count_sq,
-            ext_entity_class_dimension_count_sq.c.entity_class_id == ext_parameter_value_sq.c.entity_class_id,
-        )
-        .filter(
-            or_(
-                and_(
-                    ext_entity_element_count_sq.c.element_count == None,
-                    ext_entity_class_dimension_count_sq.c.dimension_count == None,
-                ),
-                ext_entity_element_count_sq.c.element_count == ext_entity_class_dimension_count_sq.c.dimension_count,
-            )
-        )
-        .subquery()
     )
+    return filter_by_active_elements(db_map, filtered_by_entity_activity, ext_entity_sq).subquery()
 
 
 def _make_scenario_filtered_alternative_sq(db_map, state):
