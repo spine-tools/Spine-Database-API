@@ -1936,6 +1936,19 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             x = self._assert_success(db_map.add_parameter_definition_item(name="x", entity_class_id=object_class["id"]))
             self.assertEqual(x["entity_class_name"], "Object")
 
+    def test_removing_item_by_database_id(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_parameter_value_list_item(name="my_enum"))
+                db_map.commit_session("Add value list.")
+                list_id = db_map.query(db_map.parameter_value_list_sq).first()["id"]
+            with DatabaseMapping(url) as db_map:
+                self._assert_success(db_map.remove_item("parameter_value_list", list_id))
+                db_map.commit_session("Remove value list")
+                value_lists = db_map.query(db_map.parameter_value_list_sq).all()
+                self.assertEqual(value_lists, [])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
