@@ -1,9 +1,9 @@
 coverage[toml]
+black == 24.4.2
+pre-commit
 pyperf
 sphinx
-sphinx-autoapi
 sphinx_rtd_theme
+sphinx-autoapi
 recommonmark
-black == 24.4.2
 isort
-pre-commit
