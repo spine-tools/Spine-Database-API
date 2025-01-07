@@ -390,6 +390,179 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             self.assertEqual(len(values), 1)
             self.assertEqual(from_database(values[0]["value"], values[0]["type"]), -2.3)
 
+    def test_entity_groups(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Visible", active_by_default=True))
+            self._assert_success(db_map.add_entity_item(name="default_active", entity_class_name="Visible"))
+            self._assert_success(db_map.add_entity_item(name="active", entity_class_name="Visible"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_byname=("active",), entity_class_name="Visible", alternative_name="Base", active=True
+                )
+            )
+            self._assert_success(db_map.add_entity_item(name="inactive", entity_class_name="Visible"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_byname=("inactive",), entity_class_name="Visible", alternative_name="Base", active=False
+                )
+            )
+            self._assert_success(db_map.add_entity_item(name="default_active_group", entity_class_name="Visible"))
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Visible", group_name="default_active_group", member_name="default_active"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Visible", group_name="default_active_group", member_name="active"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Visible", group_name="default_active_group", member_name="inactive"
+                )
+            )
+            self._assert_success(db_map.add_entity_item(name="active_group", entity_class_name="Visible"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_byname=("active_group",), entity_class_name="Visible", alternative_name="Base", active=True
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Visible", group_name="active_group", member_name="default_active"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Visible", group_name="active_group", member_name="active"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Visible", group_name="active_group", member_name="inactive"
+                )
+            )
+            self._assert_success(db_map.add_entity_item(name="inactive_group", entity_class_name="Visible"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_byname=("inactive_group",),
+                    entity_class_name="Visible",
+                    alternative_name="Base",
+                    active=False,
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Visible", group_name="inactive_group", member_name="default_active"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Visible", group_name="inactive_group", member_name="active"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Visible", group_name="inactive_group", member_name="inactive"
+                )
+            )
+            self._assert_success(db_map.add_entity_class_item(name="Invisible", active_by_default=False))
+            self._assert_success(db_map.add_entity_item(name="default_inactive", entity_class_name="Invisible"))
+            self._assert_success(db_map.add_entity_item(name="active", entity_class_name="Invisible"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_byname=("active",), entity_class_name="Invisible", alternative_name="Base", active=True
+                )
+            )
+            self._assert_success(db_map.add_entity_item(name="inactive", entity_class_name="Invisible"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_byname=("inactive",), entity_class_name="Invisible", alternative_name="Base", active=False
+                )
+            )
+            self._assert_success(db_map.add_entity_item(name="default_inactive_group", entity_class_name="Invisible"))
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Invisible", group_name="default_inactive_group", member_name="default_inactive"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Invisible", group_name="default_inactive_group", member_name="active"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Invisible", group_name="default_inactive_group", member_name="inactive"
+                )
+            )
+            self._assert_success(db_map.add_entity_item(name="active_group", entity_class_name="Invisible"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_byname=("active_group",), entity_class_name="Invisible", alternative_name="Base", active=True
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Invisible", group_name="active_group", member_name="default_inactive"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Invisible", group_name="active_group", member_name="active"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Invisible", group_name="active_group", member_name="inactive"
+                )
+            )
+            self._assert_success(db_map.add_entity_item(name="inactive_group", entity_class_name="Invisible"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_byname=("inactive_group",),
+                    entity_class_name="Invisible",
+                    alternative_name="Base",
+                    active=False,
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Invisible", group_name="inactive_group", member_name="default_inactive"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Invisible", group_name="inactive_group", member_name="active"
+                )
+            )
+            self._assert_success(
+                db_map.add_entity_group_item(
+                    entity_class_name="Invisible", group_name="inactive_group", member_name="inactive"
+                )
+            )
+            db_map.commit_session("Add test data.")
+            config = alternative_filter_config(["Base"])
+            alternative_filter_from_dict(db_map, config)
+            groups = db_map.query(db_map.entity_group_sq).all()
+            self.assertEqual(len(groups), 5)
+            class_names = {row["id"]: row["name"] for row in db_map.query(db_map.entity_class_sq)}
+            entity_names = {row["id"]: row["name"] for row in db_map.query(db_map.entity_sq)}
+            data = {}
+            for row in groups:
+                data.setdefault(class_names[row["entity_class_id"]], {}).setdefault(
+                    entity_names[row["entity_id"]], set()
+                ).add(entity_names[row["member_id"]])
+            expected = {
+                "Visible": {
+                    "default_active_group": {"default_active", "active"},
+                    "active_group": {"default_active", "active"},
+                },
+                "Invisible": {"active_group": {"active"}},
+            }
+            self.assertEqual(data, expected)
+
     def _build_data_without_alternatives(self, db_map, commit=True):
         self._assert_imports(import_entity_classes(db_map, ["object_class"]))
         self._assert_imports(import_entities(db_map, [("object_class", "object")]))
