@@ -345,7 +345,7 @@ class DatabaseMappingQueryMixin:
             :class:`~sqlalchemy.sql.expression.Alias`
         """
         if self._entity_group_sq is None:
-            self._entity_group_sq = self._subquery("entity_group")
+            self._entity_group_sq = self._make_entity_group_sq()
         return self._entity_group_sq
 
     @property
@@ -1285,6 +1285,15 @@ class DatabaseMappingQueryMixin:
         """
         return self._subquery("entity_element")
 
+    def _make_entity_group_sq(self):
+        """
+        Creates a subquery for entity groups.
+
+        Returns:
+            Alias: an entity_group subquery
+        """
+        return self._subquery("entity_group")
+
     def _make_entity_alternative_sq(self):
         """
         Creates a subquery for entity-alternatives.
@@ -1416,6 +1425,17 @@ class DatabaseMappingQueryMixin:
         """
         self._make_entity_element_sq = MethodType(method, self)
         self._clear_subqueries("entity_element")
+
+    def override_entity_group_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``entity_group_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
+                returns entity_group subquery as an :class:`Alias` object
+        """
+        self._make_entity_group_sq = MethodType(method, self)
+        self._clear_subqueries("entity_group")
 
     def override_entity_alternative_sq_maker(self, method):
         """

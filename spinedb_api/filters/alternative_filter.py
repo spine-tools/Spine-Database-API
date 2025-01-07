@@ -40,6 +40,8 @@ def apply_alternative_filter_to_parameter_value_sq(db_map, alternatives):
     db_map.override_entity_sq_maker(make_entity_sq)
     make_entity_alternative_sq = partial(_make_alternative_filtered_entity_alternative_sq, state=state)
     db_map.override_entity_alternative_sq_maker(make_entity_alternative_sq)
+    make_entity_group_sq = partial(_make_alternative_filtered_entity_group_sq, state=state)
+    db_map.override_entity_group_sq_maker(make_entity_group_sq)
     make_parameter_value_sq = partial(_make_alternative_filtered_parameter_value_sq, state=state)
     db_map.override_parameter_value_sq_maker(make_parameter_value_sq)
 
@@ -127,6 +129,7 @@ class _AlternativeFilterState:
         self.original_entity_sq = db_map.entity_sq
         self.original_entity_element_sq = db_map.entity_element_sq
         self.original_entity_alternative_sq = db_map.entity_alternative_sq
+        self.original_entity_group_sq = db_map.entity_group_sq
         self.original_parameter_value_sq = db_map.parameter_value_sq
         self.original_scenario_sq = db_map.scenario_sq
         self.original_scenario_alternative_sq = db_map.scenario_alternative_sq
@@ -263,7 +266,7 @@ def _make_alternative_filtered_entity_element_sq(db_map, state):
 
 
 def _make_alternative_filtered_entity_sq(db_map, state):
-    """Returns an alternative filtering subquery similar to :func:`DatabaseMapping.entity_sq`.
+    """Returns an entity filtering subquery similar to :func:`DatabaseMapping.entity_sq`.
 
     This function can be used as replacement for entity subquery maker in :class:`DatabaseMapping`.
 
@@ -288,6 +291,44 @@ def _make_alternative_filtered_entity_sq(db_map, state):
         ),
     )
     return filter_by_active_elements(db_map, filtered_by_activity, ext_entity_sq).subquery()
+
+
+def _make_alternative_filtered_entity_group_sq(db_map, state):
+    """Returns an entity group  filtering subquery similar to :func:`DatabaseMapping.entity_group_sq`.
+
+    This function can be used as replacement for entity group subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_AlternativeFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for entity group filtered by selected alternatives
+    """
+    ext_entity_sq1 = _ext_entity_sq(db_map, state)
+    ext_entity_sq2 = _ext_entity_sq(db_map, state)
+    return (
+        db_map.query(state.original_entity_group_sq)
+        .filter(
+            and_(
+                state.original_entity_group_sq.c.entity_id == ext_entity_sq1.c.id,
+                or_(
+                    ext_entity_sq1.c.active == True,
+                    and_(ext_entity_sq1.c.active == None, ext_entity_sq1.c.active_by_default == True),
+                ),
+            )
+        )
+        .filter(
+            and_(
+                state.original_entity_group_sq.c.member_id == ext_entity_sq2.c.id,
+                or_(
+                    ext_entity_sq2.c.active == True,
+                    and_(ext_entity_sq2.c.active == None, ext_entity_sq2.c.active_by_default == True),
+                ),
+            )
+        )
+        .subquery()
+    )
 
 
 def _make_alternative_filtered_alternative_sq(db_map, state):

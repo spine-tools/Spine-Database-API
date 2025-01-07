@@ -33,6 +33,8 @@ def apply_scenario_filter_to_subqueries(db_map, scenario):
     db_map.override_entity_element_sq_maker(make_entity_element_sq)
     make_entity_sq = partial(_make_scenario_filtered_entity_sq, state=state)
     db_map.override_entity_sq_maker(make_entity_sq)
+    make_entity_group_sq = partial(_make_scenario_filtered_entity_group_sq, state=state)
+    db_map.override_entity_group_sq_maker(make_entity_group_sq)
     make_entity_alternative_sq = partial(_make_scenario_filtered_entity_alternative_sq, state=state)
     db_map.override_entity_alternative_sq_maker(make_entity_alternative_sq)
     make_parameter_value_sq = partial(_make_scenario_filtered_parameter_value_sq, state=state)
@@ -134,6 +136,7 @@ class _ScenarioFilterState:
         self.original_entity_sq = db_map.entity_sq
         self.original_entity_element_sq = db_map.entity_element_sq
         self.original_entity_alternative_sq = db_map.entity_alternative_sq
+        self.original_entity_group_sq = db_map.entity_group_sq
         self.original_parameter_value_sq = db_map.parameter_value_sq
         self.original_scenario_sq = db_map.scenario_sq
         self.original_scenario_alternative_sq = db_map.scenario_alternative_sq
@@ -306,6 +309,51 @@ def _make_scenario_filtered_entity_alternative_sq(db_map, state):
         .filter(
             ext_entity_sq.c.desc_rank_row_number == 1,
             or_(ext_entity_sq.c.active == True, ext_entity_sq.c.active == None),
+        )
+        .subquery()
+    )
+
+
+def _make_scenario_filtered_entity_group_sq(db_map, state):
+    """
+    Returns an entity group filtering subquery similar to :func:`DatabaseMapping.entity_group_sq`.
+
+    This function can be used as replacement for entity group subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_ScenarioFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for entity group filtered by selected scenario
+    """
+    ext_entity_sq1 = _ext_entity_sq(db_map, state)
+    ext_entity_sq2 = _ext_entity_sq(db_map, state)
+    return (
+        db_map.query(state.original_entity_group_sq)
+        .filter(
+            and_(
+                state.original_entity_group_sq.c.entity_id == ext_entity_sq1.c.id,
+                and_(
+                    ext_entity_sq1.c.desc_rank_row_number == 1,
+                    or_(
+                        ext_entity_sq1.c.active == True,
+                        and_(ext_entity_sq1.c.active == None, ext_entity_sq1.c.active_by_default == True),
+                    ),
+                ),
+            )
+        )
+        .filter(
+            and_(
+                state.original_entity_group_sq.c.member_id == ext_entity_sq2.c.id,
+                and_(
+                    ext_entity_sq2.c.desc_rank_row_number == 1,
+                    or_(
+                        ext_entity_sq2.c.active == True,
+                        and_(ext_entity_sq2.c.active == None, ext_entity_sq2.c.active_by_default == True),
+                    ),
+                ),
+            )
         )
         .subquery()
     )
