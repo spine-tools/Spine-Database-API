@@ -11,8 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Alternative filter now filters entities, metadata, alternatives and scenarios.
-
 ### Deprecated
 
 ### Removed
@@ -20,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.32.2]
+
+### Changed
+
+- Alternative filter now filters entities, entity groups, metadata, alternatives and scenarios.
+- Scenario filter now filters entity groups.
 
 ## [0.32.1]
 
