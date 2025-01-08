@@ -2,7 +2,6 @@
 
 name: Unit tests
 
-# Run workflow on every push
 on:
   push:
     paths:
@@ -17,8 +16,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, windows-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
     - uses: actions/checkout@v4
       with:
@@ -61,7 +60,7 @@ jobs:
     name: Toolbox unit tests
     uses: spine-tools/Spine-Toolbox/.github/workflows/unit_tests.yml@master
     with:
-      host-os: ubuntu-22.04
+      host-os: ubuntu-latest
       python-version: 3.9
       repository: spine-tools/Spine-Toolbox
       coverage: false
@@ -71,7 +70,7 @@ jobs:
     name: Toolbox execution tests
     uses: spine-tools/Spine-Toolbox/.github/workflows/execution_tests.yml@master
     with:
-      host-os: ubuntu-22.04
+      host-os: ubuntu-latest
       python-version: 3.9
       repository: spine-tools/Spine-Toolbox
       post-installation-command: python -m pip install git+${{ github.server_url }}/${{ github.repository }}.git@${{ github.ref_name }}
@@ -80,9 +79,9 @@ jobs:
     name: SpineInterface.jl test
     uses: spine-tools/SpineInterface.jl/.github/workflows/Test.yml@master
     with:
-      host-os: ubuntu-22.04
+      host-os: ubuntu-latest
       julia-version: "1"
-      python-version: "3.12"
+      python-version: "3.13"
       repository: spine-tools/SpineInterface.jl
       spinedb-api-ref-name: ${{ github.ref_name }}
       coverage: false
