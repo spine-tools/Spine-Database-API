@@ -56,7 +56,6 @@ After running the build, the index page can be found in `docs/build/html/index.h
 
 &nbsp;
 <hr>
-<center>
 <table width=500px frame="none">
 <tr>
 <td valign="middle" width=100px>
@@ -67,4 +66,3 @@ After running the build, the index page can be found in `docs/build/html/index.h
 <img src=fig/eu-emblem-low-res.jpg alt="EU emblem" width=100%></td>
 <td valign="middle">This project has received funding from the European Union’s Horizon 2020 research and innovation programme under grant agreement No 774629.</td>
 </table>
-</center>
