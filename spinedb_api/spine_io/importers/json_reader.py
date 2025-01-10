@@ -16,6 +16,7 @@ import os
 import sys
 import ijson
 from ijson import IncompleteJSONError
+from ijson.backends.python import UnexpectedSymbol
 from ...exception import ConnectorError
 from .reader import SourceConnection
 
@@ -72,7 +73,7 @@ class JSONConnector(SourceConnection):
                             return
                         yield x[:max_depth]
                         row += 1
-            except IncompleteJSONError as error:
+            except (IncompleteJSONError, UnexpectedSymbol) as error:
                 raise ConnectorError(f"failed to read JSON: {error}") from error
 
     def get_data_iterator(self, table, options, max_rows=-1):
