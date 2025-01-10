@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for GDXConnector class.
-
-"""
+""" Unit tests for GDXConnector class. """
 
 import os.path
 import pickle

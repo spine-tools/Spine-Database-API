@@ -10,14 +10,13 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains JSONConnector class.
-
-"""
+""" Contains JSONConnector class. """
 
 import os
 import sys
 import ijson
+from ijson import IncompleteJSONError
+from ...exception import ConnectorError
 from .reader import SourceConnection
 
 
@@ -66,12 +65,15 @@ class JSONConnector(SourceConnection):
         prefix = ".".join(table.split(".")[1:])
         with open(self._filename, "rb") as f:
             row = 0
-            for obj in ijson.items(f, prefix):
-                for x in _tabulize_json(obj):
-                    if row > max_rows:
-                        return
-                    yield x[:max_depth]
-                    row += 1
+            try:
+                for obj in ijson.items(f, prefix):
+                    for x in _tabulize_json(obj):
+                        if row > max_rows:
+                            return
+                        yield x[:max_depth]
+                        row += 1
+            except IncompleteJSONError as error:
+                raise ConnectorError(f"failed to read JSON: {error}") from error
 
     def get_data_iterator(self, table, options, max_rows=-1):
         """

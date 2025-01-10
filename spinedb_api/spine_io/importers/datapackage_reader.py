@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains DataPackageConnector class.
-
-"""
+""" Contains DataPackageConnector class. """
 from itertools import chain
 import threading
 from datapackage import Package

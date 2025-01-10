@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains ExcelConnector class and a help function.
-
-"""
+""" Contains ExcelConnector class and a help function. """
 
 import io
 from itertools import chain, islice, takewhile

@@ -10,15 +10,13 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains unit tests for JSONConnector.
-
-"""
+""" Contains unit tests for JSONConnector. """
 import json
 from pathlib import Path
 import pickle
 from tempfile import TemporaryDirectory
 import unittest
+from spinedb_api.exception import ConnectorError
 from spinedb_api.spine_io.importers.json_reader import JSONConnector
 
 
@@ -39,6 +37,17 @@ class TestJSONConnector(unittest.TestCase):
             rows = list(reader.file_iterator("data", {}))
             reader.disconnect()
         self.assertEqual(rows, [["a", 1], ["b", "c", 2]])
+
+    def test_invalid_json_raises_connector_error(self):
+        reader = JSONConnector(None)
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "test file.json"
+            with open(file_path, "w") as out_file:
+                out_file.write("PK")
+            reader.connect_to_source(str(file_path))
+            with self.assertRaises(ConnectorError):
+                rows = list(reader.file_iterator("data", {}))
+            reader.disconnect()
 
 
 if __name__ == "__main__":

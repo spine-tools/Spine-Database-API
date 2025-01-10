@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains a class template for a data source connector used in import ui.
-
-"""
+""" Contains a class template for a data source connector used in import ui. """
 
 from itertools import islice
 from spinedb_api import DateTime, Duration, ParameterValueFormatError

@@ -13,7 +13,7 @@
 """ Contains GDXConnector class and a help function. """
 
 from gdx2py import GAMSParameter, GAMSScalar, GAMSSet, GdxFile
-from spinedb_api import SpineDBAPIError
+from spinedb_api.exception import ConnectorError
 from ..gdx_utils import find_gams_directory
 from .reader import SourceConnection
 
@@ -100,7 +100,7 @@ class GdxConnector(SourceConnection):
             return iter([]), []
         symbol = self._gdx_file[table]
         if symbol is None:
-            raise SpineDBAPIError(f"the type of '{table}' is not supported.")
+            raise ConnectorError(f"the type of '{table}' is not supported.")
         if isinstance(symbol, GAMSScalar):
             return iter([[float(symbol)]]), ["Value"]
         domains = symbol.domain if symbol.domain is not None else symbol.dimension * [None]

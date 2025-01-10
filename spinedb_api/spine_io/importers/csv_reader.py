@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains CSVConnector class and a help function.
-
-"""
+""" Contains CSVConnector class and a help function. """
 
 
 import csv
