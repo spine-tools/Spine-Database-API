@@ -33,7 +33,7 @@ class TestDBMapping(DatabaseMappingBase):
     def _query_commit_count(self):
         return -1
 
-    def _make_query(self, _item_type, **kwargs):
+    def _make_query(self, _item_type, session, **kwargs):
         return None
 
 

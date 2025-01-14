@@ -14,9 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Breaking change:** The required SQLAlchemy version is now 1.4.
-  This may break clients that use the low-level query interface of `DatabaseMapping`,
-  e.g. `entity_sq`, as the queries now return proper SQLAlchemy 1.4 `Result` objects.
-  The high-level functions (`get_item`, `add_item` etc.) work as usual.
+  - The low-level query interface of `DatabaseMapping` (`entity_sq`, `alternative_sq`,...)
+    now return proper SQLAlchemy 1.4 `Result` objects.
+  - Using `DatabaseMapping` as a context manager (e.g. with the `with` statement)
+    now opens and closes a session.
+  - With the higher-level interface (`get_item()`, `add_item()`,...),
+    the session is opened automatically as needed.
+  - The low-level query interface requires the session to be opened manually,
+    i.e. all queries must be done inside a `with` block.
 
 ### Deprecated
 

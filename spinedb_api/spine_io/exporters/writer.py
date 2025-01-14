@@ -37,7 +37,7 @@ def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, ma
         empty_data_header = len(mappings) * [empty_data_header]
     if isinstance(group_fns, str):
         group_fns = len(mappings) * [group_fns]
-    with _new_write(writer):
+    with _new_write(writer), db_map:
         for mapping, header_for_empty_data, group_fn in zip(mappings, empty_data_header, group_fns):
             mapping = drop_non_positioned_tail(copy(mapping))
             for title, title_key in titles(mapping, db_map, limit=max_tables):
@@ -130,7 +130,7 @@ def _new_table(writer, table_name, title_key):
         title_key (dict, optional)
 
     Yields:
-        bool: whether or not the new table was successfully started
+        bool: whether the new table was successfully started
     """
     try:
         table_started = writer.start_table(table_name, title_key)
