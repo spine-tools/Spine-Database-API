@@ -1197,6 +1197,38 @@ class TestScenarioFilter(DataBuilderTestCase):
             self.assertEqual(len(values), 1)
             self.assertEqual(from_database(values[0].value, values[0].type), 2.3)
 
+    def test_entity_alternative_not_in_scenario_is_dropped_when_another_active_one_is_in_scenario(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_scenario_item(name="Scenario"))
+                self._assert_success(db_map.add_alternative_item(name="alt"))
+                self._assert_success(
+                    db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="alt", rank=1)
+                )
+                self._assert_success(db_map.add_entity_class_item(name="Object", active_by_default=True))
+                self._assert_success(db_map.add_entity_item(name="cube", entity_class_name="Object"))
+                self._assert_success(
+                    db_map.add_entity_alternative_item(
+                        entity_class_name="Object", entity_byname=("cube",), alternative_name="Base", active=False
+                    )
+                )
+                self._assert_success(
+                    db_map.add_entity_alternative_item(
+                        entity_class_name="Object", entity_byname=("cube",), alternative_name="alt", active=True
+                    )
+                )
+                db_map.commit_session("Add test data")
+            with DatabaseMapping(url) as db_map:
+                config = scenario_filter_config("Scenario")
+                scenario_filter_from_dict(db_map, config)
+                entity_alternatives = db_map.get_entity_alternative_items()
+                self.assertEqual(len(entity_alternatives), 1)
+                self.assertEqual(entity_alternatives[0]["entity_class_name"], "Object")
+                self.assertEqual(entity_alternatives[0]["entity_byname"], ("cube",))
+                self.assertEqual(entity_alternatives[0]["alternative_name"], "alt")
+                self.assertTrue(entity_alternatives[0]["active"])
+
 
 class TestScenarioFilterUtils(DataBuilderTestCase):
     def test_scenario_filter_config(self):
