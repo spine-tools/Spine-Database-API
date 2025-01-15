@@ -305,6 +305,7 @@ def _make_scenario_filtered_entity_alternative_sq(db_map, state):
     ext_entity_sq = _ext_entity_sq(db_map, state)
     return (
         db_map.query(state.original_entity_alternative_sq)
+        .filter(state.original_entity_alternative_sq.c.alternative_id.in_(state.alternative_ids))
         .filter(state.original_entity_alternative_sq.c.entity_id == ext_entity_sq.c.id)
         .filter(
             ext_entity_sq.c.desc_rank_row_number == 1,
