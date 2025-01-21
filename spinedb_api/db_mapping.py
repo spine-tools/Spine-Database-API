@@ -91,7 +91,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     The :meth:`query` method is also provided as an alternative way to retrieve data from the DB
     while bypassing the in-memory mapping entirely.
 
-    You must use this class as a context manager, e.g.::
+    You usually use this class as a context manager, e.g.::
 
         with DatabaseMapping(db_url) as db_map:
             # Do stuff with db_map
@@ -879,8 +879,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             from spinedb_api import DatabaseMapping
             url = 'sqlite:///spine.db'
             ...
-            db_map = DatabaseMapping(url)
-            db_map.query(db_map.entity_class_sq).filter_by(id=1).one_or_none()
+            with DatabaseMapping(url) as db_map:
+                db_map.query(db_map.entity_class_sq).filter_by(id=1).one_or_none()
 
         To perform more complex queries, just use the :class:`~spinedb_api.query.Query` interface
         (which is a close clone of SQL Alchemy's :class:`~sqlalchemy.orm.query.Query`).
@@ -898,7 +898,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         Returns:
             :class:`~sqlalchemy.orm.Query`: The resulting query.
         """
-        return self._session.query(*entities, **kwargs)
+        try:
+            return self._session.query(*entities, **kwargs)
+        except AttributeError:
+            raise SpineDBAPIError("session is None; did you forget to use the DB map inside a 'with' block?")
 
     def commit_session(self, comment, apply_compatibility_transforms=True):
         """Commits the changes from the in-memory mapping to the database.

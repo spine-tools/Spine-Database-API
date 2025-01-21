@@ -1950,6 +1950,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 value_lists = db_map.query(db_map.parameter_value_list_sq).all()
                 self.assertEqual(value_lists, [])
 
+    def test_with_block_reminder_exception(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        with self.assertRaises(
+            SpineDBAPIError, msg="session is None; did you forget to use the DB map inside a 'with' block?"
+        ):
+            db_map.query(db_map.entity_sq)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
