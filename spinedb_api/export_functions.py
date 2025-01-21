@@ -10,8 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Functions for exporting data from a Spine database in a standard format. """
+from collections import namedtuple
 from operator import itemgetter
-from sqlalchemy.util import KeyedTuple
 from .helpers import Asterisk
 from .parameter_value import from_database
 
@@ -108,6 +108,9 @@ def _make_item_processor(db_map, tablename):
     return lambda item: (item,)
 
 
+ValueRow = namedtuple("ValueRow", ["name", "value", "type"])
+
+
 class _ParameterValueListProcessor:
     def __init__(self, value_items):
         self._value_items_by_list_id = {}
@@ -116,7 +119,7 @@ class _ParameterValueListProcessor:
 
     def __call__(self, item):
         for list_value_item in sorted(self._value_items_by_list_id.get(item.id, ()), key=lambda x: x.index):
-            yield KeyedTuple([item.name, list_value_item.value, list_value_item.type], ["name", "value", "type"])
+            yield ValueRow(item.name, list_value_item.value, list_value_item.type)
 
 
 def export_parameter_value_lists(db_map, ids=Asterisk, parse_value=from_database):

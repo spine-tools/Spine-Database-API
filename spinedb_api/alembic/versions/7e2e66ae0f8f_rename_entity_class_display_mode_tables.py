@@ -8,6 +8,7 @@ Create Date: 2024-08-21 09:25:22.928566
 
 from alembic import op
 import sqlalchemy as sa
+from spinedb_api import naming_convention
 
 # revision identifiers, used by Alembic.
 revision = "7e2e66ae0f8f"
@@ -17,8 +18,8 @@ depends_on = None
 
 
 def upgrade():
-    m = sa.MetaData(op.get_bind())
-    m.reflect()
+    m = sa.MetaData()
+    m.reflect(op.get_bind())
     with op.batch_alter_table("entity_class_display_mode") as batch_op:
         batch_op.drop_constraint("pk_entity_class_display_mode", type_="primary")
         batch_op.create_primary_key("pk_display_mode", ["id"])

@@ -17,8 +17,8 @@ depends_on = None
 
 
 def upgrade():
-    m = sa.MetaData(op.get_bind())
-    m.reflect()
+    m = sa.MetaData()
+    m.reflect(op.get_bind())
     if "next_id" in m.tables:
         with op.batch_alter_table("next_id") as batch_op:
             batch_op.add_column(sa.Column("parameter_tag_id", sa.Integer))

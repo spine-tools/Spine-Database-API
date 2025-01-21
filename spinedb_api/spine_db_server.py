@@ -357,7 +357,6 @@ class _DBWorker:
         while True:
             input_ = self._in_queue.get()
             if input_ == self._CLOSE:
-                self._db_map.close()
                 break
             request, args, kwargs = input_
             handler = {
@@ -369,7 +368,8 @@ class _DBWorker:
                 "apply_filters": self._do_apply_filters,
                 "clear_filters": self._do_clear_filters,
             }[request]
-            result = handler(*args, **kwargs)
+            with self._db_map:
+                result = handler(*args, **kwargs)
             self._out_queue.put(result)
 
     def run(self, request, args, kwargs):
@@ -445,7 +445,7 @@ class _DBManager:
         worker = self._workers.get(server_address)
         if worker is None:
             try:
-                worker = self._workers[server_address] = _DBWorker(db_url, upgrade, memory)
+                self._workers[server_address] = _DBWorker(db_url, upgrade, memory)
             except Exception as error:  # pylint: disable=broad-except
                 return {"error": str(error)}
         return {"result": True}

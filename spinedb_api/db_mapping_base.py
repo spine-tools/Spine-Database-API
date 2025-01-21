@@ -12,7 +12,6 @@
 from contextlib import suppress
 from difflib import SequenceMatcher
 from enum import Enum, auto, unique
-from multiprocessing import Lock, RLock
 from typing import Set
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
@@ -42,11 +41,10 @@ class DatabaseMappingBase:
     """
 
     def __init__(self):
-        self.closed = False
+        self._closed = False
+        self._context_open_count = 0
         self._mapped_tables = {}
         self._fetched = {}
-        self._locker_lock = Lock()
-        self._locks = {}
         self._commit_count = None
         item_types = self.item_types()
         self._sorted_item_types = []
@@ -56,6 +54,17 @@ class DatabaseMappingBase:
                 item_types.append(item_type)
             else:
                 self._sorted_item_types.append(item_type)
+
+    def __del__(self):
+        self.close()
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def close(self):
+        """Closes this DB mapping."""
+        self._closed = True
 
     @staticmethod
     def item_types():
@@ -92,36 +101,6 @@ class DatabaseMappingBase:
             function
         """
         raise NotImplementedError()
-
-    def _make_query(self, item_type, **kwargs):
-        """Returns a :class:`~spinedb_api.query.Query` object to fetch items of given type.
-
-        Args:
-            item_type (str)
-            **kwargs: query filters
-
-        Returns:
-            :class:`~spinedb_api.query.Query` or None if the mapping is closed.
-        """
-        if self.closed:
-            return None
-        sq = self._make_sq(item_type)
-        qry = self.query(sq)
-        for key, value in kwargs.items():
-            if isinstance(value, tuple):
-                continue
-            value = resolve(value)
-            if hasattr(sq.c, key):
-                qry = qry.filter(getattr(sq.c, key) == value)
-            elif key in self.item_factory(item_type)._external_fields:
-                src_key, key = self.item_factory(item_type)._external_fields[key]
-                ref_type = self.item_factory(item_type)._references[src_key]
-                ref_sq = self._make_sq(ref_type)
-                try:
-                    qry = qry.filter(getattr(sq.c, src_key) == getattr(ref_sq.c, "id"), getattr(ref_sq.c, key) == value)
-                except AttributeError:
-                    pass
-        return qry
 
     def _make_sq(self, item_type):
         """Returns a :class:`~sqlalchemy.sql.expression.Alias` object representing a subquery
@@ -288,19 +267,6 @@ class DatabaseMappingBase:
         mapped_table = self.mapped_table(item_type)
         return mapped_table.find_item_by_id(id_, fetch=fetch) or {}
 
-    def _get_next_chunk(self, item_type, offset, limit, **kwargs):
-        """Gets chunk of items from the DB.
-
-        Returns:
-            list(dict): list of dictionary items.
-        """
-        qry = self._make_query(item_type, **kwargs)
-        if not qry:
-            return []
-        if not limit:
-            return [dict(x) for x in qry]
-        return [dict(x) for x in qry.limit(limit).offset(offset)]
-
     def do_fetch_more(self, item_type, offset=0, limit=None, real_commit_count=None, **kwargs):
         """Fetches items from the DB and adds them to the mapping.
 
@@ -314,34 +280,7 @@ class DatabaseMappingBase:
         Returns:
             list(MappedItem): items fetched from the DB.
         """
-        chunk = self._get_next_chunk(item_type, offset, limit, **kwargs)
-        if not chunk:
-            return []
-        if real_commit_count is None:
-            real_commit_count = self._query_commit_count()
-        is_db_dirty = self._get_commit_count() != real_commit_count
-        if is_db_dirty:
-            # We need to fetch the most recent references because their ids might have changed in the DB
-            for ref_type in self.item_factory(item_type).ref_types():
-                if ref_type != item_type:
-                    self.do_fetch_all(ref_type, commit_count=real_commit_count)
-        mapped_table = self.mapped_table(item_type)
-        items = []
-        new_items = []
-        # Add items first
-        for x in chunk:
-            item, new = mapped_table.add_item_from_db(x, not is_db_dirty)
-            if new:
-                new_items.append(item)
-            else:
-                item.handle_refetch()
-            items.append(item)
-        # Once all items are added, add the unique key values
-        # Otherwise items that refer to other items that come later in the query will be seen as corrupted
-        for item in new_items:
-            mapped_table.add_unique(item)
-            item.become_referrer()
-        return items
+        raise NotImplementedError()
 
     def _get_commit_count(self):
         """Returns current commit count.
@@ -362,16 +301,11 @@ class DatabaseMappingBase:
             item_type (str)
             commit_count (int,optional)
         """
-        with self._locker_lock:
-            if item_type not in self._locks:
-                self._locks[item_type] = RLock()
-            lock = self._locks[item_type]
-        with lock:
-            if commit_count is None:
-                commit_count = self._get_commit_count()
-            if self._fetched.get(item_type, -1) < commit_count:
-                self._fetched[item_type] = commit_count
-                self.do_fetch_more(item_type, offset=0, limit=None, real_commit_count=commit_count)
+        if commit_count is None:
+            commit_count = self._get_commit_count()
+        if self._fetched.get(item_type, -1) < commit_count:
+            self._fetched[item_type] = commit_count
+            self.do_fetch_more(item_type, offset=0, limit=None, real_commit_count=commit_count)
 
 
 class _MappedTable(dict):

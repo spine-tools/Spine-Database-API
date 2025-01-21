@@ -27,8 +27,8 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
     Returns:
         tuple: list of entity classes to add, update and ids to remove
     """
-    meta = sa.MetaData(conn)
-    meta.reflect()
+    meta = sa.MetaData()
+    meta.reflect(conn)
     lv_table = meta.tables["list_value"]
     pd_table = meta.tables["parameter_definition"]
     if use_existing_tool_feature_method:
@@ -53,7 +53,7 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
         # It's a new DB without tool/feature/method or we don't want to use them...
         # we take 'is_active' as feature and JSON "yes" and true as methods
         lv_id_by_pdef_id = {
-            x["parameter_definition_id"]: x["id"]
+            x.parameter_definition_id: x.id
             for x in conn.execute(
                 sa.select([lv_table.c.id, lv_table.c.value, pd_table.c.id.label("parameter_definition_id")])
                 .where(lv_table.c.parameter_value_list_id == pd_table.c.parameter_value_list_id)
@@ -63,10 +63,10 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
         }
     # Collect 'is_active' default values
     list_value_id = sa.case(
-        [(pd_table.c.default_type == "list_value_ref", sa.cast(pd_table.c.default_value, sa.Integer()))], else_=None
+        (pd_table.c.default_type == "list_value_ref", sa.cast(pd_table.c.default_value, sa.Integer())), else_=None
     )
     is_active_default_vals = [
-        {c: x[c] for c in ("entity_class_id", "parameter_definition_id", "list_value_id")}
+        {c: x._mapping[c] for c in ("entity_class_id", "parameter_definition_id", "list_value_id")}
         for x in conn.execute(
             sa.select(
                 [
@@ -114,8 +114,8 @@ def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_fe
         list: entity_alternative items to update
         list: parameter_value ids to remove
     """
-    meta = sa.MetaData(conn)
-    meta.reflect()
+    meta = sa.MetaData()
+    meta.reflect(conn)
     ea_table = meta.tables["entity_alternative"]
     lv_table = meta.tables["list_value"]
     pv_table = meta.tables["parameter_value"]
@@ -142,7 +142,7 @@ def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_fe
         # we take 'is_active' as feature and JSON "yes" and true as methods
         pd_table = meta.tables["parameter_definition"]
         lv_id_by_pdef_id = {
-            x["parameter_definition_id"]: x["id"]
+            x.parameter_definition_id: x.id
             for x in conn.execute(
                 sa.select([lv_table.c.id, lv_table.c.value, pd_table.c.id.label("parameter_definition_id")])
                 .where(lv_table.c.parameter_value_list_id == pd_table.c.parameter_value_list_id)
@@ -151,11 +151,9 @@ def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_fe
             )
         }
     # Collect 'is_active' parameter values
-    list_value_id = sa.case(
-        [(pv_table.c.type == "list_value_ref", sa.cast(pv_table.c.value, sa.Integer()))], else_=None
-    )
+    list_value_id = sa.case((pv_table.c.type == "list_value_ref", sa.cast(pv_table.c.value, sa.Integer())), else_=None)
     is_active_pvals = [
-        {c: x[c] for c in ("id", "entity_id", "alternative_id", "parameter_definition_id", "list_value_id")}
+        {c: x._mapping[c] for c in ("id", "entity_id", "alternative_id", "parameter_definition_id", "list_value_id")}
         for x in conn.execute(
             sa.select([pv_table, list_value_id.label("list_value_id")]).where(
                 pv_table.c.parameter_definition_id.in_(lv_id_by_pdef_id)
@@ -164,7 +162,7 @@ def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_fe
     ]
     # Compute new entity_alternative items from 'is_active' parameter values,
     # where 'active' is True if the value of 'is_active' is the one from the tool_feature_method specification
-    current_ea_ids = {(x["entity_id"], x["alternative_id"]): x["id"] for x in conn.execute(sa.select([ea_table]))}
+    current_ea_ids = {(x.entity_id, x.alternative_id): x.id for x in conn.execute(sa.select([ea_table]))}
     new_ea_items = {
         (x["entity_id"], x["alternative_id"]): {
             "entity_id": x["entity_id"],

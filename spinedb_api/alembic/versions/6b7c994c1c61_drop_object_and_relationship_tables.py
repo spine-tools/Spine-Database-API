@@ -8,6 +8,7 @@ Create Date: 2023-02-09 06:48:46.585108
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 from spinedb_api.helpers import naming_convention
 
 # revision identifiers, used by Alembic.
@@ -106,28 +107,28 @@ def upgrade():
 
 def _get_constraints():
     conn = op.get_bind()
-    meta = sa.MetaData(conn)
-    meta.reflect()
+    meta = sa.MetaData()
+    meta.reflect(conn)
     return [[c.name for c in meta.tables[tname].constraints] for tname in ["entity_class", "entity"]]
 
 
 def _persist_data():
     conn = op.get_bind()
-    meta = sa.MetaData(conn)
-    meta.reflect()
+    meta = sa.MetaData()
+    meta.reflect(conn)
     ecd_items = [
-        {"entity_class_id": x["entity_class_id"], "dimension_id": x["member_class_id"], "position": x["dimension"]}
-        for x in conn.execute("SELECT * FROM relationship_entity_class")
+        {"entity_class_id": x.entity_class_id, "dimension_id": x.member_class_id, "position": x.dimension}
+        for x in conn.execute(text("SELECT * FROM relationship_entity_class"))
     ]
     ee_items = [
         {
-            "entity_id": x["entity_id"],
-            "entity_class_id": x["entity_class_id"],
-            "element_id": x["member_id"],
-            "dimension_id": x["member_class_id"],
-            "position": x["dimension"],
+            "entity_id": x.entity_id,
+            "entity_class_id": x.entity_class_id,
+            "element_id": x.member_id,
+            "dimension_id": x.member_class_id,
+            "position": x.dimension,
         }
-        for x in conn.execute("SELECT * FROM relationship_entity")
+        for x in conn.execute(text("SELECT * FROM relationship_entity"))
     ]
     op.bulk_insert(meta.tables["entity_class_dimension"], ecd_items)
     op.bulk_insert(meta.tables["entity_element"], ee_items)

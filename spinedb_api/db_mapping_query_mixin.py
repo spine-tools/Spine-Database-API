@@ -13,7 +13,8 @@
 from types import MethodType
 from sqlalchemy import Integer, Table, and_, case, cast, func, or_
 from sqlalchemy.orm import aliased
-from sqlalchemy.sql.expression import Alias, label
+from sqlalchemy.sql import Subquery
+from sqlalchemy.sql.expression import label
 from .helpers import forward_sweep, group_concat
 
 
@@ -95,7 +96,7 @@ class DatabaseMappingQueryMixin:
             getattr(self, attr)
         table_to_sq_attr = {}
         for attr, val in vars(self).items():
-            if not isinstance(val, Alias):
+            if not isinstance(val, Subquery):
                 continue
             tables = set()
             forward_sweep(val, _func, tables)
@@ -124,7 +125,7 @@ class DatabaseMappingQueryMixin:
             tablename (str): the table to be queried.
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         table = self._metadata.tables[tablename]
         return self.query(table).subquery(tablename + "_sq")
@@ -138,7 +139,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM superclass_subclass
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._superclass_subclass_sq is None:
             self._superclass_subclass_sq = self._subquery("superclass_subclass")
@@ -153,7 +154,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM entity_class
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._entity_class_sq is None:
             self._entity_class_sq = self._make_entity_class_sq()
@@ -168,7 +169,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM entity_class_dimension
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._entity_class_dimension_sq is None:
             self._entity_class_dimension_sq = self._subquery("entity_class_dimension")
@@ -191,7 +192,7 @@ class DatabaseMappingQueryMixin:
                 ec.id == ecd.entity_class_id
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._wide_entity_class_sq is None:
             entity_class_dimension_sq = (
@@ -258,7 +259,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM entity
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._entity_sq is None:
             self._entity_sq = self._make_entity_sq()
@@ -273,7 +274,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM entity_element
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._entity_element_sq is None:
             self._entity_element_sq = self._make_entity_element_sq()
@@ -295,7 +296,7 @@ class DatabaseMappingQueryMixin:
                 e.id == ee.entity_id
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._wide_entity_sq is None:
             entity_element_sq = (
@@ -342,7 +343,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM entity_group
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._entity_group_sq is None:
             self._entity_group_sq = self._make_entity_group_sq()
@@ -357,7 +358,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM display_mode
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._display_mode_sq is None:
             self._display_mode_sq = self._subquery("display_mode")
@@ -372,7 +373,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM entity_class_display_mode
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._entity_class_display_mode_sq is None:
             self._entity_class_display_mode_sq = self._subquery("entity_class_display_mode")
@@ -387,7 +388,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM alternative
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._alternative_sq is None:
             self._alternative_sq = self._make_alternative_sq()
@@ -402,7 +403,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM scenario
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._scenario_sq is None:
             self._scenario_sq = self._make_scenario_sq()
@@ -417,7 +418,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM scenario_alternative
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._scenario_alternative_sq is None:
             self._scenario_alternative_sq = self._make_scenario_alternative_sq()
@@ -432,7 +433,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM entity_alternative
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._entity_alternative_sq is None:
             self._entity_alternative_sq = self._make_entity_alternative_sq()
@@ -447,7 +448,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM parameter_value_list
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._parameter_value_list_sq is None:
             self._parameter_value_list_sq = self._subquery("parameter_value_list")
@@ -462,7 +463,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM list_value
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._list_value_sq is None:
             self._list_value_sq = self._subquery("list_value")
@@ -477,7 +478,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM parameter_definition
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
 
         if self._parameter_definition_sq is None:
@@ -485,7 +486,7 @@ class DatabaseMappingQueryMixin:
         return self._parameter_definition_sq
 
     @property
-    def wide_parameter_definition_sq(self) -> Alias:
+    def wide_parameter_definition_sq(self) -> Subquery:
         """A subquery of the form:
 
         .. code-block:: sql
@@ -545,7 +546,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM parameter_type
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._parameter_type_sq is None:
             self._parameter_type_sq = self._subquery("parameter_type")
@@ -560,7 +561,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM parameter_value
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._parameter_value_sq is None:
             self._parameter_value_sq = self._make_parameter_value_sq()
@@ -575,7 +576,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM list_value
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._metadata_sq is None:
             self._metadata_sq = self._subquery("metadata")
@@ -590,7 +591,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM parameter_value_metadata
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._parameter_value_metadata_sq is None:
             self._parameter_value_metadata_sq = self._subquery("parameter_value_metadata")
@@ -605,7 +606,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM entity_metadata
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._entity_metadata_sq is None:
             self._entity_metadata_sq = self._subquery("entity_metadata")
@@ -620,7 +621,7 @@ class DatabaseMappingQueryMixin:
             SELECT * FROM commit
 
         Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
+            :class:`~sqlalchemy.sql.Subquery`
         """
         if self._commit_sq is None:
             commit_sq = self._subquery("commit")
@@ -1263,7 +1264,7 @@ class DatabaseMappingQueryMixin:
         Creates a subquery for entity classes.
 
         Returns:
-            Alias: an entity class subquery
+            Subquery: an entity class subquery
         """
         return self._subquery("entity_class")
 
@@ -1272,7 +1273,7 @@ class DatabaseMappingQueryMixin:
         Creates a subquery for entities.
 
         Returns:
-            Alias: an entity subquery
+            Subquery: an entity subquery
         """
         return self._subquery("entity")
 
@@ -1281,7 +1282,7 @@ class DatabaseMappingQueryMixin:
         Creates a subquery for entity-elements.
 
         Returns:
-            Alias: an entity_element subquery
+            Subquery: an entity_element subquery
         """
         return self._subquery("entity_element")
 
@@ -1299,7 +1300,7 @@ class DatabaseMappingQueryMixin:
         Creates a subquery for entity-alternatives.
 
         Returns:
-            Alias: an entity_alternative subquery
+            Subquery: an entity_alternative subquery
         """
         return self._subquery("entity_alternative")
 
@@ -1308,18 +1309,18 @@ class DatabaseMappingQueryMixin:
         Creates a subquery for parameter definitions.
 
         Returns:
-            Alias: a parameter definition subquery
+            Subquery: a parameter definition subquery
         """
         par_def_sq = self._subquery("parameter_definition")
         list_value_id = case(
-            [(par_def_sq.c.default_type == "list_value_ref", cast(par_def_sq.c.default_value, Integer()))], else_=None
+            (par_def_sq.c.default_type == "list_value_ref", cast(par_def_sq.c.default_value, Integer())), else_=None
         )
         default_value = case(
-            [(par_def_sq.c.default_type == "list_value_ref", self.list_value_sq.c.value)],
+            (par_def_sq.c.default_type == "list_value_ref", self.list_value_sq.c.value),
             else_=par_def_sq.c.default_value,
         )
         default_type = case(
-            [(par_def_sq.c.default_type == "list_value_ref", self.list_value_sq.c.type)],
+            (par_def_sq.c.default_type == "list_value_ref", self.list_value_sq.c.type),
             else_=par_def_sq.c.default_type,
         )
         return (
@@ -1343,12 +1344,12 @@ class DatabaseMappingQueryMixin:
         Creates a subquery for parameter values.
 
         Returns:
-            Alias: a parameter value subquery
+            Subquery: a parameter value subquery
         """
         par_val_sq = self._subquery("parameter_value")
-        list_value_id = case([(par_val_sq.c.type == "list_value_ref", cast(par_val_sq.c.value, Integer()))], else_=None)
-        value = case([(par_val_sq.c.type == "list_value_ref", self.list_value_sq.c.value)], else_=par_val_sq.c.value)
-        type_ = case([(par_val_sq.c.type == "list_value_ref", self.list_value_sq.c.type)], else_=par_val_sq.c.type)
+        list_value_id = case((par_val_sq.c.type == "list_value_ref", cast(par_val_sq.c.value, Integer())), else_=None)
+        value = case((par_val_sq.c.type == "list_value_ref", self.list_value_sq.c.value), else_=par_val_sq.c.value)
+        type_ = case((par_val_sq.c.type == "list_value_ref", self.list_value_sq.c.type), else_=par_val_sq.c.type)
         return (
             self.query(
                 par_val_sq.c.id.label("id"),
@@ -1371,7 +1372,7 @@ class DatabaseMappingQueryMixin:
         Creates a subquery for alternatives.
 
         Returns:
-            Alias: an alternative subquery
+            Subquery: an alternative subquery
         """
         return self._subquery("alternative")
 
@@ -1380,7 +1381,7 @@ class DatabaseMappingQueryMixin:
         Creates a subquery for scenarios.
 
         Returns:
-            Alias: a scenario subquery
+            Subquery: a scenario subquery
         """
         return self._subquery("scenario")
 
@@ -1389,7 +1390,7 @@ class DatabaseMappingQueryMixin:
         Creates a subquery for scenario alternatives.
 
         Returns:
-            Alias: a scenario alternative subquery
+            Subquery: a scenario alternative subquery
         """
         return self._subquery("scenario_alternative")
 
@@ -1399,7 +1400,7 @@ class DatabaseMappingQueryMixin:
 
         Args:
             method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
-                returns entity class subquery as an :class:`Alias` object
+                returns entity class subquery as an :class:`Subquery` object
         """
         self._make_entity_class_sq = MethodType(method, self)
         self._clear_subqueries("entity_class")
@@ -1410,7 +1411,7 @@ class DatabaseMappingQueryMixin:
 
         Args:
             method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
-                returns entity subquery as an :class:`Alias` object
+                returns entity subquery as an :class:`Subquery` object
         """
         self._make_entity_sq = MethodType(method, self)
         self._clear_subqueries("entity")
@@ -1421,7 +1422,7 @@ class DatabaseMappingQueryMixin:
 
         Args:
             method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
-                returns entity_element subquery as an :class:`Alias` object
+                returns entity_element subquery as an :class:`Subquery` object
         """
         self._make_entity_element_sq = MethodType(method, self)
         self._clear_subqueries("entity_element")
@@ -1443,7 +1444,7 @@ class DatabaseMappingQueryMixin:
 
         Args:
             method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
-                returns entity alternative subquery as an :class:`Alias` object
+                returns entity alternative subquery as an :class:`Subquery` object
         """
         self._make_entity_alternative_sq = MethodType(method, self)
         self._clear_subqueries("entity_alternative")
@@ -1454,7 +1455,7 @@ class DatabaseMappingQueryMixin:
 
         Args:
             method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
-                returns parameter definition subquery as an :class:`Alias` object
+                returns parameter definition subquery as an :class:`Subquery` object
         """
         self._make_parameter_definition_sq = MethodType(method, self)
         self._clear_subqueries("parameter_definition")
@@ -1465,7 +1466,7 @@ class DatabaseMappingQueryMixin:
 
         Args:
             method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
-                returns parameter value subquery as an :class:`Alias` object
+                returns parameter value subquery as an :class:`Subquery` object
         """
         self._make_parameter_value_sq = MethodType(method, self)
         self._clear_subqueries("parameter_value")
@@ -1476,7 +1477,7 @@ class DatabaseMappingQueryMixin:
 
         Args:
             method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
-                returns alternative subquery as an :class:`Alias` object
+                returns alternative subquery as an :class:`Subquery` object
         """
         self._make_alternative_sq = MethodType(method, self)
         self._clear_subqueries("alternative")
@@ -1487,7 +1488,7 @@ class DatabaseMappingQueryMixin:
 
         Args:
             method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
-                returns scenario subquery as an :class:`Alias` object
+                returns scenario subquery as an :class:`Subquery` object
         """
         self._make_scenario_sq = MethodType(method, self)
         self._clear_subqueries("scenario")
@@ -1498,7 +1499,7 @@ class DatabaseMappingQueryMixin:
 
         Args:
             method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
-                returns scenario alternative subquery as an :class:`Alias` object
+                returns scenario alternative subquery as an :class:`Subquery` object
         """
         self._make_scenario_alternative_sq = MethodType(method, self)
         self._clear_subqueries("scenario_alternative")
@@ -1544,62 +1545,54 @@ class DatabaseMappingQueryMixin:
         self._clear_subqueries("scenario_alternative")
 
     def _object_class_id(self):
-        return case(
-            [(self.wide_entity_class_sq.c.dimension_id_list == None, self.wide_entity_class_sq.c.id)], else_=None
-        )
+        return case((self.wide_entity_class_sq.c.dimension_id_list == None, self.wide_entity_class_sq.c.id), else_=None)
 
     def _relationship_class_id(self):
-        return case(
-            [(self.wide_entity_class_sq.c.dimension_id_list != None, self.wide_entity_class_sq.c.id)], else_=None
-        )
+        return case((self.wide_entity_class_sq.c.dimension_id_list != None, self.wide_entity_class_sq.c.id), else_=None)
 
     def _object_id(self):
-        return case([(self.wide_entity_sq.c.element_id_list == None, self.wide_entity_sq.c.id)], else_=None)
+        return case((self.wide_entity_sq.c.element_id_list == None, self.wide_entity_sq.c.id), else_=None)
 
     def _relationship_id(self):
-        return case([(self.wide_entity_sq.c.element_id_list != None, self.wide_entity_sq.c.id)], else_=None)
+        return case((self.wide_entity_sq.c.element_id_list != None, self.wide_entity_sq.c.id), else_=None)
 
     def _object_class_name(self):
         return case(
-            [(self.wide_entity_class_sq.c.dimension_id_list == None, self.wide_entity_class_sq.c.name)], else_=None
+            (self.wide_entity_class_sq.c.dimension_id_list == None, self.wide_entity_class_sq.c.name), else_=None
         )
 
     def _relationship_class_name(self):
         return case(
-            [(self.wide_entity_class_sq.c.dimension_id_list != None, self.wide_entity_class_sq.c.name)], else_=None
+            (self.wide_entity_class_sq.c.dimension_id_list != None, self.wide_entity_class_sq.c.name), else_=None
         )
 
     def _object_class_id_list(self):
         return case(
-            [
-                (
-                    self.wide_entity_class_sq.c.dimension_id_list != None,
-                    self.wide_relationship_class_sq.c.object_class_id_list,
-                )
-            ],
+            (
+                self.wide_entity_class_sq.c.dimension_id_list != None,
+                self.wide_relationship_class_sq.c.object_class_id_list,
+            ),
             else_=None,
         )
 
     def _object_class_name_list(self):
         return case(
-            [
-                (
-                    self.wide_entity_class_sq.c.dimension_id_list != None,
-                    self.wide_relationship_class_sq.c.object_class_name_list,
-                )
-            ],
+            (
+                self.wide_entity_class_sq.c.dimension_id_list != None,
+                self.wide_relationship_class_sq.c.object_class_name_list,
+            ),
             else_=None,
         )
 
     def _object_name(self):
-        return case([(self.wide_entity_sq.c.element_id_list == None, self.wide_entity_sq.c.name)], else_=None)
+        return case((self.wide_entity_sq.c.element_id_list == None, self.wide_entity_sq.c.name), else_=None)
 
     def _object_id_list(self):
         return case(
-            [(self.wide_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_id_list)], else_=None
+            (self.wide_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_id_list), else_=None
         )
 
     def _object_name_list(self):
         return case(
-            [(self.wide_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_name_list)], else_=None
+            (self.wide_entity_sq.c.element_id_list != None, self.wide_relationship_sq.c.object_name_list), else_=None
         )

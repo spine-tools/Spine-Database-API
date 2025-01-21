@@ -48,6 +48,6 @@ def _get_scalar_values_by_id(table, value_label, type_label, connection):
     value_column = getattr(table.c, value_label)
     type_column = getattr(table.c, type_label)
     return {
-        row["id"]: row[value_label]
+        row.id: row._mapping[value_label]
         for row in connection.execute(sa.select([table.c.id, value_column]).where(type_column == None))
     }

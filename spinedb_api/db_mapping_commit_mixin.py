@@ -47,7 +47,7 @@ class DatabaseMappingCommitMixin:
             if id_items:
                 connection.execute(table.insert(), [x.resolve() for x in id_items])
             if temp_id_items:
-                current_ids = {x["id"] for x in connection.execute(table.select())}
+                current_ids = {x.id for x in connection.execute(table.select())}
                 next_id = max(current_ids, default=0) + 1
                 available_ids = set(range(1, next_id)) - current_ids
                 required_id_count = len(temp_id_items) - len(available_ids)

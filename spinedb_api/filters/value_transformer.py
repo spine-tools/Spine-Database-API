@@ -182,8 +182,8 @@ def _make_parameter_value_transforming_sq(db_map, state):
     ]
     statements += [select([literal(i), literal(v), literal(t)]) for i, v, t in transformed_rows[1:]]
     temp_sq = union_all(*statements).alias("transformed_values")
-    new_value = case([(temp_sq.c.transformed_value != None, temp_sq.c.transformed_value)], else_=subquery.c.value)
-    new_type = case([(temp_sq.c.transformed_type != None, temp_sq.c.transformed_type)], else_=subquery.c.type)
+    new_value = case((temp_sq.c.transformed_value != None, temp_sq.c.transformed_value), else_=subquery.c.value)
+    new_type = case((temp_sq.c.transformed_type != None, temp_sq.c.transformed_type), else_=subquery.c.type)
     parameter_value_sq = (
         db_map.query(
             subquery.c.id.label("id"),

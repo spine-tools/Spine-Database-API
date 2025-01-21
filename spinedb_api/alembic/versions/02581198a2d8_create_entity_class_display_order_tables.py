@@ -32,20 +32,20 @@ def upgrade():
         sa.Column("display_order", sa.Integer, nullable=False),
         sa.Column(
             "display_status",
-            sa.Enum(DisplayStatus, name="display_status_enum"),
+            sa.Enum(DisplayStatus, name="display_status_enum", create_constraint=True),
             server_default=DisplayStatus.visible.name,
             nullable=False,
         ),
         sa.Column("display_font_color", sa.String(6), server_default=sa.null()),
         sa.Column("display_background_color", sa.String(6), server_default=sa.null()),
         sa.ForeignKeyConstraint(
-            ["entity_class_display_mode_id"],
+            ("entity_class_display_mode_id",),
             ["entity_class_display_mode.id"],
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["entity_class_id"],
+            ("entity_class_id",),
             ["entity_class.id"],
             onupdate="CASCADE",
             ondelete="CASCADE",
