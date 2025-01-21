@@ -354,23 +354,23 @@ class _DBWorker:
         except Exception as error:  # pylint: disable=broad-except
             self._out_queue.put(error)
             return
-        with self._db_map:
-            while True:
-                input_ = self._in_queue.get()
-                if input_ == self._CLOSE:
-                    break
-                request, args, kwargs = input_
-                handler = {
-                    "query": self._do_query,
-                    "filtered_query": self._do_filtered_query,
-                    "import_data": self._do_import_data,
-                    "export_data": self._do_export_data,
-                    "call_method": self._do_call_method,
-                    "apply_filters": self._do_apply_filters,
-                    "clear_filters": self._do_clear_filters,
-                }[request]
+        while True:
+            input_ = self._in_queue.get()
+            if input_ == self._CLOSE:
+                break
+            request, args, kwargs = input_
+            handler = {
+                "query": self._do_query,
+                "filtered_query": self._do_filtered_query,
+                "import_data": self._do_import_data,
+                "export_data": self._do_export_data,
+                "call_method": self._do_call_method,
+                "apply_filters": self._do_apply_filters,
+                "clear_filters": self._do_clear_filters,
+            }[request]
+            with self._db_map:
                 result = handler(*args, **kwargs)
-                self._out_queue.put(result)
+            self._out_queue.put(result)
 
     def run(self, request, args, kwargs):
         with self._lock:
@@ -445,7 +445,7 @@ class _DBManager:
         worker = self._workers.get(server_address)
         if worker is None:
             try:
-                worker = self._workers[server_address] = _DBWorker(db_url, upgrade, memory)
+                self._workers[server_address] = _DBWorker(db_url, upgrade, memory)
             except Exception as error:  # pylint: disable=broad-except
                 return {"error": str(error)}
         return {"result": True}
