@@ -11,7 +11,6 @@
 ######################################################################################################################
 """ Unit tests for DatabaseMapping class. """
 from collections import namedtuple
-import multiprocessing
 import os.path
 from tempfile import TemporaryDirectory
 import threading
@@ -1956,6 +1955,10 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             SpineDBAPIError, msg="session is None; did you forget to use the DB map inside a 'with' block?"
         ):
             db_map.query(db_map.entity_sq)
+
+    def test_create_parameter_type_table(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.fetch_all("parameter_type")
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):

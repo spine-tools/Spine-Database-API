@@ -30,7 +30,7 @@ from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.event import listen
 from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
 from sqlalchemy.orm import Query, Session
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, StaticPool
 from .compatibility import compatibility_transformations
 from .db_mapping_base import DatabaseMappingBase, Status
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
@@ -306,11 +306,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     @staticmethod
     def create_engine(sa_url, create=False, upgrade=False, backup_url="", sqlite_timeout=1800):
         if sa_url.drivername == "sqlite":
-            connect_args = {"timeout": sqlite_timeout}
+            extra_args = {"connect_args": {"timeout": sqlite_timeout}}
+            if sa_url.database is None:
+                extra_args["connect_args"]["check_same_thread"] = False
+                extra_args["poolclass"] = StaticPool
         else:
-            connect_args = {}
+            extra_args = {}
         try:
-            engine = create_engine(sa_url, connect_args=connect_args)
+            engine = create_engine(sa_url, **extra_args)
             with engine.connect():
                 pass
         except Exception as e:

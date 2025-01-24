@@ -16,7 +16,7 @@ import threading
 import unittest
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.spine_db_client import SpineDBClient
-from spinedb_api.spine_db_server import closing_spine_db_server, db_server_manager
+from spinedb_api.spine_db_server import DBHandler, closing_spine_db_server, db_server_manager
 
 
 class TestDBServer(unittest.TestCase):
@@ -76,6 +76,24 @@ class TestDBServer(unittest.TestCase):
                         t2.join()
             with DatabaseMapping(db_url) as db_map:
                 self.assertEqual([x["name"] for x in db_map.get_items("entity_class")], ["donkey", "monkey"])
+
+    def test_in_memory_database(self):
+        url = "sqlite://"
+        with closing_spine_db_server(url) as server_url:
+            handler = DBHandler(url)
+            try:
+                response = handler.call_method("add_entity_class_item", name="Object")
+                _, error = response["result"]
+                self.assertIsNone(error)
+                response = handler.call_method("add_parameter_definition_item", name="Y", entity_class_name="Object")
+                definition, error = response["result"]
+                self.assertIsNone(error)
+                definition_id = definition["id"]
+                handler.call_method("commit_session", "Add test data.")
+                response = handler.call_method("get_parameter_definition_item", id=definition_id)
+                self.assertEqual(response["result"]["parameter_type_list"], ())
+            finally:
+                handler.close_db_map()
 
 
 if __name__ == "__main__":
