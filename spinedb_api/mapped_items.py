@@ -442,8 +442,11 @@ class ParsedValueBase(MappedItemBase):
     type_key: ClassVar[str] = "type"
 
     def __init__(self, *args, **kwargs):
+        parsed_value = kwargs.pop("parsed_value", None)
+        if parsed_value is not None:
+            kwargs[self.value_key], kwargs[self.type_key] = to_database(parsed_value)
         super().__init__(*args, **kwargs)
-        self._parsed_value = None
+        self._parsed_value = parsed_value
 
     @property
     def parsed_value(self):

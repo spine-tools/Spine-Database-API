@@ -1960,6 +1960,47 @@ class TestDatabaseMapping(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.fetch_all("parameter_type")
 
+    def test_add_list_value_item_with_parsed_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_parameter_value_list_item(name="my list"))
+            list_value = self._assert_success(
+                db_map.add_list_value_item(parameter_value_list_name="my list", parsed_value=2.3, index=0)
+            )
+            self.assertTrue(list_value.mapped_item.has_value_been_parsed())
+            value = from_database(list_value["value"], list_value["type"])
+            self.assertEqual(value, 2.3)
+            self.assertEqual(list_value["parsed_value"], 2.3)
+
+    def test_add_parameter_definition_item_with_parsed_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Ring"))
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(name="radius", entity_class_name="Ring", parsed_value=2.3)
+            )
+            self.assertTrue(definition.mapped_item.has_value_been_parsed())
+            value = from_database(definition["default_value"], definition["default_type"])
+            self.assertEqual(value, 2.3)
+            self.assertEqual(definition["parsed_value"], 2.3)
+
+    def test_add_parameter_value_item_with_parsed_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Ring"))
+            self._assert_success(db_map.add_parameter_definition_item(name="radius", entity_class_name="Ring"))
+            self._assert_success(db_map.add_entity_item(name="master", entity_class_name="Ring"))
+            parameter_value = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Ring",
+                    parameter_definition_name="radius",
+                    entity_byname=("master",),
+                    alternative_name="Base",
+                    parsed_value=2.3,
+                )
+            )
+            self.assertTrue(parameter_value.mapped_item.has_value_been_parsed())
+            value = from_database(parameter_value["value"], parameter_value["type"])
+            self.assertEqual(value, 2.3)
+            self.assertEqual(parameter_value["parsed_value"], 2.3)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
