@@ -12,6 +12,7 @@
 import inspect
 from operator import itemgetter
 import re
+from typing import ClassVar
 from .db_mapping_base import MappedItemBase
 from .exception import SpineDBAPIError
 from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
@@ -437,6 +438,8 @@ class EntityClassDisplayModeItem(MappedItemBase):
 
 class ParsedValueBase(MappedItemBase):
     _private_fields = {"list_value_id"}
+    value_key: ClassVar[str] = "value"
+    type_key: ClassVar[str] = "type"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -451,14 +454,6 @@ class ParsedValueBase(MappedItemBase):
     def has_value_been_parsed(self):
         """Returns True if parsed_value property has been used."""
         return self._parsed_value is not None
-
-    @property
-    def value_key(self) -> str:
-        raise NotImplementedError()
-
-    @property
-    def type_key(self) -> str:
-        raise NotImplementedError()
 
     def first_invalid_key(self):
         invalid_key = super().first_invalid_key()
@@ -506,14 +501,6 @@ class ParsedValueBase(MappedItemBase):
 
 
 class ParameterItemBase(ParsedValueBase):
-    @property
-    def value_key(self):
-        raise NotImplementedError()
-
-    @property
-    def type_key(self):
-        raise NotImplementedError()
-
     def _value_not_in_list_error(self, parsed_value, list_name):
         raise NotImplementedError()
 
@@ -567,6 +554,8 @@ class ParameterItemBase(ParsedValueBase):
 
 class ParameterDefinitionItem(ParameterItemBase):
     item_type = "parameter_definition"
+    value_key = "default_value"
+    type_key = "default_type"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "name": {"type": str, "value": "The parameter name."},
@@ -604,14 +593,6 @@ class ParameterDefinitionItem(ParameterItemBase):
     def __init__(self, db_map, **kwargs):
         super().__init__(db_map, **kwargs)
         self._init_type_list = kwargs.get("parameter_type_list")
-
-    @property
-    def value_key(self):
-        return "default_value"
-
-    @property
-    def type_key(self):
-        return "default_type"
 
     def __getitem__(self, key):
         if key == "parameter_type_id_list":
@@ -873,14 +854,6 @@ class ParameterValueItem(ParameterItemBase):
         "alternative_id": (("alternative_name",), "id"),
     }
 
-    @property
-    def value_key(self):
-        return "value"
-
-    @property
-    def type_key(self):
-        return "type"
-
     def __getitem__(self, key):
         if key == "parameter_id":
             return super().__getitem__("parameter_definition_id")
@@ -932,14 +905,6 @@ class ListValueItem(ParsedValueBase):
     _external_fields = {"parameter_value_list_name": ("parameter_value_list_id", "name")}
     _alt_references = {("parameter_value_list_name",): ("parameter_value_list", ("name",))}
     _internal_fields = {"parameter_value_list_id": (("parameter_value_list_name",), "id")}
-
-    @property
-    def value_key(self):
-        return "value"
-
-    @property
-    def type_key(self):
-        return "type"
 
     def __getitem__(self, key):
         if key == "value_and_type":
