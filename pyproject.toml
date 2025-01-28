@@ -19,11 +19,10 @@ dependencies = [
     "faker >=8.1.2",
     "datapackage >=1.15.2",
     "python-dateutil >=2.8.1",
-    # v1.22 requires Python 3.8 or later
-    "numpy >=1.20.2",
+    "numpy >=1.20.2, <2.0",
     "scipy >=1.7.1",
     "openpyxl >=3.0.7, !=3.1.1",
-    "gdx2py >=2.1.1",
+    "gdx2py >=2.1.1, <2.2",
     "ijson >=3.1.4",
     "chardet >=4.0.0",
     "pymysql >=1.0.2",
