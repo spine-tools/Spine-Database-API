@@ -13,8 +13,10 @@
 Tools and utilities to work with filters, manipulators and database URLs.
 
 """
+import sys
+from itertools import dropwhile, takewhile
 from json import dump, load
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, urlencode, urlparse
 from .alternative_filter import (
     ALTERNATIVE_FILTER_SHORTHAND_TAG,
     ALTERNATIVE_FILTER_TYPE,
@@ -168,7 +170,7 @@ def append_filter_config(url, config):
     url = url._replace(query=urlencode(query, doseq=True))
     if not url.hostname:
         url = url._replace(path="//" + url.path)
-    return url.geturl()
+    return _unparse_url_ensuring_correct_slashes(url)
 
 
 def filter_configs(url):
@@ -219,9 +221,9 @@ def pop_filter_configs(url):
         else:
             parsed_filters.append(filter_)
     parsed = parsed._replace(query=urlencode(query, doseq=True))
-    if not parsed.hostname:
+    if not parsed.hostname and parsed.path:
         parsed = parsed._replace(path="//" + parsed.path)
-    return parsed_filters, urlunparse(parsed)
+    return parsed_filters, _unparse_url_ensuring_correct_slashes(parsed)
 
 
 def clear_filter_configs(url):
@@ -241,7 +243,7 @@ def clear_filter_configs(url):
     except KeyError:
         return url
     parsed = parsed._replace(query=urlencode(query, doseq=True), path="//" + parsed.path)
-    return urlunparse(parsed)
+    return _unparse_url_ensuring_correct_slashes(parsed)
 
 
 def ensure_filtering(url, fallback_alternative=None):
@@ -332,3 +334,22 @@ def name_from_dict(config):
     if func is None:
         return None
     return func(config)
+
+
+def _unparse_url_ensuring_correct_slashes(url):
+    """Converts URL tuple into string ensuring SqlAlchemy compatible format for SQLite URLs.
+
+    Args:
+        url (NamedTuple): URL tuple
+
+    Returns:
+        str: URL as string
+    """
+    url_string = url.geturl()
+    if not url.hostname:
+        slash_count = len(list(takewhile(lambda c: c == "/", dropwhile(lambda c: c != "/", url_string))))
+        if slash_count != 3:
+            scheme, _, rest = url_string.partition(slash_count * "/" or "//")
+            slashes = ("///" if sys.platform == "win32" or "\\" in url.path else "////") if url.path else "//"
+            return scheme + slashes + rest
+    return url_string
