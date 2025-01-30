@@ -2039,6 +2039,19 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             value_item.update(parsed_value=2.3)
             self.assertEqual(value_item["parsed_value"], 2.3)
 
+    def test_entity_class_bynames(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            item = self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self.assertEqual(item["entity_class_byname"], ("Object",))
+            self._assert_success(db_map.add_entity_class_item(name="Subject"))
+            item = self._assert_success(db_map.add_entity_class_item(dimension_name_list=("Subject", "Object")))
+            self.assertEqual(item["entity_class_byname"], ("Subject", "Object"))
+            self._assert_success(db_map.add_entity_class_item(dimension_name_list=("Object", "Subject")))
+            item = self._assert_success(
+                db_map.add_entity_class_item(dimension_name_list=("Subject__Object", "Object__Subject"))
+            )
+            self.assertEqual(item["entity_class_byname"], ("Subject", "Object", "Object", "Subject"))
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

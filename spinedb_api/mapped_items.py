@@ -9,11 +9,12 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
+from collections.abc import Iterator
 import inspect
 from operator import itemgetter
 import re
-from typing import ClassVar
-from .db_mapping_base import MappedItemBase
+from typing import ClassVar, Union
+from .db_mapping_base import DatabaseMappingBase, MappedItemBase
 from .exception import SpineDBAPIError
 from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
 from .parameter_value import (
@@ -36,7 +37,12 @@ def item_factory(item_type):
 
 _ENTITY_BYNAME_VALUE = (
     "A tuple with the entity name as single element if the entity is 0-dimensional, "
-    "or the 0-dimensional element names if the entity is multi-dimensional."
+    "or the 0-dimensional element names if it is multi-dimensional."
+)
+
+_ENTITY_CLASS_BYNAME_VALUE = (
+    "A tuple with the class name as single element if the class is 0-dimensional, "
+    "or the 0-dimensional class names if it is multi-dimensional."
 )
 
 
@@ -64,6 +70,7 @@ class EntityClassItem(MappedItemBase):
             "value": "The dimension names for a multi-dimensional class.",
             "optional": True,
         },
+        "entity_class_byname": {"type": tuple, "value": _ENTITY_CLASS_BYNAME_VALUE},
         "description": {"type": str, "value": "The class description.", "optional": True},
         "display_icon": {
             "type": int,
@@ -109,6 +116,8 @@ class EntityClassItem(MappedItemBase):
         if key in ("superclass_id", "superclass_name"):
             mapped_table = self._db_map.mapped_table("superclass_subclass")
             return mapped_table.find_item({"subclass_id": self["id"]}, fetch=True).get(key)
+        if key == "entity_class_byname":
+            return tuple(_byname_iter(self, "dimension_id_list", self._db_map))
         return super().__getitem__(key)
 
     def merge(self, other):
@@ -144,6 +153,7 @@ class EntityItem(MappedItemBase):
     _references = {"class_id": "entity_class", "element_id_list": "entity"}
     _external_fields = {
         "entity_class_name": ("class_id", "name"),
+        "entity_class_byname": ("class_id", "entity_class_byname"),
         "dimension_id_list": ("class_id", "dimension_id_list"),
         "dimension_name_list": ("class_id", "dimension_name_list"),
         "superclass_id": ("class_id", "superclass_id"),
@@ -180,19 +190,9 @@ class EntityItem(MappedItemBase):
             if None not in sc_value:
                 yield (key, sc_value)
 
-    def _byname_iter(self, entity):
-        element_id_list = entity["element_id_list"]
-        if not element_id_list:
-            yield entity["name"]
-        else:
-            find_by_id = self._db_map.mapped_table("entity").find_item_by_id
-            for el_id in element_id_list:
-                element = find_by_id(el_id)
-                yield from self._byname_iter(element)
-
     def __getitem__(self, key):
         if key == "entity_byname":
-            return tuple(self._byname_iter(self))
+            return tuple(_byname_iter(self, "element_id_list", self._db_map))
         return super().__getitem__(key)
 
     def resolve_internal_fields(self, skip_keys=()):
@@ -1149,3 +1149,16 @@ ITEM_CLASSES = tuple(
     x for x in tuple(locals().values()) if inspect.isclass(x) and issubclass(x, MappedItemBase) and x != MappedItemBase
 )
 ITEM_CLASS_BY_TYPE = {klass.item_type: klass for klass in ITEM_CLASSES}
+
+
+def _byname_iter(
+    item: Union[EntityClassItem, EntityItem], id_list_name: str, db_map: DatabaseMappingBase
+) -> Iterator[str]:
+    id_list = item[id_list_name]
+    if not id_list:
+        yield item["name"]
+    else:
+        find_by_id = db_map.mapped_table(item.item_type).find_item_by_id
+        for id_ in id_list:
+            element = find_by_id(id_)
+            yield from _byname_iter(element, id_list_name, db_map)
