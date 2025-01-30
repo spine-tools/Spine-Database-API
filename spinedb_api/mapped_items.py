@@ -12,6 +12,7 @@
 import inspect
 from operator import itemgetter
 import re
+from typing import ClassVar
 from .db_mapping_base import MappedItemBase
 from .exception import SpineDBAPIError
 from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
@@ -19,6 +20,7 @@ from .parameter_value import (
     RANK_1_TYPES,
     VALUE_TYPES,
     Map,
+    ParameterValue,
     ParameterValueFormatError,
     fancy_type_to_type_and_rank,
     from_database,
@@ -437,10 +439,19 @@ class EntityClassDisplayModeItem(MappedItemBase):
 
 class ParsedValueBase(MappedItemBase):
     _private_fields = {"list_value_id"}
+    value_key: ClassVar[str] = "value"
+    type_key: ClassVar[str] = "type"
 
     def __init__(self, *args, **kwargs):
+        parsed_value = None
+        try:
+            parsed_value = kwargs.pop("parsed_value")
+        except KeyError:
+            pass
+        else:
+            kwargs[self.value_key], kwargs[self.type_key] = to_database(parsed_value)
         super().__init__(*args, **kwargs)
-        self._parsed_value = None
+        self._parsed_value = parsed_value
 
     @property
     def parsed_value(self):
@@ -451,14 +462,6 @@ class ParsedValueBase(MappedItemBase):
     def has_value_been_parsed(self):
         """Returns True if parsed_value property has been used."""
         return self._parsed_value is not None
-
-    @property
-    def value_key(self) -> str:
-        raise NotImplementedError()
-
-    @property
-    def type_key(self) -> str:
-        raise NotImplementedError()
 
     def first_invalid_key(self):
         invalid_key = super().first_invalid_key()
@@ -477,43 +480,47 @@ class ParsedValueBase(MappedItemBase):
         except ParameterValueFormatError as error:
             return error
 
-    def update(self, other):
-        self._parsed_value = None
-        super().update(other)
-
     def __getitem__(self, key):
         if key == "parsed_value":
             return self.parsed_value
         return super().__getitem__(key)
 
-    def _something_to_update(self, other):
-        if self.value_key in other and self.type_key in other:
-            other_value_type = other[self.type_key]
-            if self[self.type_key] != other_value_type:
-                return True
-            other_value = other[self.value_key]
-            if self.value != other_value:
-                try:
-                    other_parsed_value = from_database(other_value, other_value_type)
-                    if self.parsed_value != other_parsed_value:
-                        return True
-                    other = other.copy()
-                    _ = other.pop(self.value_key, None)
-                    _ = other.pop(self.type_key, None)
-                except ParameterValueFormatError:
-                    pass
-        return super()._something_to_update(other)
+    def merge(self, other):
+        merged, error = super().merge(other)
+        if not merged:
+            return merged, error
+        if not error and self.value_key in merged:
+            self._parsed_value = None
+        return merged, error
+
+    def _strip_equal_fields(self, other):
+        undefined = object()
+        other_parsed_value = undefined
+        other_value = undefined
+        other_type = undefined
+        if "parsed_value" in other:
+            other = dict(other)
+            other_parsed_value = other.pop("parsed_value")
+            other.pop(self.value_key, None)
+            other.pop(self.type_key, None)
+        if self.value_key in other:
+            other = dict(other)
+            other_value = other.pop(self.value_key)
+            other_type = other.pop(self.type_key, self[self.type_key])
+        other = super()._strip_equal_fields(other)
+        if other_parsed_value is not undefined:
+            if self.parsed_value != other_parsed_value:
+                other[self.value_key], other[self.type_key] = to_database(other_parsed_value)
+        elif other_type is not undefined and other_value is not undefined:
+            if self[self.type_key] != other_type or (
+                self[self.value_key] != other_value and self.parsed_value != from_database(other_value, other_type)
+            ):
+                other[self.value_key] = other_value
+                other[self.type_key] = other_type
+        return other
 
 
 class ParameterItemBase(ParsedValueBase):
-    @property
-    def value_key(self):
-        raise NotImplementedError()
-
-    @property
-    def type_key(self):
-        raise NotImplementedError()
-
     def _value_not_in_list_error(self, parsed_value, list_name):
         raise NotImplementedError()
 
@@ -567,12 +574,15 @@ class ParameterItemBase(ParsedValueBase):
 
 class ParameterDefinitionItem(ParameterItemBase):
     item_type = "parameter_definition"
+    value_key = "default_value"
+    type_key = "default_type"
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "name": {"type": str, "value": "The parameter name."},
         "parameter_type_list": {"type": tuple, "value": "List of valid value types.", "optional": True},
-        "default_value": {"type": bytes, "value": "The default value.", "optional": True},
-        "default_type": {"type": str, "value": "The default value type.", "optional": True},
+        "default_value": {"type": bytes, "value": "The default value's database representation.", "optional": True},
+        "default_type": {"type": str, "value": "The default value's type.", "optional": True},
+        "parsed_value": {"type": ParameterValue, "value": "The default value.", "optional": True},
         "parameter_value_list_name": {
             "type": str,
             "value": "The parameter value list name if any.",
@@ -604,14 +614,6 @@ class ParameterDefinitionItem(ParameterItemBase):
     def __init__(self, db_map, **kwargs):
         super().__init__(db_map, **kwargs)
         self._init_type_list = kwargs.get("parameter_type_list")
-
-    @property
-    def value_key(self):
-        return "default_value"
-
-    @property
-    def type_key(self):
-        return "default_type"
 
     def __getitem__(self, key):
         if key == "parameter_type_id_list":
@@ -829,8 +831,9 @@ class ParameterValueItem(ParameterItemBase):
             "type": tuple,
             "value": _ENTITY_BYNAME_VALUE,
         },
-        "value": {"type": bytes, "value": "The value."},
-        "type": {"type": str, "value": "The value type.", "optional": True},
+        "value": {"type": bytes, "value": "The value's database representation."},
+        "type": {"type": str, "value": "The value's type.", "optional": True},
+        "parsed_value": {"type": ParameterValue, "value": "The value.", "optional": True},
         "alternative_name": {"type": str, "value": "The alternative name - defaults to 'Base'.", "optional": True},
     }
     unique_keys = (("entity_class_name", "parameter_definition_name", "entity_byname", "alternative_name"),)
@@ -873,14 +876,6 @@ class ParameterValueItem(ParameterItemBase):
         "alternative_id": (("alternative_name",), "id"),
     }
 
-    @property
-    def value_key(self):
-        return "value"
-
-    @property
-    def type_key(self):
-        return "type"
-
     def __getitem__(self, key):
         if key == "parameter_id":
             return super().__getitem__("parameter_definition_id")
@@ -911,8 +906,9 @@ class ListValueItem(ParsedValueBase):
     item_type = "list_value"
     fields = {
         "parameter_value_list_name": {"type": str, "value": "The parameter value list name."},
-        "value": {"type": bytes, "value": "The value."},
-        "type": {"type": str, "value": "The value type.", "optional": True},
+        "value": {"type": bytes, "value": "The value's database representation."},
+        "type": {"type": str, "value": "The value's type.", "optional": True},
+        "parsed_value": {"type": ParameterValue, "value": "The value.", "optional": True},
         "index": {"type": int, "value": "The value index.", "optional": True},
     }
     unique_keys = (("parameter_value_list_name", "value_and_type"), ("parameter_value_list_name", "index"))
@@ -932,14 +928,6 @@ class ListValueItem(ParsedValueBase):
     _external_fields = {"parameter_value_list_name": ("parameter_value_list_id", "name")}
     _alt_references = {("parameter_value_list_name",): ("parameter_value_list", ("name",))}
     _internal_fields = {"parameter_value_list_id": (("parameter_value_list_name",), "id")}
-
-    @property
-    def value_key(self):
-        return "value"
-
-    @property
-    def type_key(self):
-        return "type"
 
     def __getitem__(self, key):
         if key == "value_and_type":

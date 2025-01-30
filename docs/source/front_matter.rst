@@ -35,7 +35,7 @@ Dependencies
 ------------
 
 Spine database API's install process will ensure that SQLAlchemy_ is installed,
-in addition to other dependencies. Spine database API will work with SQLAlchemy as of version 1.3.0.
+in addition to other dependencies. Spine database API will work with SQLAlchemy version 1.4.
 
 
 Bugs

@@ -833,26 +833,26 @@ class MappedItemBase(dict):
             dict: merged item.
             str: error description if any.
         """
-        if not self._something_to_update(other):
-            # Nothing to update, that's fine
+        other = self._strip_equal_fields(other)
+        if not other:
             return None, ""
         merged = {**self._extended(), **other}
         if not isinstance(merged["id"], int):
             merged["id"] = dict.__getitem__(self, "id")
         return merged, ""
 
-    def _something_to_update(self, other):
-        def _convert(x):
+    def _strip_equal_fields(self, other):
+        def _resolved(x):
             if isinstance(x, list):
                 x = tuple(x)
             return resolve(x)
 
-        return not all(
-            _convert(self.get(key)) == _convert(value)
+        return {
+            key: value
             for key, value in other.items()
-            if value is not None
-            or self.fields.get(key, {}).get("optional", False)  # Ignore mandatory fields that are None
-        )
+            if (value is not None or self.fields.get(key, {}).get("optional", False))
+            and _resolved(self.get(key)) != _resolved(value)
+        }
 
     def db_equivalent(self):
         """The equivalent of this item in the DB.

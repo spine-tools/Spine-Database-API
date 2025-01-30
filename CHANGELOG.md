@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Support for Python 3.13.
+- It is now possible to use the ``parsed_value`` field when adding or updating
+  parameter definition, paramater value and list value items.
+  ``parsed_value`` replaces the ``value`` and ``type`` (``default_value`` and ``default_type`` for parameter definitions)
+  fields and accepts the value directly so manual conversion using ``to_database()`` is not needed anymore.
 
 ### Changed
 
