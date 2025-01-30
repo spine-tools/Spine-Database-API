@@ -18,6 +18,7 @@ from .exception import SpineDBAPIError
 from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
 from .parameter_value import (
     RANK_1_TYPES,
+    UNPARSED_NULL_VALUE,
     VALUE_TYPES,
     Map,
     ParameterValue,
@@ -469,8 +470,7 @@ class ParsedValueBase(MappedItemBase):
             return invalid_key
         value = self[self.value_key]
         if value is not None:
-            null_value, _ = to_database(None)
-            if value != null_value and self[self.type_key] is None:
+            if value != UNPARSED_NULL_VALUE and self[self.type_key] is None:
                 return self.type_key
         return None
 
