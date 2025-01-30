@@ -2001,6 +2001,44 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertEqual(value, 2.3)
             self.assertEqual(parameter_value["parsed_value"], 2.3)
 
+    def test_update_parameter_definition_with_parsed_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            definition = self._assert_success(
+                db_map.add_parameter_definition_item(name="y", entity_class_name="Object")
+            )
+            self.assertIsNone(definition["default_value"])
+            definition.update(parsed_value=2.3)
+            self.assertEqual(definition["parsed_value"], 2.3)
+
+    def test_update_parameter_value_with_parsed_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Object",
+                    parameter_definition_name="y",
+                    entity_byname=("spoon",),
+                    alternative_name="Base",
+                    parsed_value=None,
+                )
+            )
+            self.assertIsNone(value_item["parsed_value"])
+            value_item.update(parsed_value=2.3)
+            self.assertEqual(value_item["parsed_value"], 2.3)
+
+    def test_update_list_value_with_parsed_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_parameter_value_list_item(name="my values"))
+            value_item = self._assert_success(
+                db_map.add_list_value_item(parameter_value_list_name="my values", parsed_value=None, index=0)
+            )
+            self.assertIsNone(value_item["parsed_value"])
+            value_item.update(parsed_value=2.3)
+            self.assertEqual(value_item["parsed_value"], 2.3)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
@@ -3671,7 +3709,7 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
                 db_map, (("object_class1", "object1", "parameter1", "something"),)
             )
             db_map.commit_session("Populate with initial data.")
-            items, errors = db_map.update_items("parameter_value", {"id": 1, "value": b"something else"})
+            items, errors = db_map.update_items("parameter_value", {"id": 1, "parsed_value": "something else"})
             updated_ids = {x.resolve()["id"] for x in items}
             self.assertEqual(errors, [])
             self.assertEqual(updated_ids, {1})
@@ -3679,7 +3717,9 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
             pvals = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(pvals), 1)
             pval = pvals[0]
-            self.assertEqual(pval.value, b"something else")
+            expected_value, expected_type = to_database("something else")
+            self.assertEqual(pval.value, expected_value)
+            self.assertEqual(pval.type, expected_type)
 
     def test_update_parameter_value_to_an_uncommitted_list_value(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:

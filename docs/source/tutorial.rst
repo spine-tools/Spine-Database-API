@@ -99,20 +99,14 @@ Let's add a parameter definition for one of our entity classes::
 
     db_map.add_parameter_definition_item(entity_class_name="fish", name="color")
 
-Finally, let's specify a parameter value for one of our entities.
-First, we use :func:`.to_database` to convert the value we want to give into a tuple of ``value`` and ``type``::
-
-    value, type_ = api.to_database("mainly orange")
-
-Now we create our parameter value::
+Finally, let's specify a parameter value for one of our entities::
 
     db_map.add_parameter_value_item(
         entity_class_name="fish",
         entity_byname=("Nemo",),
         parameter_definition_name="color",
         alternative_name="Base",
-        value=value,
-        type=type_
+        parsed_value="mainly orange"
     )
 
 Note that in the above, we refer to the entity by its *byname*.
@@ -173,6 +167,13 @@ To retrieve all the items of a given type, we use :meth:`~.DatabaseMapping.get_i
 
 Now you should use the above to try and find Nemo.
 
+.. note::
+
+  Retrieving a large number of items one-by-one using the ``get_*_item()`` function e.g. in a loop
+  might be slow since each call may cause a database query.
+  Before such operations, it might be wise to prefetch the data.
+  For example, before getting a bunch of entity items, you could call
+  ``db_map.fetch_all("entity")``.
 
 Updating data
 -------------
@@ -185,15 +186,15 @@ Let's rename our fish entity to avoid any copyright infringements::
 
 To be safe, let's also change the color::
 
-    new_value, new_type = api.to_database("not that orange")
     db_map.get_parameter_value_item(
         entity_class_name="fish",
         entity_byname=("NotNemo",),
         parameter_definition_name="color",
         alternative_name="Base",
-    ).update(value=new_value, type=new_type)
+    ).update(parsed_value="not that orange")
 
-Note how we need to use then new entity name ``NotNemo`` to retrieve the parameter value. This makes sense.
+Note how we need to use the new entity name ``NotNemo`` to retrieve the parameter value
+since we just renamed it.
 
 Removing data
 -------------
