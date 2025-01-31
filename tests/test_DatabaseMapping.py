@@ -4523,6 +4523,20 @@ class TestDatabaseMappingCommitMixin(AssertSuccessTestCase):
             with self.assertRaises(NothingToCommit):
                 db_map.commit_session("test commit")
 
+    def test_rollback_entity_update(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="my_class"))
+            self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
+            db_map.commit_session("test commit")
+            db_map.get_item("entity", name="my_entity", entity_class_name="my_class").update(name="new_name")
+            entity_names = {x["name"] for x in db_map.mapped_table("entity").valid_values()}
+            self.assertEqual(entity_names, {"new_name"})
+            db_map.rollback_session()
+            entity_names = {x["name"] for x in db_map.mapped_table("entity").valid_values()}
+            self.assertEqual(entity_names, {"my_entity"})
+            with self.assertRaises(NothingToCommit):
+                db_map.commit_session("test commit")
+
     def test_refresh_addition(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))

@@ -1243,8 +1243,11 @@ class MappedItemBase(dict):
         id_ = dict.__getitem__(self, "id")
         super().update(other)
         self["id"] = id_
-        if self._asdict() == self._backup:
-            self._status = Status.committed
+        if self._backup is not None:
+            backup = self._backup
+            as_dict = self._asdict()
+            if as_dict is not None and all(as_dict[key] == backup[key] for key in backup):
+                self._status = Status.committed
 
     def force_id(self, id_):
         """Makes sure this item's has the given id_, corresponding to the new id of the item
