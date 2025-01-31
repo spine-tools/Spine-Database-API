@@ -96,7 +96,10 @@ class EntityClassItem(MappedItemBase):
     required_key_combinations = (("name",),)
     _references = {"dimension_id_list": "entity_class"}
     _weak_references = {"superclass_name": "superclass_subclass"}
-    _external_fields = {"dimension_name_list": ("dimension_id_list", "name")}
+    _external_fields = {
+        "dimension_name_list": ("dimension_id_list", "name"),
+        "entity_class_byname": ("dimension_id_list", "entity_class_byname"),
+    }
     _alt_references = {("dimension_name_list",): ("entity_class", ("name",))}
     _internal_fields = {"dimension_id_list": (("dimension_name_list",), "id")}
     _private_fields = {"dimension_count"}
@@ -153,7 +156,6 @@ class EntityItem(MappedItemBase):
     _references = {"class_id": "entity_class", "element_id_list": "entity"}
     _external_fields = {
         "entity_class_name": ("class_id", "name"),
-        "entity_class_byname": ("class_id", "entity_class_byname"),
         "dimension_id_list": ("class_id", "dimension_id_list"),
         "dimension_name_list": ("class_id", "dimension_name_list"),
         "superclass_id": ("class_id", "superclass_id"),
