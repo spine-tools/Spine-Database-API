@@ -801,7 +801,7 @@ class MappedItemBase(dict):
         """Sets id as valid"""
         self._has_valid_id = True
 
-    def _extended(self):
+    def extended(self):
         """Returns a dict from this item's original fields plus all the references resolved statically.
 
         Returns:
@@ -836,7 +836,7 @@ class MappedItemBase(dict):
         other = self._strip_equal_fields(other)
         if not other:
             return None, ""
-        merged = {**self._extended(), **other}
+        merged = {**self.extended(), **other}
         if not isinstance(merged["id"], int):
             merged["id"] = dict.__getitem__(self, "id")
         return merged, ""
@@ -1177,7 +1177,7 @@ class MappedItemBase(dict):
 
     def __repr__(self):
         """Overridden to return a more verbose representation."""
-        return f"{self.item_type}{self._extended()}"
+        return f"{self.item_type}{self.extended()}"
 
     def __getattr__(self, name):
         """Overridden to return the dictionary key named after the attribute, or None if it doesn't exist."""
@@ -1294,7 +1294,7 @@ class PublicItem:
         return self._mapped_item[key]
 
     def __contains__(self, item):
-        return self._mapped_item._extended().__contains__(item)
+        return self._mapped_item.extended().__contains__(item)
 
     def __eq__(self, other):
         if isinstance(other, dict):
@@ -1322,8 +1322,8 @@ class PublicItem:
     def _asdict(self):
         return self._mapped_item._asdict()
 
-    def _extended(self):
-        return self._mapped_item._extended()
+    def extended(self):
+        return self._mapped_item.extended()
 
     def update(self, **kwargs):
         return self._mapped_item.db_map.update_item(self.item_type, id=self["id"], **kwargs)

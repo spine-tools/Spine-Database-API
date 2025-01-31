@@ -280,7 +280,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             )
             entity_metadata.update(entity_byname=("entity_2",))
             self.assertEqual(
-                entity_metadata._extended(),
+                entity_metadata.extended(),
                 {
                     "entity_class_name": "my_class",
                     "entity_byname": ("entity_2",),
@@ -367,7 +367,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             )
             value_metadata.update(parameter_definition_name="y")
             self.assertEqual(
-                value_metadata._extended(),
+                value_metadata.extended(),
                 {
                     "entity_class_name": "my_class",
                     "entity_byname": ("my_entity",),
@@ -533,7 +533,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.commit_session("Add class.")
             classes = db_map.get_entity_class_items()
             self.assertEqual(len(classes), 1)
-            self.assertNotIn("commit_id", classes[0]._extended())
+            self.assertNotIn("commit_id", classes[0].extended())
 
     def test_committing_superclass_subclass_items_doesnt_add_commit_ids_to_them(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -543,7 +543,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.commit_session("Add class hierarchy.")
             classes = db_map.get_superclass_subclass_items()
             self.assertEqual(len(classes), 1)
-            self.assertNotIn("commit_id", classes[0]._extended())
+            self.assertNotIn("commit_id", classes[0].extended())
 
     def test_committing_entity_group_items_doesnt_add_commit_ids_to_them(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -558,7 +558,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.commit_session("Add entity group.")
             groups = db_map.get_entity_group_items()
             self.assertEqual(len(groups), 1)
-            self.assertNotIn("commit_id", groups[0]._extended())
+            self.assertNotIn("commit_id", groups[0].extended())
 
     def test_commit_parameter_value_coincidentally_called_is_active(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -2051,6 +2051,21 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_entity_class_item(dimension_name_list=("Subject__Object", "Object__Subject"))
             )
             self.assertEqual(item["entity_class_byname"], ("Subject", "Object", "Object", "Subject"))
+
+    def test_entity_class_byname_is_in_extended_item(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_entity_item(name="fork", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_class_item(name="Subject"))
+            self._assert_success(db_map.add_entity_item(name="apple", entity_class_name="Subject"))
+            self._assert_success(db_map.add_entity_class_item(dimension_name_list=("Object", "Subject")))
+            self._assert_success(
+                db_map.add_entity_item(element_name_list=("fork", "apple"), entity_class_name="Object__Subject")
+            )
+            class_item = db_map.get_entity_class_item(name="Object__Subject")
+            item_dict = class_item.extended()
+            self.assertIn("entity_class_byname", item_dict)
+            self.assertEqual(item_dict["entity_class_byname"], ("Object", "Subject"))
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
@@ -4479,8 +4494,7 @@ class TestDatabaseMappingCommitMixin(AssertSuccessTestCase):
             db_map.rollback_session()
             entity_class_names = {x["name"] for x in db_map.mapped_table("entity_class").valid_values()}
             self.assertEqual(entity_class_names, {"my_class"})
-            with self.assertRaises(SpineDBAPIError):
-                # Nothing to commit
+            with self.assertRaises(NothingToCommit):
                 db_map.commit_session("test commit")
 
     def test_rollback_removal(self):
@@ -4493,8 +4507,7 @@ class TestDatabaseMappingCommitMixin(AssertSuccessTestCase):
             db_map.rollback_session()
             entity_class_names = {x["name"] for x in db_map.mapped_table("entity_class").valid_values()}
             self.assertEqual(entity_class_names, {"my_class"})
-            with self.assertRaises(SpineDBAPIError):
-                # Nothing to commit
+            with self.assertRaises(NothingToCommit):
                 db_map.commit_session("test commit")
 
     def test_rollback_update(self):
@@ -4507,8 +4520,7 @@ class TestDatabaseMappingCommitMixin(AssertSuccessTestCase):
             db_map.rollback_session()
             entity_class_names = {x["name"] for x in db_map.mapped_table("entity_class").valid_values()}
             self.assertEqual(entity_class_names, {"my_class"})
-            with self.assertRaises(SpineDBAPIError):
-                # Nothing to commit
+            with self.assertRaises(NothingToCommit):
                 db_map.commit_session("test commit")
 
     def test_refresh_addition(self):
