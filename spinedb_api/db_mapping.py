@@ -29,7 +29,7 @@ from sqlalchemy import MetaData, create_engine, inspect, text
 from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.event import listen
 from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool, StaticPool
 from .compatibility import compatibility_transformations
 from .db_mapping_base import DatabaseMappingBase, Status
