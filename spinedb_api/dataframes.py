@@ -80,22 +80,22 @@ def to_dataframe(item: PublicItem) -> pd.DataFrame:
     entity = db_map.mapped_table("entity").find_item_by_id(item["entity_id"])
     entity_class = db_map.mapped_table("entity_class").find_item_by_id(item["entity_class_id"])
     value = item["arrow_value"]
-    row_map = {"entity_class_name": entity["entity_class_name"]}
+    row_map = {"entity_class_name": pd.Series(entity["entity_class_name"], dtype="category")}
     row_map.update(
         {
-            class_name: element_name
+            class_name: pd.Series([element_name], dtype="string")
             for class_name, element_name in zip(entity_class["entity_class_byname"], entity["entity_byname"])
         }
     )
     row_map.update(
         {
-            "parameter_definition_name": item["parameter_definition_name"],
-            "alternative_name": item["alternative_name"],
-            "value": value.to_pandas() if isinstance(value, pyarrow.RecordBatch) else value,
-            "type": item["type"],
+            "parameter_definition_name": pd.Series(item["parameter_definition_name"], dtype="category"),
+            "alternative_name": pd.Series(item["alternative_name"], dtype="category"),
+            "value": [value.to_pandas() if isinstance(value, pyarrow.RecordBatch) else value],
+            "type": [item["type"]],
         }
     )
-    dataframe = pd.DataFrame([row_map])
+    dataframe = pd.DataFrame(row_map)
     return _expand_values(dataframe)
 
 
@@ -309,7 +309,9 @@ def _resolve_elements_for_single_class(
             class_name = entity_class_name_map[class_id]
             series = element_series.setdefault((class_name, position), [])
             series.append(entity_name)
-    return [pd.Series(entities, name=class_name) for (class_name, _), entities in element_series.items()]
+    return [
+        pd.Series(entities, name=class_name, dtype="string") for (class_name, _), entities in element_series.items()
+    ]
 
 
 def _unique_series_names(series_list: list[pd.Series]) -> list[str]:
@@ -349,11 +351,12 @@ def _expand_values(dataframe: pd.DataFrame) -> pd.DataFrame:
             group = grouped.indices[expandable_type]
         except KeyError:
             continue
-        for row in dataframe.iloc[group].itertuples(index=False):
-            left = row._asdict()
-            del left["type"]
-            value = left.pop("value")
-            left = pd.DataFrame(value.shape[0] * [left])
+        block_of_single_type = dataframe.iloc[group, :]
+        for i in range(block_of_single_type.shape[0]):
+            row = block_of_single_type.iloc[i : i + 1, :]
+            value = row.iat[0, -2]
+            row = row.drop(columns=["value", "type"])
+            left = pd.concat(value.shape[0] * [row], ignore_index=True)
             expanded.append(pd.concat((left, value), axis="columns"))
     for non_expandable_type in VALUE_TYPES - RANK_1_TYPES - rank_n_types:
         try:
@@ -380,6 +383,9 @@ def fetch_as_dataframe(db_map: DatabaseMapping, value_sq: Subquery, fetched_maps
     dataframe = pd.DataFrame(db_map.query(value_sq))
     if dataframe.empty:
         return dataframe
+    dataframe["entity_class_name"] = dataframe["entity_class_name"].astype("category")
+    dataframe["parameter_definition_name"] = dataframe["parameter_definition_name"].astype("category")
+    dataframe["alternative_name"] = dataframe["alternative_name"].astype("category")
     value_series = dataframe.apply(
         _convert_values_from_database, axis="columns", result_type="expand", args=(fetched_maps.list_value_map,)
     )

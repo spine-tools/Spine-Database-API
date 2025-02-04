@@ -41,10 +41,10 @@ class TestToDataframe(AssertSuccessTestCase):
             dataframe = spine_df.to_dataframe(value_item)
             expected = pd.DataFrame(
                 {
-                    "entity_class_name": ["Object"],
-                    "Object": ["fork"],
-                    "parameter_definition_name": ["y"],
-                    "alternative_name": ["Base"],
+                    "entity_class_name": pd.Series(["Object"], dtype="category"),
+                    "Object": pd.Series(["fork"], dtype="string"),
+                    "parameter_definition_name": pd.Series(["y"], dtype="category"),
+                    "alternative_name": pd.Series(["Base"], dtype="category"),
                     "value": [2.3],
                 }
             )
@@ -67,10 +67,10 @@ class TestToDataframe(AssertSuccessTestCase):
             dataframe = spine_df.to_dataframe(value_item)
             expected = pd.DataFrame(
                 {
-                    "entity_class_name": 2 * ["Object"],
-                    "Object": ["fork", "fork"],
-                    "parameter_definition_name": ["y", "y"],
-                    "alternative_name": ["Base", "Base"],
+                    "entity_class_name": pd.Series(2 * ["Object"], dtype="category"),
+                    "Object": pd.Series(["fork", "fork"], dtype="string"),
+                    "parameter_definition_name": pd.Series(["y", "y"], dtype="category"),
+                    "alternative_name": pd.Series(["Base", "Base"], dtype="category"),
                     "letter": ["A", "B"],
                     "value": [1.1, 1.2],
                 }
@@ -197,10 +197,10 @@ class TestFetchAsDataframe(AssertSuccessTestCase):
             dataframe = spine_df.fetch_as_dataframe(db_map, sq, fetched_maps)
             expected = pd.DataFrame(
                 {
-                    "entity_class_name": ["Object"],
-                    "Object": ["octopus"],
-                    "parameter_definition_name": ["y"],
-                    "alternative_name": ["Base"],
+                    "entity_class_name": pd.Series(["Object"], dtype="category"),
+                    "Object": pd.Series(["octopus"], dtype="string"),
+                    "parameter_definition_name": pd.Series(["y"], dtype="category"),
+                    "alternative_name": pd.Series(["Base"], dtype="category"),
                     "value": 2.3,
                 }
             )
@@ -228,10 +228,10 @@ class TestFetchAsDataframe(AssertSuccessTestCase):
             dataframe = spine_df.fetch_as_dataframe(db_map, sq, fetched_maps)
             expected = pd.DataFrame(
                 {
-                    "entity_class_name": 2 * ["Object"],
-                    "Object": ["octopus", "octopus"],
-                    "parameter_definition_name": ["y", "y"],
-                    "alternative_name": ["Base", "Base"],
+                    "entity_class_name": pd.Series(2 * ["Object"], dtype="category"),
+                    "Object": pd.Series(["octopus", "octopus"], dtype="string"),
+                    "parameter_definition_name": pd.Series(["y", "y"], dtype="category"),
+                    "alternative_name": pd.Series(["Base", "Base"], dtype="category"),
                     "Letter": ["A", "B"],
                     "value": [2.3, 2.4],
                 }
@@ -312,11 +312,11 @@ class TestResolveElements(unittest.TestCase):
         raw_data = pd.DataFrame(
             {
                 "entity_class_id": [1],
-                "entity_class_name": ["Object"],
+                "entity_class_name": pd.Series(["Object"], dtype="category"),
                 "entity_id": [2],
-                "parameter_definition_name": ["Y"],
-                "alternative_name": ["Base"],
-                "value": 2.3,
+                "parameter_definition_name": pd.Series(["Y"], dtype="category"),
+                "alternative_name": pd.Series(["Base"], dtype="category"),
+                "value": [2.3],
             }
         )
         entity_class_name_map = {1: "Object"}
@@ -327,10 +327,10 @@ class TestResolveElements(unittest.TestCase):
         )
         expected = pd.DataFrame(
             {
-                "entity_class_name": ["Object"],
-                "Object": ["fork"],
-                "parameter_definition_name": ["Y"],
-                "alternative_name": ["Base"],
+                "entity_class_name": pd.Series(["Object"], dtype="category"),
+                "Object": pd.Series(["fork"], dtype="string"),
+                "parameter_definition_name": pd.Series(["Y"], dtype="category"),
+                "alternative_name": pd.Series(["Base"], dtype="category"),
                 "value": [2.3],
             }
         )
@@ -340,10 +340,10 @@ class TestResolveElements(unittest.TestCase):
         raw_data = pd.DataFrame(
             {
                 "entity_class_id": [1],
-                "entity_class_name": ["Relationship"],
+                "entity_class_name": pd.Series(["Relationship"], dtype="category"),
                 "entity_id": [3],
-                "parameter_definition_name": ["Y"],
-                "alternative_name": ["Base"],
+                "parameter_definition_name": pd.Series(["Y"], dtype="category"),
+                "alternative_name": pd.Series(["Base"], dtype="category"),
                 "value": 2.3,
             }
         )
@@ -355,11 +355,11 @@ class TestResolveElements(unittest.TestCase):
         )
         expected = pd.DataFrame(
             {
-                "entity_class_name": ["Relationship"],
-                "Left": ["left"],
-                "Right": ["right"],
-                "parameter_definition_name": ["Y"],
-                "alternative_name": ["Base"],
+                "entity_class_name": pd.Series(["Relationship"], dtype="category"),
+                "Left": pd.Series(["left"], dtype="string"),
+                "Right": pd.Series(["right"], dtype="string"),
+                "parameter_definition_name": pd.Series(["Y"], dtype="category"),
+                "alternative_name": pd.Series(["Base"], dtype="category"),
                 "value": [2.3],
             }
         )
@@ -369,10 +369,10 @@ class TestResolveElements(unittest.TestCase):
         raw_data = pd.DataFrame(
             {
                 "entity_class_id": [2],
-                "entity_class_name": ["Relationship"],
+                "entity_class_name": pd.Series(["Relationship"], dtype="category"),
                 "entity_id": [2],
-                "parameter_definition_name": ["Y"],
-                "alternative_name": ["Base"],
+                "parameter_definition_name": pd.Series(["Y"], dtype="category"),
+                "alternative_name": pd.Series(["Base"], dtype="category"),
                 "value": 2.3,
             }
         )
@@ -384,11 +384,11 @@ class TestResolveElements(unittest.TestCase):
         )
         expected = pd.DataFrame(
             {
-                "entity_class_name": ["Relationship"],
-                "Both_1": ["both"],
-                "Both_2": ["both"],
-                "parameter_definition_name": ["Y"],
-                "alternative_name": ["Base"],
+                "entity_class_name": pd.Series(["Relationship"], dtype="category"),
+                "Both_1": pd.Series(["both"], dtype="string"),
+                "Both_2": pd.Series(["both"], dtype="string"),
+                "parameter_definition_name": pd.Series(["Y"], dtype="category"),
+                "alternative_name": pd.Series(["Base"], dtype="category"),
                 "value": [2.3],
             }
         )
