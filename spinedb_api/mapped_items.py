@@ -14,6 +14,7 @@ import inspect
 from operator import itemgetter
 import re
 from typing import ClassVar, Union
+from . import arrow_value
 from .db_mapping_base import DatabaseMappingBase, MappedItemBase
 from .exception import SpineDBAPIError
 from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
@@ -455,6 +456,7 @@ class ParsedValueBase(MappedItemBase):
             kwargs[self.value_key], kwargs[self.type_key] = to_database(parsed_value)
         super().__init__(*args, **kwargs)
         self._parsed_value = parsed_value
+        self._arrow_value = None
 
     @property
     def parsed_value(self):
@@ -485,6 +487,10 @@ class ParsedValueBase(MappedItemBase):
     def __getitem__(self, key):
         if key == "parsed_value":
             return self.parsed_value
+        if key == "arrow_value":
+            if self._arrow_value is None:
+                self._arrow_value = arrow_value.from_database(self[self.value_key], self[self.type_key])
+            return self._arrow_value
         return super().__getitem__(key)
 
     def merge(self, other):
@@ -493,6 +499,7 @@ class ParsedValueBase(MappedItemBase):
             return merged, error
         if not error and self.value_key in merged:
             self._parsed_value = None
+            self._arrow_value = None
         return merged, error
 
     def _strip_equal_fields(self, other):
