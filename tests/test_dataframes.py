@@ -17,6 +17,155 @@ import spinedb_api.dataframes as spine_df
 from spinedb_api.parameter_value import FLOAT_VALUE_TYPE
 from tests.mock_helpers import AssertSuccessTestCase
 
+# Copy-on-write will become default in Pandas 3.0.
+# We want to receive excessive deprecation warnings during tests to stay future-proof.
+# The setting below can be removed once we require pandas >= 3.0.
+pd.options.mode.copy_on_write = "warn"
+
+
+class TestToDataframe(AssertSuccessTestCase):
+    def test_simple_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="fork", entity_class_name="Object"))
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("fork",),
+                    parameter_definition_name="y",
+                    alternative_name="Base",
+                    parsed_value=2.3,
+                )
+            )
+            dataframe = spine_df.to_dataframe(value_item)
+            expected = pd.DataFrame(
+                {
+                    "entity_class_name": ["Object"],
+                    "Object": ["fork"],
+                    "parameter_definition_name": ["y"],
+                    "alternative_name": ["Base"],
+                    "value": [2.3],
+                }
+            )
+            self.assertTrue(dataframe.equals(expected))
+
+    def test_simple_map_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="fork", entity_class_name="Object"))
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("fork",),
+                    parameter_definition_name="y",
+                    alternative_name="Base",
+                    parsed_value=Map(["A", "B"], [1.1, 1.2], index_name="letter"),
+                )
+            )
+            dataframe = spine_df.to_dataframe(value_item)
+            expected = pd.DataFrame(
+                {
+                    "entity_class_name": 2 * ["Object"],
+                    "Object": ["fork", "fork"],
+                    "parameter_definition_name": ["y", "y"],
+                    "alternative_name": ["Base", "Base"],
+                    "letter": ["A", "B"],
+                    "value": [1.1, 1.2],
+                }
+            )
+            self.assertTrue(dataframe.equals(expected))
+
+
+class TestAddOrUpdateFrom(AssertSuccessTestCase):
+    def test_add_simple_parameter_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="length", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
+            dataframe = pd.DataFrame(
+                {
+                    "entity_class_name": ["Object"],
+                    "Object": ["spoon"],
+                    "parameter_definition_name": ["length"],
+                    "alternative_name": ["Base"],
+                    "value": [2.3],
+                }
+            )
+            spine_df.add_or_update_from(dataframe, db_map)
+            value_item = db_map.get_parameter_value_item(
+                entity_class_name="Object",
+                entity_byname=("spoon",),
+                parameter_definition_name="length",
+                alternative_name="Base",
+            )
+            self.assertEqual(value_item["parsed_value"], 2.3)
+
+    def test_add_map_parameter_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="length", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
+            dataframe = pd.DataFrame(
+                {
+                    "entity_class_name": ["Object", "Object"],
+                    "Object": ["spoon", "spoon"],
+                    "parameter_definition_name": ["length", "length"],
+                    "alternative_name": ["Base", "Base"],
+                    "my_index": ["A", "B"],
+                    "value": [2.3, 2.5],
+                }
+            )
+            spine_df.add_or_update_from(dataframe, db_map)
+            value_item = db_map.get_parameter_value_item(
+                entity_class_name="Object",
+                entity_byname=("spoon",),
+                parameter_definition_name="length",
+                alternative_name="Base",
+            )
+            self.assertEqual(value_item["parsed_value"], Map(["A", "B"], [2.3, 2.5], index_name="my_index"))
+
+    def test_add_multidimensional_map_parameter_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="length", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
+            dataframe = pd.DataFrame(
+                {
+                    "entity_class_name": 3 * ["Object"],
+                    "Object": 3 * ["spoon"],
+                    "parameter_definition_name": 3 * ["length"],
+                    "alternative_name": 3 * ["Base"],
+                    "my_index_1": ["A", "A", "B"],
+                    "my_index_2": ["a", "b", "a"],
+                    "my_index_3": ["1", "2", "1"],
+                    "value": [1.1, 1.2, 2.1],
+                }
+            )
+            spine_df.add_or_update_from(dataframe, db_map)
+            value_item = db_map.get_parameter_value_item(
+                entity_class_name="Object",
+                entity_byname=("spoon",),
+                parameter_definition_name="length",
+                alternative_name="Base",
+            )
+            self.assertEqual(
+                value_item["parsed_value"],
+                Map(
+                    ["A", "B"],
+                    [
+                        Map(
+                            ["a", "b"],
+                            [Map(["1"], [1.1], index_name="my_index_3"), Map(["2"], [1.2], index_name="my_index_3")],
+                            index_name="my_index_2",
+                        ),
+                        Map(["a"], [Map(["1"], [2.2], index_name="my_index_3")], index_name="my_index_2"),
+                    ],
+                    index_name="my_index_1",
+                ),
+            )
+
 
 class TestFetchAsDataframe(AssertSuccessTestCase):
     def test_fetch_from_empty_database(self):
@@ -47,7 +196,13 @@ class TestFetchAsDataframe(AssertSuccessTestCase):
             fetched_maps = spine_df.FetchedMaps.fetch(db_map)
             dataframe = spine_df.fetch_as_dataframe(db_map, sq, fetched_maps)
             expected = pd.DataFrame(
-                {"Object": ["octopus"], "parameter_definition_name": ["y"], "alternative_name": ["Base"], "value": 2.3}
+                {
+                    "entity_class_name": ["Object"],
+                    "Object": ["octopus"],
+                    "parameter_definition_name": ["y"],
+                    "alternative_name": ["Base"],
+                    "value": 2.3,
+                }
             )
             self.assertTrue(dataframe.equals(expected))
 
@@ -73,6 +228,7 @@ class TestFetchAsDataframe(AssertSuccessTestCase):
             dataframe = spine_df.fetch_as_dataframe(db_map, sq, fetched_maps)
             expected = pd.DataFrame(
                 {
+                    "entity_class_name": 2 * ["Object"],
                     "Object": ["octopus", "octopus"],
                     "parameter_definition_name": ["y", "y"],
                     "alternative_name": ["Base", "Base"],
@@ -81,6 +237,57 @@ class TestFetchAsDataframe(AssertSuccessTestCase):
                 }
             )
             self.assertTrue(dataframe.equals(expected))
+
+
+class TestFetchingAndConvertingItemsGiveEquivalentDataFrames(AssertSuccessTestCase):
+    def test_simple_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="mass", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="ladle", entity_class_name="Object"))
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("ladle",),
+                    parameter_definition_name="mass",
+                    alternative_name="Base",
+                    parsed_value=2.3,
+                )
+            )
+            db_map.commit_session("Add test data.")
+            maps = spine_df.FetchedMaps.fetch(db_map)
+            subquery = spine_df.parameter_value_sq(db_map)
+            queried_dataframe = spine_df.fetch_as_dataframe(db_map, subquery, maps)
+            converted_dataframe = spine_df.to_dataframe(value_item)
+            self.assertTrue(converted_dataframe.equals(queried_dataframe))
+
+    def test_multidimensional_case(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Node"))
+            self._assert_success(db_map.add_entity_item(name="point", entity_class_name="Node"))
+            self._assert_success(db_map.add_entity_class_item(name="Edge"))
+            self._assert_success(db_map.add_entity_item(name="line", entity_class_name="Edge"))
+            self._assert_success(db_map.add_entity_class_item(dimension_name_list=("Node", "Edge")))
+            self._assert_success(db_map.add_parameter_definition_item(name="weight", entity_class_name="Node__Edge"))
+            self._assert_success(
+                db_map.add_entity_item(element_name_list=("point", "line"), entity_class_name="Node__Edge")
+            )
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Node__Edge",
+                    entity_byname=("point", "line"),
+                    parameter_definition_name="weight",
+                    alternative_name="Base",
+                    parsed_value=Map(["A", "B"], [1.1, 1.2], index_name="my_index"),
+                )
+            )
+            db_map.commit_session("Add test data.")
+            maps = spine_df.FetchedMaps.fetch(db_map)
+            subquery = spine_df.parameter_value_sq(db_map)
+            subquery = db_map.query(subquery).filter(subquery.c.entity_class_name == "Node__Edge").subquery()
+            queried_dataframe = spine_df.fetch_as_dataframe(db_map, subquery, maps)
+            converted_dataframe = spine_df.to_dataframe(value_item)
+            self.assertTrue(converted_dataframe.equals(queried_dataframe))
 
 
 class TestFetchEntityElementMap(AssertSuccessTestCase):
@@ -95,7 +302,7 @@ class TestFetchEntityElementMap(AssertSuccessTestCase):
                 db_map.add_entity_item(entity_byname=("walk", "me"), entity_class_name="Phrase")
             )
             db_map.commit_session("Add test data.")
-            element_map = spine_df.fetch_entity_element_map(db_map)
+            element_map = spine_df._fetch_entity_element_map(db_map)
             self.assertEqual(len(element_map), 1)
             self.assertEqual(element_map[phrase["id"].db_id], [verb["id"].db_id, subject["id"].db_id])
 
@@ -105,8 +312,9 @@ class TestResolveElements(unittest.TestCase):
         raw_data = pd.DataFrame(
             {
                 "entity_class_id": [1],
-                "parameter_definition_name": ["Y"],
+                "entity_class_name": ["Object"],
                 "entity_id": [2],
+                "parameter_definition_name": ["Y"],
                 "alternative_name": ["Base"],
                 "value": 2.3,
             }
@@ -114,11 +322,17 @@ class TestResolveElements(unittest.TestCase):
         entity_class_name_map = {1: "Object"}
         entity_name_and_class_map = {2: ("fork", 1)}
         entity_element_map = {}
-        resolved = spine_df.resolve_elements(
+        resolved = spine_df._resolve_elements(
             raw_data, entity_class_name_map, entity_name_and_class_map, entity_element_map
         )
         expected = pd.DataFrame(
-            {"Object": ["fork"], "parameter_definition_name": ["Y"], "alternative_name": ["Base"], "value": [2.3]}
+            {
+                "entity_class_name": ["Object"],
+                "Object": ["fork"],
+                "parameter_definition_name": ["Y"],
+                "alternative_name": ["Base"],
+                "value": [2.3],
+            }
         )
         self.assertTrue(resolved.equals(expected))
 
@@ -126,8 +340,9 @@ class TestResolveElements(unittest.TestCase):
         raw_data = pd.DataFrame(
             {
                 "entity_class_id": [1],
-                "parameter_definition_name": ["Y"],
+                "entity_class_name": ["Relationship"],
                 "entity_id": [3],
+                "parameter_definition_name": ["Y"],
                 "alternative_name": ["Base"],
                 "value": 2.3,
             }
@@ -135,11 +350,12 @@ class TestResolveElements(unittest.TestCase):
         entity_class_name_map = {1: "Relationship", 2: "Right", 3: "Left"}
         entity_name_and_class_map = {1: ("right", 2), 2: ("left", 3), 3: ("left__right", 1)}
         entity_element_map = {3: [2, 1]}
-        resolved = spine_df.resolve_elements(
+        resolved = spine_df._resolve_elements(
             raw_data, entity_class_name_map, entity_name_and_class_map, entity_element_map
         )
         expected = pd.DataFrame(
             {
+                "entity_class_name": ["Relationship"],
                 "Left": ["left"],
                 "Right": ["right"],
                 "parameter_definition_name": ["Y"],
@@ -153,8 +369,9 @@ class TestResolveElements(unittest.TestCase):
         raw_data = pd.DataFrame(
             {
                 "entity_class_id": [2],
-                "parameter_definition_name": ["Y"],
+                "entity_class_name": ["Relationship"],
                 "entity_id": [2],
+                "parameter_definition_name": ["Y"],
                 "alternative_name": ["Base"],
                 "value": 2.3,
             }
@@ -162,11 +379,12 @@ class TestResolveElements(unittest.TestCase):
         entity_class_name_map = {1: "Both", 2: "Relationship"}
         entity_name_and_class_map = {1: ("both", 1), 2: ("both__both", 2)}
         entity_element_map = {2: [1, 1]}
-        resolved = spine_df.resolve_elements(
+        resolved = spine_df._resolve_elements(
             raw_data, entity_class_name_map, entity_name_and_class_map, entity_element_map
         )
         expected = pd.DataFrame(
             {
+                "entity_class_name": ["Relationship"],
                 "Both_1": ["both"],
                 "Both_2": ["both"],
                 "parameter_definition_name": ["Y"],
@@ -181,21 +399,21 @@ class TestExpandValues(unittest.TestCase):
     def test_scalar_wont_get_expanded(self):
         value = 2.3
         dataframe = pd.DataFrame({"Object": ["spoon"], "value": [value], "type": [FLOAT_VALUE_TYPE]})
-        resolved = spine_df.expand_values(dataframe)
+        resolved = spine_df._expand_values(dataframe)
         expected = pd.DataFrame({"Object": ["spoon"], "value": [2.3]})
         self.assertTrue(resolved.equals(expected))
 
     def test_expand_simple_map(self):
         value = pd.DataFrame({"x": ["A"], "value": [2.3]})
         dataframe = pd.DataFrame({"Object": ["spoon"], "value": [value], "type": [Map.type_()]})
-        resolved = spine_df.expand_values(dataframe)
+        resolved = spine_df._expand_values(dataframe)
         expected = pd.DataFrame({"Object": ["spoon"], "x": ["A"], "value": [2.3]})
         self.assertTrue(resolved.equals(expected))
 
     def test_expand_multirow_map(self):
         value = pd.DataFrame({"x": ["A", "B"], "value": [2.3, 2.4]})
         dataframe = pd.DataFrame({"Object": ["spoon"], "value": [value], "type": [Map.type_()]})
-        resolved = spine_df.expand_values(dataframe)
+        resolved = spine_df._expand_values(dataframe)
         expected = pd.DataFrame({"Object": ["spoon", "spoon"], "x": ["A", "B"], "value": [2.3, 2.4]})
         self.assertTrue(resolved.equals(expected))
 
@@ -205,7 +423,7 @@ class TestExpandValues(unittest.TestCase):
         dataframe = pd.DataFrame(
             {"Object": ["spoon", "fork"], "value": [value1, value2], "type": [Map.type_(), Map.type_()]}
         )
-        resolved = spine_df.expand_values(dataframe)
+        resolved = spine_df._expand_values(dataframe)
         expected = pd.DataFrame(
             {"Object": ["spoon", "spoon", "fork", "fork"], "x": ["A", "B", "C", "D"], "value": [2.3, 2.4, 2.5, 2.6]}
         )
@@ -217,7 +435,7 @@ class TestExpandValues(unittest.TestCase):
         dataframe = pd.DataFrame(
             {"Object": ["spoon", "fork"], "value": [value1, value2], "type": [Map.type_(), Map.type_()]}
         )
-        resolved = spine_df.expand_values(dataframe)
+        resolved = spine_df._expand_values(dataframe)
         expected = pd.DataFrame(
             {
                 "Object": ["spoon", "spoon", "fork", "fork"],

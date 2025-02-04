@@ -9,25 +9,165 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""This module offers a Pandas interoperability layer to `spinedb_api`.
+"""This module offers a Pandas interoperability layer to ``spinedb_api``.
 
-.. note::
+.. warning::
 
   This is highly experimental API.
 
-The functions here work at the database query level with as little overhead as possible.
+The main access points here are :func:`to_dataframe` which converts a parameter value item to a dataframe,
+and :py:func:`add_or_update_from` which creates and updates data in a database mapping based on dataframe input.
+Additionally, :func:`fetch_as_dataframe` grants direct-query access to parameter values.
+It is somewhat more involved to use than the other functions
+but may be faster since it relies on database queries only
+bypassing the complex caching in database mapping.
+It might be useful if you do not need to write back to the database.
+
+Getting a dataframe from database is simple::
+
+    with DatabaseMapping(url) as db_map:
+        value_item = db_map.get_parameter_value_item(
+            entity_class_name="node",
+            entity_byname=("west_coast",),
+            parameter_definition_name="state_coeff",
+            alternative_name="Base",
+        )
+        df = to_dataframe(value_item)
+
+To achieve the same with :func:`fetch_as_dataframe`,
+:class:`FetchedMaps` needs to be instantiated
+and a special `SQLAlchemy <docs.sqlalchemy.org/en/13/>` query prepared::
+
+    with DatabaseMapping(url) as db_map:
+        maps = FetchedMaps.fetch(db_map)
+        query = parameter_value_sq(db_map)
+        final_query = (
+            db_map.query(query)
+                .filter(db_map.entity_class_sq.c.name == "node")
+                .filter(db_map.entity_sq.c.name=="west_coast")
+                .filter(query.c.parameter_definition_name=="state_coeff")
+                .filter(query.c.alternative_name=="Base")
+        ).subquery()
+        df = fetch_as_dataframe(db_map, final_query, maps)
 """
+from __future__ import annotations
 import collections
+from typing import Any, Union
 import pandas as pd
 import pyarrow
-from spinedb_api import Map
+from sqlalchemy.sql import Subquery
+from spinedb_api import DatabaseMapping, Map, SpineDBAPIError
 from spinedb_api.arrow_value import from_database
+from spinedb_api.db_mapping_base import PublicItem
 from spinedb_api.parameter_value import RANK_1_TYPES, VALUE_TYPES
+
+SpineScalarValue = Union[float, str, bool]
+SpineValue = Union[SpineScalarValue, None, pyarrow.RecordBatch]
+IdToIdMap = dict[int, int]
+IdToIdListMap = dict[int, list[int]]
+IdToListValueMap = dict[int, tuple[bytes, str]]
+IdToNameMap = dict[int, str]
+IdToNameAndClassMap = dict[int, tuple[str, int]]
+
+
+_BASIC_COLUMNS = ["entity_class_name", "parameter_definition_name", "alternative_name"]
+
+
+def to_dataframe(item: PublicItem) -> pd.DataFrame:
+    """Converts parameter value item to dataframe."""
+    item = item.mapped_item
+    db_map = item.db_map
+    entity = db_map.mapped_table("entity").find_item_by_id(item["entity_id"])
+    entity_class = db_map.mapped_table("entity_class").find_item_by_id(item["entity_class_id"])
+    value = item["arrow_value"]
+    row_map = {"entity_class_name": entity["entity_class_name"]}
+    row_map.update(
+        {
+            class_name: element_name
+            for class_name, element_name in zip(entity_class["entity_class_byname"], entity["entity_byname"])
+        }
+    )
+    row_map.update(
+        {
+            "parameter_definition_name": item["parameter_definition_name"],
+            "alternative_name": item["alternative_name"],
+            "value": value.to_pandas() if isinstance(value, pyarrow.RecordBatch) else value,
+            "type": item["type"],
+        }
+    )
+    dataframe = pd.DataFrame([row_map])
+    return _expand_values(dataframe)
+
+
+def _dataframe_to_value(
+    dataframe: pd.DataFrame, value_columns: list[str], class_bynames: dict[str, list[str]]
+) -> pd.Series:
+    data = dataframe.loc[0, _BASIC_COLUMNS].to_dict()
+    byname_columns = class_bynames[dataframe.loc[0, "entity_class_name"]]
+    byname = dataframe.loc[0, byname_columns]
+    if isinstance(byname, str):
+        byname = (byname,)
+    data["entity_byname"] = byname
+    if len(value_columns) == 1:
+        data["parsed_value"] = dataframe.loc[0, value_columns[0]]
+    else:
+        data["parsed_value"] = _to_parsed_value(dataframe.loc[:, value_columns])
+    return pd.Series(data)
+
+
+def _last_columns_to_map(dataframe: pd.DataFrame) -> Map:
+    return Map(dataframe.iloc[:, -2].array, dataframe.iloc[:, -1].array, index_name=dataframe.columns[-2])
+
+
+def _to_parsed_value(value_frame: pd.DataFrame) -> Any:
+    while value_frame.shape[1] > 2:
+        new_last_column = value_frame.groupby(list(value_frame.columns[:-2]), sort=False).apply(
+            _last_columns_to_map, include_groups=False
+        )
+        value_frame = pd.DataFrame(new_last_column).reset_index()
+    return _last_columns_to_map(value_frame)
+
+
+def add_or_update_from(dataframe: pd.DataFrame, db_map: DatabaseMapping) -> None:
+    """Updates parameter value items from dataframe.
+
+    The dataframe is expected to contain at least ``entity_class_name``,
+    ``parameter_definition_name``, ``alternative_name`` and ``value`` columns,
+    and a column for each 0-dimensional entity from which entity bynames can be composed.
+    Any additional column is considered as value index.
+    """
+    class_bynames = {}
+    unique_bynames = set()
+    for class_name in dataframe.loc[:, "entity_class_name"].unique():
+        entity_class = db_map.get_item("entity_class", name=class_name)
+        if not entity_class:
+            raise SpineDBAPIError(f"no such entity class '{class_name}'")
+        elemental_names = entity_class["entity_class_byname"]
+        class_bynames[class_name] = elemental_names
+        unique_bynames.update(elemental_names)
+    unique_bynames = list(unique_bynames)
+    basic_and_entity_columns = _BASIC_COLUMNS + unique_bynames
+    value_groups = dataframe.groupby(basic_and_entity_columns, sort=False)
+    value_columns = [column for column in dataframe.columns if column not in set(basic_and_entity_columns)]
+    aggregated = value_groups[dataframe.columns].apply(
+        _dataframe_to_value, value_columns=value_columns, class_bynames=class_bynames
+    )
+    for row in aggregated.itertuples(index=False):
+        _, _, error = db_map.add_update_item("parameter_value", **row._asdict())
+        if error:
+            raise SpineDBAPIError(error)
 
 
 class FetchedMaps:
+    """A 'cache' class that holds information required to build a dataframe with :py:func:`fetch_as_dataframe`."""
+
     def __init__(
-        self, list_value_map, entity_class_name_map, entity_name_and_class_map, entity_element_map, entity_dimension_map
+        self,
+        list_value_map: IdToListValueMap,
+        entity_class_name_map: IdToNameMap,
+        entity_name_and_class_map: IdToNameAndClassMap,
+        entity_element_map: IdToIdListMap,
+        entity_dimension_map: IdToIdMap,
     ):
         self.list_value_map = list_value_map
         self.entity_class_name_map = entity_class_name_map
@@ -36,22 +176,25 @@ class FetchedMaps:
         self.entity_dimension_map = entity_dimension_map
 
     @classmethod
-    def fetch(cls, db_map):
+    def fetch(cls, db_map: DatabaseMapping) -> FetchedMaps:
+        """Instantiates a :py:class:`FetchedMaps` with data queried from a database."""
         return cls(
-            fetch_list_value_map(db_map),
-            fetch_entity_class_name_map(db_map),
-            fetch_entity_name_and_class_map(db_map),
-            fetch_entity_element_map(db_map),
-            fetch_entity_dimension_map(db_map),
+            _fetch_list_value_map(db_map),
+            _fetch_entity_class_name_map(db_map),
+            _fetch_entity_name_and_class_map(db_map),
+            _fetch_entity_element_map(db_map),
+            _fetch_entity_dimension_map(db_map),
         )
 
 
-def parameter_value_sq(db_map):
+def parameter_value_sq(db_map: DatabaseMapping) -> Subquery:
+    """Returns basic parameter value subquery required by :py:func:`fetch_as_dataframe`."""
     return (
         db_map.query(
             db_map.entity_class_sq.c.id.label("entity_class_id"),
-            db_map.parameter_definition_sq.c.name.label("parameter_definition_name"),
+            db_map.entity_class_sq.c.name.label("entity_class_name"),
             db_map.entity_sq.c.id.label("entity_id"),
+            db_map.parameter_definition_sq.c.name.label("parameter_definition_name"),
             db_map.alternative_sq.c.name.label("alternative_name"),
             db_map.parameter_value_sq.c.value,
             db_map.parameter_value_sq.c.type,
@@ -71,14 +214,14 @@ def parameter_value_sq(db_map):
     )
 
 
-def fetch_list_value_map(db_map):
+def _fetch_list_value_map(db_map: DatabaseMapping) -> IdToListValueMap:
     return {
         row.id: (row.value, row.type)
         for row in db_map.query(db_map.list_value_sq.c.id, db_map.list_value_sq.c.value, db_map.list_value_sq.c.type)
     }
 
 
-def fetch_entity_name_and_class_map(db_map):
+def _fetch_entity_name_and_class_map(db_map: DatabaseMapping) -> IdToNameAndClassMap:
     return {
         row.id: (row.name, row.class_id)
         for row in db_map.query(
@@ -89,17 +232,17 @@ def fetch_entity_name_and_class_map(db_map):
     }
 
 
-def _expand_ids_iterative(entity_id, element_map):
+def _expand_ids_recursive(entity_id: int, element_map: IdToIdListMap) -> list[int]:
     expanded = []
     for element_id in element_map[entity_id]:
         if element_id not in element_map:
             expanded.append(element_id)
             continue
-        expanded.extend(_expand_ids_iterative(element_id, element_map))
+        expanded.extend(_expand_ids_recursive(element_id, element_map))
     return expanded
 
 
-def fetch_entity_element_map(db_map):
+def _fetch_entity_element_map(db_map: DatabaseMapping) -> IdToIdListMap:
     element_table = pd.DataFrame(
         db_map.query(
             db_map.entity_element_sq.c.entity_id,
@@ -109,13 +252,13 @@ def fetch_entity_element_map(db_map):
     )
     if element_table.empty:
         return {}
-    element_map = {}
+    element_map: IdToIdListMap = {}
     for entity_id, element_group in element_table.groupby(["entity_id"], sort=False):
         element_map[entity_id[0]] = element_group["element_id"]
-    return {entity_id: _expand_ids_iterative(entity_id, element_map) for entity_id in element_map}
+    return {entity_id: _expand_ids_recursive(entity_id, element_map) for entity_id in element_map}
 
 
-def fetch_entity_dimension_map(db_map):
+def _fetch_entity_dimension_map(db_map: DatabaseMapping) -> IdToIdMap:
     return {
         row.id: row.class_id
         for row in db_map.query(
@@ -125,28 +268,36 @@ def fetch_entity_dimension_map(db_map):
     }
 
 
-def fetch_entity_class_name_map(db_map):
+def _fetch_entity_class_name_map(db_map: DatabaseMapping) -> IdToNameMap:
     return {row.id: row.name for row in db_map.query(db_map.entity_class_sq.c.id, db_map.entity_class_sq.c.name)}
 
 
-def resolve_elements(dataframe, entity_class_name_map, entity_name_and_class_map, entity_element_map):
+def _resolve_elements(
+    dataframe: pd.DataFrame,
+    entity_class_name_map: IdToNameMap,
+    entity_name_and_class_map: IdToNameAndClassMap,
+    entity_element_map: IdToIdListMap,
+) -> pd.DataFrame:
     groups = dataframe.groupby("entity_class_id", sort=False)
     resolved_groups = []
     for _, group in groups:
-        resolved_columns = resolve_elements_for_single_class(
+        resolved_columns = _resolve_elements_for_single_class(
             group["entity_id"], entity_class_name_map, entity_name_and_class_map, entity_element_map
         )
         group_frame = group.drop(columns=["entity_class_id", "entity_id"])
-        column_names = unique_series_names(resolved_columns)
+        column_names = _unique_series_names(resolved_columns)
         for name, column in zip(reversed(column_names), reversed(resolved_columns)):
-            group_frame.insert(0, name, column)
+            group_frame.insert(1, name, column)
         resolved_groups.append(group_frame)
     return pd.concat(resolved_groups)
 
 
-def resolve_elements_for_single_class(
-    entity_id_series, entity_class_name_map, entity_name_and_class_map, entity_element_map
-):
+def _resolve_elements_for_single_class(
+    entity_id_series: pd.Series,
+    entity_class_name_map: IdToNameMap,
+    entity_name_and_class_map: IdToNameAndClassMap,
+    entity_element_map: IdToIdListMap,
+) -> list[pd.Series]:
     element_series = {}
     for entity_id in entity_id_series:
         try:
@@ -161,7 +312,7 @@ def resolve_elements_for_single_class(
     return [pd.Series(entities, name=class_name) for (class_name, _), entities in element_series.items()]
 
 
-def unique_series_names(series_list):
+def _unique_series_names(series_list: list[pd.Series]) -> list[str]:
     name_counts = collections.Counter()
     for series in series_list:
         name_counts[series.name] += 1
@@ -177,7 +328,7 @@ def unique_series_names(series_list):
     return names
 
 
-def convert_values_from_database(dataframe_row, list_value_map):
+def _convert_values_from_database(dataframe_row: pd.Series, list_value_map: IdToListValueMap) -> pd.Series:
     if dataframe_row.iloc[-1] is not None:
         value, value_type = list_value_map[dataframe_row[-1]]
     else:
@@ -189,17 +340,7 @@ def convert_values_from_database(dataframe_row, list_value_map):
     return pd.Series({"value": value, "type": value_type})
 
 
-def expand_values(dataframe):
-    """Expands parsed values in a dataframe.
-
-    Consumes the 'type' column.
-
-    Args:
-        dataframe (pd.DataFrame): dataframe to expand
-
-    Returns:
-        pd.DataFrame: expanded dataframe
-    """
+def _expand_values(dataframe: pd.DataFrame) -> pd.DataFrame:
     grouped = dataframe.groupby("type", sort=False)
     expanded = []
     rank_n_types = {Map.type_()}
@@ -228,35 +369,26 @@ def expand_values(dataframe):
     return pd.concat((expanded, y_column), axis="columns")
 
 
-def expand_real_value(x):
+def _record_batch_to_dataframe(x: SpineValue) -> Union[SpineScalarValue, None, pd.DataFrame]:
     if isinstance(x, pyarrow.RecordBatch):
         return x.to_pandas()
     return x
 
 
-def fetch_as_dataframe(db_map, value_sq, fetched_maps):
-    """Fetches parameter values from database returning them as dataframe.
-
-    Args:
-        db_map (DatabaseMapping): database map
-        value_sq (Subquery): parameter value subquery
-        fetched_maps (FetchedMaps): extra data needed to construct the dataframe
-
-    Returns:
-        pd.DataFrame: value and all its dimensions in a dataframe
-    """
+def fetch_as_dataframe(db_map: DatabaseMapping, value_sq: Subquery, fetched_maps: FetchedMaps) -> pd.DataFrame:
+    """Fetches parameter values from database returning them as dataframe."""
     dataframe = pd.DataFrame(db_map.query(value_sq))
     if dataframe.empty:
         return dataframe
     value_series = dataframe.apply(
-        convert_values_from_database, axis="columns", result_type="expand", args=(fetched_maps.list_value_map,)
+        _convert_values_from_database, axis="columns", result_type="expand", args=(fetched_maps.list_value_map,)
     )
     dataframe = dataframe.drop(columns=["value", "type", "list_value_id"])
     dataframe = pd.concat((dataframe, value_series), axis="columns")
-    dataframe = resolve_elements(
+    dataframe = _resolve_elements(
         dataframe,
         fetched_maps.entity_class_name_map,
         fetched_maps.entity_name_and_class_map,
         fetched_maps.entity_element_map,
     )
-    return expand_values(dataframe)
+    return _expand_values(dataframe)
