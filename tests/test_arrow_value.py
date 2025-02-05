@@ -210,5 +210,62 @@ class TestFromDatabaseForMaps(unittest.TestCase):
         )
 
 
+class TestFromDatabaseForTimeSeries(unittest.TestCase):
+    def test_fixed_resolution_series(self):
+        value, value_type = parameter_value.to_database(
+            parameter_value.TimeSeriesFixedResolution(
+                "2025-02-05T09:59", "15m", [1.1, 1.2], ignore_year=False, repeat=False
+            )
+        )
+        fixed_resolution = arrow_value.from_database(value, value_type)
+        self.assertEqual(fixed_resolution.column_names, ["t", "value"])
+        self.assertEqual(
+            fixed_resolution.column("t").to_pylist(),
+            [datetime.datetime(2025, 2, 5, 9, 59), datetime.datetime(2025, 2, 5, 10, 14)],
+        )
+        self.assertEqual(fixed_resolution.schema.field("t").metadata, {b"ignore_year": b"false", b"repeat": b"false"})
+        self.assertEqual(fixed_resolution.column("value").to_pylist(), [1.1, 1.2])
+
+    def test_ignore_year(self):
+        value, value_type = parameter_value.to_database(
+            parameter_value.TimeSeriesFixedResolution(
+                "2025-02-05T09:59", "15m", [1.1, 1.2], ignore_year=True, repeat=False
+            )
+        )
+        fixed_resolution = arrow_value.from_database(value, value_type)
+        self.assertEqual(fixed_resolution.schema.field("t").metadata, {b"ignore_year": b"true", b"repeat": b"false"})
+
+    def test_repeat(self):
+        value, value_type = parameter_value.to_database(
+            parameter_value.TimeSeriesFixedResolution(
+                "2025-02-05T09:59", "15m", [1.1, 1.2], ignore_year=False, repeat=True
+            )
+        )
+        fixed_resolution = arrow_value.from_database(value, value_type)
+        self.assertEqual(fixed_resolution.schema.field("t").metadata, {b"ignore_year": b"false", b"repeat": b"true"})
+
+    def test_variable_resolution_series(self):
+        value, value_type = parameter_value.to_database(
+            parameter_value.TimeSeriesVariableResolution(
+                ["2025-02-05T09:59", "2025-02-05T10:14", "2025-02-05T11:31"],
+                [1.1, 1.2, 1.3],
+                ignore_year=False,
+                repeat=False,
+            )
+        )
+        fixed_resolution = arrow_value.from_database(value, value_type)
+        self.assertEqual(fixed_resolution.column_names, ["t", "value"])
+        self.assertEqual(
+            fixed_resolution.column("t").to_pylist(),
+            [
+                datetime.datetime(2025, 2, 5, 9, 59),
+                datetime.datetime(2025, 2, 5, 10, 14),
+                datetime.datetime(2025, 2, 5, 11, 31),
+            ],
+        )
+        self.assertEqual(fixed_resolution.schema.field("t").metadata, {b"ignore_year": b"false", b"repeat": b"false"})
+        self.assertEqual(fixed_resolution.column("value").to_pylist(), [1.1, 1.2, 1.3])
+
+
 if __name__ == "__main__":
     unittest.main()

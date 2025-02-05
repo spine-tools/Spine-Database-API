@@ -34,6 +34,11 @@ Getting a dataframe from database is simple::
         )
         df = to_dataframe(value_item)
 
+.. note::
+
+  The ``ignore_year`` and ``repeat`` attributes are stored in the ``attrs`` attribute
+  of the dataframe if it contains time series.
+
 To achieve the same with :func:`fetch_as_dataframe`,
 :class:`FetchedMaps` needs to be instantiated
 and a special `SQLAlchemy <docs.sqlalchemy.org/en/13/>` query prepared::
@@ -91,7 +96,7 @@ def to_dataframe(item: PublicItem) -> pd.DataFrame:
         {
             "parameter_definition_name": pd.Series(item["parameter_definition_name"], dtype="category"),
             "alternative_name": pd.Series(item["alternative_name"], dtype="category"),
-            "value": [value.to_pandas() if isinstance(value, pyarrow.RecordBatch) else value],
+            "value": [_record_batch_to_dataframe(value)],
             "type": [item["type"]],
         }
     )
@@ -336,9 +341,7 @@ def _convert_values_from_database(dataframe_row: pd.Series, list_value_map: IdTo
     else:
         value = dataframe_row.iloc[-3]
         value_type = dataframe_row.iloc[-2]
-    value = from_database(value, value_type)
-    if isinstance(value, pyarrow.RecordBatch):
-        value = value.to_pandas()
+    value = _record_batch_to_dataframe(from_database(value, value_type))
     return pd.Series({"value": value, "type": value_type})
 
 
@@ -346,6 +349,7 @@ def _expand_values(dataframe: pd.DataFrame) -> pd.DataFrame:
     grouped = dataframe.groupby("type", sort=False)
     expanded = []
     rank_n_types = {Map.type_()}
+    attributes = {}
     for expandable_type in RANK_1_TYPES | rank_n_types:
         try:
             group = grouped.indices[expandable_type]
@@ -358,6 +362,7 @@ def _expand_values(dataframe: pd.DataFrame) -> pd.DataFrame:
             row = row.drop(columns=["value", "type"])
             left = pd.concat(value.shape[0] * [row], ignore_index=True)
             expanded.append(pd.concat((left, value), axis="columns"))
+            attributes.update(value.attrs)
     for non_expandable_type in VALUE_TYPES - RANK_1_TYPES - rank_n_types:
         try:
             group = grouped.indices[non_expandable_type]
@@ -366,6 +371,7 @@ def _expand_values(dataframe: pd.DataFrame) -> pd.DataFrame:
         non_expanded = dataframe.iloc[group]
         expanded.append(non_expanded.drop(columns=["type"]))
     expanded = pd.concat(expanded, ignore_index=True)
+    expanded.attrs = attributes
     if expanded.columns.get_loc("value") == expanded.shape[1] - 1:
         return expanded
     y_column = expanded.pop("value")
@@ -374,7 +380,15 @@ def _expand_values(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 def _record_batch_to_dataframe(x: SpineValue) -> Union[SpineScalarValue, None, pd.DataFrame]:
     if isinstance(x, pyarrow.RecordBatch):
-        return x.to_pandas()
+        dataframe = x.to_pandas()
+        attributes = {}
+        for column in x.schema.names:
+            metadata = x.schema.field(column).metadata
+            if metadata is not None:
+                attributes[column] = {key.decode(): value.decode() for key, value in metadata.items()}
+        if attributes:
+            dataframe.attrs = attributes
+        return dataframe
     return x
 
 

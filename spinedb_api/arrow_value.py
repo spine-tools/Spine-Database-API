@@ -19,8 +19,10 @@ Apache Arrow - Spine interoperability layer.
 
 """
 from collections import defaultdict
+from collections.abc import Callable, Iterable
 import datetime
-from typing import SupportsFloat
+from typing import Any, Optional, SupportsFloat, Union
+from dateutil import relativedelta
 import numpy
 import pyarrow
 from .parameter_value import (
@@ -47,16 +49,8 @@ _DATA_CONVERTER = {
 }
 
 
-def from_database(db_value, value_type):
-    """Parses a database value.
-
-    Args:
-        db_value (bytes): binary blob from database
-        value_type (string, optional): value type
-
-    Returns:
-        Any: parsed value
-    """
+def from_database(db_value: bytes, value_type: str) -> Any:
+    """Parses a database value."""
     if db_value is None:
         return None
     loaded = load_db_value(db_value, value_type)
@@ -67,16 +61,8 @@ def from_database(db_value, value_type):
     return loaded
 
 
-def from_dict(loaded_value, value_type):
-    """Converts a value dict to parsed value.
-
-    Args:
-        loaded_value (dict): value dict
-        value_type (str): value type
-
-    Returns:
-        pyarrow.RecordBatch: parsed value
-    """
+def from_dict(loaded_value: dict, value_type: str) -> pyarrow.RecordBatch:
+    """Converts a value dict to parsed value."""
     if value_type == "array":
         data_type = loaded_value.get("value_type", "float")
         data = loaded_value["data"]
@@ -87,31 +73,19 @@ def from_dict(loaded_value, value_type):
         x_array = pyarrow.array(range(0, len(y_array)), type=pyarrow.int64())
         return pyarrow.RecordBatch.from_arrays([x_array, y_array], names=[loaded_value.get("index_name", "i"), "value"])
     if value_type == "map":
-        return map_to_struct_array(loaded_value)
+        return crawled_to_record_batch(crawl_map_uneven, loaded_value)
+    if value_type == "time_series":
+        return crawled_to_record_batch(crawl_time_series, loaded_value)
     raise NotImplementedError(f"unknown value type {value_type}")
 
 
-def to_database(parsed_value):
-    """Converts parsed value into database value.
-
-    Args:
-        parsed_value (Any): parsed value
-
-    Returns:
-        tuple: database value and its type
-    """
+def to_database(parsed_value: Any) -> tuple[bytes, str]:
+    """Converts parsed value into database value."""
     raise NotImplementedError()
 
 
-def type_of_loaded(loaded_value):
-    """Infer the type of loaded value.
-
-    Args:
-        loaded_value (Any): loaded value
-
-    Returns:
-        str: value type
-    """
+def type_of_loaded(loaded_value: Any) -> str:
+    """Infer the type of loaded value."""
     if isinstance(loaded_value, dict):
         return loaded_value["type"]
     elif isinstance(loaded_value, str):
@@ -127,8 +101,13 @@ def type_of_loaded(loaded_value):
     raise RuntimeError(f"unknown type")
 
 
-def map_to_struct_array(loaded_value):
-    typed_xs, ys, index_names, depth = crawl_map_uneven(loaded_value)
+CrawlTuple = tuple[list, list, list, dict[str, dict[str, str]], int]
+
+
+def crawled_to_record_batch(
+    crawl: Callable[[dict, Optional[list[tuple[str, Any]]], Optional[list[str]]], CrawlTuple], loaded_value: dict
+) -> pyarrow.RecordBatch:
+    typed_xs, ys, index_names, index_metadata, depth = crawl(loaded_value)
     if not ys:
         return pyarrow.RecordBatch.from_arrays(
             [
@@ -140,10 +119,23 @@ def map_to_struct_array(loaded_value):
     x_arrays = []
     for i in range(depth):
         x_arrays.append(build_x_array(typed_xs, i))
-    return pyarrow.RecordBatch.from_arrays(x_arrays + [build_y_array(ys)], names=index_names + ["value"])
+    arrays = x_arrays + [build_y_array(ys)]
+    array_names = index_names + ["value"]
+    return pyarrow.RecordBatch.from_arrays(arrays, schema=make_schema(arrays, array_names, index_metadata))
 
 
-def crawl_map_uneven(loaded_value, root_index=None, root_index_names=None):
+def make_schema(
+    arrays: Iterable[pyarrow.Array], array_names: Iterable[str], array_metadata: dict[str, dict[str, str]]
+) -> pyarrow.Schema:
+    fields = []
+    for array, name in zip(arrays, array_names):
+        fields.append(pyarrow.field(name, array.type, metadata=array_metadata.get(name)))
+    return pyarrow.schema(fields)
+
+
+def crawl_map_uneven(
+    loaded_value: dict, root_index: Optional[list[tuple[str, Any]]] = None, root_index_names: Optional[list[str]] = None
+) -> CrawlTuple:
     if root_index is None:
         root_index = []
         root_index_names = []
@@ -152,6 +144,7 @@ def crawl_map_uneven(loaded_value, root_index=None, root_index_names=None):
     ys = []
     max_nested_depth = 0
     index_names = root_index_names + [loaded_value.get("index_name", "x")]
+    index_metadata = {}
     deepest_nested_index_names = []
     index_type = loaded_value["index_type"]
     data = loaded_value["data"]
@@ -167,31 +160,38 @@ def crawl_map_uneven(loaded_value, root_index=None, root_index_names=None):
                 y_is_scalar = True
             if not y_is_scalar:
                 if y_type == "map":
-                    nested_xs, nested_ys, nested_index_names, nested_depth = crawl_map_uneven(y, index, index_names)
+                    crawl_nested = crawl_map_uneven
                 elif y_type == "time_series":
-                    nested_xs, nested_ys, nested_index_names, nested_depth = crawl_time_series(y, index, index_names)
+                    crawl_nested = crawl_time_series
                 else:
                     raise RuntimeError(f"unknown nested type {y_type}")
+                nested_xs, nested_ys, nested_index_names, nested_index_metadata, nested_depth = crawl_nested(
+                    y, index, index_names
+                )
                 typed_xs += nested_xs
                 ys += nested_ys
                 deepest_nested_index_names = collect_nested_index_names(nested_index_names, deepest_nested_index_names)
+                index_metadata.update(nested_index_metadata)
                 max_nested_depth = max(max_nested_depth, nested_depth)
                 continue
         typed_xs.append(index)
         ys.append(y)
     index_names = index_names if not deepest_nested_index_names else deepest_nested_index_names
-    return typed_xs, ys, index_names, depth if max_nested_depth == 0 else max_nested_depth
+    return typed_xs, ys, index_names, index_metadata, depth if max_nested_depth == 0 else max_nested_depth
 
 
-def crawl_time_series(loaded_value, root_index=None, root_index_names=None):
+def crawl_time_series(
+    loaded_value: dict, root_index: Optional[list[tuple[str, Any]]] = None, root_index_names: Optional[list[str]] = None
+) -> CrawlTuple:
     if root_index is None:
         root_index = []
         root_index_names = []
     typed_xs = []
     ys = []
     data = loaded_value["data"]
+    index_name = loaded_value.get("index_name", "t")
     if isinstance(data, list) and data and not isinstance(data[0], list):
-        loaded_index = loaded_value["index"]
+        loaded_index = loaded_value.get("index", {})
         start = numpy.datetime64(loaded_index.get("start", TIME_SERIES_DEFAULT_START))
         resolution = loaded_index.get("resolution", TIME_SERIES_DEFAULT_RESOLUTION)
         data = zip(time_stamps(start, resolution, len(data)), data)
@@ -199,6 +199,8 @@ def crawl_time_series(loaded_value, root_index=None, root_index_names=None):
             index = root_index + [("date_time", x)]
             typed_xs.append(index)
             ys.append(y)
+        ignore_year = loaded_index.get("ignore_year", False)
+        repeat = loaded_index.get("repeat", False)
     else:
         if isinstance(data, dict):
             data = data.items()
@@ -206,20 +208,20 @@ def crawl_time_series(loaded_value, root_index=None, root_index_names=None):
             index = root_index + [("date_time", datetime.datetime.fromisoformat(x))]
             typed_xs.append(index)
             ys.append(y)
-    index_names = root_index_names + [loaded_value.get("index_name", "t")]
-    return typed_xs, ys, index_names, len(root_index) + 1
+        ignore_year = False
+        repeat = False
+    metadata = {
+        index_name: {
+            "ignore_year": "true" if ignore_year else "false",
+            "repeat": "true" if repeat else "false",
+        }
+    }
+    index_names = root_index_names + [index_name]
+    return typed_xs, ys, index_names, metadata, len(root_index) + 1
 
 
-def time_series_resolution(resolution):
-    """
-    Parses time series resolution string.
-
-    Args:
-        resolution (str or list of str): resolution or a list thereof
-
-    Returns:
-        list of relativedelta: resolution
-    """
+def time_series_resolution(resolution: Union[str, list[str]]) -> list[relativedelta]:
+    """Parses time series resolution string."""
     if isinstance(resolution, str):
         resolution = [duration_to_relativedelta(resolution)]
     else:
