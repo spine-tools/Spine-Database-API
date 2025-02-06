@@ -23,33 +23,82 @@ but may be faster since it relies on database queries only
 bypassing the complex caching in database mapping.
 It might be useful if you do not need to write back to the database.
 
-Getting a dataframe from database is simple::
+The dataframes returned by the :func:`to_dataframe` and :func:`fetch_as_dataframe` functions
+have the following structure:
+
+.. list-table:: Dataframe columns left-to-right
+  :header-rows: 1
+
+  * - Column
+    - Content
+  * - entity_class_name
+    - class names
+  * - <dimension 1>
+    - "leaf" entity names (bynames)
+  * - ...
+    - more entity bynames
+  * - parameter_definition_name
+    - parameter names
+  * - alternative_name
+    - alternative names
+  * - <index 1>
+    - parameter indices, e.g. time stamps
+  * - ...
+    - more parameter indices
+  * - value
+    - "leaf" values
+
+For example, say we want to get *unit_capacity* time series
+for a relationship between *power_plant_a* and *electricity_node*
+and plot it.
+This is straightforward with :func:`to_dataframe`::
+
+    import matplotlib.pyplot as plt
+    from spinedb_api import DatabaseMapping
+    from spinedb_api.dataframes import to_dataframe
 
     with DatabaseMapping(url) as db_map:
         value_item = db_map.get_parameter_value_item(
-            entity_class_name="node",
-            entity_byname=("west_coast",),
-            parameter_definition_name="state_coeff",
+            entity_class_name="unit__to_node",
+            entity_byname=("power_plant_a", "electricity_node"),
+            parameter_definition_name="unit_capacity",
             alternative_name="Base",
         )
         df = to_dataframe(value_item)
+
+    figure, axes = plt.subplots()
+    df.plot(x="t", y="value", ax=axes)
+    plt.show()
 
 .. note::
 
   The ``ignore_year`` and ``repeat`` attributes are stored in the ``attrs`` attribute
   of the dataframe if it contains time series.
 
-To achieve the same with :func:`fetch_as_dataframe`,
+The dataframe can be used to add new values or update existing values in a database,
+proven that the target entities, parameter definitions and alternatives exist already.
+For example, using ``df`` from above::
+
+    with DatabaseMapping(target_url) as db_map:
+        add_or_update_from(df, target_url)
+        db_map.commit_session("Added unit_capacity value.")
+
+.. warning::
+
+  Time series are currently added/updated as :class:`spinedb_api.parameter_value.Map` values
+  rather than as :class:`spinedb_api.parameter_value.TimeSeriesFixedResolution`,
+  because :func:`add_or_update_from` does not implement dataframe -> time series transformation yet.
+
+To use :func:`fetch_as_dataframe` instead of :func:`to_dataframe`,
 :class:`FetchedMaps` needs to be instantiated
-and a special `SQLAlchemy <docs.sqlalchemy.org/en/13/>` query prepared::
+and a special `SQLAlchemy <docs.sqlalchemy.org/en/14/>`_ query prepared::
 
     with DatabaseMapping(url) as db_map:
         maps = FetchedMaps.fetch(db_map)
         query = parameter_value_sq(db_map)
         final_query = (
             db_map.query(query)
-                .filter(db_map.entity_class_sq.c.name == "node")
-                .filter(db_map.entity_sq.c.name=="west_coast")
+                .filter(query.c.entity_class_name == "node")
                 .filter(query.c.parameter_definition_name=="state_coeff")
                 .filter(query.c.alternative_name=="Base")
         ).subquery()
@@ -64,7 +113,7 @@ from sqlalchemy.sql import Subquery
 from spinedb_api import DatabaseMapping, Map, SpineDBAPIError
 from spinedb_api.arrow_value import from_database
 from spinedb_api.db_mapping_base import PublicItem
-from spinedb_api.parameter_value import RANK_1_TYPES, VALUE_TYPES
+from spinedb_api.parameter_value import RANK_1_TYPES, VALUE_TYPES, DateTime
 
 SpineScalarValue = Union[float, str, bool]
 SpineValue = Union[SpineScalarValue, None, pyarrow.RecordBatch]
@@ -105,23 +154,31 @@ def to_dataframe(item: PublicItem) -> pd.DataFrame:
 
 
 def _dataframe_to_value(
-    dataframe: pd.DataFrame, value_columns: list[str], class_bynames: dict[str, list[str]]
+    dataframe: pd.DataFrame, value_columns: list[str], class_bynames: dict[str, tuple[str]]
 ) -> pd.Series:
     data = dataframe.loc[0, _BASIC_COLUMNS].to_dict()
-    byname_columns = class_bynames[dataframe.loc[0, "entity_class_name"]]
-    byname = dataframe.loc[0, byname_columns]
-    if isinstance(byname, str):
-        byname = (byname,)
+    byname_columns = list(class_bynames[dataframe.loc[0, "entity_class_name"]])
+    byname = tuple(dataframe.loc[0, byname_columns])
     data["entity_byname"] = byname
     if len(value_columns) == 1:
-        data["parsed_value"] = dataframe.loc[0, value_columns[0]]
+        data["parsed_value"] = _scalar_to_parsed_value(dataframe.loc[0, value_columns[0]])
     else:
         data["parsed_value"] = _to_parsed_value(dataframe.loc[:, value_columns])
     return pd.Series(data)
 
 
 def _last_columns_to_map(dataframe: pd.DataFrame) -> Map:
-    return Map(dataframe.iloc[:, -2].array, dataframe.iloc[:, -1].array, index_name=dataframe.columns[-2])
+    return Map(
+        dataframe.iloc[:, -2].transform(_scalar_to_parsed_value).array,
+        dataframe.iloc[:, -1].transform(_scalar_to_parsed_value).array,
+        index_name=dataframe.columns[-2],
+    )
+
+
+def _scalar_to_parsed_value(scalar: Any) -> Any:
+    if isinstance(scalar, pd.Timestamp):
+        return DateTime(scalar.to_pydatetime())
+    return scalar
 
 
 def _to_parsed_value(value_frame: pd.DataFrame) -> Any:
@@ -134,12 +191,16 @@ def _to_parsed_value(value_frame: pd.DataFrame) -> Any:
 
 
 def add_or_update_from(dataframe: pd.DataFrame, db_map: DatabaseMapping) -> None:
-    """Updates parameter value items from dataframe.
+    """Adds or updates parameter value items from dataframe.
 
     The dataframe is expected to contain at least ``entity_class_name``,
     ``parameter_definition_name``, ``alternative_name`` and ``value`` columns,
     and a column for each 0-dimensional entity from which entity bynames can be composed.
     Any additional column is considered as value index.
+
+    The database mapping must contain the target entity, parameter definition and alternative
+    before this operation.
+    This helps in finding typos in the dataframe.
     """
     class_bynames = {}
     unique_bynames = set()

@@ -9,12 +9,13 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
+import datetime
 import unittest
 import numpy as np
 import pandas as pd
 from spinedb_api import DatabaseMapping, Map, to_database
 import spinedb_api.dataframes as spine_df
-from spinedb_api.parameter_value import FLOAT_VALUE_TYPE, TimeSeriesVariableResolution
+from spinedb_api.parameter_value import FLOAT_VALUE_TYPE, DateTime, TimeSeriesVariableResolution
 from tests.mock_helpers import AssertSuccessTestCase
 
 # Copy-on-write will become default in Pandas 3.0.
@@ -107,6 +108,47 @@ class TestToDataframe(AssertSuccessTestCase):
             self.assertTrue(dataframe.equals(expected))
             self.assertEqual(dataframe.attrs, {"t": {"ignore_year": "false", "repeat": "false"}})
 
+    def test_time_series_value_of_multidimensional_entity(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_entity_item(name="fork", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_class_item(name="Subject"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Subject"))
+            self._assert_success(
+                db_map.add_entity_class_item(name="from_object__to_subject", dimension_name_list=("Object", "Subject"))
+            )
+            self._assert_success(
+                db_map.add_parameter_definition_item(name="y", entity_class_name="from_object__to_subject")
+            )
+            self._assert_success(
+                db_map.add_entity_item(entity_class_name="from_object__to_subject", entity_byname=("fork", "spoon"))
+            )
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="from_object__to_subject",
+                    entity_byname=("fork", "spoon"),
+                    parameter_definition_name="y",
+                    alternative_name="Base",
+                    parsed_value=TimeSeriesVariableResolution(
+                        ["2025-02-05T12:30", "2025-02-05T12:45"], [1.1, 1.2], repeat=False, ignore_year=False
+                    ),
+                )
+            )
+            dataframe = spine_df.to_dataframe(value_item)
+            expected = pd.DataFrame(
+                {
+                    "entity_class_name": pd.Series(2 * ["from_object__to_subject"], dtype="category"),
+                    "Object": pd.Series(2 * ["fork"], dtype="string"),
+                    "Subject": pd.Series(2 * ["spoon"], dtype="string"),
+                    "parameter_definition_name": pd.Series(["y", "y"], dtype="category"),
+                    "alternative_name": pd.Series(["Base", "Base"], dtype="category"),
+                    "t": np.array(["2025-02-05T12:30", "2025-02-05T12:45"], dtype="datetime64[s]"),
+                    "value": [1.1, 1.2],
+                }
+            )
+            self.assertTrue(dataframe.equals(expected))
+            self.assertEqual(dataframe.attrs, {"t": {"ignore_year": "false", "repeat": "false"}})
+
 
 class TestAddOrUpdateFrom(AssertSuccessTestCase):
     def test_add_simple_parameter_value(self):
@@ -131,6 +173,92 @@ class TestAddOrUpdateFrom(AssertSuccessTestCase):
                 alternative_name="Base",
             )
             self.assertEqual(value_item["parsed_value"], 2.3)
+
+    def test_add_simple_parameter_value_into_multidimensional_entity(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_class_item(name="Subject"))
+            self._assert_success(db_map.add_entity_item(name="fork", entity_class_name="Subject"))
+            self._assert_success(
+                db_map.add_entity_class_item(name="RequiredCombinations", dimension_name_list=["Subject", "Object"])
+            )
+            self._assert_success(
+                db_map.add_entity_item(entity_class_name="RequiredCombinations", entity_byname=("fork", "spoon"))
+            )
+            self._assert_success(
+                db_map.add_parameter_definition_item(
+                    name="subjectivity_fraction", entity_class_name="RequiredCombinations"
+                )
+            )
+            dataframe = pd.DataFrame(
+                {
+                    "entity_class_name": ["RequiredCombinations"],
+                    "Subject": ["fork"],
+                    "Object": ["spoon"],
+                    "parameter_definition_name": ["subjectivity_fraction"],
+                    "alternative_name": ["Base"],
+                    "value": [0.23],
+                }
+            )
+            spine_df.add_or_update_from(dataframe, db_map)
+            value_item = db_map.get_parameter_value_item(
+                entity_class_name="RequiredCombinations",
+                entity_byname=("fork", "spoon"),
+                parameter_definition_name="subjectivity_fraction",
+                alternative_name="Base",
+            )
+            self.assertEqual(value_item["parsed_value"], 0.23)
+
+    def test_add_datetime_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="length", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
+            dataframe = pd.DataFrame(
+                {
+                    "entity_class_name": ["Object"],
+                    "Object": ["spoon"],
+                    "parameter_definition_name": ["length"],
+                    "alternative_name": ["Base"],
+                    "value": [datetime.datetime(2025, 2, 6, 9, 30)],
+                }
+            )
+            spine_df.add_or_update_from(dataframe, db_map)
+            value_item = db_map.get_parameter_value_item(
+                entity_class_name="Object",
+                entity_byname=("spoon",),
+                parameter_definition_name="length",
+                alternative_name="Base",
+            )
+            self.assertEqual(value_item["parsed_value"], DateTime("2025-02-06T09:30"))
+
+    def test_add_map_parameter_value_with_time_stamps(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="length", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
+            dataframe = pd.DataFrame(
+                {
+                    "entity_class_name": ["Object", "Object"],
+                    "Object": ["spoon", "spoon"],
+                    "parameter_definition_name": ["length", "length"],
+                    "alternative_name": ["Base", "Base"],
+                    "my_index": [datetime.datetime(2025, 2, 6, 9, 45), datetime.datetime(2025, 2, 6, 10, 0)],
+                    "value": [2.3, 2.5],
+                }
+            )
+            spine_df.add_or_update_from(dataframe, db_map)
+            value_item = db_map.get_parameter_value_item(
+                entity_class_name="Object",
+                entity_byname=("spoon",),
+                parameter_definition_name="length",
+                alternative_name="Base",
+            )
+            self.assertEqual(
+                value_item["parsed_value"],
+                Map([DateTime("2025-02-06T09:45"), DateTime("2025-02-06T10:00")], [2.3, 2.5], index_name="my_index"),
+            )
 
     def test_add_map_parameter_value(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:

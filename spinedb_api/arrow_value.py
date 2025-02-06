@@ -13,7 +13,7 @@
 Apache Arrow - Spine interoperability layer.
 
 
-.. note::
+.. warning::
 
   This is highly experimental API.
 
