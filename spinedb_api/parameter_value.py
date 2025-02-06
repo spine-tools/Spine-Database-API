@@ -95,12 +95,12 @@ import numpy as np
 from .exception import ParameterValueFormatError
 
 # Defaulting to seconds precision in numpy.
-_NUMPY_DATETIME_DTYPE = "datetime64[s]"
+NUMPY_DATETIME_DTYPE = "datetime64[s]"
 NUMPY_DATETIME64_UNIT = "s"
 # Default start time guess, actual value not currently given in the JSON specification.
-_TIME_SERIES_DEFAULT_START = "0001-01-01T00:00:00"
+TIME_SERIES_DEFAULT_START = "0001-01-01T00:00:00"
 # Default resolution if it is omitted from the index entry.
-_TIME_SERIES_DEFAULT_RESOLUTION = "1h"
+TIME_SERIES_DEFAULT_RESOLUTION = "1h"
 # Default unit if resolution is given as a number instead of a string.
 _TIME_SERIES_PLAIN_INDEX_UNIT = "m"
 FLOAT_VALUE_TYPE = "float"
@@ -499,8 +499,8 @@ def _time_series_from_single_column(value_dict):
     """
     if "index" in value_dict:
         value_index = value_dict["index"]
-        start = value_index["start"] if "start" in value_index else _TIME_SERIES_DEFAULT_START
-        resolution = value_index["resolution"] if "resolution" in value_index else _TIME_SERIES_DEFAULT_RESOLUTION
+        start = value_index["start"] if "start" in value_index else TIME_SERIES_DEFAULT_START
+        resolution = value_index["resolution"] if "resolution" in value_index else TIME_SERIES_DEFAULT_RESOLUTION
         if "ignore_year" in value_index:
             try:
                 ignore_year = bool(value_index["ignore_year"])
@@ -520,8 +520,8 @@ def _time_series_from_single_column(value_dict):
         else:
             repeat = "start" not in value_index
     else:
-        start = _TIME_SERIES_DEFAULT_START
-        resolution = _TIME_SERIES_DEFAULT_RESOLUTION
+        start = TIME_SERIES_DEFAULT_START
+        resolution = TIME_SERIES_DEFAULT_RESOLUTION
         ignore_year = True
         repeat = True
     if isinstance(resolution, str) or not isinstance(resolution, Sequence):
@@ -1362,7 +1362,7 @@ class TimeSeriesFixedResolution(TimeSeries):
         resolution = (cycle_count * self.resolution)[: len(self) - 1]
         resolution.insert(0, self._start)
         resolution_arr = np.array(resolution)
-        memoized_indexes = self._memoized_indexes[key] = resolution_arr.cumsum().astype(_NUMPY_DATETIME_DTYPE)
+        memoized_indexes = self._memoized_indexes[key] = resolution_arr.cumsum().astype(NUMPY_DATETIME_DTYPE)
         return memoized_indexes
 
     @property
@@ -1474,7 +1474,7 @@ class TimeSeriesVariableResolution(TimeSeries):
         if len(indexes) != len(values):
             raise ParameterValueFormatError("Length of values does not match length of indexes")
         if not isinstance(indexes, np.ndarray):
-            date_times = np.empty(len(indexes), dtype=_NUMPY_DATETIME_DTYPE)
+            date_times = np.empty(len(indexes), dtype=NUMPY_DATETIME_DTYPE)
             for i, index in enumerate(indexes):
                 if isinstance(index, DateTime):
                     date_times[i] = np.datetime64(index.value, NUMPY_DATETIME64_UNIT)

@@ -7,16 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Support for Python 3.13.
-- It is now possible to use the ``parsed_value`` field when adding or updating
-  parameter definition, paramater value and list value items.
-  ``parsed_value`` replaces the ``value`` and ``type`` (``default_value`` and ``default_type`` for parameter definitions)
-  fields and accepts the value directly so manual conversion using ``to_database()`` is not needed anymore.
-- Added a read-only field ``entity_class_byname`` to EntityClassItem (accessible from EntityItem as well)
-  which works analogously to ``entity_byname``.
-
 ### Changed
 
 - **Breaking change:** The required SQLAlchemy version is now 1.4.
@@ -28,6 +18,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     the session is opened automatically as needed.
   - The low-level query interface requires the session to be opened manually,
     i.e. all queries must be done inside a `with` block.
+  - All locking primitives have been removed from `DatabaseMapping`.
+    Clients are now responsible for preventing race conditions, deadlocks
+    and other multithreading/multiprocessing issues.
+
+### Added
+
+- Support for Python 3.13.
+- Experimental and incomplete [Pandas](pandas.pydata.org) dataframe support added
+  in the form of a new module `dataframes`. See the module documentation for tutorial.
+- Experimental and incomplete [Arrow](arrow.apache.org) support added in the form of `arrow_value` module.
+- It is now possible to use the `parsed_value` field when adding or updating
+  parameter definition, paramater value and list value items.
+  `parsed_value` replaces the `value` and `type` (`default_value` and `default_type` for parameter definitions)
+  fields and accepts the value directly so manual conversion using `to_database()` is not needed anymore.
+- Added a read-only field `entity_class_byname` to EntityClassItem (accessible from EntityItem as well)
+  which works analogously to `entity_byname`.
 
 ### Deprecated
 

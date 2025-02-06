@@ -25,6 +25,8 @@ dependencies = [
     "chardet >=4.0.0",
     "PyMySQL >=1.0.2",
     "psycopg2-binary",
+    "pyarrow >= 19.0",
+    "pandas >= 2.2.3",
 ]
 
 [project.urls]

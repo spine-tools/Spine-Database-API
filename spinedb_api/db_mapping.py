@@ -204,6 +204,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             self._session = None
         return False
 
+    def session(self):
+        """Returns current session or None if session is closed.
+
+        Returns:
+            Session: current session
+        """
+        return self._session
+
     @staticmethod
     def item_types():
         return [x for x in DatabaseMapping._sq_name_by_item_type if not item_factory(x).is_protected]
