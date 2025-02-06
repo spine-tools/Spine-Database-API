@@ -2067,6 +2067,27 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertIn("entity_class_byname", item_dict)
             self.assertEqual(item_dict["entity_class_byname"], ("Object", "Subject"))
 
+    def test_get_parameter_definition_items_resolves_list_values(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_parameter_value_list_item(name="Color"))
+                self._assert_success(
+                    db_map.add_list_value_item(parameter_value_list_name="Color", parsed_value="blue", index=1)
+                )
+                self._assert_success(db_map.add_entity_class_item(name="Cat"))
+                definition = self._assert_success(
+                    db_map.add_parameter_definition_item(
+                        name="color", entity_class_name="Cat", parameter_value_list_name="Color", parsed_value="blue"
+                    )
+                )
+                db_map.commit_session("Add parameter definition with list value as default value.")
+                self.assertEqual(definition["default_type"], "str")
+                self.assertEqual(definition._asdict()["default_type"], "str")
+            with DatabaseMapping(url) as db_map:
+                definition = db_map.get_parameter_definition_item(entity_class_name="Cat", name="color")
+                self.assertEqual(definition._asdict()["default_type"], "str")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

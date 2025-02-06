@@ -541,11 +541,18 @@ class ParameterItemBase(ParsedValueBase):
     def list_value_id(self):
         return self["list_value_id"]
 
+    def _asdict(self):
+        d = super()._asdict()
+        if d[self.type_key] == "list_value_ref":
+            d[self.type_key] = self.__getitem__(self.type_key)
+        return d
+
     def resolve(self):
         d = super().resolve()
         list_value_id = d.get("list_value_id")
         if list_value_id is not None:
             d[self.value_key] = to_database(list_value_id)[0]
+            d[self.type_key] = "list_value_ref"
         return d
 
     def polish(self):
