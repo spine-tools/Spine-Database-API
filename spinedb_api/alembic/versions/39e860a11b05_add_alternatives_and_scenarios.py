@@ -128,7 +128,7 @@ def upgrade():
     Session = sessionmaker(bind=op.get_bind())
     session = Session()
     Base = automap_base()
-    Base.prepare(op.get_bind(), reflect=True)
+    Base.prepare(op.get_bind())
     upgrade_commit_id = add_upgrade_comment_to_commits(session, Base)
     add_base_alternative(upgrade_commit_id, session, Base)
     commit_ids_for_types(upgrade_commit_id, session, Base)

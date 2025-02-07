@@ -29,58 +29,59 @@ class TestMigration(unittest.TestCase):
             db_url = URL.create("sqlite", database=os.path.join(temp_dir, "test_upgrade_content.sqlite"))
             engine = _create_first_spine_database(db_url)
             # Insert basic stuff
-            engine.execute(text("INSERT INTO object_class (id, name) VALUES (1, 'dog')"))
-            engine.execute(text("INSERT INTO object_class (id, name) VALUES (2, 'fish')"))
-            engine.execute(text("INSERT INTO object (id, class_id, name) VALUES (1, 1, 'pluto')"))
-            engine.execute(text("INSERT INTO object (id, class_id, name) VALUES (2, 1, 'scooby')"))
-            engine.execute(text("INSERT INTO object (id, class_id, name) VALUES (3, 2, 'nemo')"))
-            engine.execute(
-                text(
-                    "INSERT INTO relationship_class (id, name, dimension, object_class_id) VALUES (1, 'dog__fish', 0, 1)"
+            with engine.begin() as connection:
+                connection.execute(text("INSERT INTO object_class (id, name) VALUES (1, 'dog')"))
+                connection.execute(text("INSERT INTO object_class (id, name) VALUES (2, 'fish')"))
+                connection.execute(text("INSERT INTO object (id, class_id, name) VALUES (1, 1, 'pluto')"))
+                connection.execute(text("INSERT INTO object (id, class_id, name) VALUES (2, 1, 'scooby')"))
+                connection.execute(text("INSERT INTO object (id, class_id, name) VALUES (3, 2, 'nemo')"))
+                connection.execute(
+                    text(
+                        "INSERT INTO relationship_class (id, name, dimension, object_class_id) VALUES (1, 'dog__fish', 0, 1)"
+                    )
                 )
-            )
-            engine.execute(
-                text(
-                    "INSERT INTO relationship_class (id, name, dimension, object_class_id) VALUES (1, 'dog__fish', 1, 2)"
+                connection.execute(
+                    text(
+                        "INSERT INTO relationship_class (id, name, dimension, object_class_id) VALUES (1, 'dog__fish', 1, 2)"
+                    )
                 )
-            )
-            engine.execute(
-                text(
-                    "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (1, 1, 'pluto__nemo', 0, 1)"
+                connection.execute(
+                    text(
+                        "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (1, 1, 'pluto__nemo', 0, 1)"
+                    )
                 )
-            )
-            engine.execute(
-                text(
-                    "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (1, 1, 'pluto__nemo', 1, 3)"
+                connection.execute(
+                    text(
+                        "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (1, 1, 'pluto__nemo', 1, 3)"
+                    )
                 )
-            )
-            engine.execute(
-                text(
-                    "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (2, 1, 'scooby__nemo', 0, 2)"
+                connection.execute(
+                    text(
+                        "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (2, 1, 'scooby__nemo', 0, 2)"
+                    )
                 )
-            )
-            engine.execute(
-                text(
-                    "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (2, 1, 'scooby__nemo', 1, 3)"
+                connection.execute(
+                    text(
+                        "INSERT INTO relationship (id, class_id, name, dimension, object_id) VALUES (2, 1, 'scooby__nemo', 1, 3)"
+                    )
                 )
-            )
-            engine.execute(text("INSERT INTO parameter (id, object_class_id, name) VALUES (1, 1, 'breed')"))
-            engine.execute(text("INSERT INTO parameter (id, object_class_id, name) VALUES (2, 2, 'water')"))
-            engine.execute(
-                text("INSERT INTO parameter (id, relationship_class_id, name) VALUES (3, 1, 'relative_speed')")
-            )
-            engine.execute(
-                text("INSERT INTO parameter_value (parameter_id, object_id, value) VALUES (1, 1, '\"labrador\"')")
-            )
-            engine.execute(
-                text("INSERT INTO parameter_value (parameter_id, object_id, value) VALUES (1, 2, '\"big dane\"')")
-            )
-            engine.execute(
-                text("INSERT INTO parameter_value (parameter_id, relationship_id, value) VALUES (3, 1, '100')")
-            )
-            engine.execute(
-                text("INSERT INTO parameter_value (parameter_id, relationship_id, value) VALUES (3, 2, '-1')")
-            )
+                connection.execute(text("INSERT INTO parameter (id, object_class_id, name) VALUES (1, 1, 'breed')"))
+                connection.execute(text("INSERT INTO parameter (id, object_class_id, name) VALUES (2, 2, 'water')"))
+                connection.execute(
+                    text("INSERT INTO parameter (id, relationship_class_id, name) VALUES (3, 1, 'relative_speed')")
+                )
+                connection.execute(
+                    text("INSERT INTO parameter_value (parameter_id, object_id, value) VALUES (1, 1, '\"labrador\"')")
+                )
+                connection.execute(
+                    text("INSERT INTO parameter_value (parameter_id, object_id, value) VALUES (1, 2, '\"big dane\"')")
+                )
+                connection.execute(
+                    text("INSERT INTO parameter_value (parameter_id, relationship_id, value) VALUES (3, 1, '100')")
+                )
+                connection.execute(
+                    text("INSERT INTO parameter_value (parameter_id, relationship_id, value) VALUES (3, 2, '-1')")
+                )
             # Upgrade the db and check that our stuff is still there
             with DatabaseMapping(db_url, upgrade=True) as db_map:
                 object_classes = {x.id: x.name for x in db_map.query(db_map.object_class_sq)}

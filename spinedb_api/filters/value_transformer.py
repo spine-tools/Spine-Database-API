@@ -173,14 +173,12 @@ def _make_parameter_value_transforming_sq(db_map, state):
     # Little optimization: SqlAlchemy can infer types from the first row, so we need to use cast only on that.
     statements = [
         select(
-            [
-                cast(literal(transformed_rows[0][0]), Integer()).label("id"),
-                cast(literal(transformed_rows[0][1]), LargeBinary(LONGTEXT_LENGTH)).label("transformed_value"),
-                cast(literal(transformed_rows[0][2]), String()).label("transformed_type"),
-            ]
+            cast(literal(transformed_rows[0][0]), Integer()).label("id"),
+            cast(literal(transformed_rows[0][1]), LargeBinary(LONGTEXT_LENGTH)).label("transformed_value"),
+            cast(literal(transformed_rows[0][2]), String()).label("transformed_type"),
         )
     ]
-    statements += [select([literal(i), literal(v), literal(t)]) for i, v, t in transformed_rows[1:]]
+    statements += [select(literal(i), literal(v), literal(t)) for i, v, t in transformed_rows[1:]]
     temp_sq = union_all(*statements).alias("transformed_values")
     new_value = case((temp_sq.c.transformed_value != None, temp_sq.c.transformed_value), else_=subquery.c.value)
     new_type = case((temp_sq.c.transformed_type != None, temp_sq.c.transformed_type), else_=subquery.c.type)

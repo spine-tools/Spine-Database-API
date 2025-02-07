@@ -965,12 +965,14 @@ class ParameterValueMapping(ExportMapping):
                 and_(
                     db_map.parameter_value_sq.c.entity_id == db_map.entity_element_sq.c.element_id,
                     db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                    db_map.parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id,
                 )
             )
         return query.filter(
             and_(
                 db_map.parameter_value_sq.c.entity_id == db_map.wide_entity_sq.c.id,
                 db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                db_map.parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id,
             )
         )
 

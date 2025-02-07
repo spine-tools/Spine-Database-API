@@ -306,8 +306,7 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
     for object_class_id, entity_class_id in obj_cls_to_ent_cls.items():
         conn.execute(
             text("UPDATE object_class SET entity_class_id = :entity_class_id, type_id = 1 WHERE id = :object_class_id"),
-            entity_class_id=entity_class_id,
-            object_class_id=object_class_id,
+            {"entity_class_id": entity_class_id, "object_class_id": object_class_id},
         )
         conn.execute(
             text(
@@ -316,8 +315,10 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
             WHERE object_class_id = :object_class_id
             """
             ),
-            entity_class_id=entity_class_id,
-            object_class_id=object_class_id,
+            {
+                "entity_class_id": entity_class_id,
+                "object_class_id": object_class_id,
+            },
         )
     for relationship_class_id, entity_class_id in rel_cls_to_ent_cls.items():
         conn.execute(
@@ -327,14 +328,18 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
             WHERE relationship_class_id = :relationship_class_id
             """
             ),
-            entity_class_id=entity_class_id,
-            relationship_class_id=relationship_class_id,
+            {
+                "entity_class_id": entity_class_id,
+                "relationship_class_id": relationship_class_id,
+            },
         )
     for object_id, entity_id in obj_to_ent.items():
         conn.execute(
             text("UPDATE object SET entity_id = :entity_id, type_id = 1 WHERE id = :object_id"),
-            entity_id=entity_id,
-            object_id=object_id,
+            {
+                "entity_id": entity_id,
+                "object_id": object_id,
+            },
         )
         entity_class_id = ent_to_ent_cls[entity_id]
         conn.execute(
@@ -344,9 +349,11 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
             WHERE object_id = :object_id
             """
             ),
-            entity_id=entity_id,
-            entity_class_id=entity_class_id,
-            object_id=object_id,
+            {
+                "entity_id": entity_id,
+                "entity_class_id": entity_class_id,
+                "object_id": object_id,
+            },
         )
     for relationship_id, entity_id in rel_to_ent.items():
         entity_class_id = ent_to_ent_cls[entity_id]
@@ -357,9 +364,11 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
             WHERE relationship_id = :relationship_id
             """
             ),
-            entity_id=entity_id,
-            entity_class_id=entity_class_id,
-            relationship_id=relationship_id,
+            {
+                "entity_id": entity_id,
+                "entity_class_id": entity_class_id,
+                "relationship_id": relationship_id,
+            },
         )
     # Clean our potential mess.
     # E.g., I've seen parameter definitions with an invalid relationship_class_id for some reason...!
@@ -386,10 +395,12 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
             entity_id = :entity_id
         """
         ),
-        user=user,
-        date=date,
-        entity_class_id=entity_class_id,
-        entity_id=entity_id,
+        {
+            "user": user,
+            "date": date,
+            "entity_class_id": entity_class_id,
+            "entity_id": entity_id,
+        },
     )
 
 

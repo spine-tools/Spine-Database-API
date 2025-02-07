@@ -42,7 +42,7 @@ from .helpers import (
     _create_first_spine_database,
     compare_schemas,
     copy_database_bind,
-    create_new_spine_database_from_bind,
+    create_new_spine_database_from_engine,
     model_meta,
 )
 from .mapped_items import item_factory
@@ -269,7 +269,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                     folder_name = os.path.expanduser("~")
                     file_name = sa_url.database
                 database = os.path.join(folder_name, file_name + "." + v_err.current)
-                backup_url = str(URL("sqlite", database=database))
+                backup_url = str(URL.create("sqlite", database=database))
                 option_to_kwargs = {
                     "Backup and upgrade": {"upgrade": True, "backup_url": backup_url},
                     "Just upgrade": {"upgrade": True},
@@ -338,49 +338,50 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 current = migration_context.get_current_revision()
             except DatabaseError as error:
                 raise SpineDBAPIError(str(error)) from None
-            if current is None:
-                # No revision information. Check that the schema of the given url corresponds to a 'first' Spine db
-                # Otherwise we either raise or create a new Spine db at the url.
-                ref_engine = _create_first_spine_database("sqlite://")
-                if not compare_schemas(engine, ref_engine):
-                    if not create or inspect(engine).get_table_names():
-                        raise SpineDBAPIError(
-                            "Unable to determine db revision. "
-                            f"Please check that\n\n\t{sa_url}\n\nis the URL of a valid Spine db."
-                        )
-                    create_new_spine_database_from_bind(connection)
-                    return engine
-            config = Config()
-            config.set_main_option("script_location", "spinedb_api:alembic")
-            script = ScriptDirectory.from_config(config)
-            head = script.get_current_head()
-            if current != head:
-                if not upgrade:
-                    try:
-                        script.get_revision(current)  # Check if current revision is part of alembic rev. history
-                    except CommandError:
-                        # Can't find 'current' revision
-                        raise SpineDBVersionError(
-                            url=sa_url, current=current, expected=head, upgrade_available=False
-                        ) from None
-                    raise SpineDBVersionError(url=sa_url, current=current, expected=head)
-                if backup_url:
-                    dst_engine = create_engine(backup_url)
-                    copy_database_bind(dst_engine, engine)
+        if current is None:
+            # No revision information. Check that the schema of the given url corresponds to a 'first' Spine db
+            # Otherwise we either raise or create a new Spine db at the url.
+            ref_engine = _create_first_spine_database("sqlite://")
+            if not compare_schemas(engine, ref_engine):
+                if not create or inspect(engine).get_table_names():
+                    raise SpineDBAPIError(
+                        "Unable to determine db revision. "
+                        f"Please check that\n\n\t{sa_url}\n\nis the URL of a valid Spine db."
+                    )
+                create_new_spine_database_from_engine(engine)
+                return engine
+        config = Config()
+        config.set_main_option("script_location", "spinedb_api:alembic")
+        script = ScriptDirectory.from_config(config)
+        head = script.get_current_head()
+        if current != head:
+            if not upgrade:
+                try:
+                    script.get_revision(current)  # Check if current revision is part of alembic rev. history
+                except CommandError:
+                    # Can't find 'current' revision
+                    raise SpineDBVersionError(
+                        url=sa_url, current=current, expected=head, upgrade_available=False
+                    ) from None
+                raise SpineDBVersionError(url=sa_url, current=current, expected=head)
+            if backup_url:
+                dst_engine = create_engine(backup_url)
+                copy_database_bind(dst_engine, engine)
 
-                # Upgrade function
-                def upgrade_to_head(rev, context):
-                    return script._upgrade_revs("head", rev)
+            # Upgrade function
+            def upgrade_to_head(rev, context):
+                return script._upgrade_revs("head", rev)
 
-                with EnvironmentContext(
-                    config,
-                    script,
-                    fn=upgrade_to_head,
-                    as_sql=False,
-                    starting_rev=None,
-                    destination_rev="head",
-                    tag=None,
-                ) as environment_context:
+            with EnvironmentContext(
+                config,
+                script,
+                fn=upgrade_to_head,
+                as_sql=False,
+                starting_rev=None,
+                destination_rev="head",
+                tag=None,
+            ) as environment_context:
+                with engine.begin() as connection:
                     environment_context.configure(connection=connection, target_metadata=model_meta)
                     with environment_context.begin_transaction():
                         environment_context.run_migrations()

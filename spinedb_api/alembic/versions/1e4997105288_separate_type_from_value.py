@@ -26,7 +26,7 @@ def upgrade():
     Session = sessionmaker(bind=conn)
     session = Session()
     Base = automap_base()
-    Base.prepare(conn, reflect=True)
+    Base.prepare(conn)
     # Get items to update
     pd_items = _get_items(session, Base, "parameter_definition")
     pv_items = _get_items(session, Base, "parameter_value")
@@ -46,7 +46,7 @@ def upgrade():
         batch_op.add_column(sa.Column("value", sa.LargeBinary(LONGTEXT_LENGTH), server_default=sa.null()))
     # Do update items
     Base = automap_base()
-    Base.prepare(conn, reflect=True)
+    Base.prepare(conn)
     session.bulk_update_mappings(Base.classes.parameter_definition, pd_items)
     session.bulk_update_mappings(Base.classes.parameter_value, pv_items)
     session.bulk_update_mappings(Base.classes.parameter_value_list, pvl_items)
