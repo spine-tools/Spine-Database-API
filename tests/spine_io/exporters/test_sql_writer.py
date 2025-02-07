@@ -225,14 +225,11 @@ class TestSqlWriter(AssertSuccessTestCase):
                 db_map.commit_session("Add test data.")
                 out_path = Path(temp_dir, "out.sqlite")
                 out_engine = create_engine("sqlite:///" + str(out_path))
-                out_connection = out_engine.connect()
-                try:
+                with out_engine.begin() as out_connection:
                     metadata = MetaData()
                     object_table = Table("oc", metadata, Column("objects", String))
                     metadata.create_all(out_engine)
-                    out_connection.execute(object_table.insert(), objects="initial_object")
-                finally:
-                    out_connection.close()
+                    out_connection.execute(object_table.insert(), {"objects": "initial_object"})
                 root_mapping = entity_export(Position.table_name, 0)
                 root_mapping.child.header = "objects"
                 writer = SqlWriter(str(out_path), overwrite_existing=False)

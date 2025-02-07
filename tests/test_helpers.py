@@ -50,7 +50,8 @@ class TestCreateNewSpineEngine(unittest.TestCase):
     def test_different_schema(self):
         engine1 = create_new_spine_database("sqlite://")
         engine2 = create_new_spine_database("sqlite://")
-        engine2.execute(text("drop table entity"))
+        with engine2.begin() as connection:
+            connection.execute(text("drop table entity"))
         self.assertFalse(compare_schemas(engine1, engine2))
 
 

@@ -40,7 +40,7 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
             lv_id_by_pdef_id = {
                 x["parameter_definition_id"]: x["id"]
                 for x in conn.execute(
-                    sa.select([lv_table.c.id, f_table.c.parameter_definition_id])
+                    sa.select(lv_table.c.id, f_table.c.parameter_definition_id)
                     .where(tfm_table.c.parameter_value_list_id == lv_table.c.parameter_value_list_id)
                     .where(tfm_table.c.method_index == lv_table.c.index)
                     .where(tf_table.c.id == tfm_table.c.tool_feature_id)
@@ -55,7 +55,7 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
         lv_id_by_pdef_id = {
             x.parameter_definition_id: x.id
             for x in conn.execute(
-                sa.select([lv_table.c.id, lv_table.c.value, pd_table.c.id.label("parameter_definition_id")])
+                sa.select(lv_table.c.id, lv_table.c.value, pd_table.c.id.label("parameter_definition_id"))
                 .where(lv_table.c.parameter_value_list_id == pd_table.c.parameter_value_list_id)
                 .where(pd_table.c.name == "is_active")
                 .where(lv_table.c.value.in_((b'"yes"', b"true")))
@@ -69,11 +69,9 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
         {c: x._mapping[c] for c in ("entity_class_id", "parameter_definition_id", "list_value_id")}
         for x in conn.execute(
             sa.select(
-                [
-                    pd_table.c.entity_class_id,
-                    pd_table.c.id.label("parameter_definition_id"),
-                    list_value_id.label("list_value_id"),
-                ]
+                pd_table.c.entity_class_id,
+                pd_table.c.id.label("parameter_definition_id"),
+                list_value_id.label("list_value_id"),
             ).where(pd_table.c.id.in_(lv_id_by_pdef_id))
         )
     ]
@@ -128,7 +126,7 @@ def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_fe
             lv_id_by_pdef_id = {
                 x["parameter_definition_id"]: x["id"]
                 for x in conn.execute(
-                    sa.select([lv_table.c.id, f_table.c.parameter_definition_id])
+                    sa.select(lv_table.c.id, f_table.c.parameter_definition_id)
                     .where(tfm_table.c.parameter_value_list_id == lv_table.c.parameter_value_list_id)
                     .where(tfm_table.c.method_index == lv_table.c.index)
                     .where(tf_table.c.id == tfm_table.c.tool_feature_id)
@@ -144,7 +142,7 @@ def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_fe
         lv_id_by_pdef_id = {
             x.parameter_definition_id: x.id
             for x in conn.execute(
-                sa.select([lv_table.c.id, lv_table.c.value, pd_table.c.id.label("parameter_definition_id")])
+                sa.select(lv_table.c.id, lv_table.c.value, pd_table.c.id.label("parameter_definition_id"))
                 .where(lv_table.c.parameter_value_list_id == pd_table.c.parameter_value_list_id)
                 .where(pd_table.c.name == "is_active")
                 .where(lv_table.c.value.in_((b'"yes"', b"true")))
@@ -155,14 +153,14 @@ def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_fe
     is_active_pvals = [
         {c: x._mapping[c] for c in ("id", "entity_id", "alternative_id", "parameter_definition_id", "list_value_id")}
         for x in conn.execute(
-            sa.select([pv_table, list_value_id.label("list_value_id")]).where(
+            sa.select(pv_table, list_value_id.label("list_value_id")).where(
                 pv_table.c.parameter_definition_id.in_(lv_id_by_pdef_id)
             )
         )
     ]
     # Compute new entity_alternative items from 'is_active' parameter values,
     # where 'active' is True if the value of 'is_active' is the one from the tool_feature_method specification
-    current_ea_ids = {(x.entity_id, x.alternative_id): x.id for x in conn.execute(sa.select([ea_table]))}
+    current_ea_ids = {(x.entity_id, x.alternative_id): x.id for x in conn.execute(sa.select(ea_table))}
     new_ea_items = {
         (x["entity_id"], x["alternative_id"]): {
             "entity_id": x["entity_id"],

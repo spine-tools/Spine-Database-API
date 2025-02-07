@@ -49,11 +49,11 @@ from sqlalchemy import (
     true,
 )
 from sqlalchemy.dialects.mysql import DOUBLE, TINYINT
+from sqlalchemy.engine import Connection
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import FunctionElement, bindparam, cast
-from sqlalchemy.sql.selectable import Select
 from .exception import SpineDBAPIError, SpineDBVersionError
 
 SUPPORTED_DIALECTS = {
@@ -255,7 +255,7 @@ def copy_database_bind(dest_bind, source_bind, overwrite=True, upgrade=False, on
             if source_table.name in skip_tables:
                 continue
         dest_table = Table(source_table, dest_meta, autoload=True)
-        sel = select([source_table])
+        sel = select(source_table)
         result = source_bind.execute(sel)
         # Insert data from source into destination
         data = result.fetchall()
@@ -666,23 +666,26 @@ def create_new_spine_database(db_url):
         engine = create_engine(db_url)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
-    create_new_spine_database_from_bind(engine)
+    create_new_spine_database_from_engine(engine)
     return engine
 
 
-def create_new_spine_database_from_bind(bind):
+def create_new_spine_database_from_engine(engine):
     # Drop existing tables. This is a Spine db now...
     meta = MetaData()
-    meta.reflect(bind)
-    meta.drop_all(bind)
+    meta.reflect(engine)
+    meta.drop_all(engine)
     # Create new tables
     meta = create_spine_metadata()
     version = get_head_alembic_version()
     try:
-        meta.create_all(bind)
-        bind.execute(text("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')"))
-        bind.execute(text("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)"))
-        bind.execute(text(f"INSERT INTO alembic_version VALUES ('{version}')"))
+        meta.create_all(engine)
+        with engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO `commit` VALUES (1, 'Create the database', CURRENT_TIMESTAMP, 'spinedb_api')")
+            )
+            connection.execute(text("INSERT INTO alternative VALUES (1, 'Base', 'Base alternative', 1)"))
+            connection.execute(text(f"INSERT INTO alembic_version VALUES ('{version}')"))
     except DatabaseError as e:
         raise SpineDBAPIError(f"Unable to create Spine database: {e}") from None
 

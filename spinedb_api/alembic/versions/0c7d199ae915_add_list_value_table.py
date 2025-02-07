@@ -25,7 +25,7 @@ def upgrade():
     Session = sessionmaker(bind=conn)
     session = Session()
     Base = automap_base()
-    Base.prepare(conn, reflect=True)
+    Base.prepare(conn)
     pvl = session.query(Base.classes.parameter_value_list).all()
     tfm = session.query(Base.classes.tool_feature_method).all()
     session.query(Base.classes.parameter_value_list).delete()
@@ -81,7 +81,7 @@ def upgrade():
         for x in tfm
     ]
     NewBase = automap_base()
-    NewBase.prepare(conn, reflect=True)
+    NewBase.prepare(conn)
     session.bulk_insert_mappings(NewBase.classes.parameter_value_list, pvl_items)
     session.bulk_insert_mappings(NewBase.classes.list_value, lv_items)
     session.bulk_insert_mappings(NewBase.classes.tool_feature_method, tfm_items)

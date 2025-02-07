@@ -41,7 +41,7 @@ from tests.mock_helpers import AssertSuccessTestCase
 class TestAlternativeFilter(AssertSuccessTestCase):
     def test_alternative_filter_without_scenarios_or_alternatives(self):
         with TemporaryDirectory() as temp_dir:
-            url = URL("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
+            url = URL.create("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_without_alternatives(db_map)
             with DatabaseMapping(url) as db_map:
@@ -51,7 +51,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
 
     def test_alternative_filter_without_scenarios_or_alternatives_uncommitted_data(self):
         with TemporaryDirectory() as temp_dir:
-            url = URL("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
+            url = URL.create("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_without_alternatives(db_map, commit=False)
                 apply_alternative_filter_to_parameter_value_sq(db_map, alternatives=[])
@@ -61,7 +61,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
 
     def test_alternative_filter(self):
         with TemporaryDirectory() as temp_dir:
-            url = URL("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
+            url = URL.create("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_alternative(db_map)
             with DatabaseMapping(url) as db_map:
@@ -72,7 +72,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
 
     def test_alternative_filter_uncommitted_data(self):
         with TemporaryDirectory() as temp_dir:
-            url = URL("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
+            url = URL.create("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_alternative(db_map, commit=False)
                 with self.assertRaises(SpineDBAPIError):
@@ -83,7 +83,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
 
     def test_alternative_filter_from_dict(self):
         with TemporaryDirectory() as temp_dir:
-            url = URL("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
+            url = URL.create("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_alternative(db_map)
             with DatabaseMapping(url) as db_map:
@@ -123,7 +123,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             alternative_filter_from_dict(db_map, config)
             alternatives = db_map.query(db_map.alternative_sq).all()
             self.assertEqual(len(alternatives), 1)
-            self.assertEqual(alternatives[0]["name"], "visible")
+            self.assertEqual(alternatives[0].name, "visible")
 
     def test_filters_scenarios(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -151,7 +151,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             alternative_filter_from_dict(db_map, config)
             scenarios = db_map.query(db_map.scenario_sq).all()
             self.assertEqual(len(scenarios), 2)
-            self.assertCountEqual([s["name"] for s in scenarios], ["Empty", "Visible only"])
+            self.assertCountEqual([s.name for s in scenarios], ["Empty", "Visible only"])
 
     def test_filters_scenario_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -198,7 +198,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             alternative_filter_from_dict(db_map, config)
             entities = db_map.query(db_map.entity_sq).all()
             self.assertEqual(len(entities), 2)
-            self.assertCountEqual([e["name"] for e in entities], ["visible", "visible_by_default"])
+            self.assertCountEqual([e.name for e in entities], ["visible", "visible_by_default"])
 
     def test_filters_entities_in_class_that_isnt_active_by_default(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -229,7 +229,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             alternative_filter_from_dict(db_map, config)
             entities = db_map.query(db_map.entity_sq).all()
             self.assertEqual(len(entities), 1)
-            self.assertCountEqual([e["name"] for e in entities], ["visible"])
+            self.assertCountEqual([e.name for e in entities], ["visible"])
 
     def test_filters_multidimensional_entities_that_have_inactive_elements(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -254,7 +254,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             alternative_filter_from_dict(db_map, config)
             entities = db_map.query(db_map.entity_sq).all()
             self.assertEqual(len(entities), 2)
-            self.assertCountEqual([e["name"] for e in entities], ["visible", "visible__"])
+            self.assertCountEqual([e.name for e in entities], ["visible", "visible__"])
 
     def test_filters_parameters_values_of_inactive_entities(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -299,7 +299,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             alternative_filter_from_dict(db_map, config)
             values = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(values), 1)
-            self.assertEqual(from_database(values[0]["value"], values[0]["type"]), 2.3)
+            self.assertEqual(from_database(values[0].value, values[0].type), 2.3)
 
     def test_filters_parameters_values_by_active_by_default(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -336,7 +336,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             alternative_filter_from_dict(db_map, config)
             values = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(values), 1)
-            self.assertEqual(from_database(values[0]["value"], values[0]["type"]), -2.3)
+            self.assertEqual(from_database(values[0].value, values[0].type), -2.3)
 
     def test_filters_parameter_values_of_multidimensional_entities_inactive_by_elements(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -388,7 +388,7 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             alternative_filter_from_dict(db_map, config)
             values = db_map.query(db_map.parameter_value_sq).all()
             self.assertEqual(len(values), 1)
-            self.assertEqual(from_database(values[0]["value"], values[0]["type"]), -2.3)
+            self.assertEqual(from_database(values[0].value, values[0].type), -2.3)
 
     def test_entity_groups(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -547,13 +547,13 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             alternative_filter_from_dict(db_map, config)
             groups = db_map.query(db_map.entity_group_sq).all()
             self.assertEqual(len(groups), 5)
-            class_names = {row["id"]: row["name"] for row in db_map.query(db_map.entity_class_sq)}
-            entity_names = {row["id"]: row["name"] for row in db_map.query(db_map.entity_sq)}
+            class_names = {row.id: row.name for row in db_map.query(db_map.entity_class_sq)}
+            entity_names = {row.id: row.name for row in db_map.query(db_map.entity_sq)}
             data = {}
             for row in groups:
-                data.setdefault(class_names[row["entity_class_id"]], {}).setdefault(
-                    entity_names[row["entity_id"]], set()
-                ).add(entity_names[row["member_id"]])
+                data.setdefault(class_names[row.entity_class_id], {}).setdefault(
+                    entity_names[row.entity_id], set()
+                ).add(entity_names[row.member_id])
             expected = {
                 "Visible": {
                     "default_active_group": {"default_active", "active"},

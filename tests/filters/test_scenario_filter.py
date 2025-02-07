@@ -261,13 +261,13 @@ class TestScenarioFilterInMemory(AssertSuccessTestCase):
             apply_filter_stack(db_map, [scenario_filter_config("scen")])
             groups = db_map.query(db_map.entity_group_sq).all()
             self.assertEqual(len(groups), 5)
-            class_names = {row["id"]: row["name"] for row in db_map.query(db_map.entity_class_sq)}
-            entity_names = {row["id"]: row["name"] for row in db_map.query(db_map.entity_sq)}
+            class_names = {row.id: row.name for row in db_map.query(db_map.entity_class_sq)}
+            entity_names = {row.id: row.name for row in db_map.query(db_map.entity_sq)}
             data = {}
             for row in groups:
-                data.setdefault(class_names[row["entity_class_id"]], {}).setdefault(
-                    entity_names[row["entity_id"]], set()
-                ).add(entity_names[row["member_id"]])
+                data.setdefault(class_names[row.entity_class_id], {}).setdefault(
+                    entity_names[row.entity_id], set()
+                ).add(entity_names[row.member_id])
             expected = {
                 "Visible": {
                     "default_active_group": {"default_active", "active"},

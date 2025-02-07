@@ -1942,7 +1942,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_parameter_value_list_item(name="my_enum"))
                 db_map.commit_session("Add value list.")
-                list_id = db_map.query(db_map.parameter_value_list_sq).first()["id"]
+                list_id = db_map.query(db_map.parameter_value_list_sq).first().id
             with DatabaseMapping(url) as db_map:
                 self._assert_success(db_map.remove_item("parameter_value_list", list_id))
                 db_map.commit_session("Remove value list")
@@ -4631,8 +4631,8 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
             c1.join()
             c2.join()
             with DatabaseMapping(url) as db_map:
-                commit_msgs = {x["comment"] for x in db_map.query(db_map.commit_sq)}
-                entity_class_names = [x["name"] for x in db_map.query(db_map.entity_class_sq)]
+                commit_msgs = {x.comment for x in db_map.query(db_map.commit_sq)}
+                entity_class_names = [x.name for x in db_map.query(db_map.entity_class_sq)]
                 self.assertEqual(commit_msgs, {"Create the database", "one", "two"})
                 self.assertCountEqual(entity_class_names, ["cat", "dog"])
 
