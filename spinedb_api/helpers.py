@@ -49,7 +49,6 @@ from sqlalchemy import (
     true,
 )
 from sqlalchemy.dialects.mysql import DOUBLE, TINYINT
-from sqlalchemy.engine import Connection
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.ext.compiler import compiles
