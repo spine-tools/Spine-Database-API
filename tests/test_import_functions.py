@@ -146,7 +146,7 @@ class TestImportObject(AssertSuccessTestCase):
                 o.class_name: o.name
                 for o in db_map.query(
                     db_map.object_sq.c.name.label("name"), db_map.object_class_sq.c.name.label("class_name")
-                )
+                ).join(db_map.object_class_sq, db_map.object_sq.c.class_id == db_map.object_class_sq.c.id)
             }
             expected = {"object_class1": "object", "object_class2": "object"}
             self.assertEqual(objects, expected)
@@ -281,6 +281,10 @@ class TestImportRelationshipClassParameter(AssertSuccessTestCase):
                 for d in db_map.query(
                     db_map.relationship_parameter_definition_sq.c.parameter_name.label("name"),
                     db_map.relationship_class_sq.c.name.label("class_name"),
+                ).join(
+                    db_map.relationship_class_sq,
+                    db_map.relationship_parameter_definition_sq.c.relationship_class_id
+                    == db_map.relationship_class_sq.c.id,
                 )
             }
             expected = {"relationship_class": "new_parameter"}
@@ -311,6 +315,10 @@ class TestImportRelationshipClassParameter(AssertSuccessTestCase):
                 for d in db_map.query(
                     db_map.relationship_parameter_definition_sq.c.parameter_name.label("name"),
                     db_map.relationship_class_sq.c.name.label("class_name"),
+                ).join(
+                    db_map.relationship_class_sq,
+                    db_map.relationship_parameter_definition_sq.c.relationship_class_id
+                    == db_map.relationship_class_sq.c.id,
                 )
             }
             expected = {"relationship_class1": "new_parameter", "relationship_class2": "new_parameter"}

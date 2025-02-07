@@ -3225,7 +3225,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
                 .first()
                 .id
             )
-            nemo_row = db_map.query(db_map.object_sq).filter(db_map.entity_sq.c.name == "nemo").first()
+            nemo_row = db_map.query(db_map.object_sq).filter(db_map.object_sq.c.name == "nemo").first()
             value1, type1 = to_database("orange")
             value2, type2 = to_database("blue")
             db_map.add_items(
