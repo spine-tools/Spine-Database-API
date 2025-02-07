@@ -81,13 +81,13 @@ class TestLoadFilters(unittest.TestCase):
 
 
 class TestApplyFilterStack(unittest.TestCase):
-    _db_url = URL.create("sqlite")
+    _db_url = None
     _dir = None
 
     @classmethod
     def setUpClass(cls):
         cls._dir = TemporaryDirectory()
-        cls._db_url = cls._db_url.set(database=os.path.join(cls._dir.name, ".sqlite"))
+        cls._db_url = URL.create("sqlite", database=os.path.join(cls._dir.name, ".sqlite"))
         with DatabaseMapping(cls._db_url, create=True) as db_map:
             count, errors = import_object_classes(db_map, ("object_class",))
             if errors:
@@ -119,7 +119,7 @@ class TestApplyFilterStack(unittest.TestCase):
 
 
 class TestFilteredDatabaseMap(unittest.TestCase):
-    _db_url = URL("sqlite")
+    _db_url = URL.create("sqlite")
     _dir = None
 
     @classmethod

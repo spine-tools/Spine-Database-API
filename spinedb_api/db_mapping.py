@@ -269,7 +269,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                     folder_name = os.path.expanduser("~")
                     file_name = sa_url.database
                 database = os.path.join(folder_name, file_name + "." + v_err.current)
-                backup_url = str(URL("sqlite", database=database))
+                backup_url = str(URL.create("sqlite", database=database))
                 option_to_kwargs = {
                     "Backup and upgrade": {"upgrade": True, "backup_url": backup_url},
                     "Just upgrade": {"upgrade": True},
