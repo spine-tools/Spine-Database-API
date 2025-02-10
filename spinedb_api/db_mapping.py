@@ -176,7 +176,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             self.sa_url, create=create, upgrade=upgrade, backup_url=backup_url, sqlite_timeout=sqlite_timeout
         )
         # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
-        self.engine = create_engine("sqlite://", poolclass=NullPool) if self._memory else self._original_engine
+        self.engine = (
+            create_engine("sqlite://", poolclass=NullPool, future=True) if self._memory else self._original_engine
+        )
         listen(self.engine, "close", self._receive_engine_close)
         if self._memory:
             copy_database_bind(self.engine, self._original_engine)
@@ -321,7 +323,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         else:
             extra_args = {}
         try:
-            engine = create_engine(sa_url, **extra_args)
+            engine = create_engine(sa_url, future=True, **extra_args)
             with engine.connect():
                 pass
         except Exception as e:
@@ -365,7 +367,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                     ) from None
                 raise SpineDBVersionError(url=sa_url, current=current, expected=head)
             if backup_url:
-                dst_engine = create_engine(backup_url)
+                dst_engine = create_engine(backup_url, future=True)
                 copy_database_bind(dst_engine, engine)
 
             # Upgrade function
