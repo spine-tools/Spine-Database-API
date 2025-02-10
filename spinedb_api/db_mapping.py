@@ -196,7 +196,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             return None
         self._context_open_count += 1
         if self._session is None:
-            self._session = Session(self.engine)
+            self._session = Session(self.engine, future=True)
         return self
 
     def __exit__(self, _exc_type, _exc_val, _exc_tb):

@@ -9,10 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Module contains an SQL writer implementation.
-
-"""
+""" Module contains an SQL writer implementation. """
 from sqlalchemy import Boolean, Column, DateTime, Float, Integer, MetaData, String, Table, create_engine
 from sqlalchemy.orm import Session
 from spinedb_api import parameter_value
@@ -32,11 +29,11 @@ class SqlWriter(Writer):
         self._overwrite_existing = overwrite_existing
         if database.find("://") < 0:
             database = "sqlite:///" + database
-        self._engine = create_engine(database)
+        self._engine = create_engine(database, future=True)
         self._connection = self._engine.connect()
         self._metadata = MetaData()
         self._metadata.reflect(bind=self._engine)
-        self._session = Session(self._engine)
+        self._session = Session(self._engine, future=True)
         self._table_name = None
         self._column_names = None
         self._column_converters = None
