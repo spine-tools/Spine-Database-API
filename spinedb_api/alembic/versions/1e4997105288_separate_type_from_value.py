@@ -23,7 +23,7 @@ LONGTEXT_LENGTH = 2**32 - 1
 
 def upgrade():
     conn = op.get_bind()
-    Session = sessionmaker(bind=conn)
+    Session = sessionmaker(bind=conn, future=True)
     session = Session()
     Base = automap_base()
     Base.prepare(conn)

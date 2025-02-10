@@ -22,7 +22,7 @@ depends_on = None
 def upgrade():
     # Rescue current data
     conn = op.get_bind()
-    Session = sessionmaker(bind=conn)
+    Session = sessionmaker(bind=conn, future=True)
     session = Session()
     Base = automap_base()
     Base.prepare(conn)

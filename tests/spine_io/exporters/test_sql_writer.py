@@ -65,11 +65,11 @@ class TestSqlWriter(AssertSuccessTestCase):
                 writer = SqlWriter(str(out_path), overwrite_existing=True)
                 write(db_map, writer, root_mapping)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine("sqlite:///" + str(out_path), future=True)
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
-                    session = Session(engine)
+                    session = Session(engine, future=True)
                     self.assertIn("table 1", metadata.tables)
                     table = metadata.tables["table 1"]
                     column_names = [str(c) for c in table.c]
@@ -94,11 +94,11 @@ class TestSqlWriter(AssertSuccessTestCase):
                 writer = SqlWriter(str(out_path), overwrite_existing=True)
                 write(db_map, writer, root_mapping)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine("sqlite:///" + str(out_path), future=True)
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
-                    session = Session(engine)
+                    session = Session(engine, future=True)
                     self.assertIn("table 1", metadata.tables)
                     table = metadata.tables["table 1"]
                     column_names = [str(c) for c in table.c]
@@ -132,11 +132,11 @@ class TestSqlWriter(AssertSuccessTestCase):
                 writer = SqlWriter(str(out_path), overwrite_existing=True)
                 write(db_map, writer, root_mapping)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine("sqlite:///" + str(out_path), future=True)
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
-                    session = Session(engine)
+                    session = Session(engine, future=True)
                     self.assertIn("table 1", metadata.tables)
                     table = metadata.tables["table 1"]
                     column_names = [str(c) for c in table.c]
@@ -169,11 +169,11 @@ class TestSqlWriter(AssertSuccessTestCase):
                 writer = SqlWriter(str(out_path), overwrite_existing=True)
                 write(db_map, writer, root_mapping)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine("sqlite:///" + str(out_path), future=True)
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
-                    session = Session(engine)
+                    session = Session(engine, future=True)
                     self.assertIn("table 1", metadata.tables)
                     table = metadata.tables["table 1"]
                     column_names = [str(c) for c in table.c]
@@ -201,11 +201,11 @@ class TestSqlWriter(AssertSuccessTestCase):
                 write(db_map, writer, root_mapping1)
                 write(db_map, writer, root_mapping2)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine("sqlite:///" + str(out_path), future=True)
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
-                    session = Session(engine)
+                    session = Session(engine, future=True)
                     self.assertIn("oc", metadata.tables)
                     table = metadata.tables["oc"]
                     column_names = [str(c) for c in table.c]
@@ -235,11 +235,11 @@ class TestSqlWriter(AssertSuccessTestCase):
                 writer = SqlWriter(str(out_path), overwrite_existing=False)
                 write(db_map, writer, root_mapping)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine("sqlite:///" + str(out_path), future=True)
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
-                    session = Session(engine)
+                    session = Session(engine, future=True)
                     self.assertIn("oc", metadata.tables)
                     table = metadata.tables["oc"]
                     column_names = [str(c) for c in table.c]

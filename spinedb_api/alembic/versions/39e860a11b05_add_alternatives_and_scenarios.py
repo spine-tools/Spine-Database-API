@@ -125,7 +125,7 @@ def alter_tables_after_update():
 
 def upgrade():
     create_new_tables()
-    Session = sessionmaker(bind=op.get_bind())
+    Session = sessionmaker(bind=op.get_bind(), future=True)
     session = Session()
     Base = automap_base()
     Base.prepare(op.get_bind())
