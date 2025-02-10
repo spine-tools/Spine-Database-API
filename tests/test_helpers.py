@@ -11,18 +11,23 @@
 ######################################################################################################################
 """Unit tests for helpers.py."""
 
-
+import pathlib
+from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy import text
+from spinedb_api import DatabaseMapping
 from spinedb_api.helpers import (
     compare_schemas,
+    copy_database,
     create_new_spine_database,
     get_head_alembic_version,
     name_from_dimensions,
     name_from_elements,
     remove_credentials_from_url,
     string_to_bool,
+    vacuum,
 )
+from tests.mock_helpers import AssertSuccessTestCase
 
 
 class TestNameFromElements(unittest.TestCase):
@@ -97,6 +102,31 @@ class TestStringToBool(unittest.TestCase):
 
     def test_raises_value_error(self):
         self.assertRaises(ValueError, string_to_bool, "no truth in this")
+
+
+class TestVacuum(unittest.TestCase):
+    def test_vacuum(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + str(pathlib.Path(temp_dir) / "db.sqlite")
+            create_new_spine_database(url)
+            freed, units = vacuum(url)
+            self.assertEqual(freed, 0)
+            self.assertEqual(units, "bytes")
+
+
+class TestCopyDatabase(AssertSuccessTestCase):
+    def test_copies_correctly(self):
+        with TemporaryDirectory() as temp_dir:
+            source_url = "sqlite:///" + str(pathlib.Path(temp_dir) / "source.sqlite")
+            with DatabaseMapping(source_url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="ForgottenAtAGasStation"))
+                db_map.commit_session("Add some data.")
+            target_url = "sqlite:///" + str(pathlib.Path(temp_dir) / "destination.sqlite")
+            create_new_spine_database(target_url)
+            copy_database(target_url, source_url)
+            with DatabaseMapping(target_url) as db_map:
+                entity_class = db_map.get_entity_class_item(name="ForgottenAtAGasStation")
+                self.assertTrue(bool(entity_class))
 
 
 if __name__ == "__main__":

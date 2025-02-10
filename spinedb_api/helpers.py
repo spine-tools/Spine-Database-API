@@ -171,13 +171,13 @@ def _parse_metadata(metadata):
 
 
 def _is_head(db_url, upgrade=False):
-    """Check whether or not db_url is at the head revision.
+    """Check whether db_url is at the head revision.
 
     Args:
         db_url (str): database url
         upgrade (Bool): if True, upgrade db to head
     """
-    engine = create_engine(db_url)
+    engine = create_engine(db_url, future=True)
     return is_head_engine(engine, upgrade=upgrade)
 
 
@@ -220,21 +220,20 @@ def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tabl
     """
     if not _is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)
-    source_engine = create_engine(source_url)
-    dest_engine = create_engine(dest_url)
+    source_engine = create_engine(source_url, future=True)
+    dest_engine = create_engine(dest_url, future=True)
     copy_database_bind(
         dest_engine,
         source_engine,
         overwrite=overwrite,
-        upgrade=upgrade,
         only_tables=only_tables,
         skip_tables=skip_tables,
     )
 
 
-def copy_database_bind(dest_bind, source_bind, overwrite=True, upgrade=False, only_tables=(), skip_tables=()):
-    source_meta = MetaData(bind=source_bind)
-    source_meta.reflect()
+def copy_database_bind(dest_bind, source_bind, overwrite=True, only_tables=(), skip_tables=()):
+    source_meta = MetaData()
+    source_meta.reflect(bind=source_bind)
     if inspect(dest_bind).get_table_names():
         if not overwrite:
             raise SpineDBAPIError(
@@ -243,28 +242,21 @@ def copy_database_bind(dest_bind, source_bind, overwrite=True, upgrade=False, on
                 "to the function call."
             )
         source_meta.drop_all(dest_bind)
-    dest_meta = MetaData(bind=dest_bind)
-    for source_table in source_meta.sorted_tables:
-        # Create table in dest
-        source_table.create(dest_bind)
-        if source_table.name not in ("alembic_version", "next_id"):
-            # Skip tables according to `only_tables` and `skip_tables`
-            if only_tables and source_table.name not in only_tables:
+    for table in source_meta.sorted_tables:
+        table.create(dest_bind)
+        if table.name not in ("alembic_version", "next_id"):
+            if (only_tables and table.name not in only_tables) or table.name in skip_tables:
                 continue
-            if source_table.name in skip_tables:
-                continue
-        dest_table = Table(source_table, dest_meta, autoload=True)
-        sel = select(source_table)
-        result = source_bind.execute(sel)
-        # Insert data from source into destination
-        data = result.fetchall()
+        with source_bind.begin() as connection:
+            result = connection.execute(select(table))
+            data = list(row._asdict() for row in result.fetchall())
         if not data:
             continue
-        ins = dest_table.insert()
-        try:
-            dest_bind.execute(ins, data)
-        except IntegrityError as e:
-            warnings.warn(f"Skipping table {source_table.name}: {e.orig.args}")
+        with dest_bind.begin() as connection:
+            try:
+                connection.execute(table.insert(), data)
+            except IntegrityError as e:
+                warnings.warn(f"Skipping table {table.name}: {e.orig.args}")
 
 
 def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
@@ -298,7 +290,7 @@ def schema_dict(insp):
 
 def is_empty(db_url):
     try:
-        engine = create_engine(db_url)
+        engine = create_engine(db_url, future=True)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     insp = inspect(engine)
@@ -662,7 +654,7 @@ def create_new_spine_database(db_url):
         Engine
     """
     try:
-        engine = create_engine(db_url)
+        engine = create_engine(db_url, future=True)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     create_new_spine_database_from_engine(engine)
@@ -694,7 +686,7 @@ def _create_first_spine_database(db_url):
     Used internally.
     """
     try:
-        engine = create_engine(db_url)
+        engine = create_engine(db_url, future=True)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     # Drop existing tables. This is a Spine db now...
@@ -898,11 +890,12 @@ def fix_name_ambiguity(input_list, offset=0, prefix=""):
 
 
 def vacuum(url):
-    engine = create_engine(url)
+    engine = create_engine(url, future=True)
     if not engine.url.drivername.startswith("sqlite"):
         return 0, "bytes"
     size_before = os.path.getsize(engine.url.database)
-    engine.execute("vacuum")
+    with engine.begin() as connection:
+        connection.execute(text("vacuum"))
     freed = size_before - os.path.getsize(engine.url.database)
     k = 0
     units = ("bytes", "KB", "MB", "GB", "TB")
