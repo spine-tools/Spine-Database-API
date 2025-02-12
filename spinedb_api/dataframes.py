@@ -80,7 +80,7 @@ proven that the target entities, parameter definitions and alternatives exist al
 For example, using ``df`` from above::
 
     with DatabaseMapping(target_url) as db_map:
-        add_or_update_from(df, target_url)
+        add_or_update_from(df, db_map)
         db_map.commit_session("Added unit_capacity value.")
 
 .. warning::

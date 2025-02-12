@@ -9,7 +9,17 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Provides a database query manipulator that applies mathematical transformations to parameter values. """
+"""
+This module provides a manipulator filter that applies mathematical transformations to parameter values.
+
+Value transformer supports four types of instructions:
+
+- ``multiply`` multiplies the value by given constant
+- ``negate`` negates the value
+- ``invert`` inverts the value
+- ``generate_index`` uses a Python expression to reindex an indexed value
+"""
+from collections.abc import Sequence
 from functools import partial
 from numbers import Number
 from sqlalchemy import Integer, LargeBinary, String, case, literal
@@ -20,6 +30,8 @@ from ..parameter_value import IndexedValue, Map, from_database, to_database
 
 VALUE_TRANSFORMER_TYPE = "value_transformer"
 VALUE_TRANSFORMER_SHORTHAND_TAG = "value_transform"
+
+__all__ = ("value_transformer_config",)
 
 
 def apply_value_transform_to_parameter_value_sq(db_map, instructions):
@@ -36,16 +48,19 @@ def apply_value_transform_to_parameter_value_sq(db_map, instructions):
     db_map.override_parameter_value_sq_maker(transform)
 
 
-def value_transformer_config(instructions):
+def value_transformer_config(instructions: dict[str, dict[str, Sequence[dict]]]) -> dict:
     """
     Creates a config dict for transformer.
 
-    Args:
-        instructions (dict): mapping from entity class name to mapping from parameter name to list of
-            instructions
+    The ``instructions`` parameter is a dictionary mapping
+    entity class name -> parameter name -> list of instruction dicts
 
-    Returns:
-        dict: transformer configuration
+    Example::
+
+        config_dict = value_transformer_config({"unit": {"invest_cost": [{"operation": "multiply", "rhs": 100.0}]}})
+        url = append_filter_config(url, config_dict)
+        with DatabaseMapping(url) as db_map:
+            ...
     """
     return {"type": VALUE_TRANSFORMER_TYPE, "instructions": instructions}
 

@@ -23,8 +23,8 @@ sys.path.insert(0, os.path.abspath(root_path))
 # -- Project information -----------------------------------------------------
 
 project = "Spine Database API"
-author = 'Spine project consortium'
-copyright = '2017-2021 {}'.format(author)
+author = "Spine project consortium, Spine Database API contributors"
+copyright = "2017-2022 {}".format(author)
 
 # The short X.Y version
 from spinedb_api import __version__ as spinedb_api_version
@@ -44,15 +44,15 @@ release = spinedb_api_version
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.todo',
-    'sphinx.ext.coverage',
-    'sphinx.ext.ifconfig',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.intersphinx',
-    'recommonmark',
-    'autoapi.extension',
+    "sphinx.ext.todo",
+    "sphinx.ext.coverage",
+    "sphinx.ext.ifconfig",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.githubpages",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.intersphinx",
+    "recommonmark",
+    "autoapi.extension",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -64,7 +64,7 @@ templates_path = ["_templates"]
 # source_suffix = ['.rst', '.md']
 # source_suffix = ".rst"
 # (note: since Sphinx 1.8 this is a dict rather than a list)
-source_suffix = {'.rst': 'restructuredtext', '.md': 'markdown'}  # support provided via the 'recommonmark' extension
+source_suffix = {".rst": "restructuredtext", ".md": "markdown"}  # support provided via the 'recommonmark' extension
 
 
 # The master toctree document.
@@ -83,30 +83,29 @@ language = "en"
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = "sphinx"
 
 # Settings for Sphinx AutoAPI
-autoapi_options = ['members', 'show-module-summary', 'show-inheritance']
+autoapi_options = ["members", "show-module-summary", "show-inheritance"]
 autoapi_python_class_content = "both"
 autoapi_add_toctree_entry = True
 autoapi_root = "autoapi"
-autoapi_dirs = ['../../spinedb_api']  # package to be documented
+autoapi_dirs = ["../../spinedb_api"]  # package to be documented
 autoapi_ignore = [
-    '*/spinedb_api/alembic/*',
-    '*/spinedb_api/export_mapping/*',
-    '*/spinedb_api/import_mapping/*',
-    '*/spinedb_api/spine_io/*',
-    '*/spinedb_api/compatibility*',
-    '*/spinedb_api/db_mapping_helpers*',
-    '*/spinedb_api/exception*',
-    '*/spinedb_api/export_functions*',
-    '*/spinedb_api/helpers*',
-    '*/spinedb_api/mapping*',
-    '*/spinedb_api/perfect_split*',
-    '*/spinedb_api/purge*',
-    '*/spinedb_api/query*',
-    '*/spinedb_api/spine_db_client*',
-    '*/spinedb_api/spine_db_server*',
+    "*/spinedb_api/alembic/*",
+    "*/spinedb_api/arrow_value*",
+    "*/spinedb_api/compatibility*",
+    "*/spinedb_api/db_mapping_helpers*",
+    "*/spinedb_api/exception*",
+    "*/spinedb_api/export_functions*",
+    "*/spinedb_api/graph_layout_generator*",
+    "*/spinedb_api/helpers*",
+    "*/spinedb_api/mapping*",
+    "*/spinedb_api/perfect_split*",
+    "*/spinedb_api/spine_db_client*",
+    "*/spinedb_api/spine_db_server*",
+    "*/spinedb_api/temp_id*",
+    "*/spinedb_api/version*",
 ]  # ignored modules
 
 
@@ -125,7 +124,7 @@ def _process_docstring(app, what, name, obj, options, lines):
 
 def _db_mapping_schema_lines():
     def type_(f_dict):
-        return f_dict['type'].__name__ + (', optional' if f_dict.get('optional', False) else '')
+        return f_dict["type"].__name__ + (", optional" if f_dict.get("optional", False) else "")
 
     lines = [
         ".. _db_mapping_schema:",
@@ -230,7 +229,13 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "SpineDatabaseAPI.tex", "Spine Database API Documentation", "Spine project consortium", "manual")
+    (
+        master_doc,
+        "SpineDatabaseAPI.tex",
+        "Spine Database API Documentation",
+        "Spine project consortium, Spine Database API contributors",
+        "manual",
+    )
 ]
 
 
@@ -253,8 +258,8 @@ texinfo_documents = [
         "Spine Database API Documentation",
         author,
         "SpineDatabaseAPI",
-        "One line description of project.",
-        "Miscellaneous",
+        "Database interface to Spine generic data model.",
+        "",
     )
 ]
 
@@ -283,8 +288,8 @@ epub_exclude_files = ["search.html"]
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/", None),
-    "sqlalchemy": ("https://docs.sqlalchemy.org/en/13/", None)
+    "python": ("https://docs.python.org/3/", None),
+    "sqlalchemy": ("https://docs.sqlalchemy.org/en/14/", None),
 }
 
 # -- Options for todo extension ----------------------------------------------

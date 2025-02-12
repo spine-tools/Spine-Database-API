@@ -9,10 +9,13 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Tools and utilities to work with filters, manipulators and database URLs. """
+""" This module contains tools and utilities to work with filters. """
+from __future__ import annotations
+from collections.abc import Iterable
 from itertools import dropwhile, takewhile
 from json import dump, load
 import sys
+from typing import Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 from .alternative_filter import (
     ALTERNATIVE_FILTER_SHORTHAND_TAG,
@@ -60,18 +63,14 @@ from .value_transformer import (
     value_transformer_shorthand_to_config,
 )
 
+__all__ = ("append_filter_config", "apply_filter_stack", "clear_filter_configs", "filter_configs", "name_from_dict")
+
 FILTER_IDENTIFIER = "spinedbfilter"
 SHORTHAND_TAG = "cfg:"
 
 
-def apply_filter_stack(db_map, stack):
-    """
-    Applies stack of filters and manipulator to given database map.
-
-    Args:
-        db_map (DatabaseMapping): a database map
-        stack (list): a stack of database filters and manipulators
-    """
+def apply_filter_stack(db_map: DatabaseMapping, stack: Iterable[dict]) -> None:
+    """Applies filters given as config dicts in ``stack`` to a database map."""
     appliers = {
         ALTERNATIVE_FILTER_TYPE: alternative_filter_from_dict,
         ENTITY_CLASS_RENAMER_TYPE: entity_class_renamer_from_dict,
@@ -134,18 +133,11 @@ def filter_config(filter_type, value):
     }[filter_type](value)
 
 
-def append_filter_config(url, config):
+def append_filter_config(url: str, config: Union[dict, str]) -> str:
     """
     Appends a filter config to given url.
 
-    ``config`` can either be a configuration dictionary or a path to a JSON file that contains the dictionary.
-
-    Args:
-        url (str): base URL
-        config (str or dict): path to the config file or config as a ``dict``.
-
-    Returns:
-        str: the modified URL
+    ``config`` can either be a config dict, a shorthand, or a path to a JSON file that contains the dictionary.
     """
     url = urlparse(url)
     query = parse_qs(url.query)
@@ -158,16 +150,8 @@ def append_filter_config(url, config):
     return _unparse_url_ensuring_correct_slashes(url)
 
 
-def filter_configs(url):
-    """
-    Returns filter configs or file paths from given URL.
-
-    Args:
-        url (str): a URL
-
-    Returns:
-        list: a list of filter configs
-    """
+def filter_configs(url: str) -> list[dict]:
+    """Returns filter config dicts or file paths to config JSON from given URL."""
     parsed = urlparse(url)
     query = parse_qs(parsed.query)
     try:
@@ -209,16 +193,8 @@ def pop_filter_configs(url):
     return parsed_filters, _unparse_url_ensuring_correct_slashes(parsed)
 
 
-def clear_filter_configs(url):
-    """
-    Removes filter configuration queries from given URL.
-
-    Args:
-        url (str): a URL
-
-    Returns:
-        str: a cleared URL
-    """
+def clear_filter_configs(url: str) -> str:
+    """Removes filters from given URL returning the cleared URL."""
     parsed = urlparse(url)
     query = parse_qs(parsed.query)
     try:
@@ -301,16 +277,8 @@ def _parse_shorthand(shorthand):
     return shorthand_parsers[tag](shorthand)
 
 
-def name_from_dict(config):
-    """
-    Returns scenario name from filter config.
-
-    Args:
-        config (dict): filter configuration
-
-    Returns:
-        str: name or None if ``config`` is not a valid 'name' filter configuration
-    """
+def name_from_dict(config: dict) -> Optional[str]:
+    """Returns scenario name from scenario filter config dict or None for other filter types."""
     func = {SCENARIO_FILTER_TYPE: scenario_name_from_dict}.get(config["type"])
     if func is None:
         return None

@@ -9,9 +9,15 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Provides a database query manipulator that renames database items. """
+"""
+This module provides a manipulator filter that renames database items.
+
+Currently, entity classes and parameter can be renamed.
+"""
 from functools import partial
 from sqlalchemy import case
+
+__all__ = ("entity_class_renamer_config", "parameter_renamer_config")
 
 ENTITY_CLASS_RENAMER_TYPE = "entity_class_renamer"
 ENTITY_CLASS_RENAMER_SHORTHAND_TAG = "entity_class_rename"
@@ -32,15 +38,11 @@ def apply_renaming_to_entity_class_sq(db_map, name_map):
     db_map.override_entity_class_sq_maker(renaming)
 
 
-def entity_class_renamer_config(**renames):
+def entity_class_renamer_config(**renames) -> dict:
     """
-    Creates a config dict for renamer.
+    Creates a config dict for entity class renamer.
 
-    Args:
-        **renames: keyword is the old name, value is the new name
-
-    Returns:
-        dict: renamer configuration
+    ``renames`` is a mapping from old parameter name to the new one.
     """
     return {"type": ENTITY_CLASS_RENAMER_TYPE, "name_map": dict(renames)}
 
@@ -102,15 +104,11 @@ def apply_renaming_to_parameter_definition_sq(db_map, name_map):
     db_map.override_parameter_definition_sq_maker(renaming)
 
 
-def parameter_renamer_config(renames):
+def parameter_renamer_config(renames: dict[str, str]) -> dict:
     """
-    Creates a config dict for renamer.
+    Creates a config dict for parameter definition renamer.
 
-    Args:
-        renames (dict): mapping from entity class name to mapping from parameter name to new name
-
-    Returns:
-        dict: renamer configuration
+    ``renames`` is a mapping from old parameter name to the new one.
     """
     return {"type": PARAMETER_RENAMER_TYPE, "name_map": renames}
 

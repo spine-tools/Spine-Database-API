@@ -9,12 +9,14 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Provides functions to apply filtering based on scenarios to subqueries. """
+""" This module provides the scenario filter. """
 
 from functools import partial
 from sqlalchemy import and_, desc, func, or_
 from ..exception import SpineDBAPIError
 from .query_utils import filter_by_active_elements
+
+__all__ = ("scenario_filter_config",)
 
 SCENARIO_FILTER_TYPE = "scenario_filter"
 SCENARIO_SHORTHAND_TAG = "scenario"
@@ -47,16 +49,8 @@ def apply_scenario_filter_to_subqueries(db_map, scenario):
     db_map.override_scenario_alternative_sq_maker(make_scenario_alternative_sq)
 
 
-def scenario_filter_config(scenario):
-    """
-    Creates a config dict for scenario filter.
-
-    Args:
-        scenario (str): scenario name
-
-    Returns:
-        dict: filter configuration
-    """
+def scenario_filter_config(scenario: str) -> dict:
+    """Creates a config dict for scenario filter."""
     return {"type": SCENARIO_FILTER_TYPE, "scenario": scenario}
 
 

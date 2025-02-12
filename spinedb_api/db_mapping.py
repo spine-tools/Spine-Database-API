@@ -1011,12 +1011,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         unused_metadata_ids = {x["id"] for x in self.mapped_table("metadata").valid_values()} - used_metadata_ids
         self.remove_items("metadata", *unused_metadata_ids)
 
-    def get_filter_configs(self):
-        """Returns the filters from this mapping's URL.
-
-        Returns:
-            list(dict):
-        """
+    def get_filter_configs(self) -> list[dict]:
+        """Returns the config dicts of filters applied to this database mapping."""
         return self._filter_configs
 
 
