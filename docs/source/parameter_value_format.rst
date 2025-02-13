@@ -9,7 +9,7 @@ Parameter value format
 
    Client code should almost never convert parameter values to JSON and back manually.
    For most cases, JSON should be considered an implementation detail.
-   Clients should rather use :func:`.to_database` and :func:`.from_database` which shield
+   Clients should rather use :func:`spinedb_api.parameter_value.to_database` and :func:`spinedb_api.parameter_value.from_database` which shield
    from abrupt changes in the database representation.
 
 Parameter values are specified using JSON in the ``value`` field of the ``parameter_value`` table.

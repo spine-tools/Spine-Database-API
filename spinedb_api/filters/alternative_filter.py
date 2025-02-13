@@ -9,11 +9,19 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Provides functions to apply filtering based on alternatives to parameter value subqueries. """
+"""
+This module provides the alternative filter.
+
+Alternative filter is defined by selected alternatives.
+It lets everything depending on the selected alternatives through and filters out the rest.
+"""
+from collections.abc import Iterable
 from functools import partial
 from sqlalchemy import and_, or_
 from ..exception import SpineDBAPIError
 from .query_utils import filter_by_active_elements
+
+__all__ = ("alternative_filter_config",)
 
 ALTERNATIVE_FILTER_TYPE = "alternative_filter"
 ALTERNATIVE_FILTER_SHORTHAND_TAG = "alternatives"
@@ -46,16 +54,8 @@ def apply_alternative_filter_to_parameter_value_sq(db_map, alternatives):
     db_map.override_parameter_value_sq_maker(make_parameter_value_sq)
 
 
-def alternative_filter_config(alternatives):
-    """
-    Creates a config dict for alternative filter.
-
-    Args:
-        alternatives (Iterable of str): alternative names
-
-    Returns:
-        dict: filter configuration
-    """
+def alternative_filter_config(alternatives: Iterable[str]) -> dict:
+    """Creates a config dict for alternative filter from a list of selected alternative names."""
     return {"type": ALTERNATIVE_FILTER_TYPE, "alternatives": list(alternatives)}
 
 

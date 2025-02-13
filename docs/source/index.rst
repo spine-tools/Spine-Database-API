@@ -16,9 +16,10 @@ Welcome to Spine Database API's documentation!
 
    front_matter
    tutorial
+   db_mapping_schema
+   filters
    parameter_value_format
    metadata
-   db_mapping_schema
    autoapi/index
 
 Indices and tables

@@ -10,9 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-A package to interact with Spine DBs.
-"""
+""" A package to interact with Spine DBs. """
 
 from .db_mapping import DatabaseMapping
 from .exception import (
