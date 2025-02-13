@@ -143,7 +143,7 @@ def crawl_map_uneven(
     typed_xs = []
     ys = []
     max_nested_depth = 0
-    index_names = root_index_names + [loaded_value.get("index_name", "x")]
+    index_names = root_index_names + [loaded_value.get("index_name", f"col_{depth}")]
     index_metadata = {}
     deepest_nested_index_names = []
     index_type = loaded_value["index_type"]

@@ -78,6 +78,33 @@ class TestToDataframe(AssertSuccessTestCase):
             )
             self.assertTrue(dataframe.equals(expected))
 
+    def test_unnamed_indexes_are_named_as_col_x(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="fork", entity_class_name="Object"))
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Object",
+                    entity_byname=("fork",),
+                    parameter_definition_name="y",
+                    alternative_name="Base",
+                    parsed_value=Map(["A"], [1.1]),
+                )
+            )
+            dataframe = spine_df.to_dataframe(value_item)
+            expected = pd.DataFrame(
+                {
+                    "entity_class_name": pd.Series(["Object"], dtype="category"),
+                    "Object": pd.Series(["fork"], dtype="string"),
+                    "parameter_definition_name": pd.Series(["y"], dtype="category"),
+                    "alternative_name": pd.Series(["Base"], dtype="category"),
+                    "col_1": ["A"],
+                    "value": [1.1],
+                }
+            )
+            self.assertTrue(dataframe.equals(expected))
+
     def test_time_series_value(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="Object"))

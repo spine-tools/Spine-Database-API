@@ -64,8 +64,8 @@ class TestFromDatabaseForMaps(unittest.TestCase):
         value, value_type = parameter_value.to_database(parameter_value.Map([], [], str))
         map_ = arrow_value.from_database(value, value_type)
         self.assertEqual(len(map_), 0)
-        self.assertEqual(map_.column_names, ["x", "value"])
-        self.assertEqual(map_.column("x").type, pyarrow.string())
+        self.assertEqual(map_.column_names, ["col_1", "value"])
+        self.assertEqual(map_.column("col_1").type, pyarrow.string())
         self.assertEqual(map_.column("value").type, pyarrow.null())
 
     def test_string_to_string_map_with_index_name(self):
@@ -141,7 +141,7 @@ class TestFromDatabaseForMaps(unittest.TestCase):
         )
         map_ = arrow_value.from_database(value, value_type)
         self.assertEqual(len(map_), 6)
-        self.assertEqual(map_.column_names, ["main index", "nested index", "x", "t", "value"])
+        self.assertEqual(map_.column_names, ["main index", "nested index", "col_3", "t", "value"])
         self.assertEqual(map_.column("main index").type, pyarrow.string())
         self.assertEqual(
             map_.column("main index").to_pylist(),
@@ -149,7 +149,7 @@ class TestFromDatabaseForMaps(unittest.TestCase):
         )
         self.assertEqual(map_.column("nested index").to_pylist(), [None, 11.0, "ts", "ts", "no ts", "key"])
         self.assertEqual(
-            map_.column("x").to_pylist(),
+            map_.column("col_3").to_pylist(),
             [
                 None,
                 None,
@@ -191,7 +191,7 @@ class TestFromDatabaseForMaps(unittest.TestCase):
         )
         map_ = arrow_value.from_database(value, value_type)
         self.assertEqual(len(map_), 6)
-        self.assertEqual(map_.column_names, ["main index", "nested index", "x", "value"])
+        self.assertEqual(map_.column_names, ["main index", "nested index", "col_3", "value"])
         self.assertEqual(map_.column("main index").type, pyarrow.string())
         self.assertEqual(
             map_.column("main index").to_pylist(),
@@ -201,7 +201,7 @@ class TestFromDatabaseForMaps(unittest.TestCase):
             map_.column("nested index").to_pylist(), [None, 11.0, "date time", "more date time", "non nested", "key"]
         )
         self.assertEqual(
-            map_.column("x").to_pylist(),
+            map_.column("col_3").to_pylist(),
             [None, None, "time of my life", datetime.datetime.fromisoformat("2024-02-26T17:45:00"), None, None],
         )
         self.assertEqual(
