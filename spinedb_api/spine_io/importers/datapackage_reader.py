@@ -11,10 +11,9 @@
 ######################################################################################################################
 
 """ Contains DataPackageConnector class. """
-from itertools import chain
+from itertools import chain, islice
 import threading
-from datapackage import Package
-import tabulator.exceptions
+import frictionless
 from ...exception import ConnectorError
 from .reader import SourceConnection
 
@@ -63,7 +62,7 @@ class DataPackageConnector(SourceConnection):
             **extras: ignored
         """
         if source:
-            self._datapackage = Package(source)
+            self._datapackage = frictionless.Package(source)
             self._filename = source
 
     def disconnect(self):
@@ -95,11 +94,12 @@ class DataPackageConnector(SourceConnection):
         """
         if not self._datapackage:
             return iter([]), []
+        max_rows = max_rows if max_rows >= 0 else None
 
-        def iterator(r):
+        def iterator(i):
             try:
-                yield from (item for row, item in enumerate(r.iter(cast=False)) if row != max_rows)
-            except tabulator.exceptions.TabulatorException as error:
+                yield from i
+            except frictionless.exception.FrictionlessException as error:
                 raise ConnectorError(str(error)) from error
 
         has_header = options.get("has_header", True)
@@ -108,9 +108,11 @@ class DataPackageConnector(SourceConnection):
                 if resource.name is None:
                     resource.infer()
             if table == resource.name:
-                if has_header:
-                    header = resource.schema.field_names
-                    return iterator(resource), header
-                return chain([resource.headers], iterator(resource)), None
+                with resource:
+                    i = iterator(islice((row.to_list(json=True) for row in resource.row_stream), max_rows))
+                    if has_header:
+                        header = resource.header
+                        return i, header
+                    return chain([resource.header.labels], i), None
         # table not found
         return iter([]), []

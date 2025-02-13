@@ -9,18 +9,13 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Contains unit tests for DatapackageConnector.
-
-"""
 from contextlib import contextmanager
 import csv
 from pathlib import Path
 import pickle
 from tempfile import TemporaryDirectory
 import unittest
-from datapackage import Package
+from frictionless import Package, Resource
 from spinedb_api.exception import ConnectorError
 from spinedb_api.spine_io.importers.datapackage_reader import DataPackageConnector
 
@@ -67,10 +62,10 @@ class TestDatapackageConnector(unittest.TestCase):
             with open(csv_file_path, "wb") as csv_file:
                 for row in data:
                     csv_file.write(row)
-            package = Package(base_path=temp_dir)
-            package.add_resource({"path": str(csv_file_path.relative_to(temp_dir))})
+            package = Package(basepath=temp_dir)
+            package.add_resource(Resource(path=str(csv_file_path.relative_to(temp_dir))))
             package_path = Path(temp_dir, "datapackage.json")
-            package.save(package_path)
+            package.to_json(package_path)
             reader = DataPackageConnector(None)
             reader.connect_to_source(str(package_path))
             data_iterator, header = reader.get_data_iterator("test_data", {"has_header": False})
@@ -85,10 +80,10 @@ def test_datapackage(rows):
         with open(csv_file_path, "w", newline="") as csv_file:
             csv_writer = csv.writer(csv_file)
             csv_writer.writerows(rows)
-        package = Package(base_path=temp_dir)
-        package.add_resource({"path": str(csv_file_path.relative_to(temp_dir))})
+        package = Package(basepath=temp_dir)
+        package.add_resource(Resource(path=str(csv_file_path.relative_to(temp_dir))))
         package_path = Path(temp_dir, "datapackage.json")
-        package.save(package_path)
+        package.to_json(package_path)
         yield package_path
 
 
