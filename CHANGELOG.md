@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.33.0]
 
 ### Changed
 
@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for Python 3.13.
 - Experimental and incomplete [Pandas](pandas.pydata.org) dataframe support added
-  in the form of a new module `dataframes`. See the module documentation for tutorial.
+  in the form of a new module `dataframes`. See the module documentation for more.
 - Experimental and incomplete [Arrow](arrow.apache.org) support added in the form of `arrow_value` module.
 - It is now possible to use the `parsed_value` field when adding or updating
   parameter definition, paramater value and list value items.
@@ -34,14 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fields and accepts the value directly so manual conversion using `to_database()` is not needed anymore.
 - Added a read-only field `entity_class_byname` to EntityClassItem (accessible from EntityItem as well)
   which works analogously to `entity_byname`.
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
 
 ## [0.32.2]
 
