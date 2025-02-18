@@ -14,9 +14,10 @@
 Contains `get_mapped_data()` that converts rows of tabular data into a dictionary for import to a Spine DB,
 using ``import_functions.import_data()``
 """
-
+from collections.abc import Callable
 from copy import deepcopy
 from operator import itemgetter
+from typing import Any, Optional
 from ..exception import ParameterValueFormatError
 from ..helpers import string_to_bool
 from ..mapping import Position, is_pivoted
@@ -91,7 +92,7 @@ def get_mapped_data(
     if row_convert_fns is None:
         row_convert_fns = {}
     if default_column_convert_fn is None:
-        default_column_convert_fn = column_convert_fns[max(column_convert_fns)] if column_convert_fns else identity
+        default_column_convert_fn = _last_column_convert_function(column_convert_fns)
     if mapping_names is None:
         mapping_names = []
     _ensure_mapping_name_consistency(mappings, mapping_names)
@@ -180,6 +181,10 @@ def get_mapped_data(
     _make_parameter_values(mapped_data, unparse_value)
     _make_parameter_value_metadata(mapped_data)
     return mapped_data, errors
+
+
+def _last_column_convert_function(functions: Optional[dict]) -> Callable[[Any], Any]:
+    return functions[max(functions)] if functions else identity
 
 
 def _is_valid_row(row):

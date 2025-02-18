@@ -10,23 +10,22 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Unit tests for GDXConnector class. """
-
 import os.path
 import pickle
 from tempfile import TemporaryDirectory
 import unittest
 from gdx2py import GdxFile
+from spinedb_api.exception import ReaderError
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
-from spinedb_api.spine_io.importers.gdx_connector import GAMSParameter, GAMSScalar, GAMSSet, GdxConnector
+from spinedb_api.spine_io.importers.gdx_reader import GAMSParameter, GAMSScalar, GAMSSet, GDXReader
 
 
 @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
-class TestGdxConnector(unittest.TestCase):
+class TestGDXReader(unittest.TestCase):
     def test_get_tables(self):
         gams_directory = find_gams_directory()
-        connector_settings = {"gams_directory": gams_directory}
-        connector = GdxConnector(connector_settings)
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
         with TemporaryDirectory() as temporary_dir:
             path = os.path.join(temporary_dir, "test_get_tables.gdx")
             with GdxFile(path, "w", gams_directory) as gdx_file:
@@ -40,9 +39,9 @@ class TestGdxConnector(unittest.TestCase):
                 gdx_file["parameter"] = gams_parameter
                 gams_scalar = GAMSScalar(2.3)
                 gdx_file["scalar"] = gams_scalar
-            connector.connect_to_source(path)
-            tables = connector.get_tables()
-            connector.disconnect()
+            reader.connect_to_source(path)
+            tables = reader.get_tables_and_properties()
+            reader.disconnect()
         self.assertEqual(len(tables), 5)
         self.assertTrue("domain1" in tables)
         self.assertTrue("domain2" in tables)
@@ -53,16 +52,16 @@ class TestGdxConnector(unittest.TestCase):
     @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
     def test_get_data_iterator_for_domains(self):
         gams_directory = find_gams_directory()
-        connector_settings = {"gams_directory": gams_directory}
-        connector = GdxConnector(connector_settings)
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
         with TemporaryDirectory() as temporary_dir:
             path = os.path.join(temporary_dir, "test_get_data_iterator_for_domains.gdx")
             with GdxFile(path, "w", gams_directory) as gdx_file:
                 domain = GAMSSet([("key1",), ("key2",)])
                 gdx_file["domain"] = domain
-            connector.connect_to_source(path)
-            data_iterator, header = connector.get_data_iterator("domain", {})
-            connector.disconnect()
+            reader.connect_to_source(path)
+            data_iterator, header = reader.get_data_iterator("domain", {})
+            reader.disconnect()
         self.assertEqual(header, ["dim0"])
         self.assertEqual(next(data_iterator), ["key1"])
         self.assertEqual(next(data_iterator), ["key2"])
@@ -72,16 +71,16 @@ class TestGdxConnector(unittest.TestCase):
     @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
     def test_get_data_iterator_for_multiple_universal_sets(self):
         gams_directory = find_gams_directory()
-        connector_settings = {"gams_directory": gams_directory}
-        connector = GdxConnector(connector_settings)
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
         with TemporaryDirectory() as temporary_dir:
             path = os.path.join(temporary_dir, "test_get_data_iterator_for_domains.gdx")
             with GdxFile(path, "w", gams_directory) as gdx_file:
                 set_ = GAMSSet([("i", "key1"), ("j", "key2")])
                 gdx_file["almost_domain"] = set_
-            connector.connect_to_source(path)
-            data_iterator, header = connector.get_data_iterator("almost_domain", {})
-            connector.disconnect()
+            reader.connect_to_source(path)
+            data_iterator, header = reader.get_data_iterator("almost_domain", {})
+            reader.disconnect()
         self.assertEqual(header, ["dim0", "dim1"])
         self.assertEqual(next(data_iterator), ["i", "key1"])
         self.assertEqual(next(data_iterator), ["j", "key2"])
@@ -91,8 +90,8 @@ class TestGdxConnector(unittest.TestCase):
     @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
     def test_get_data_iterator_for_mixed_universal_and_named_sets(self):
         gams_directory = find_gams_directory()
-        connector_settings = {"gams_directory": gams_directory}
-        connector = GdxConnector(connector_settings)
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
         with TemporaryDirectory() as temporary_dir:
             path = os.path.join(temporary_dir, "test_get_data_iterator_for_domains.gdx")
             with GdxFile(path, "w", gams_directory) as gdx_file:
@@ -100,9 +99,9 @@ class TestGdxConnector(unittest.TestCase):
                 gdx_file["domain"] = set_
                 set_ = GAMSSet([("i", "key1"), ("j", "key2")], [None, "domain"])
                 gdx_file["almost_domain"] = set_
-            connector.connect_to_source(path)
-            data_iterator, header = connector.get_data_iterator("almost_domain", {})
-            connector.disconnect()
+            reader.connect_to_source(path)
+            data_iterator, header = reader.get_data_iterator("almost_domain", {})
+            reader.disconnect()
         self.assertEqual(header, ["dim0", "domain"])
         self.assertEqual(next(data_iterator), ["i", "key1"])
         self.assertEqual(next(data_iterator), ["j", "key2"])
@@ -112,8 +111,8 @@ class TestGdxConnector(unittest.TestCase):
     @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
     def test_get_data_iterator_for_sets_with_single_indexing_domain(self):
         gams_directory = find_gams_directory()
-        connector_settings = {"gams_directory": gams_directory}
-        connector = GdxConnector(connector_settings)
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
         with TemporaryDirectory() as temporary_dir:
             path = os.path.join(temporary_dir, "test_get_data_iterator_for_sets_with_single_indexing_domain.gdx")
             with GdxFile(path, "w", gams_directory) as gdx_file:
@@ -121,9 +120,9 @@ class TestGdxConnector(unittest.TestCase):
                 gdx_file["domain"] = domain
                 gams_set = GAMSSet([("key1",), ("key2",)], ["domain"])
                 gdx_file["set"] = gams_set
-            connector.connect_to_source(path)
-            data_iterator, header = connector.get_data_iterator("set", {})
-            connector.disconnect()
+            reader.connect_to_source(path)
+            data_iterator, header = reader.get_data_iterator("set", {})
+            reader.disconnect()
         self.assertEqual(header, ["domain"])
         self.assertEqual(next(data_iterator), ["key1"])
         self.assertEqual(next(data_iterator), ["key2"])
@@ -133,8 +132,8 @@ class TestGdxConnector(unittest.TestCase):
     @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
     def test_get_data_iterator_for_sets_with_multiple_indexing_domains(self):
         gams_directory = find_gams_directory()
-        connector_settings = {"gams_directory": gams_directory}
-        connector = GdxConnector(connector_settings)
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
         with TemporaryDirectory() as temporary_dir:
             path = os.path.join(temporary_dir, "test_get_data_iterator_for_sets_with_single_indexing_domain.gdx")
             with GdxFile(path, "w", gams_directory) as gdx_file:
@@ -144,9 +143,9 @@ class TestGdxConnector(unittest.TestCase):
                 gdx_file["domainA"] = domain
                 gams_set = GAMSSet([("key1", "keyA"), ("key2", "keyB")], ["domain1", "domainA"])
                 gdx_file["set"] = gams_set
-            connector.connect_to_source(path)
-            data_iterator, header = connector.get_data_iterator("set", {})
-            connector.disconnect()
+            reader.connect_to_source(path)
+            data_iterator, header = reader.get_data_iterator("set", {})
+            reader.disconnect()
         self.assertEqual(header, ["domain1", "domainA"])
         self.assertEqual(next(data_iterator), ["key1", "keyA"])
         self.assertEqual(next(data_iterator), ["key2", "keyB"])
@@ -156,8 +155,8 @@ class TestGdxConnector(unittest.TestCase):
     @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
     def test_get_data_iterator_for_parameters_with_single_indexing_domain(self):
         gams_directory = find_gams_directory()
-        connector_settings = {"gams_directory": gams_directory}
-        connector = GdxConnector(connector_settings)
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
         with TemporaryDirectory() as temporary_dir:
             path = os.path.join(temporary_dir, "test_get_data_iterator_for_parameters_with_single_indexing_domain.gdx")
             with GdxFile(path, "w", gams_directory) as gdx_file:
@@ -165,9 +164,9 @@ class TestGdxConnector(unittest.TestCase):
                 gdx_file["domain"] = domain
                 gams_parameter = GAMSParameter({("key1",): 3.14, ("key2",): -2.3}, domain=["domain"])
                 gdx_file["parameter"] = gams_parameter
-            connector.connect_to_source(path)
-            data_iterator, header = connector.get_data_iterator("parameter", {})
-            connector.disconnect()
+            reader.connect_to_source(path)
+            data_iterator, header = reader.get_data_iterator("parameter", {})
+            reader.disconnect()
         self.assertEqual(header, ["domain", "Value"])
         self.assertEqual(next(data_iterator), ["key1", 3.14])
         self.assertEqual(next(data_iterator), ["key2", -2.3])
@@ -177,8 +176,8 @@ class TestGdxConnector(unittest.TestCase):
     @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
     def test_get_data_iterator_for_parameters_with_multiple_indexing_domains(self):
         gams_directory = find_gams_directory()
-        connector_settings = {"gams_directory": gams_directory}
-        connector = GdxConnector(connector_settings)
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
         with TemporaryDirectory() as temporary_dir:
             path = os.path.join(
                 temporary_dir, "test_get_data_iterator_for_parameters_with_multiple_indexing_domains.gdx"
@@ -192,9 +191,9 @@ class TestGdxConnector(unittest.TestCase):
                     {("key1", "keyA"): 3.14, ("key2", "keyB"): -2.3}, domain=["domain1", "domainA"]
                 )
                 gdx_file["parameter"] = gams_parameter
-            connector.connect_to_source(path)
-            data_iterator, header = connector.get_data_iterator("parameter", {})
-            connector.disconnect()
+            reader.connect_to_source(path)
+            data_iterator, header = reader.get_data_iterator("parameter", {})
+            reader.disconnect()
         self.assertEqual(header, ["domain1", "domainA", "Value"])
         self.assertEqual(next(data_iterator), ["key1", "keyA", 3.14])
         self.assertEqual(next(data_iterator), ["key2", "keyB", -2.3])
@@ -204,24 +203,104 @@ class TestGdxConnector(unittest.TestCase):
     @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
     def test_get_data_iterator_for_scalars(self):
         gams_directory = find_gams_directory()
-        connector_settings = {"gams_directory": gams_directory}
-        connector = GdxConnector(connector_settings)
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
         with TemporaryDirectory() as temporary_dir:
             path = os.path.join(temporary_dir, "test_get_data_iterator_for_scalars.gdx")
             with GdxFile(path, "w", gams_directory) as gdx_file:
                 gams_scalar = GAMSScalar(2.3)
                 gdx_file["scalar"] = gams_scalar
-            connector.connect_to_source(path)
-            data_iterator, header = connector.get_data_iterator("scalar", {})
-            connector.disconnect()
+            reader.connect_to_source(path)
+            data_iterator, header = reader.get_data_iterator("scalar", {})
+            reader.disconnect()
         self.assertEqual(header, ["Value"])
         self.assertEqual(next(data_iterator), [2.3])
         with self.assertRaises(StopIteration):
             next(data_iterator)
 
     @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
-    def test_connector_is_picklable(self):
-        reader = GdxConnector(None)
+    def test_get_table_cell(self):
+        gams_directory = find_gams_directory()
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
+        with TemporaryDirectory() as temporary_dir:
+            path = os.path.join(temporary_dir, "test_data.gdx")
+            with GdxFile(path, "w", gams_directory) as gdx_file:
+                domain = GAMSSet([("key1",)])
+                gdx_file["domain1"] = domain
+                domain = GAMSSet([("keyA",), ("keyB",), ("keyC",), ("keyD",)])
+                gdx_file["domainA"] = domain
+                gams_set = GAMSSet(
+                    [("key1", "keyA"), ("key1", "keyB"), ("key1", "keyC"), ("key1", "keyD")], ["domain1", "domainA"]
+                )
+                gdx_file["set"] = gams_set
+            reader.connect_to_source(path)
+            cell_data = reader.get_table_cell("set", 2, 1, {})
+            reader.disconnect()
+        self.assertEqual(cell_data, "keyC")
+
+    @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
+    def test_get_table_cell_raises_when_row_is_out_of_bounds(self):
+        gams_directory = find_gams_directory()
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
+        with TemporaryDirectory() as temporary_dir:
+            path = os.path.join(temporary_dir, "test_data.gdx")
+            with GdxFile(path, "w", gams_directory) as gdx_file:
+                domain = GAMSSet([("key1",)])
+                gdx_file["domain1"] = domain
+                domain = GAMSSet([("keyA",), ("keyB",)])
+                gdx_file["domainA"] = domain
+                gams_set = GAMSSet([("key1", "keyA"), ("key1", "keyB")], ["domain1", "domainA"])
+                gdx_file["set"] = gams_set
+            reader.connect_to_source(path)
+            with self.assertRaisesRegex(ReaderError, "set doesn't have row 2"):
+                reader.get_table_cell("set", 2, 0, {})
+            reader.disconnect()
+
+    @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
+    def test_get_table_cell_raises_when_column_is_out_of_bounds(self):
+        gams_directory = find_gams_directory()
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
+        with TemporaryDirectory() as temporary_dir:
+            path = os.path.join(temporary_dir, "test_data.gdx")
+            with GdxFile(path, "w", gams_directory) as gdx_file:
+                domain = GAMSSet([("key1",)])
+                gdx_file["domain1"] = domain
+                domain = GAMSSet([("keyA",), ("keyB",)])
+                gdx_file["domainA"] = domain
+                gams_set = GAMSSet([("key1", "keyA"), ("key1", "keyB")], ["domain1", "domainA"])
+                gdx_file["set"] = gams_set
+            reader.connect_to_source(path)
+            with self.assertRaisesRegex(ReaderError, "co"):
+                reader.get_table_cell("set", 0, 2, {})
+            reader.disconnect()
+
+    @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
+    def test_get_table_cell_raises_when_table_doesnt_exist(self):
+        gams_directory = find_gams_directory()
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
+        with TemporaryDirectory() as temporary_dir:
+            path = os.path.join(temporary_dir, "test_data.gdx")
+            with GdxFile(path, "w", gams_directory) as gdx_file:
+                domain = GAMSSet([("key1",)])
+                gdx_file["domain1"] = domain
+                domain = GAMSSet([("keyA",), ("keyB",)])
+                gdx_file["domainA"] = domain
+                gams_set = GAMSSet([("key1", "keyA"), ("key1", "keyB")], ["domain1", "domainA"])
+                gdx_file["set"] = gams_set
+            reader.connect_to_source(path)
+            with self.assertRaisesRegex(ReaderError, "no symbol called 'non-table'"):
+                reader.get_table_cell("non-table", 0, 0, {})
+            reader.disconnect()
+
+    @unittest.skipIf(find_gams_directory() is None, "No working GAMS installation found.")
+    def test_reader_is_picklable(self):
+        gams_directory = find_gams_directory()
+        reader_settings = {"gams_directory": gams_directory}
+        reader = GDXReader(reader_settings)
         pickled = pickle.dumps(reader)
         self.assertTrue(pickled)
 

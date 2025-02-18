@@ -10,16 +10,16 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains DataPackageConnector class. """
+""" Contains DataPackageReader class. """
 from itertools import chain, islice
 import threading
 import frictionless
-from ...exception import ConnectorError
-from .reader import SourceConnection
+from ...exception import ReaderError
+from .reader import Reader, TableProperties
 
 
-class DataPackageConnector(SourceConnection):
-    """Template class to read data from another QThread."""
+class DatapackageReader(Reader):
+    """A reader for datapackages."""
 
     # name of data source, ex: "Text/CSV"
     DISPLAY_NAME = "Datapackage"
@@ -71,12 +71,8 @@ class DataPackageConnector(SourceConnection):
             self._datapackage = None
         self._filename = None
 
-    def get_tables(self):
-        """Returns resources' mappings and their options.
-
-        Returns:
-            dict: key is resource name, value is mapping and options.
-        """
+    def get_tables_and_properties(self):
+        """See base class."""
         if not self._datapackage:
             return {}
         tables = {}
@@ -84,7 +80,7 @@ class DataPackageConnector(SourceConnection):
             with self._resource_name_lock:
                 if resource.name is None:
                     resource.infer()
-            tables[resource.name] = {"options": {}}  # FIXME?
+            tables[resource.name] = TableProperties()
         return tables
 
     def get_data_iterator(self, table, options, max_rows=-1):
@@ -100,7 +96,7 @@ class DataPackageConnector(SourceConnection):
             try:
                 yield from i
             except frictionless.exception.FrictionlessException as error:
-                raise ConnectorError(str(error)) from error
+                raise ReaderError(str(error)) from error
 
         has_header = options.get("has_header", True)
         for resource in self._datapackage.resources:
@@ -114,5 +110,4 @@ class DataPackageConnector(SourceConnection):
                         header = resource.header
                         return i, header
                     return chain([resource.header.labels], i), None
-        # table not found
-        return iter([]), []
+        raise ReaderError(f"no such table '{table}'")

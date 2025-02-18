@@ -12,8 +12,8 @@
 """ Contains import mappings for database items such as entities, entity classes and parameter values. """
 
 from enum import Enum, auto, unique
-from spinedb_api.exception import InvalidMappingComponent
-from spinedb_api.mapping import Mapping, Position, is_pivoted, unflatten
+from spinedb_api.exception import InvalidMapping, InvalidMappingComponent
+from spinedb_api.mapping import Mapping, Position, is_pivoted, parse_fixed_position_value, unflatten
 
 
 @unique
@@ -71,6 +71,13 @@ def check_validity(root_mapping):
             return "true"
 
     errors = []
+    for rank, mapping in enumerate(root_mapping.flatten()):
+        if mapping.position != Position.fixed:
+            continue
+        try:
+            parse_fixed_position_value(mapping.value)
+        except InvalidMapping as error:
+            errors.append(InvalidMappingComponent(str(error), rank))
     source_row = _DummySourceRow()
     root_mapping.import_row(source_row, {}, {}, errors)
     return errors

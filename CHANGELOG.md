@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Many modules and classes in `spinedb_api.spine_io.importer` have been renamed for consistency: 'connector'
+  is now 'reader'.
+
 ### Removed
 
 ### Fixed

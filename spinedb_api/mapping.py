@@ -15,16 +15,22 @@
 from enum import Enum, unique
 from itertools import takewhile
 import re
+from typing import Optional
+from spinedb_api import InvalidMapping
+
+_TABLEFUL_FIXED_POSITION_RE = re.compile(r"^\s*(.+):\s*(\d+)\s*,\s*(\d+)\s*$")
+_TABLELESS_FIXED_POSITION_RE = re.compile(r"^\s*(\d+)\s*,\s*(\d+)\s*$")
 
 
 @unique
 class Position(Enum):
-    """Export item positions when they are not in columns."""
+    """Item positions when they are not in columns."""
 
     hidden = "hidden"
     table_name = "table_name"
     header = "header"
     mapping_name = "mapping_name"
+    fixed = "fixed"
 
 
 def is_pivoted(position):
@@ -49,6 +55,21 @@ def is_regular(position):
         bool: True if position is a column index, False otherwise
     """
     return isinstance(position, int) and position >= 0
+
+
+def parse_fixed_position_value(value: str) -> tuple[Optional[str], int, int]:
+    """Parses mapping's value for ``Position.fixed`` to table name, row and column."""
+    match = re.search(_TABLEFUL_FIXED_POSITION_RE, value)
+    if match:
+        return match.group(1), int(match.group(2)), int(match.group(3))
+    match = re.search(_TABLELESS_FIXED_POSITION_RE, value)
+    if match:
+        return None, int(match.group(1)), int(match.group(2))
+    raise InvalidMapping(f"failed to parse fixed position '{value}', expected 'table_name: row, column")
+
+
+def unparse_fixed_position_value(table_name: Optional[str], row: int, column: int) -> str:
+    return (f"{table_name}: " if table_name is not None else "") + f"{row}, {column}"
 
 
 class Mapping:

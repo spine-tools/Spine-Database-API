@@ -78,8 +78,8 @@ class InvalidMappingComponent(InvalidMapping):
         self.key = key
 
 
-class ConnectorError(SpineDBAPIError):
-    """Failure in import/export connector."""
+class ReaderError(SpineDBAPIError):
+    """Failure in import reader."""
 
 
 class NothingToCommit(SpineDBAPIError):
