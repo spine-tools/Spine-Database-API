@@ -10,21 +10,20 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains JSONConnector class. """
-
+""" Contains JSONReader class. """
+import itertools
 import os
 import sys
 import ijson
 from ijson import IncompleteJSONError
 from ijson.backends.python import UnexpectedSymbol
-from ...exception import ConnectorError
-from .reader import SourceConnection
+from ...exception import ReaderError
+from .reader import Reader, TableProperties
 
 
-class JSONConnector(SourceConnection):
-    """Template class to read data from another QThread."""
+class JSONReader(Reader):
+    """A reader for JSON files."""
 
-    # name of data source, ex: "Text/CSV"
     DISPLAY_NAME = "JSON"
 
     # dict with option specification for source.
@@ -51,13 +50,15 @@ class JSONConnector(SourceConnection):
     def disconnect(self):
         """Disconnect from connected source."""
 
-    def get_tables(self):
+    def get_tables_and_properties(self):
         prefixes = {}
         with open(self._filename, encoding="utf-8") as f:
             for prefix, event, _ in ijson.parse(f):
                 if event in ("start_map", "start_array"):
                     prefixes[".".join([self._root_prefix, prefix])] = None
-        return [self._root_prefix] + list(prefixes.keys())[1:]
+        tables = {prefix: TableProperties() for prefix in itertools.islice(prefixes.keys(), 1, None)}
+        tables[self._root_prefix] = TableProperties()
+        return tables
 
     def file_iterator(self, table, options, max_rows=-1):
         if max_rows == -1:
@@ -74,7 +75,7 @@ class JSONConnector(SourceConnection):
                         yield x[:max_depth]
                         row += 1
             except (IncompleteJSONError, UnexpectedSymbol) as error:
-                raise ConnectorError(f"failed to read JSON: {error}") from error
+                raise ReaderError(f"failed to read JSON: {error}") from error
 
     def get_data_iterator(self, table, options, max_rows=-1):
         """

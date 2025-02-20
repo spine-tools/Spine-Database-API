@@ -9,10 +9,16 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-""" Unit tests for :mod:`spinedb_api.mapping`. """
 import unittest
-from spinedb_api.mapping import Mapping, Position, unflatten, value_index
+from spinedb_api import InvalidMapping
+from spinedb_api.mapping import (
+    Mapping,
+    Position,
+    parse_fixed_position_value,
+    unflatten,
+    unparse_fixed_position_value,
+    value_index,
+)
 
 
 class TestMapping(unittest.TestCase):
@@ -44,6 +50,28 @@ class TestMapping(unittest.TestCase):
         mappings = [Mapping(0), Mapping(1)]
         root = unflatten(mappings)
         self.assertFalse(root.is_pivoted())
+
+
+class TestParseFixedPositionValue(unittest.TestCase):
+    def test_function_works(self):
+        self.assertEqual(parse_fixed_position_value("my table: 23, 5"), ("my table", 23, 5))
+        self.assertEqual(parse_fixed_position_value(" my table: 23 , 5 "), ("my table", 23, 5))
+        self.assertEqual(parse_fixed_position_value("23, 5"), (None, 23, 5))
+        self.assertEqual(parse_fixed_position_value(" 23, 5 "), (None, 23, 5))
+        with self.assertRaises(InvalidMapping):
+            parse_fixed_position_value("")
+        with self.assertRaises(InvalidMapping):
+            parse_fixed_position_value(":,")
+        with self.assertRaises(InvalidMapping):
+            parse_fixed_position_value("my table: a, b")
+        with self.assertRaises(InvalidMapping):
+            parse_fixed_position_value("a, b")
+
+
+class TestUnparseFixedPositionValue(unittest.TestCase):
+    def test_function_works(self):
+        self.assertEqual(unparse_fixed_position_value("my table", 23, 5), "my table: 23, 5")
+        self.assertEqual(unparse_fixed_position_value(None, 23, 5), "23, 5")
 
 
 if __name__ == "__main__":

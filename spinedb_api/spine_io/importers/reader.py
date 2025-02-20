@@ -10,21 +10,29 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains a class template for a data source connector used in import ui. """
+""" Contains a base class for a data source readers used in importing. """
 
+from dataclasses import dataclass, field
 from itertools import islice
+from typing import Any
 from spinedb_api import DateTime, Duration, ParameterValueFormatError
-from spinedb_api.exception import ConnectorError, InvalidMappingComponent
+from spinedb_api.exception import InvalidMappingComponent, ReaderError
 from spinedb_api.import_mapping.generator import get_mapped_data, identity
 from spinedb_api.import_mapping.import_mapping_compat import parse_named_mapping_spec
+from spinedb_api.mapping import Position, parse_fixed_position_value
 
 TYPE_STRING_TO_CLASS = {"string": str, "datetime": DateTime, "duration": Duration, "float": float, "boolean": bool}
 
 TYPE_CLASS_TO_STRING = {type_class: string for string, type_class in TYPE_STRING_TO_CLASS.items()}
 
 
-class SourceConnection:
-    """Template class to read data from another QThread."""
+@dataclass
+class TableProperties:
+    options: dict = field(default_factory=dict)
+
+
+class Reader:
+    """A base class to read data."""
 
     # name of data source, ex: "Text/CSV"
     DISPLAY_NAME = "unnamed source"
@@ -64,19 +72,27 @@ class SourceConnection:
         """Disconnect from connected source."""
         raise NotImplementedError()
 
-    def get_tables(self):
-        """Method that should return a list of table names, list(str)
-
-        Raises:
-            NotImplementedError: [description]
-        """
+    def get_tables_and_properties(self) -> dict[str, TableProperties]:
+        """Returns table names and properties."""
         raise NotImplementedError()
 
     def get_data_iterator(self, table, options, max_rows=-1):
         """
-        Function that should return a data iterator and data header.
+        Returns a data iterator and data header.
         """
         raise NotImplementedError()
+
+    def get_table_cell(self, table: str, row: int, column: int, options: dict) -> Any:
+        """Returns data from a single table cell."""
+        row_iter, _ = self.get_data_iterator(table, options)
+        try:
+            row_data = next(islice(row_iter, row, None))
+        except StopIteration:
+            raise ReaderError(f"{table} doesn't have row {row}")
+        try:
+            return row_data[column]
+        except IndexError:
+            raise ReaderError(f"{table} doesn't have column {column}")
 
     @staticmethod
     def _resolve_max_rows(options, max_rows=-1):
@@ -97,6 +113,24 @@ class SourceConnection:
         data_iter = islice(data_iter, start, None)
         data = list(data_iter)
         return data, header
+
+    def resolve_values_for_fixed_position_mappings(self, tables_mappings, table_options):
+        for table, named_mappings in tables_mappings.items():
+            parsed_mappings = []
+            for mapping_name, root_mapping in named_mappings:
+                flattened_mappings = root_mapping.flatten()
+                for mapping in flattened_mappings:
+                    if mapping.position != Position.fixed:
+                        continue
+                    target_table, row, column = parse_fixed_position_value(mapping.value)
+                    if target_table is None:
+                        target_table = table
+                    options = table_options.get(target_table, {})
+                    mapping.value = self.get_table_cell(target_table, row, column, options)
+                    mapping.position = Position.hidden
+                parsed_mappings.append((mapping_name, root_mapping))
+            tables_mappings[table] = parsed_mappings
+        return tables_mappings
 
     def get_mapped_data(
         self,
@@ -152,7 +186,7 @@ class SourceConnection:
                     unparse_value,
                     mapping_names,
                 )
-            except (ConnectorError, ParameterValueFormatError, InvalidMappingComponent) as error:
+            except (ReaderError, ParameterValueFormatError, InvalidMappingComponent) as error:
                 errors.append(str(error))
                 continue
             for key, value in data.items():

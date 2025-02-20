@@ -10,18 +10,17 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains GDXConnector class and a help function. """
-
+""" Contains GDXReader class and a help function. """
 from gdx2py import GAMSParameter, GAMSScalar, GAMSSet, GdxFile
-from spinedb_api.exception import ConnectorError
+from spinedb_api.exception import ReaderError
 from ..gdx_utils import find_gams_directory
-from .reader import SourceConnection
+from .reader import Reader, TableProperties
 
 
-class GdxConnector(SourceConnection):
-    """Template class to read data from another QThread."""
+class GDXReader(Reader):
+    """A reader for .gdx files."""
 
-    DISPLAY_NAME = "Gdx"
+    DISPLAY_NAME = "GDX"
     """name of data source"""
 
     OPTIONS = {}
@@ -69,38 +68,21 @@ class GdxConnector(SourceConnection):
         if self._gdx_file is not None:
             self._gdx_file.close()
 
-    def get_tables(self):
+    def get_tables_and_properties(self):
         """
-        Returns a list of table names.
+        Returns table names and options.
 
         GAMS scalars are also regarded as tables.
-
-        Returns:
-            list(str): Table names in list
         """
-        tables = []
-        for symbol in self._gdx_file:
-            tables.append(symbol[0])
-        return tables
+        return {symbol[0]: TableProperties() for symbol in self._gdx_file}
 
     def get_data_iterator(self, table, options, max_rows=-1):
-        """Creates an iterator for the data source
-
-        Arguments:
-            table (string): table name
-            options (dict): dict with options
-
-        Keyword Arguments:
-            max_rows (int): ignored
-
-        Returns:
-            tuple: data iterator, list of column names, number of columns
-        """
+        """See base class."""
         if table not in self._gdx_file:
-            return iter([]), []
+            raise ReaderError(f"no symbol called '{table}'")
         symbol = self._gdx_file[table]
         if symbol is None:
-            raise ConnectorError(f"the type of '{table}' is not supported.")
+            raise ReaderError(f"the type of '{table}' is not supported.")
         if isinstance(symbol, GAMSScalar):
             return iter([[float(symbol)]]), ["Value"]
         domains = symbol.domain if symbol.domain is not None else symbol.dimension * [None]

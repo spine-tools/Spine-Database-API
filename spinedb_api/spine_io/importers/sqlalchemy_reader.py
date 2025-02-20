@@ -9,18 +9,17 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Contains SqlAlchemyConnector class. """
-
-
+""" Contains SQLAlchemyReader class. """
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import Session
-from .reader import SourceConnection
+from ...exception import ReaderError
+from .reader import Reader, TableProperties
 
 
-class SqlAlchemyConnector(SourceConnection):
-    """Template class to read data from another QThread."""
+class SQLAlchemyReader(Reader):
+    """A reader for SQL databases."""
 
-    DISPLAY_NAME = "SqlAlchemy"
+    DISPLAY_NAME = "SQL database"
     """name of data source"""
 
     OPTIONS = {}
@@ -63,14 +62,9 @@ class SqlAlchemyConnector(SourceConnection):
         self._engine = None
         self._connection = None
 
-    def get_tables(self):
-        """Method that should return a list of table names, list(str)
-
-        Returns:
-            list of str: Table names in list
-        """
-        tables = list(self._engine.table_names(schema=self._schema))
-        return tables
+    def get_tables_and_properties(self):
+        """See base class"""
+        return {table: TableProperties() for table in self._engine.table_names(schema=self._schema)}
 
     def get_data_iterator(self, table, options, max_rows=-1):
         """Creates an iterator for the database connection.
@@ -85,7 +79,10 @@ class SqlAlchemyConnector(SourceConnection):
         """
         if self._schema is not None:
             table = self._schema + "." + table
-        db_table = self._metadata.tables[table]
+        try:
+            db_table = self._metadata.tables[table]
+        except KeyError:
+            raise ReaderError(f"no such table: '{table}'")
         header = [str(name) for name in db_table.columns.keys()]
 
         query = self._session.query(db_table)

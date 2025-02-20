@@ -10,18 +10,19 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains ExcelConnector class and a help function. """
+""" Contains ExcelReader class and helper functions. """
 
 import io
 from itertools import chain, islice, takewhile
+from typing import Any
 from openpyxl import load_workbook
-from .reader import SourceConnection
+from ...exception import ReaderError
+from .reader import Reader, TableProperties
 
 
-class ExcelConnector(SourceConnection):
-    """Template class to read data from another QThread."""
+class ExcelReader(Reader):
+    """A reader for .xlsx files."""
 
-    # name of data source, ex: "Text/CSV"
     DISPLAY_NAME = "Excel"
 
     # dict with option specification for source.
@@ -69,7 +70,7 @@ class ExcelConnector(SourceConnection):
         table_mappings = default_mapping["table_mappings"] = {}
         table_options = default_mapping["table_options"] = {}
         selected_tables = default_mapping["selected_tables"] = []
-        for sheet in self.get_tables():
+        for sheet in self.get_tables_and_properties():
             map_dict, option = create_mapping_from_sheet(self._wb[sheet])
             if map_dict:
                 table_mappings[sheet] = [map_dict]
@@ -78,21 +79,11 @@ class ExcelConnector(SourceConnection):
                 table_options[sheet] = option
         return default_mapping
 
-    def get_tables(self):
-        """Method that should return Excel sheets as mappings and their options.
-
-        Returns:
-            dict: Sheets as mappings and options for each sheet or an empty dictionary if no workbook.
-
-        Raises:
-            Exception: If something goes wrong.
-        """
+    def get_tables_and_properties(self):
+        """Returns sheet names and their options."""
         if not self._wb:
             return {}
-        try:
-            return self._wb.sheetnames
-        except Exception as error:
-            raise error
+        return {name: TableProperties() for name in self._wb.sheetnames}
 
     def get_data_iterator(self, table, options, max_rows=-1):
         """
@@ -102,10 +93,8 @@ class ExcelConnector(SourceConnection):
         if not self._wb:
             return iter([]), []
         if table not in self._wb:
-            # table not found
             return iter([]), []
         worksheet = self._wb[table]
-        # get options
         has_header = options.get("header", False)
         skip_rows = options.get("row", 0)
         skip_columns = options.get("column", 0)
@@ -130,12 +119,21 @@ class ExcelConnector(SourceConnection):
         else:
             header = []
             rows = chain((first_row,), rows)
-        # iterator for selected columns and skipped rows
         data_iterator = (list(cell.value for cell in islice(row, skip_columns, read_to_col)) for row in rows)
         if stop_at_empty_row:
-            # add condition to iterator
             data_iterator = takewhile(any, data_iterator)
         return data_iterator, header
+
+    def get_table_cell(self, table: str, row: int, column: int, options: dict) -> Any:
+        """See base class."""
+        if not self._wb:
+            raise ReaderError("no connection to workbook")
+        if table not in self._wb:
+            raise ReaderError(f"no sheet called '{table}'")
+        worksheet = self._wb[table]
+        real_row = row + 1 + options.get("row", 0) + (1 if options.get("header", False) else 0)
+        real_column = column + 1 + options.get("column", 0)
+        return worksheet.cell(real_row, real_column).value
 
 
 def get_mapped_data_from_xlsx(filepath):
@@ -144,7 +142,7 @@ def get_mapped_data_from_xlsx(filepath):
     Args:
         filepath (str): path to Excel file
     """
-    connector = ExcelConnector(None)
+    connector = ExcelReader(None)
     connector.connect_to_source(filepath)
     mapping = connector.create_default_mapping()
     table_mappings = {
