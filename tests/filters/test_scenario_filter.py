@@ -1229,6 +1229,26 @@ class TestScenarioFilter(DataBuilderTestCase):
                 self.assertEqual(entity_alternatives[0]["alternative_name"], "alt")
                 self.assertTrue(entity_alternatives[0]["active"])
 
+    def test_entity_with_irrelevant_entity_alternative_is_passed(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_scenario_item(name="Scenario"))
+                self._assert_success(db_map.add_entity_class_item(name="Object", active_by_default=True))
+                self._assert_success(db_map.add_entity_item(name="cube", entity_class_name="Object"))
+                self._assert_success(
+                    db_map.add_entity_alternative_item(
+                        entity_class_name="Object", entity_byname=("cube",), alternative_name="Base", active=True
+                    )
+                )
+                db_map.commit_session("Add test data")
+            with DatabaseMapping(url) as db_map:
+                config = scenario_filter_config("Scenario")
+                scenario_filter_from_dict(db_map, config)
+                entities = db_map.get_entity_items()
+                self.assertEqual(len(entities), 1)
+                self.assertEqual(entities[0]["name"], "cube")
+
 
 class TestScenarioFilterUtils(DataBuilderTestCase):
     def test_scenario_filter_config(self):

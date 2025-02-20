@@ -191,12 +191,12 @@ def _ext_entity_sq(db_map, state):
             func.row_number()
             .over(
                 partition_by=[state.original_entity_sq.c.id],
-                order_by=desc(db_map.scenario_alternative_sq.c.rank),
+                order_by=desc(state.original_scenario_alternative_sq.c.rank),
             )
             .label("desc_rank_row_number"),
             state.original_entity_alternative_sq.c.active,
             db_map.entity_class_sq.c.active_by_default,
-            db_map.scenario_alternative_sq.c.scenario_id,
+            state.original_scenario_alternative_sq.c.scenario_id,
         )
         .outerjoin(
             state.original_entity_alternative_sq,
@@ -204,20 +204,22 @@ def _ext_entity_sq(db_map, state):
         )
         .outerjoin(db_map.entity_class_sq, state.original_entity_sq.c.class_id == db_map.entity_class_sq.c.id)
         .outerjoin(
-            db_map.scenario_alternative_sq,
-            state.original_entity_alternative_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id,
+            state.original_scenario_alternative_sq,
+            state.original_entity_alternative_sq.c.alternative_id
+            == state.original_scenario_alternative_sq.c.alternative_id,
         )
         .filter(
             or_(
-                db_map.scenario_alternative_sq.c.scenario_id == None,
-                db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id,
+                state.original_scenario_alternative_sq.c.scenario_id == None,
+                state.original_scenario_alternative_sq.c.scenario_id == state.scenario_id,
             )
         )
         .filter(
             or_(
                 state.original_entity_alternative_sq.c.alternative_id == None,
                 state.original_entity_alternative_sq.c.alternative_id
-                == db_map.scenario_alternative_sq.c.alternative_id,
+                == state.original_scenario_alternative_sq.c.alternative_id,
+                db_map.entity_class_sq.c.active_by_default == True,
             )
         )
     ).subquery()
