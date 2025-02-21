@@ -167,7 +167,11 @@ class Reader:
             row_convert_fns = table_row_convert_specs.get(table, {})
             options = table_options.get(table, {})
             table_max_rows = self._resolve_max_rows(options, max_rows)
-            data_source, header = self.get_data_iterator(table, options, table_max_rows)
+            try:
+                data_source, header = self.get_data_iterator(table, options, table_max_rows)
+            except ReaderError as error:
+                errors.append(str(error))
+                continue
             mappings = []
             mapping_names = []
             for named_mapping_spec in named_mapping_specs:
