@@ -77,6 +77,29 @@ class TestReader(unittest.TestCase):
         self.assertEqual(len(mappings), 1)
         self.assertEqual(mappings[0], ("alternative mapping", AlternativeMapping(Position.hidden, value="cat")))
 
+    def test_reader_appends_data_iterator_exceptions_to_return_value(self):
+        def raise_exception(*args):
+            raise ReaderError("this is expected")
+
+        reader = Reader(None)
+        reader.get_data_iterator = raise_exception
+        table_mappings = {
+            "table 1": [{"entity mapping": {"mapping": [EntityClassMapping(0).to_dict(), EntityMapping(1).to_dict()]}}]
+        }
+        table_options = {}
+        table_column_convert_specs = {}
+        table_default_column_convert_fns = {}
+        table_row_convert_specs = {}
+        mapped_data, errors = reader.get_mapped_data(
+            table_mappings,
+            table_options,
+            table_column_convert_specs,
+            table_default_column_convert_fns,
+            table_row_convert_specs,
+        )
+        self.assertEqual(errors, ["this is expected"])
+        self.assertEqual(mapped_data, {})
+
 
 if __name__ == "__main__":
     unittest.main()
