@@ -4,9 +4,9 @@
 .. _SQLAlchemy: http://www.sqlalchemy.org/
 
 
-***************
+************
 Front matter
-***************
+************
 
 Information about the Spine database API project.
 
@@ -26,10 +26,14 @@ under the Spine project.
 Installation
 ------------
 
-Install released versions of Spine database API from the project repository with pip or a similar tool::
+If you have installed `Spine Toolbox <https://github.com/spine-tools/Spine-Toolbox>`_,
+you should readily have Spine database API.
+Just activate the Python environment for Toolbox and you are good to go.
 
-  pip install git+https://github.com/spine-tools/Spine-Database-API.git
+Otherwise, you can install released versions of Spine database API with Pip
+into the current Python environment::
 
+  pip install spinedb-api
 
 Dependencies
 ------------

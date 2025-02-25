@@ -9,8 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `item()` method to `DatabaseMapping` that supersedes `get_item()`.
+  The new method takes `MappedTable` instance instead of item type,
+  returns a single `PublicItem`,
+  raises `SpineDBAPIError` on errors
+  and does not support legacy item types like objects or relationships.
+- Added convenience methods such as `entity()` and `entity_class()` that
+  supersede the `get_entity_item()` etc. methods.
+- Added `find()` method to `DatabaseMapping` that supersedes `get_items()`.
+  Its convenience methods are `find_entities()`, `find_entity_classes()` etc.
+- Added `add()` and convenience methods to `DatabaseMapping` that supersede `add_item()`.
+- Added `update()` and convenience methods to `DatabaseMapping` that supersede `update_item()`.
+- Added `remove()` and convenience methods to `DatabaseMapping` that supersede `remove_item()`.
+- Added `add_or_update()` and convenience methods to `DatabaseMapping` that supersede `add_update_item()`.
+
 ### Changed
 
+- `PublicItem.add()`, `PublicItem.update()` and `PublicItem.remove()` do not return an error anymore.
+  Instead, they raise `SpineDBAPIError`.
 - Many modules and classes in `spinedb_api.spine_io.importer` have been renamed for consistency: 'connector'
   is now 'reader'.
 

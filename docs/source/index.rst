@@ -16,6 +16,7 @@ Welcome to Spine Database API's documentation!
 
    front_matter
    tutorial
+   user_guide
    db_mapping_schema
    filters
    parameter_value_format
