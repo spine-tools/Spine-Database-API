@@ -962,7 +962,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 scenario = self._assert_success(db_map.add_scenario_item(name="high lows"))
                 db_map.commit_session("Add 'high lows' scenario")
-                self._assert_success(scenario.remove())
+                scenario.remove()
                 self._assert_success(db_map.add_scenario_item(name="high lows", description="Readded scenario"))
                 db_map.commit_session("Readd 'high lows' scenario")
             with DatabaseMapping(url) as db_map:
@@ -976,10 +976,10 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             scenario = self._assert_success(db_map.add_scenario_item(name="high lows"))
             scenario.remove()
             self._assert_success(db_map.add_scenario_item(name="high lows"))
-            self.assertEqual(
-                scenario.restore(),
-                (None, "restoring would create a conflict with another item with same unique values"),
-            )
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "restoring would create a conflict with another item with same unique values"
+            ):
+                scenario.restore()
 
     def test_restoring_original_item_succeeds_after_readded_item_has_been_removed(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1041,7 +1041,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
     def test_get_items_with_skip_removed(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             alternative = db_map.get_alternative_item(name="Base")
-            self._assert_success(alternative.remove())
+            alternative.remove()
             alternatives = db_map.get_items("alternative", skip_removed=False)
             self.assertEqual(len(alternatives), 1)
             self.assertEqual(alternatives[0]["name"], "Base")
@@ -1050,7 +1050,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
     def test_get_items_with_skip_removed_after_readding_item(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             alternative = db_map.get_alternative_item(name="Base")
-            self._assert_success(alternative.remove())
+            alternative.remove()
             self._assert_success(db_map.add_alternative_item(name="Base"))
             alternatives = db_map.get_items("alternative", skip_removed=False)
             self.assertEqual(len(alternatives), 2)
@@ -1355,8 +1355,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_parameter_definition_item(name="typed", entity_class_name="Widget")
             )
             self.assertEqual(definition["parameter_type_list"], tuple())
-            updated_item, error = definition.update(parameter_type_list=("bool",))
-            self.assertFalse(bool(error))
+            updated_item = definition.update(parameter_type_list=("bool",))
             self.assertIsNotNone(updated_item)
             self.assertEqual(definition["parameter_type_list"], ("bool",))
             types = db_map.get_parameter_type_items()
@@ -1370,8 +1369,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_parameter_definition_item(name="typed", entity_class_name="Widget")
             )
             self.assertEqual(definition["parameter_type_list"], tuple())
-            updated_item, error = definition.update(parameter_type_list=("bool",))
-            self.assertFalse(bool(error))
+            updated_item = definition.update(parameter_type_list=("bool",))
             self.assertIsNotNone(updated_item)
             self.assertEqual(definition["parameter_type_list"], ("bool",))
             types = db_map.get_parameter_type_items()
@@ -1387,8 +1385,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
             )
             self.assertEqual(definition["parameter_type_list"], ("array", "3d_map", "str"))
-            updated_item, error = definition.update(parameter_type_list=("time_series", "23d_map", "str"))
-            self.assertFalse(bool(error))
+            updated_item = definition.update(parameter_type_list=("time_series", "23d_map", "str"))
             self.assertIsNotNone(updated_item)
             self.assertEqual(definition["parameter_type_list"], ("23d_map", "str", "time_series"))
             types = db_map.get_parameter_type_items()
@@ -1429,8 +1426,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     parameter_type_list=("array",),
                 )
             )
-            updated_item, error = definition.update(description=reused_description)
-            self.assertFalse(error)
+            updated_item = definition.update(description=reused_description)
             self.assertIsNone(updated_item)
 
     def test_parameter_type_list_is_included_in_asdict(self):
@@ -1791,13 +1787,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="alt", rank=3)
             )
             db_map.commit_session("Add scenario")
-            self._assert_success(original_base.remove())
-            self._assert_success(original_ctrl.remove())
-            self._assert_success(original_alt.remove())
+            original_base.remove()
+            original_ctrl.remove()
+            original_alt.remove()
             shuffled_alt = self._assert_success(
                 db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="alt", rank=1)
             )
-            self._assert_success(shuffled_alt.remove())
+            shuffled_alt.remove()
             db_map.commit_session("Shuffled scenario alternatives")
             scenario_alternatives = db_map.get_scenario_alternative_items()
             self.assertEqual(len(scenario_alternatives), 0)
@@ -1814,15 +1810,15 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="ctrl", rank=2)
             )
             db_map.commit_session("Add scenario")
-            self._assert_success(original_alt.remove())
-            self._assert_success(original_ctrl.remove())
+            original_alt.remove()
+            original_ctrl.remove()
             self._assert_success(
                 db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="ctrl", rank=1)
             )
             shuffled_alt = self._assert_success(
                 db_map.add_scenario_alternative_item(scenario_name="Keys", alternative_name="alt", rank=2)
             )
-            self._assert_success(shuffled_alt.remove())
+            shuffled_alt.remove()
             db_map.commit_session("Shuffled scenario alternatives")
             scenario_alternatives = db_map.get_scenario_alternative_items()
             self.assertEqual(len(scenario_alternatives), 1)
@@ -1839,8 +1835,8 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 alternative_in_db.remove()
                 replacement_alternative = self._assert_success(db_map.add_alternative_item(name="alt"))
                 db_map.commit_session("Replace alternative")
-                self._assert_success(replacement_alternative.remove())
-                self._assert_success(alternative_in_db.restore())
+                replacement_alternative.remove()
+                alternative_in_db.restore()
                 db_map.commit_session("No net changes")
             with DatabaseMapping(url) as db_map:
                 restored_alternative = db_map.get_alternative_item(name="alt")
@@ -2087,6 +2083,12 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with DatabaseMapping(url) as db_map:
                 definition = db_map.get_parameter_definition_item(entity_class_name="Cat", name="color")
                 self.assertEqual(definition._asdict()["default_type"], "str")
+
+    def test_add_item_unchecked_returns_public_item(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            item = self._assert_success(db_map.add_item("alternative", check=False, name="new"))
+            self.assertIsInstance(item, PublicItem)
+            self.assertEqual(item["name"], "new")
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
@@ -5072,7 +5074,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         shadow_db_map.add_entity_item(name="other_entity", entity_class_name="my_class")
                     )
                     shadow_db_map.commit_session("Add another entity that steals ghost's id.")
-                db_map.do_fetch_all("entity")
+                db_map.do_fetch_all(db_map.mapped_table("entity"))
                 self._assert_success(db_map.add_entity_item(name="dirty_entity", entity_class_name="my_class"))
                 db_map.commit_session("Add still uncommitted entity.")
                 entities = db_map.query(db_map.wide_entity_sq).all()
@@ -5151,8 +5153,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 with DatabaseMapping(url) as db_map_2:
                     definition = db_map_2.get_parameter_definition_item(name="z", entity_class_name="Object")
                     value, value_type = to_database("yes")
-                    item, error = definition.update(default_value=value, default_type=value_type)
-                    self.assertFalse(error)
+                    item = definition.update(default_value=value, default_type=value_type)
                     self.assertIsNotNone(item)
                     db_map_2.commit_session("Update parameter default value.")
                 db_map.refresh_session()

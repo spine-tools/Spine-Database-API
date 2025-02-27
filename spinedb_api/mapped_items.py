@@ -579,10 +579,12 @@ class ParameterItemBase(ParsedValueBase):
         parsed_value = from_database(value, type_)
         if parsed_value is None:
             return
-        list_value_id = self._db_map.get_item(
-            "list_value", parameter_value_list_name=list_name, value=value, type=type_
-        ).get("id")
-        if list_value_id is None:
+        mapped_table = self._db_map.mapped_table("list_value")
+        try:
+            list_value_id = self._db_map.item(
+                mapped_table, parameter_value_list_name=list_name, value=value, type=type_
+            )["id"]
+        except SpineDBAPIError:
             return self._value_not_in_list_error(parsed_value, list_name)
         self["list_value_id"] = list_value_id
         self[self.type_key] = "list_value_ref"
@@ -635,7 +637,8 @@ class ParameterDefinitionItem(ParameterItemBase):
         if key == "parameter_type_id_list":
             return tuple(x["id"] for x in self._sorted_parameter_types())
         if key == "parameter_type_list":
-            self._db_map.do_fetch_all("parameter_type")
+            mapped_table = self._db_map.mapped_table("parameter_type")
+            self._db_map.do_fetch_all(mapped_table)
             return tuple(type_and_rank_to_fancy_type(x["type"], x["rank"]) for x in self._sorted_parameter_types())
         if key == "value_list_id":
             return super().__getitem__("parameter_value_list_id")
@@ -653,15 +656,12 @@ class ParameterDefinitionItem(ParameterItemBase):
         return super().__getitem__(key)
 
     def _sorted_parameter_types(self):
-        self._db_map.do_fetch_all("parameter_type")
+        mapped_table = self._db_map.mapped_table("parameter_type")
+        self._db_map.do_fetch_all(mapped_table)
         if "id" in self:
             id_ = dict.__getitem__(self, "id")
             return sorted(
-                (
-                    x
-                    for x in self._db_map.mapped_table("parameter_type").valid_values()
-                    if x["parameter_definition_id"] == id_
-                ),
+                (x for x in mapped_table.valid_values() if x["parameter_definition_id"] == id_),
                 key=lambda i: (i["type"], i["rank"]),
             )
         name = dict.__getitem__(self, "name")
@@ -669,7 +669,7 @@ class ParameterDefinitionItem(ParameterItemBase):
         return sorted(
             (
                 x
-                for x in self._db_map.mapped_table("parameter_type").valid_values()
+                for x in mapped_table.valid_values()
                 if x["parameter_definition_name"] == name and x["entity_class_name"] == class_name
             ),
             key=lambda i: (i["type"], i["rank"]),
@@ -979,13 +979,10 @@ class ScenarioItem(MappedItemBase):
         if key == "alternative_name_list":
             return [x["alternative_name"] for x in self.sorted_scenario_alternatives]
         if key == "sorted_scenario_alternatives":
-            self._db_map.do_fetch_all("scenario_alternative")
+            mapped_table = self._db_map.mapped_table("scenario_alternative")
+            self._db_map.do_fetch_all(mapped_table)
             return sorted(
-                (
-                    x
-                    for x in self._db_map.mapped_table("scenario_alternative").valid_values()
-                    if x["scenario_id"] == self["id"]
-                ),
+                (x for x in mapped_table.valid_values() if x["scenario_id"] == self["id"]),
                 key=itemgetter("rank"),
             )
         return super().__getitem__(key)
