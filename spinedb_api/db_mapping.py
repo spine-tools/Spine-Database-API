@@ -558,7 +558,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return self.update(mapped_table, **kwargs)
 
     def add_or_update_by_type(self, item_type: str, **kwargs) -> PublicItem:
-        return self.update(self._mapped_tables[item_type], **kwargs)
+        return self.add_or_update(self._mapped_tables[item_type], **kwargs)
 
     @staticmethod
     def remove(mapped_table: MappedTable, **kwargs) -> None:

@@ -134,6 +134,14 @@ class TestAddOrUpdate(unittest.TestCase):
             self.assertEqual(added["description"], "Modified description.")
 
 
+class TestAddOrUpdateByType(unittest.TestCase):
+    def test_adds_alternative_if_it_doesnt_exist(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            alternative = db_map.add_or_update_by_type("alternative", name="new", description="New alternative.")
+            self.assertEqual(alternative["name"], "new")
+            self.assertEqual(alternative["description"], "New alternative.")
+
+
 class TestRemove(unittest.TestCase):
     def test_removes_item(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
