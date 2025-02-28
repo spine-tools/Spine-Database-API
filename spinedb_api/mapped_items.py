@@ -15,7 +15,7 @@ from operator import itemgetter
 import re
 from typing import ClassVar, Union
 from . import arrow_value
-from .db_mapping_base import DatabaseMappingBase, MappedItemBase
+from .db_mapping_base import MappedItemBase, MappedTable
 from .exception import SpineDBAPIError
 from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
 from .parameter_value import (
@@ -121,7 +121,8 @@ class EntityClassItem(MappedItemBase):
             mapped_table = self._db_map.mapped_table("superclass_subclass")
             return mapped_table.find_item({"subclass_id": self["id"]}, fetch=True).get(key)
         if key == "entity_class_byname":
-            return tuple(_byname_iter(self, "dimension_id_list", self._db_map))
+            entity_class_table = self._db_map.mapped_table("entity_class")
+            return tuple(_byname_iter(self, "dimension_id_list", entity_class_table))
         return super().__getitem__(key)
 
     def merge(self, other):
@@ -195,7 +196,8 @@ class EntityItem(MappedItemBase):
 
     def __getitem__(self, key):
         if key == "entity_byname":
-            return tuple(_byname_iter(self, "element_id_list", self._db_map))
+            entity_table = self._db_map.mapped_table("entity")
+            return tuple(_byname_iter(self, "element_id_list", entity_table))
         return super().__getitem__(key)
 
     def resolve_internal_fields(self, skip_keys=()):
@@ -226,19 +228,22 @@ class EntityItem(MappedItemBase):
         If the class is a superclass then it tries for each subclass until finding something useful.
         """
         class_names = [
-            x["subclass_name"] for x in self._db_map.get_items("superclass_subclass", superclass_name=class_name)
+            x["subclass_name"] for x in self._db_map.find_superclass_subclasses(superclass_name=class_name)
         ] or [class_name]
+        entity_class_table = self._db_map.mapped_table("entity_class")
+        entity_table = self._db_map.mapped_table("entity")
         for class_name_ in class_names:
-            dimension_name_list = self._db_map.get_item("entity_class", name=class_name_).get("dimension_name_list")
+            dimension_name_list = entity_class_table.find_item_by_unique_key({"name": class_name_}).get(
+                "dimension_name_list"
+            )
             if not dimension_name_list:
                 continue
             if len(entity_byname) < len(dimension_name_list):
                 raise SpineDBAPIError(f"too few elements given for entity ({entity_byname}) in class {class_name}")
             byname_backup = list(entity_byname)
             element_name_list = tuple(
-                self._db_map.get_item(
-                    "entity",
-                    **dict(
+                entity_table.find_item_by_unique_key(
+                    dict(
                         zip(
                             ("entity_byname", "entity_class_name"),
                             self._element_name_list_recursive(dim_name, entity_byname),
@@ -264,18 +269,23 @@ class EntityItem(MappedItemBase):
         error = super().polish()
         if error:
             return error
-        dim_name_lst, el_name_lst = dict.get(self, "dimension_name_list"), dict.get(self, "element_name_list")
-        if dim_name_lst and el_name_lst:
-            for dim_name, el_name in zip(dim_name_lst, el_name_lst):
-                if not self._db_map.get_item("entity", entity_class_name=dim_name, name=el_name, fetch=False):
-                    return f"element '{el_name}' is not an instance of class '{dim_name}'"
+        entity_table = self._db_map.mapped_table("entity")
+        dim_name_lst = dict.get(self, "dimension_name_list")
+        if dim_name_lst:
+            el_name_lst = dict.get(self, "element_name_list")
+            if el_name_lst:
+                for dim_name, el_name in zip(dim_name_lst, el_name_lst):
+                    if not entity_table.find_item_by_unique_key(
+                        {"entity_class_name": dim_name, "name": el_name}, fetch=False
+                    ):
+                        return f"element '{el_name}' is not an instance of class '{dim_name}'"
         if "name" in self:
             return
         base_name = name_from_elements(self["element_name_list"])
         name = base_name
         index = 1
         while any(
-            self._db_map.get_item("entity", entity_class_name=class_name, name=name)
+            entity_table.find_item_by_unique_key({"entity_class_name": class_name, "name": name})
             for k in ("entity_class_name", "superclass_name")
             if (class_name := self[k]) is not None
         ):
@@ -1147,7 +1157,8 @@ class SuperclassSubclassItem(MappedItemBase):
     _internal_fields = {"superclass_id": (("superclass_name",), "id"), "subclass_id": (("subclass_name",), "id")}
 
     def _subclass_entities(self):
-        return self._db_map.get_items("entity", class_id=self["subclass_id"], fetch=False)
+        entity_table = self._db_map.mapped_table("entity")
+        return entity_table.find_item({"class_id": self["subclass_id"]}, fetch=False)
 
     def check_mutability(self):
         if self._subclass_entities():
@@ -1164,14 +1175,12 @@ ITEM_CLASSES = tuple(
 ITEM_CLASS_BY_TYPE = {klass.item_type: klass for klass in ITEM_CLASSES}
 
 
-def _byname_iter(
-    item: Union[EntityClassItem, EntityItem], id_list_name: str, db_map: DatabaseMappingBase
-) -> Iterator[str]:
+def _byname_iter(item: Union[EntityClassItem, EntityItem], id_list_name: str, table: MappedTable) -> Iterator[str]:
     id_list = item[id_list_name]
     if not id_list:
         yield item["name"]
     else:
-        find_by_id = db_map.mapped_table(item.item_type).find_item_by_id
+        find_by_id = table.find_item_by_id
         for id_ in id_list:
             element = find_by_id(id_)
-            yield from _byname_iter(element, id_list_name, db_map)
+            yield from _byname_iter(element, id_list_name, table)
