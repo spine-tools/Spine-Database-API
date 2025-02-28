@@ -164,7 +164,7 @@ def export_entity_class_display_modes(db_map, ids=Asterisk):
 def export_entities(db_map, ids=Asterisk):
     return sorted(
         (
-            (x.entity_class_name, x.element_name_list or x.name, x.description)
+            (x.entity_class_name, x.entity_byname if x.element_name_list else x.name, x.description)
             for x in _get_items(db_map, "entity", ids)
         ),
         key=lambda x: (0 if isinstance(x[1], str) else len(x[1]), x[0], (x[1],) if isinstance(x[1], str) else x[1]),
