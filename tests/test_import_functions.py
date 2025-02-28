@@ -254,7 +254,7 @@ class TestImportObjectClassParameter(AssertSuccessTestCase):
             self.assertIn("parameter", [p.name for p in db_map.query(db_map.parameter_definition_sq)])
             self.assertFalse(errors)
 
-    def test_import_object_class_parameter_with_null_default_value_and_db_server_unparsing(self):
+    def test_import_object_class_parameter_with_None_default_value_and_db_server_unparsing(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_object_classes(db_map, ["object_class"])
             _, errors = import_object_parameters(
@@ -383,6 +383,184 @@ class TestImportEntity(AssertSuccessTestCase):
             count, errors = import_data(db_map, entities=(("relationship_class", ("object1", "object2")),))
             self.assertEqual(count, 0)
             self.assertEqual(errors, [])
+
+    def test_multidimensional_entities(self):
+        data = {
+            "entity_classes": [
+                ("Unit",),
+                ("Node",),
+                ("Unit__Node", ("Unit", "Node")),
+                ("Node__Unit", ("Node", "Unit")),
+                ("Unit__Node__Node__Unit", ("Unit__Node", "Node__Unit")),
+            ],
+            "entities": [
+                ("Unit", "u"),
+                ("Node", "n"),
+                ("Node__Unit", ("n", "u")),
+                ("Unit__Node", ("u", "n")),
+                ("Unit__Node__Node__Unit", ("u", "n", "n", "u")),
+            ],
+        }
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            count, errors = import_data(db_map, **data)
+            self.assertEqual(errors, [])
+            self.assertEqual(count, 10)
+            classes = db_map.find_entity_classes()
+            self.assertCountEqual(
+                [c["name"] for c in classes], ["Unit", "Node", "Unit__Node", "Node__Unit", "Unit__Node__Node__Unit"]
+            )
+            entities = db_map.find_entities()
+            self.assertCountEqual([e["name"] for e in entities], ["u", "n", "u__n", "n__u", "u__n__n__u"])
+
+    def test_multidimensional_entities_in_superclasses(self):
+        data = {
+            "entity_classes": [
+                ["node", [], None, None, True],
+                ["unit", [], None, None, True],
+                ["unit_flow", [], None, None, True],
+                ["node__unit", ["node", "unit"], None, None, True],
+                ["unit__node", ["unit", "node"], None, None, True],
+                ["unit_flow__unit_flow", ["unit_flow", "unit_flow"], None, None, True],
+            ],
+            "superclass_subclasses": [
+                ["unit_flow", "node__unit"],
+                ["unit_flow", "unit__node"],
+            ],
+            "entities": [
+                ["node", "n1", None],
+                ["node", "n2", None],
+                ["unit", "u1", None],
+                ["unit", "u2", None],
+                ["node__unit", ["n1", "u1"], None],
+                ["node__unit", ["n2", "u2"], None],
+                ["unit__node", ["u1", "n2"], None],
+                ["unit__node", ["u2", "n1"], None],
+                ["unit_flow__unit_flow", ["n1", "u1", "n2", "u2"], None],
+                ["unit_flow__unit_flow", ["u1", "n2", "u2", "n1"], None],
+                ["unit_flow__unit_flow", ["n1", "u1", "u1", "n2"], None],
+                ["unit_flow__unit_flow", ["u2", "n1", "n2", "u2"], None],
+            ],
+        }
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            count, errors = import_data(db_map, **data)
+            self.assertEqual(errors, [])
+            classes = {c["name"]: c["dimension_name_list"] for c in db_map.find_entity_classes()}
+            self.assertEqual(len(classes), 6)
+            self.assertEqual(
+                [
+                    classes["node"],
+                    classes["unit"],
+                    classes["unit_flow"],
+                    classes["node__unit"],
+                    classes["unit__node"],
+                    classes["unit_flow__unit_flow"],
+                ],
+                [(), (), (), ("node", "unit"), ("unit", "node"), ("unit_flow", "unit_flow")],
+            )
+            superclasses = db_map.find_superclass_subclasses()
+            self.assertEqual(len(superclasses), 2)
+            subclasses = {}
+            for superclass in superclasses:
+                subclasses.setdefault(superclass["superclass_name"], []).append(superclass["subclass_name"])
+            self.assertEqual(len(subclasses), 1)
+            self.assertCountEqual(subclasses["unit_flow"], ["node__unit", "unit__node"])
+            entities = {e["name"]: e for e in db_map.find_entities()}
+            self.assertEqual(len(entities), 12)
+            self.assertIn("n1", entities)
+            self.assertIn("n2", entities)
+            self.assertIn("u1", entities)
+            self.assertIn("u2", entities)
+            self.assertIn("n1__u1", entities)
+            self.assertIn("n2__u2", entities)
+            self.assertIn("u1__n2", entities)
+            self.assertIn("u2__n1", entities)
+            self.assertEqual(entities["n1__u1__n2__u2"]["entity_byname"], ("n1", "u1", "n2", "u2"))
+            self.assertEqual(entities["n1__u1__n2__u2"]["dimension_name_list"], ("unit_flow", "unit_flow"))
+            self.assertEqual(entities["u1__n2__u2__n1"]["entity_byname"], ("u1", "n2", "u2", "n1"))
+            self.assertEqual(entities["u1__n2__u2__n1"]["dimension_name_list"], ("unit_flow", "unit_flow"))
+            self.assertEqual(entities["n1__u1__u1__n2"]["entity_byname"], ("n1", "u1", "u1", "n2"))
+            self.assertEqual(entities["n1__u1__u1__n2"]["dimension_name_list"], ("unit_flow", "unit_flow"))
+            self.assertEqual(entities["u2__n1__n2__u2"]["entity_byname"], ("u2", "n1", "n2", "u2"))
+            self.assertEqual(entities["u2__n1__n2__u2"]["dimension_name_list"], ("unit_flow", "unit_flow"))
+
+    def test_nonexistent_multidimensional_entities_in_superclasses_get_rejected(self):
+        data = {
+            "entity_classes": [
+                ["node", [], None, None, True],
+                ["unit", [], None, None, True],
+                ["unit_flow", [], None, None, True],
+                ["node__unit", ["node", "unit"], None, None, True],
+                ["unit__node", ["unit", "node"], None, None, True],
+                ["unit_flow__unit_flow", ["unit_flow", "unit_flow"], None, None, True],
+            ],
+            "superclass_subclasses": [
+                ["unit_flow", "node__unit"],
+                ["unit_flow", "unit__node"],
+            ],
+            "entities": [
+                ["node", "n1", None],
+                ["node", "n2", None],
+                ["unit", "u1", None],
+                ["unit", "u2", None],
+                ["node__unit", ["n1", "u1"], None],
+                ["node__unit", ["n2", "u2"], None],
+                ["unit__node", ["u1", "n2"], None],
+                ["unit__node", ["u2", "n1"], None],
+                ["unit_flow__unit_flow", ["n1", "u2", "n2", "u2"], None],
+                ["unit_flow__unit_flow", ["n2", "u2", "n1", "u2"], None],
+                ["unit_flow__unit_flow", ["u1", "n1", "u2", "n1"], None],
+                ["unit_flow__unit_flow", ["u1", "n2", "u1", "n1"], None],
+                ["unit_flow__unit_flow", ["n1", "u2", "u1", "n2"], None],
+                ["unit_flow__unit_flow", ["n1", "u1", "u1", "n1"], None],
+                ["unit_flow__unit_flow", ["u1", "n1", "n2", "u2"], None],
+                ["unit_flow__unit_flow", ["u2", "n1", "n2", "u1"], None],
+            ],
+        }
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            count, errors = import_data(db_map, **data)
+            self.assertEqual(
+                errors,
+                [
+                    "non-existent elements in byname ['n1', 'u2', 'n2', 'u2'] for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ['n2', 'u2', 'n1', 'u2'] for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ['u1', 'n1', 'u2', 'n1'] for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ['u1', 'n2', 'u1', 'n1'] for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ['n1', 'u2', 'u1', 'n2'] for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ['n1', 'u1', 'u1', 'n1'] for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ['u1', 'n1', 'n2', 'u2'] for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ['u2', 'n1', 'n2', 'u1'] for class " "unit_flow__unit_flow",
+                ],
+            )
+            classes = {c["name"]: c["dimension_name_list"] for c in db_map.find_entity_classes()}
+            self.assertEqual(len(classes), 6)
+            self.assertEqual(
+                [
+                    classes["node"],
+                    classes["unit"],
+                    classes["unit_flow"],
+                    classes["node__unit"],
+                    classes["unit__node"],
+                    classes["unit_flow__unit_flow"],
+                ],
+                [(), (), (), ("node", "unit"), ("unit", "node"), ("unit_flow", "unit_flow")],
+            )
+            superclasses = db_map.find_superclass_subclasses()
+            self.assertEqual(len(superclasses), 2)
+            subclasses = {}
+            for superclass in superclasses:
+                subclasses.setdefault(superclass["superclass_name"], []).append(superclass["subclass_name"])
+            self.assertEqual(len(subclasses), 1)
+            self.assertCountEqual(subclasses["unit_flow"], ["node__unit", "unit__node"])
+            entities = {e["name"]: e for e in db_map.find_entities()}
+            self.assertEqual(len(entities), 8)
+            self.assertIn("n1", entities)
+            self.assertIn("n2", entities)
+            self.assertIn("u1", entities)
+            self.assertIn("u2", entities)
+            self.assertIn("n1__u1", entities)
+            self.assertIn("n2__u2", entities)
+            self.assertIn("u1__n2", entities)
+            self.assertIn("u2__n1", entities)
 
 
 class TestImportRelationship(AssertSuccessTestCase):

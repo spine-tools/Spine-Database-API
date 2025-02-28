@@ -91,6 +91,42 @@ class TestExportFunctions(unittest.TestCase):
             expected = (("Object", (), None, None, True), ("Relation", ("Object",), None, None, True))
             self.assertCountEqual(exported, expected)
 
+    def test_export_multidimensional_entities(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Unit")
+            db_map.add_entity_class(name="Node")
+            db_map.add_entity_class(dimension_name_list=("Unit", "Node"))
+            db_map.add_entity_class(dimension_name_list=("Node", "Unit"))
+            db_map.add_entity_class(dimension_name_list=("Unit__Node", "Node__Unit"))
+            db_map.add_entity(name="u", entity_class_name="Unit")
+            db_map.add_entity(name="n", entity_class_name="Node")
+            db_map.add_entity(element_name_list=("u", "n"), entity_class_name="Unit__Node")
+            db_map.add_entity(element_name_list=("n", "u"), entity_class_name="Node__Unit")
+            db_map.add_entity(element_name_list=("u__n", "n__u"), entity_class_name="Unit__Node__Node__Unit")
+            data = export_data(db_map)
+            self.assertEqual(len(data), 3)
+            self.assertCountEqual(data["alternatives"], [("Base", "Base alternative")])
+            self.assertCountEqual(
+                data["entity_classes"],
+                [
+                    ("Unit", (), None, None, True),
+                    ("Node", (), None, None, True),
+                    ("Unit__Node", ("Unit", "Node"), None, None, True),
+                    ("Node__Unit", ("Node", "Unit"), None, None, True),
+                    ("Unit__Node__Node__Unit", ("Unit__Node", "Node__Unit"), None, None, True),
+                ],
+            )
+            self.assertCountEqual(
+                data["entities"],
+                [
+                    ("Unit", "u", None),
+                    ("Node", "n", None),
+                    ("Unit__Node", ("u", "n"), None),
+                    ("Node__Unit", ("n", "u"), None),
+                    ("Unit__Node__Node__Unit", ("u", "n", "n", "u"), None),
+                ],
+            )
+
     def test_export_single_parameter_type(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_addition_success(db_map.add_entity_class_item(name="Widget"))
