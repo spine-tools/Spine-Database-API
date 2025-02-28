@@ -86,3 +86,14 @@ jobs:
       spinedb-api-ref-name: ${{ github.ref_name }}
       coverage: false
     secrets: inherit
+  call-spine-opt-test:
+    name: SpineOpt.jl test
+    uses: spine-tools/SpineOpt.jl/.github/workflows/ci.yml@master
+    with:
+      host-os: ubuntu-latest
+      julia-version: "1"
+      python-version: "3.13"
+      repository: spine-tools/SpineOpt.jl
+      spinedb-api-ref-name: ${{ github.ref_name }}
+      coverage: false
+    secrets: inherit
