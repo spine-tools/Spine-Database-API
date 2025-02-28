@@ -88,7 +88,7 @@ jobs:
     secrets: inherit
   call-spine-opt-test:
     name: SpineOpt.jl test
-    uses: spine-tools/SpineOpt.jl/.github/workflows/Test.yml@spinedbapitrigger
+    uses: spine-tools/SpineOpt.jl/.github/workflows/Test.yml@21713b7cdda827ec3c5fb8643f42135192dc3060
     with:
       host-os: ubuntu-latest
       julia-version: "1"
