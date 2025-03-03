@@ -68,14 +68,41 @@ class TestReader(unittest.TestCase):
         with mock.patch.object(reader, "get_table_cell") as get_table_cell:
             get_table_cell.return_value = "cat"
             parsed_tables_mappings = reader.resolve_values_for_fixed_position_mappings(
-                table_mappings,
-                table_options,
+                table_mappings, table_options, True
             )
             get_table_cell.assert_called_once_with("table 1", 5, 23, {"my option": 13})
         self.assertEqual(len(parsed_tables_mappings), 1)
         mappings = parsed_tables_mappings["table 1"]
         self.assertEqual(len(mappings), 1)
         self.assertEqual(mappings[0], ("alternative mapping", AlternativeMapping(Position.hidden, value="cat")))
+
+    def test_resolve_values_for_fixed_position_mappings_reraises_reader_error_when_its_fatal(self):
+        reader = Reader(None)
+        root_mapping = AlternativeMapping(Position.fixed, value="5, 23")
+        table_mappings = {"table 1": [("alternative mapping", root_mapping)]}
+        table_options = {"table 1": {"my option": 13}}
+        with mock.patch.object(reader, "get_table_cell") as get_table_cell:
+            get_table_cell.side_effect = ReaderError()
+            with self.assertRaises(ReaderError):
+                parsed_tables_mappings = reader.resolve_values_for_fixed_position_mappings(
+                    table_mappings, table_options, True
+                )
+
+    def test_resolve_values_for_fixed_position_mappings_sets_value_to_none_on_reader_error_that_isnt_fatal(self):
+        reader = Reader(None)
+        root_mapping = AlternativeMapping(Position.fixed, value="5, 23")
+        table_mappings = {"table 1": [("alternative mapping", root_mapping)]}
+        table_options = {"table 1": {"my option": 13}}
+        with mock.patch.object(reader, "get_table_cell") as get_table_cell:
+            get_table_cell.side_effect = ReaderError()
+            parsed_tables_mappings = reader.resolve_values_for_fixed_position_mappings(
+                table_mappings, table_options, False
+            )
+            get_table_cell.assert_called_once_with("table 1", 5, 23, {"my option": 13})
+        self.assertEqual(len(parsed_tables_mappings), 1)
+        mappings = parsed_tables_mappings["table 1"]
+        self.assertEqual(len(mappings), 1)
+        self.assertEqual(mappings[0], ("alternative mapping", AlternativeMapping(Position.hidden, value=None)))
 
     def test_reader_appends_data_iterator_exceptions_to_return_value(self):
         def raise_exception(*args):

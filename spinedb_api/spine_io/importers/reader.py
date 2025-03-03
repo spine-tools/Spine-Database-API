@@ -114,7 +114,7 @@ class Reader:
         data = list(data_iter)
         return data, header
 
-    def resolve_values_for_fixed_position_mappings(self, tables_mappings, table_options):
+    def resolve_values_for_fixed_position_mappings(self, tables_mappings, table_options, reader_error_is_fatal):
         for table, named_mappings in tables_mappings.items():
             parsed_mappings = []
             for mapping_name, root_mapping in named_mappings:
@@ -126,7 +126,12 @@ class Reader:
                     if target_table is None:
                         target_table = table
                     options = table_options.get(target_table, {})
-                    mapping.value = self.get_table_cell(target_table, row, column, options)
+                    try:
+                        mapping.value = self.get_table_cell(target_table, row, column, options)
+                    except ReaderError as error:
+                        if reader_error_is_fatal:
+                            raise error
+                        mapping.value = None
                     mapping.position = Position.hidden
                 parsed_mappings.append((mapping_name, root_mapping))
             tables_mappings[table] = parsed_mappings
