@@ -235,10 +235,9 @@ class DatabaseMappingBase:
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
         self._add_descendants(item_types)
         for item_type in item_types:
+            self._mapped_tables[item_type].reset()
             with suppress(KeyError):
-                self._mapped_tables[item_type].clear()
-            with suppress(KeyError):
-                del self._fetched[item_type]
+                self._fetched.clear()
 
     def reset_purging(self):
         """Resets purging status for all item types.
@@ -640,6 +639,11 @@ class MappedTable(dict):
         if current_item:
             current_item.cascade_restore()
         return current_item
+
+    def reset(self):
+        self._ids_by_unique_key_value.clear()
+        self._temp_id_lookup.clear()
+        self.clear()
 
 
 class MappedItemBase(dict):
