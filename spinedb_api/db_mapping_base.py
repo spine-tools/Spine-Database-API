@@ -335,9 +335,6 @@ class MappedTable(dict):
         id_ = self._temp_id_lookup.get(id_, id_)
         return super().get(id_, default)
 
-    def _new_id(self):
-        return TempId.new_unique(self.item_type, self._temp_id_lookup)
-
     def _unique_key_value_to_id(self, key, value, fetch=True):
         """Returns the id that has the given value for the given unique key, or None.
 
@@ -370,17 +367,6 @@ class MappedTable(dict):
 
     def valid_values(self):
         return (x for x in self.values() if x.is_valid())
-
-    def _make_item(self, item):
-        """Returns a mapped item.
-
-        Args:
-            item (dict): the 'db item' to use as base
-
-        Returns:
-            MappedItem
-        """
-        return self._db_map.make_item(self.item_type, **item)
 
     def find_item(self, item, skip_keys=(), fetch=True):
         """Returns a MappedItemBase that matches the given dictionary-item.
@@ -417,7 +403,7 @@ class MappedTable(dict):
         if current_item:
             return current_item
         # Maybe item is missing some key stuff, so try with a resolved MappedItem too...
-        mapped_item = self._make_item(item)
+        mapped_item = self._db_map.make_item(self.item_type, **item)
         error = mapped_item.resolve_internal_fields(skip_keys=item.keys())
         if error:
             return {}
@@ -438,7 +424,7 @@ class MappedTable(dict):
         else:
             current_item = None
             full_item, merge_error = item, None
-        candidate_item = self._make_item(full_item)
+        candidate_item = self._db_map.make_item(self.item_type, **full_item)
         if current_item is None:
             error = self._check_required_keys(candidate_item)
             if error:
@@ -520,10 +506,10 @@ class MappedTable(dict):
 
     def _make_and_add_item(self, item):
         if not isinstance(item, MappedItemBase):
-            item = self._make_item(item)
+            item = self._db_map.make_item(self.item_type, **item)
             item.polish()
         db_id = item.pop("id", None) if item.has_valid_id else None
-        item["id"] = new_id = self._new_id()
+        item["id"] = new_id = TempId.new_unique(self.item_type, self._temp_id_lookup)
         if db_id is not None:
             new_id.resolve(db_id)
         self[new_id] = item
