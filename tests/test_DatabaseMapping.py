@@ -2106,6 +2106,65 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with self.assertRaises(NothingToCommit):
                 db_map.commit_session("Add initial data.")
 
+    def test_subclass_dimensions_must_match(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity_class(dimension_name_list=("Object",))
+            db_map.add_entity_class(name="SuperObject")
+            db_map.add_superclass_subclass(superclass_name="SuperObject", subclass_name="Object")
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "subclass has different dimension count to existing subclasses"
+            ):
+                db_map.add_superclass_subclass(superclass_name="SuperObject", subclass_name="Object__")
+
+    def test_subclass_cannot_be_superclass(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity_class(name="Subclass")
+            db_map.add_superclass_subclass(superclass_name="Subclass", subclass_name="Object")
+            db_map.add_entity_class(name="Superclass")
+            with self.assertRaisesRegex(SpineDBAPIError, "subclass or any of its dimensions cannot be a superclass"):
+                db_map.add_superclass_subclass(superclass_name="Superclass", subclass_name="Subclass")
+
+    def test_none_of_subclass_dimensions_cannot_be_superclass(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity_class(name="Subclass")
+            db_map.add_superclass_subclass(superclass_name="Subclass", subclass_name="Object")
+            db_map.add_entity_class(name="Superclass")
+            with self.assertRaisesRegex(SpineDBAPIError, "subclass or any of its dimensions cannot be a superclass"):
+                db_map.add_superclass_subclass(superclass_name="Superclass", subclass_name="Subclass")
+
+    def test_subclass_dimensions_must_match_on_subclass_update(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity_class(name="Relationship1", dimension_name_list=("Object",))
+            db_map.add_entity_class(name="Relationship2", dimension_name_list=("Object",))
+            db_map.add_entity_class(name="SuperObject")
+            db_map.add_superclass_subclass(superclass_name="SuperObject", subclass_name="Relationship1")
+            superclass_definition = db_map.add_superclass_subclass(
+                superclass_name="SuperObject", subclass_name="Relationship2"
+            )
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "subclass has different dimension count to existing subclasses"
+            ):
+                db_map.update_superclass_subclass(id=superclass_definition["id"], subclass_name="Object")
+
+    def test_subclass_dimensions_must_match_on_superclass_update(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity_class(name="Relationship", dimension_name_list=("Object",))
+            db_map.add_entity_class(name="SuperObject1")
+            superclass_definition = db_map.add_superclass_subclass(
+                superclass_name="SuperObject1", subclass_name="Object"
+            )
+            db_map.add_entity_class(name="SuperObject2")
+            db_map.add_superclass_subclass(superclass_name="SuperObject2", subclass_name="Relationship")
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "subclass has different dimension count to existing subclasses"
+            ):
+                db_map.update_superclass_subclass(id=superclass_definition["id"], superclass_name="SuperObject2")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

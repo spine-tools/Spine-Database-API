@@ -30,6 +30,7 @@ from .parameter_value import (
     to_database,
     type_and_rank_to_fancy_type,
 )
+from .temp_id import TempId
 
 
 def item_factory(item_type):
@@ -1156,17 +1157,76 @@ class SuperclassSubclassItem(MappedItemBase):
     }
     _internal_fields = {"superclass_id": (("superclass_name",), "id"), "subclass_id": (("subclass_name",), "id")}
 
-    def _subclass_entities(self):
-        entity_table = self._db_map.mapped_table("entity")
-        return entity_table.find_item({"class_id": self["subclass_id"]}, fetch=False)
+    def polish(self):
+        error = super().polish()
+        if error:
+            return error
+        entity_class_table = self._db_map.mapped_table("entity_class")
+        subclass = entity_class_table.find_item_by_id(self["subclass_id"])
+        superclass_subclass_table = self._db_map.mapped_table("superclass_subclass")
+        try:
+            self._check_subclass_validity(
+                self["superclass_id"], subclass, entity_class_table, superclass_subclass_table
+            )
+        except SpineDBAPIError as error:
+            return str(error)
+        return ""
+
+    def merge(self, other):
+        entity_class_table = self._db_map.mapped_table("entity_class")
+        subclass = entity_class_table.find_item({"id": other.get("subclass_id"), "name": other.get("subclass_name")})
+        if not subclass:
+            subclass = entity_class_table[self["subclass_id"]]
+        superclass_subclass_table = self._db_map.mapped_table("superclass_subclass")
+        superclass = superclass_subclass_table.find_item(
+            {"id": other.get("superclass_id"), "name": other.get("superclass_name")}
+        )
+        if superclass:
+            superclass_id = superclass["id"]
+        else:
+            superclass_id = self["id"]
+        try:
+            self._check_subclass_validity(superclass_id, subclass, entity_class_table, superclass_subclass_table)
+        except SpineDBAPIError as error:
+            return None, str(error)
+        return super().merge(other)
+
+    def _check_subclass_validity(
+        self,
+        superclass_id: TempId,
+        subclass: EntityClassItem,
+        entity_class_table: MappedTable,
+        superclass_subclass_table,
+    ) -> None:
+        dimension_count = len(subclass["dimension_name_list"])
+        self._db_map.do_fetch_all(superclass_subclass_table)
+        for existing_record in superclass_subclass_table.values():
+            if existing_record["superclass_id"] != superclass_id or not existing_record.is_valid():
+                continue
+            existing = entity_class_table[existing_record["subclass_id"]]
+            if len(existing["dimension_name_list"]) != dimension_count:
+                raise SpineDBAPIError("subclass has different dimension count to existing subclasses")
+        if _is_superclass_recursive(subclass, entity_class_table, self._db_map):
+            raise SpineDBAPIError("subclass or any of its dimensions cannot be a superclass")
 
     def check_mutability(self):
-        if self._subclass_entities():
+        if self._db_map.find_entities(class_id=self["subclass_id"]):
             return "can't set or modify the superclass for a class that already has entities"
         return super().check_mutability()
 
     def commit(self, _commit_id):
         super().commit(None)
+
+
+def _is_superclass_recursive(
+    entity_class: EntityClassItem, entity_class_table: MappedTable, db_map: "DatabaseMapping"
+) -> bool:
+    if db_map.find_superclass_subclasses(superclass_id=entity_class["id"]):
+        return True
+    return any(
+        _is_superclass_recursive(entity_class_table.find_item_by_id(id_), entity_class_table, db_map)
+        for id_ in entity_class["dimension_id_list"]
+    )
 
 
 ITEM_CLASSES = tuple(
