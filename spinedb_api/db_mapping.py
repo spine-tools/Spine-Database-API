@@ -36,7 +36,7 @@ from .compatibility import compatibility_transformations
 from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, PublicItem, Status
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
-from .exception import NothingToCommit, SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
+from .exception import NothingToCommit, NothingToRollback, SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
 from .filters.tools import apply_filter_stack, load_filters, pop_filter_configs
 from .helpers import (
     Asterisk,
@@ -1138,7 +1138,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def rollback_session(self):
         """Discards all the changes from the in-memory mapping."""
         if not self._rollback():
-            raise SpineDBAPIError("Nothing to rollback.")
+            raise NothingToRollback()
         if self._memory:
             self._memory_dirty = False
 

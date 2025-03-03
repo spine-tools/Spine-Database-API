@@ -2090,6 +2090,22 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertIsInstance(item, PublicItem)
             self.assertEqual(item["name"], "new")
 
+    def test_add_items_by_id_after_reset(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            widget = db_map.add_entity_class(name="Widget")
+            db_map.commit_session("Add initial data.")
+            spoon = db_map.add_entity(name="spoon", class_id=widget["id"].db_id)
+            db_map.commit_session("Add initial data.")
+            db_map.reset()
+            with self.assertRaisesRegex(SpineDBAPIError, "there's already a entity_class with \\{'name': 'Widget'\\}"):
+                db_map.add_entity_class(id=widget["id"].db_id, name="Widget")
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "there's already a entity with \\{'entity_class_name': 'Widget', 'name': 'spoon'\\}"
+            ):
+                db_map.add_entity(id=spoon["id"].db_id, name="spoon", class_id=widget["id"].db_id)
+            with self.assertRaises(NothingToCommit):
+                db_map.commit_session("Add initial data.")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

@@ -87,3 +87,10 @@ class NothingToCommit(SpineDBAPIError):
 
     def __init__(self):
         super().__init__("Nothing to commit.")
+
+
+class NothingToRollback(SpineDBAPIError):
+    """A notification that the session contains no changes."""
+
+    def __init__(self):
+        super().__init__("Nothing to rollback.")
