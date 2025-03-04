@@ -2165,6 +2165,48 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             ):
                 db_map.update_superclass_subclass(id=superclass_definition["id"], superclass_name="SuperObject2")
 
+    def test_duplicate_entity_names_in_subclass(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="A")
+            db_map.add_entity_class(name="B")
+            db_map.add_entity_class(name="C")
+            db_map.add_superclass_subclass(superclass_name="C", subclass_name="A")
+            db_map.add_superclass_subclass(superclass_name="C", subclass_name="B")
+            db_map.add_entity_class(dimension_name_list=("C", "C"))
+            db_map.add_entity(entity_class_name="A", name="a")
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "there's already a entity with {'entity_class_name': 'C', 'name': 'a'}"
+            ):
+                db_map.add_entity(entity_class_name="B", name="a")
+            entity = db_map.add_entity(entity_class_name="C__C", entity_byname=("a", "a"))
+            self.assertEqual(entity["entity_byname"], ("a", "a"))
+            self.assertEqual(entity["dimension_name_list"], ("C", "C"))
+            entity = db_map.entity(entity_class_name="C", entity_byname=("a",))
+            self.assertEqual(entity["entity_class_name"], "A")
+
+    def test_duplicate_entity_names_in_deep_subclass(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="node")
+            db_map.add_entity_class(name="unit")
+            db_map.add_entity_class(name="node__unit", dimension_name_list=("node", "unit"))
+            db_map.add_entity_class(name="unit__node", dimension_name_list=("unit", "node"))
+            db_map.add_entity_class(name="flow")
+            db_map.add_superclass_subclass(superclass_name="flow", subclass_name="node__unit")
+            db_map.add_superclass_subclass(superclass_name="flow", subclass_name="unit__node")
+            db_map.add_entity_class(name="flow__flow", dimension_name_list=("flow", "flow"))
+            db_map.add_entity(entity_class_name="node", name="a")
+            db_map.add_entity(entity_class_name="unit", name="a")
+            db_map.add_entity(entity_class_name="node__unit", entity_byname=("a", "a"))
+            with self.assertRaisesRegex(
+                SpineDBAPIError,
+                "there's already a entity with {'entity_class_name': 'flow', 'entity_byname': \\('a', 'a'\\)}",
+            ):
+                db_map.add_entity(entity_class_name="unit__node", entity_byname=("a", "a"))
+            entity = db_map.add_entity(entity_class_name="flow__flow", entity_byname=("a", "a", "a", "a"))
+            self.assertEqual(entity["entity_byname"], ("a", "a", "a", "a"))
+            entity = db_map.entity(entity_class_name="flow", entity_byname=("a", "a"))
+            self.assertEqual(entity["entity_class_name"], "node__unit")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

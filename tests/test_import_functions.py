@@ -17,6 +17,7 @@ from spinedb_api.import_functions import (
     import_alternatives,
     import_data,
     import_display_modes,
+    import_entities,
     import_entity_class_display_modes,
     import_entity_classes,
     import_metadata,
@@ -561,6 +562,35 @@ class TestImportEntity(AssertSuccessTestCase):
             self.assertIn("n2__u2", entities)
             self.assertIn("u1__n2", entities)
             self.assertIn("u2__n1", entities)
+
+    def test_import_subclass_with_duplicate_entity_names(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="node")
+            db_map.add_entity_class(name="unit")
+            db_map.add_entity_class(name="node__unit", dimension_name_list=("node", "unit"))
+            db_map.add_entity_class(name="unit__node", dimension_name_list=("unit", "node"))
+            db_map.add_entity_class(name="flow")
+            db_map.add_superclass_subclass(superclass_name="flow", subclass_name="node__unit")
+            db_map.add_superclass_subclass(superclass_name="flow", subclass_name="unit__node")
+            db_map.add_entity_class(name="flow__flow", dimension_name_list=("flow", "flow"))
+            db_map.add_entity(entity_class_name="node", name="a")
+            db_map.add_entity(entity_class_name="unit", name="a")
+            count, errors = import_entities(db_map, (("node__unit", ("a", "a")), ("unit__node", ("a", "a"))))
+            self.assertEqual(errors, [])
+            self.assertEqual(count, 2)
+            entities = db_map.find_entities(entity_class_name="node__unit")
+            self.assertEqual(entities, [])
+            entities = db_map.find_entities(entity_class_name="unit__node")
+            self.assertEqual(len(entities), 1)
+            self.assertEqual(entities[0]["entity_class_name"], "unit__node")
+            self.assertEqual(entities[0]["entity_byname"], ("a", "a"))
+            count, errors = import_entities(db_map, (("flow__flow", ("a", "a", "a", "a")),))
+            self.assertEqual(errors, [])
+            self.assertEqual(count, 1)
+            entities = db_map.find_entities(entity_class_name="flow__flow")
+            self.assertEqual(len(entities), 1)
+            self.assertEqual(entities[0]["entity_class_name"], "flow__flow")
+            self.assertEqual(entities[0]["dimension_name_list"], ("flow", "flow"))
 
 
 class TestImportRelationship(AssertSuccessTestCase):
