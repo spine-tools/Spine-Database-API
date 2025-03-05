@@ -32,11 +32,6 @@ from .parameter_value import (
 )
 from .temp_id import TempId
 
-
-def item_factory(item_type):
-    return ITEM_CLASS_BY_TYPE.get(item_type, MappedItemBase)
-
-
 _ENTITY_BYNAME_VALUE = (
     "A tuple with the entity name as single element if the entity is 0-dimensional, "
     "or the 0-dimensional element names if it is multi-dimensional."

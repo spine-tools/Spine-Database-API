@@ -47,7 +47,7 @@ from .helpers import (
     model_meta,
 )
 from .mapped_item_status import Status
-from .mapped_items import item_factory
+from .mapped_items import ITEM_CLASS_BY_TYPE
 from .spine_db_client import get_db_url_from_server
 from .temp_id import TempId, resolve
 
@@ -221,7 +221,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     @staticmethod
     def item_types() -> list[str]:
-        return [x for x in DatabaseMapping._sq_name_by_item_type if not item_factory(x).is_protected]
+        return [x for x in DatabaseMapping._sq_name_by_item_type if not ITEM_CLASS_BY_TYPE[x].is_protected]
 
     @staticmethod
     def all_item_types() -> list[str]:
@@ -229,7 +229,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     @staticmethod
     def item_factory(item_type):
-        return item_factory(item_type)
+        return ITEM_CLASS_BY_TYPE[item_type]
 
     def _query_commit_count(self) -> int:
         with self:
@@ -982,9 +982,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             value = resolve(value)
             if hasattr(sq.c, key):
                 qry = qry.filter(getattr(sq.c, key) == value)
-            elif key in self.item_factory(item_type)._external_fields:
-                src_key, key = self.item_factory(item_type)._external_fields[key]
-                ref_type = self.item_factory(item_type)._references[src_key]
+            elif key in (item_class := ITEM_CLASS_BY_TYPE[item_type])._external_fields:
+                src_key, key = item_class._external_fields[key]
+                ref_type = item_class._references[src_key]
                 ref_sq = self._make_sq(ref_type)
                 try:
                     qry = qry.filter(getattr(sq.c, src_key) == getattr(ref_sq.c, "id"), getattr(ref_sq.c, key) == value)
@@ -1018,7 +1018,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if is_db_dirty:
             # We need to fetch the most recent references because their ids might have changed in the DB
             item_type = mapped_table.item_type
-            for ref_type in self.item_factory(item_type).ref_types():
+            for ref_type in ITEM_CLASS_BY_TYPE[item_type].ref_types():
                 if ref_type != item_type:
                     self.do_fetch_all(self._mapped_tables[ref_type], commit_count=real_commit_count)
         items = []
@@ -1287,7 +1287,7 @@ def _add_convenience_methods(node):
     padding = 20 * " "
     children = {}
     for item_type in DatabaseMapping.item_types():
-        factory = DatabaseMapping.item_factory(item_type)
+        factory = ITEM_CLASS_BY_TYPE[item_type]
         a = _a(item_type)
         get_kwargs = _kwargs(_uq_fields(factory))
         child = astroid.extract_node(
