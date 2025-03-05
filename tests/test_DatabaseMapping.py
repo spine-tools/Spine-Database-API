@@ -3799,12 +3799,7 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
                 "entity_class", {"id": 3, "name": "renamed", "object_class_id_list": [2]}
             )
             self.assertEqual([str(err) for err in errors], ["can't modify dimensions of an entity class"])
-            self.assertEqual(len(items), 1)
-            db_map.commit_session("Update data.")
-            classes = db_map.query(db_map.wide_relationship_class_sq).all()
-            self.assertEqual(len(classes), 1)
-            self.assertEqual(classes[0].name, "renamed")
-            self.assertEqual(classes[0].object_class_name_list, "object_class_1")
+            self.assertEqual(len(items), 0)
 
     def test_update_relationships(self):
         """Test that updating relationships works."""

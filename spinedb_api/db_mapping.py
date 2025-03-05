@@ -462,9 +462,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 entity_table = db_map.mapped_table("entity")
                 db_map.add(entity_table, entity_class_name="musician", name="Prince")
         """
-        checked_item, error = mapped_table.checked_item_and_error(kwargs)
-        if error:
-            raise SpineDBAPIError(error)
+        checked_item = mapped_table.make_candidate_item(kwargs)
         existing_item = mapped_table.find_item_by_unique_key(checked_item, fetch=False, valid_only=False)
         if existing_item:
             if not existing_item.removed:
@@ -536,9 +534,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                     entity_table, id=prince["id"], name="the Artist", description="Formerly known as Prince."
                 )
         """
-        checked_item, error = mapped_table.checked_item_and_error(kwargs, for_update=True)
-        if error:
-            raise SpineDBAPIError(error)
+        checked_item = mapped_table.make_candidate_item(kwargs, for_update=True)
         if not checked_item:
             return None
         return mapped_table.update_item(checked_item._asdict())
@@ -578,9 +574,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             if not item:
                 raise SpineDBAPIError("no such item")
             id_ = item["id"]
-        item, error = mapped_table.item_to_remove_and_error(id_)
-        if error:
-            raise SpineDBAPIError(error)
+        item = mapped_table.item_to_remove(id_)
         removed_item = mapped_table.remove_item(item)
         if not removed_item:
             raise SpineDBAPIError("failed to remove")
@@ -767,9 +761,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         mapped_table = self.mapped_table(item_type)
         self._convert_legacy(item_type, kwargs)
         if not check:
-            return mapped_table.update_item(kwargs), None
-        checked_item, error = mapped_table.checked_item_and_error(kwargs, for_update=True)
-        return (mapped_table.update_item(checked_item._asdict()).public_item if checked_item else None, error)
+            return mapped_table.update_item(kwargs), ""
+        try:
+            checked_item = mapped_table.make_candidate_item(kwargs, for_update=True)
+            if checked_item:
+                return mapped_table.update_item(checked_item._asdict()).public_item, ""
+            return None, ""
+        except SpineDBAPIError as error:
+            return None, str(error)
 
     def update_items(self, item_type, *items, check=True, strict=False):
         """Updates many items in the in-memory mapping.
@@ -859,9 +858,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
-        item, error = mapped_table.item_to_remove_and_error(id_)
-        if check and error:
-            return None, error
+        try:
+            item = mapped_table.item_to_remove(id_)
+        except SpineDBAPIError as error:
+            return None, str(error)
         removed_item = mapped_table.remove_item(item)
         return (removed_item.public_item, None) if removed_item else (None, "failed to remove")
 
