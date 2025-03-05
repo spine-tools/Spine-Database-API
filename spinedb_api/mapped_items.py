@@ -128,13 +128,9 @@ class EntityClassItem(MappedItemBase):
 
     def merge(self, other):
         dimension_id_list = other.pop("dimension_id_list", None)
-        error = (
-            "can't modify dimensions of an entity class"
-            if dimension_id_list is not None and dimension_id_list != self["dimension_id_list"]
-            else ""
-        )
-        merged, super_error = super().merge(other)
-        return merged, " and ".join([x for x in (super_error, error) if x])
+        if dimension_id_list is not None and dimension_id_list != self["dimension_id_list"]:
+            raise SpineDBAPIError("can't modify dimensions of an entity class")
+        return super().merge(other)
 
     def commit(self, _commit_id):
         super().commit(None)
@@ -203,9 +199,7 @@ class EntityItem(MappedItemBase):
 
     def resolve_internal_fields(self, skip_keys=()):
         """Overridden to translate byname into element name list."""
-        error = super().resolve_internal_fields(skip_keys=skip_keys)
-        if error:
-            return error
+        super().resolve_internal_fields(skip_keys=skip_keys)
         byname = dict.pop(self, "entity_byname", None)
         if byname is None:
             return
@@ -214,14 +208,11 @@ class EntityItem(MappedItemBase):
             self["name"] = byname[0]
             return
         byname_remainder = list(byname)
-        try:
-            element_name_list, _ = self._element_name_list_recursive(self["entity_class_name"], byname_remainder)
-        except SpineDBAPIError as error:
-            return str(error)
+        element_name_list, _ = self._element_name_list_recursive(self["entity_class_name"], byname_remainder)
         if byname_remainder:
-            return f"too many elements given for entity ({byname})"
+            raise SpineDBAPIError(f"too many elements given for entity ({byname})")
         self["element_name_list"] = element_name_list
-        return self._do_resolve_internal_field("element_id_list")
+        self._do_resolve_internal_field("element_id_list")
 
     def _element_name_list_recursive(self, class_name, entity_byname):
         """Returns the element name list corresponding to given class and byname.
@@ -267,9 +258,7 @@ class EntityItem(MappedItemBase):
         return (name,), class_name
 
     def polish(self):
-        error = super().polish()
-        if error:
-            return error
+        super().polish()
         entity_table = self._db_map.mapped_table("entity")
         dim_name_lst = dict.get(self, "dimension_name_list")
         if dim_name_lst:
@@ -279,7 +268,7 @@ class EntityItem(MappedItemBase):
                     if not entity_table.find_item_by_unique_key(
                         {"entity_class_name": dim_name, "name": el_name}, fetch=False
                     ):
-                        return f"element '{el_name}' is not an instance of class '{dim_name}'"
+                        raise SpineDBAPIError(f"element '{el_name}' is not an instance of class '{dim_name}'")
         if "name" in self:
             return
         base_name = name_from_elements(self["element_name_list"])
@@ -505,13 +494,13 @@ class ParsedValueBase(MappedItemBase):
         return super().__getitem__(key)
 
     def merge(self, other):
-        merged, error = super().merge(other)
+        merged = super().merge(other)
         if not merged:
-            return merged, error
-        if not error and self.value_key in merged:
+            return merged
+        if self.value_key in merged:
             self._parsed_value = None
             self._arrow_value = None
-        return merged, error
+        return merged
 
     def _strip_equal_fields(self, other):
         undefined = object()
@@ -569,8 +558,6 @@ class ParameterItemBase(ParsedValueBase):
     def polish(self):
         self["list_value_id"] = None
         error = super().polish()
-        if error:
-            return error
         list_name = self["parameter_value_list_name"]
         if list_name is None:
             self["list_value_id"] = None
@@ -579,11 +566,11 @@ class ParameterItemBase(ParsedValueBase):
             type_ = super().__getitem__(self.type_key)
         except KeyError:
             if isinstance(self, ParameterValueItem):
-                return (
+                raise SpineDBAPIError(
                     f"parameter value {self['parameter_definition_name']} for class {self['entity_class_name']}, "
                     f"entity {self['entity_byname']}, alternative {self['alternative_name']} has no list value"
                 )
-            return f"parameter {self['name']} for class {self['entity_class_name']} has no list value"
+            raise SpineDBAPIError(f"parameter {self['name']} for class {self['entity_class_name']} has no list value")
         if type_ == "list_value_ref":
             return
         value = super().__getitem__(self.value_key)
@@ -596,7 +583,7 @@ class ParameterItemBase(ParsedValueBase):
                 mapped_table, parameter_value_list_name=list_name, value=value, type=type_
             )["id"]
         except SpineDBAPIError:
-            return self._value_not_in_list_error(parsed_value, list_name)
+            raise SpineDBAPIError(self._value_not_in_list_error(parsed_value, list_name))
         self["list_value_id"] = list_value_id
         self[self.type_key] = "list_value_ref"
 
@@ -693,7 +680,6 @@ class ParameterDefinitionItem(ParameterItemBase):
         return d
 
     def merge(self, other):
-        errors = []
         other_parameter_value_list_id = other.get("parameter_value_list_id")
         if (
             other_parameter_value_list_id is not None
@@ -704,18 +690,16 @@ class ParameterDefinitionItem(ParameterItemBase):
             )
         ):
             del other["parameter_value_list_id"]
-            errors.append("can't modify the parameter value list of a parameter that already has values")
+            raise SpineDBAPIError("can't modify the parameter value list of a parameter that already has values")
         other_type_list = other.get("parameter_type_list")
         if other_type_list is not None and other_type_list != self.__getitem__("parameter_type_list"):
             try:
                 self._make_new_type_items(other_type_list)
             except SpineDBAPIError as type_error:
-                errors.append(str(type_error))
                 del other["parameter_type_list"]
-        merged, super_error = super().merge(other)
-        if super_error:
-            errors.insert(0, super_error)
-        return merged, " and ".join([x for x in errors if x])
+                raise type_error
+        merged = super().merge(other)
+        return merged
 
     def _make_new_type_items(self, new_type_list):
         new_types = set(new_type_list)
@@ -726,7 +710,7 @@ class ParameterDefinitionItem(ParameterItemBase):
         parameter_name = self["name"]
         for type_to_add in new_types - current_types:
             type_, rank = fancy_type_to_type_and_rank(type_to_add)
-            type_item, error = type_table.checked_item_and_error(
+            type_item = type_table.make_candidate_item(
                 {
                     "entity_class_name": class_name,
                     "parameter_definition_name": parameter_name,
@@ -734,8 +718,6 @@ class ParameterDefinitionItem(ParameterItemBase):
                     "rank": rank,
                 }
             )
-            if error:
-                raise SpineDBAPIError(error)
             items_to_add.append(type_item)
         return items_to_add
 
@@ -1158,19 +1140,11 @@ class SuperclassSubclassItem(MappedItemBase):
     _internal_fields = {"superclass_id": (("superclass_name",), "id"), "subclass_id": (("subclass_name",), "id")}
 
     def polish(self):
-        error = super().polish()
-        if error:
-            return error
+        super().polish()
         entity_class_table = self._db_map.mapped_table("entity_class")
         subclass = entity_class_table.find_item_by_id(self["subclass_id"])
         superclass_subclass_table = self._db_map.mapped_table("superclass_subclass")
-        try:
-            self._check_subclass_validity(
-                self["superclass_id"], subclass, entity_class_table, superclass_subclass_table
-            )
-        except SpineDBAPIError as error:
-            return str(error)
-        return ""
+        self._check_subclass_validity(self["superclass_id"], subclass, entity_class_table, superclass_subclass_table)
 
     def merge(self, other):
         entity_class_table = self._db_map.mapped_table("entity_class")
@@ -1181,14 +1155,8 @@ class SuperclassSubclassItem(MappedItemBase):
         superclass = superclass_subclass_table.find_item(
             {"id": other.get("superclass_id"), "name": other.get("superclass_name")}
         )
-        if superclass:
-            superclass_id = superclass["id"]
-        else:
-            superclass_id = self["id"]
-        try:
-            self._check_subclass_validity(superclass_id, subclass, entity_class_table, superclass_subclass_table)
-        except SpineDBAPIError as error:
-            return None, str(error)
+        if not superclass:
+            self._check_subclass_validity(self["id"], subclass, entity_class_table, superclass_subclass_table)
         return super().merge(other)
 
     def _check_subclass_validity(
@@ -1211,7 +1179,7 @@ class SuperclassSubclassItem(MappedItemBase):
 
     def check_mutability(self):
         if self._db_map.find_entities(class_id=self["subclass_id"]):
-            return "can't set or modify the superclass for a class that already has entities"
+            raise SpineDBAPIError("can't set or modify the superclass for a class that already has entities")
         return super().check_mutability()
 
     def commit(self, _commit_id):
