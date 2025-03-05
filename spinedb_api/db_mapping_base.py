@@ -12,22 +12,11 @@
 from __future__ import annotations
 from contextlib import suppress
 from difflib import SequenceMatcher
-from enum import Enum, auto, unique
 from typing import ClassVar, Optional, Set
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
+from .mapped_item_status import Status
 from .temp_id import TempId, resolve
-
-
-@unique
-class Status(Enum):
-    """Mapped item status."""
-
-    committed = auto()
-    to_add = auto()
-    to_update = auto()
-    to_remove = auto()
-    added_and_removed = auto()
 
 
 class DatabaseMappingBase:
