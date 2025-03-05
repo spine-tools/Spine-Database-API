@@ -200,11 +200,11 @@ class TestPivot(unittest.TestCase):
         pivot_table = list(make_pivot(table, None, 3, [0], [1], [2]))
         expected = [
             [None, "1", "2", "3"],
+            ["A", -1.1, -2.2, None],
+            ["A", -3.3, -4.4, -5.5],
             [None, None, -6.6, None],
             [None, None, -7.7, None],
             [None, None, None, -8.8],
-            ["A", -1.1, -2.2, None],
-            ["A", -3.3, -4.4, -5.5],
             ["C", -9.9, None, None],
         ]
         self.assertEqual(pivot_table, expected)
