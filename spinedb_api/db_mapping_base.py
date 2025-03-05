@@ -279,22 +279,7 @@ class DatabaseMappingBase:
             self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=commit_count)
 
     def item(self, mapped_table: MappedTable, **kwargs) -> PublicItem:
-        """Returns an item matching the keyword arguments.
-
-        Example::
-
-            with DatabaseMapping(db_url) as db_map:
-                entity_table = db_map.mapped_table("entity")
-                prince = db_map.get_item(entity_table, entity_class_name="musician", name="Prince")
-
-        """
-        item = mapped_table.find_item(kwargs)
-        if not item:
-            self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
-            item = mapped_table.find_item(kwargs)
-        if not item or not item.is_valid():
-            raise SpineDBAPIError("no such item")
-        return item.public_item
+        raise NotImplementedError()
 
 
 class MappedTable(dict):

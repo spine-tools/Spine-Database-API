@@ -33,7 +33,7 @@ from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool, StaticPool
 from .compatibility import compatibility_transformations
-from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, PublicItem, Status
+from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, PublicItem
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .exception import NothingToCommit, NothingToRollback, SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
@@ -46,6 +46,7 @@ from .helpers import (
     create_new_spine_database_from_engine,
     model_meta,
 )
+from .mapped_item_status import Status
 from .mapped_items import item_factory
 from .spine_db_client import get_db_url_from_server
 from .temp_id import TempId, resolve
@@ -490,6 +491,24 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         method = getattr(self, method_name)
         for item in items:
             method(mapped_table, **kwargs, **item)
+
+    def item(self, mapped_table: MappedTable, **kwargs) -> PublicItem:
+        """Returns an item matching the keyword arguments.
+
+        Example::
+
+            with DatabaseMapping(db_url) as db_map:
+                entity_table = db_map.mapped_table("entity")
+                prince = db_map.get_item(entity_table, entity_class_name="musician", name="Prince")
+
+        """
+        item = mapped_table.find_item(kwargs)
+        if not item:
+            self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
+            item = mapped_table.find_item(kwargs)
+        if not item or not item.is_valid():
+            raise SpineDBAPIError("no such item")
+        return item.public_item
 
     def item_by_type(self, item_type: str, **kwargs) -> PublicItem:
         return self.item(self._mapped_tables[item_type], **kwargs)
