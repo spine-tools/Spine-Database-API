@@ -9,10 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Contains functions and methods to turn a regular export table into a pivot table
-
-"""
+""" Contains functions and methods to turn a regular export table into a pivot table """
 from copy import deepcopy
 from ..mapping import Position, is_pivoted, is_regular, unflatten, value_index
 from .export_mapping import EntityMapping
@@ -167,11 +164,11 @@ def make_pivot(
         values = value_tree()
         if not any(regular_rows.values()) and pivot_header and table:
             # Need a padding column for pivot header.
-            for row_key in sorted(regular_rows.keys()):
+            for row_key in regular_rows.keys():
                 pivot_branch = leaf(values, row_key)
                 yield [None] + [group_fn(leaf(pivot_branch, column_key)) for column_key in pivot_keys]
         else:
-            for row_key in sorted(regular_rows.keys(), key=_convert_elements_to_strings):
+            for row_key in regular_rows.keys():
                 pivot_branch = leaf(values, row_key)
                 row = regular_rows[row_key]
                 row += [group_fn(leaf(pivot_branch, column_key)) for column_key in pivot_keys]

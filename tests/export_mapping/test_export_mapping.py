@@ -1590,6 +1590,81 @@ class TestExportMapping(AssertSuccessTestCase):
             db_map.commit_session("Add test data.")
             self.assertEqual(list(rows(root_mapping, db_map)), [["Gadget", "y", "spoon", "Base", "float", 2.3]])
 
+    def test_parameter_value_indexes_do_not_get_sorted(self):
+        value_list_mapping = ParameterValueListMapping(Position.hidden)
+        value_list_mapping.set_ignorable(True)
+        root_mapping = unflatten(
+            [
+                EntityClassMapping(0),
+                ParameterDefinitionMapping(1),
+                value_list_mapping,
+                EntityMapping(2),
+                AlternativeMapping(3),
+                ParameterValueTypeMapping(4),
+                ParameterValueIndexMapping(5),
+                ExpandedParameterValueMapping(6),
+            ]
+        )
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Gadget"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Gadget"))
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Gadget"))
+            self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Gadget",
+                    entity_byname=("spoon",),
+                    parameter_definition_name="y",
+                    alternative_name="Base",
+                    parsed_value=Map(["b", "a"], [1.1, 1.2]),
+                )
+            )
+            db_map.commit_session("Add test data.")
+            self.assertEqual(
+                list(rows(root_mapping, db_map)),
+                [
+                    ["Gadget", "y", "spoon", "Base", "1d_map", "b", 1.1],
+                    ["Gadget", "y", "spoon", "Base", "1d_map", "a", 1.2],
+                ],
+            )
+
+    def test_parameter_value_indexes_do_not_get_sorted_when_exporting_pivoted_data(self):
+        value_list_mapping = ParameterValueListMapping(Position.hidden)
+        value_list_mapping.set_ignorable(True)
+        root_mapping = unflatten(
+            [
+                EntityClassMapping(0),
+                ParameterDefinitionMapping(-1),
+                value_list_mapping,
+                EntityMapping(1),
+                AlternativeMapping(2),
+                ParameterValueTypeMapping(3),
+                ParameterValueIndexMapping(4),
+                ExpandedParameterValueMapping(5),
+            ]
+        )
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Gadget"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Gadget"))
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Gadget"))
+            self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Gadget",
+                    entity_byname=("spoon",),
+                    parameter_definition_name="y",
+                    alternative_name="Base",
+                    parsed_value=Map(["b", "a"], [1.1, 1.2]),
+                )
+            )
+            db_map.commit_session("Add test data.")
+            self.assertEqual(
+                list(rows(root_mapping, db_map)),
+                [
+                    [None, None, None, None, None, "y"],
+                    ["Gadget", "spoon", "Base", "1d_map", "b", 1.1],
+                    ["Gadget", "spoon", "Base", "1d_map", "a", 1.2],
+                ],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
