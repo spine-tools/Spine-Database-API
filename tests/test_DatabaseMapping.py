@@ -2207,6 +2207,82 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             entity = db_map.entity(entity_class_name="flow", entity_byname=("a", "a"))
             self.assertEqual(entity["entity_class_name"], "node__unit")
 
+    def test_creating_superclass_with_entities_fails(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Superclass")
+            db_map.add_entity(name="object", entity_class_name="Superclass")
+            db_map.add_entity_class(name="Subclass")
+            with self.assertRaisesRegex(SpineDBAPIError, "cannot turn a class that has entities into superclass"):
+                db_map.add_superclass_subclass(superclass_name="Superclass", subclass_name="Subclass")
+
+    def test_updating_to_superclass_with_entities_fails(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Superclass")
+            db_map.add_entity_class(name="Subclass")
+            superclass_subclass = db_map.add_superclass_subclass(superclass_name="Superclass", subclass_name="Subclass")
+            db_map.add_entity_class(name="ClassWithEntities")
+            db_map.add_entity(name="object", entity_class_name="ClassWithEntities")
+            with self.assertRaisesRegex(SpineDBAPIError, "cannot turn a class that has entities into superclass"):
+                superclass_subclass.update(superclass_name="ClassWithEntities")
+
+    def test_creating_subclass_with_entities_fails(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Superclass")
+            db_map.add_entity_class(name="Subclass")
+            db_map.add_entity(name="object", entity_class_name="Subclass")
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "can't set or modify the superclass for a class that already has entities"
+            ):
+                db_map.add_superclass_subclass(superclass_name="Superclass", subclass_name="Subclass")
+
+    def test_updating_to_subclass_with_entities_fails(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Superclass")
+            db_map.add_entity_class(name="Subclass")
+            superclass_subclass = db_map.add_superclass_subclass(superclass_name="Superclass", subclass_name="Subclass")
+            db_map.add_entity_class(name="ClassWithEntities")
+            db_map.add_entity(name="object", entity_class_name="ClassWithEntities")
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "can't set or modify the superclass for a class that already has entities"
+            ):
+                superclass_subclass.update(subclass_name="ClassWithEntities")
+
+    def test_creating_superclass_with_non_zero_dimension_count_fails(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Widget")
+            db_map.add_entity_class(name="Superclass", dimension_name_list=("Widget",))
+            db_map.add_entity_class(name="Subclass")
+            with self.assertRaisesRegex(SpineDBAPIError, "superclass cannot have more than zero dimensions"):
+                db_map.add_superclass_subclass(superclass_name="Superclass", subclass_name="Subclass")
+
+    def test_updating_to_superclass_with_non_zero_dimension_count_fails(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Superclass")
+            db_map.add_entity_class(name="Subclass")
+            superclass_subclass = db_map.add_superclass_subclass(superclass_name="Superclass", subclass_name="Subclass")
+            db_map.add_entity_class(name="Widget")
+            db_map.add_entity_class(name="InvalidSuperclass", dimension_name_list=("Widget",))
+            with self.assertRaisesRegex(SpineDBAPIError, "superclass cannot have more than zero dimensions"):
+                superclass_subclass.update(superclass_name="InvalidSuperclass")
+
+    def test_add_entities_to_superclass_fails(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Superclass")
+            db_map.add_entity_class(name="Subclass")
+            db_map.add_superclass_subclass(superclass_name="Superclass", subclass_name="Subclass")
+            with self.assertRaisesRegex(SpineDBAPIError, "an entity class that is a superclass cannot have entities"):
+                db_map.add_entity(name="object", entity_class_name="Superclass")
+
+    def test_move_entity_to_superclass_fails(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Superclass")
+            db_map.add_entity_class(name="Subclass")
+            db_map.add_superclass_subclass(superclass_name="Superclass", subclass_name="Subclass")
+            db_map.add_entity_class(name="Widget")
+            entity = db_map.add_entity(name="object", entity_class_name="Widget")
+            with self.assertRaisesRegex(SpineDBAPIError, "an entity class that is a superclass cannot have entities"):
+                entity.update(entity_class_name="Superclass")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
