@@ -525,10 +525,13 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                     print(f"{entity['name']}: {entity['description']}")
         """
         mapped_table.check_fields(kwargs, valid_types=(type(None),))
+        fetched = self._fetched.get(mapped_table.item_type, -1) == self._get_commit_count()
         if not kwargs:
-            self.do_fetch_all(mapped_table)
+            if not fetched:
+                self.do_fetch_all(mapped_table)
             return [i.public_item for i in mapped_table.values() if i.is_valid()]
-        self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
+        if not fetched:
+            self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
         return [
             i.public_item
             for i in mapped_table.values()
