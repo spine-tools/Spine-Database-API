@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   supersede the `get_entity_item()` etc. methods.
 - Added `find()` method to `DatabaseMapping` that supersedes `get_items()`.
   Its convenience methods are `find_entities()`, `find_entity_classes()` etc.
+  Also, searching with `Asterisk` is supported.
 - Added `add()` and convenience methods to `DatabaseMapping` that supersede `add_item()`.
 - Added `update()` and convenience methods to `DatabaseMapping` that supersede `update_item()`.
 - Added `remove()` and convenience methods to `DatabaseMapping` that supersede `remove_item()`.

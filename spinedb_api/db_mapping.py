@@ -532,11 +532,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             return [i.public_item for i in mapped_table.values() if i.is_valid()]
         if not fetched:
             self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
-        return [
-            i.public_item
-            for i in mapped_table.values()
-            if i.is_valid() and all(i.get(k) == v for k, v in kwargs.items())
-        ]
+        return [i.public_item for i in mapped_table.values() if i.is_valid() and _fields_equal(i, kwargs)]
 
     def find_by_type(self, item_type: str, **kwargs) -> list[PublicItem]:
         return self.find(self._mapped_tables[item_type], **kwargs)
@@ -1215,6 +1211,21 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def get_filter_configs(self) -> list[dict]:
         """Returns the config dicts of filters applied to this database mapping."""
         return self._filter_configs
+
+
+def _fields_equal(item: MappedItemBase, required: dict) -> bool:
+    for key, required_value in required.items():
+        item_value = item[key]
+        if isinstance(required_value, (list, tuple)):
+            if any(
+                value_bit != required_bit if required_bit is not Asterisk else False
+                for value_bit, required_bit in zip(item_value, required_value)
+            ):
+                return False
+        else:
+            if item_value != required_value:
+                return False
+    return True
 
 
 def _pluralize(item_type: str) -> str:

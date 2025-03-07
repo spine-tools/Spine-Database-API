@@ -172,7 +172,8 @@ whereas their ids are just single entries.
 Finding items
 -------------
 
-The simplest way of getting a specific item out of a :class:`.DatabaseMapping` is to use one of its convenience methods::
+The simplest way of getting a specific item out of a :class:`.DatabaseMapping` is to use one of the convenience methods
+named after the item itself::
 
     with api.DatabaseMapping(url) as db_map:
         spoon = db_map.entity(entity_class_name="utensil", name="spoon")
@@ -201,6 +202,14 @@ It is also possible to search using other fields than unique keys::
         print("Pointy items:")
         for item in pointy_items:
             print(item["name"])
+
+"Anything goes" values inside dimension name lists, entity bynames and other list-like fields
+can be replaced with the ``Asterisk`` placeholder::
+
+    with api.DatabaseMapping(url) as db_map:
+        utensil_relationship_classes = db_map.find_entity_classes(
+            dimension_name_list=[api.helpers.Asterisk, "utensil"]
+        )
 
 Bare :meth:`.DatabaseMapping.find` might be useful when more generic programming is required::
 
