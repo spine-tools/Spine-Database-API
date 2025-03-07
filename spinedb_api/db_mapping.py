@@ -33,7 +33,7 @@ from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool, StaticPool
 from .compatibility import compatibility_transformations
-from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, PublicItem, Status
+from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, PublicItem
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .exception import NothingToCommit, NothingToRollback, SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
@@ -46,7 +46,8 @@ from .helpers import (
     create_new_spine_database_from_engine,
     model_meta,
 )
-from .mapped_items import item_factory
+from .mapped_item_status import Status
+from .mapped_items import ITEM_CLASS_BY_TYPE
 from .spine_db_client import get_db_url_from_server
 from .temp_id import TempId, resolve
 
@@ -220,7 +221,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     @staticmethod
     def item_types() -> list[str]:
-        return [x for x in DatabaseMapping._sq_name_by_item_type if not item_factory(x).is_protected]
+        return [x for x in DatabaseMapping._sq_name_by_item_type if not ITEM_CLASS_BY_TYPE[x].is_protected]
 
     @staticmethod
     def all_item_types() -> list[str]:
@@ -228,7 +229,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     @staticmethod
     def item_factory(item_type):
-        return item_factory(item_type)
+        return ITEM_CLASS_BY_TYPE[item_type]
 
     def _query_commit_count(self) -> int:
         with self:
@@ -491,6 +492,24 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         for item in items:
             method(mapped_table, **kwargs, **item)
 
+    def item(self, mapped_table: MappedTable, **kwargs) -> PublicItem:
+        """Returns an item matching the keyword arguments.
+
+        Example::
+
+            with DatabaseMapping(db_url) as db_map:
+                entity_table = db_map.mapped_table("entity")
+                prince = db_map.get_item(entity_table, entity_class_name="musician", name="Prince")
+
+        """
+        item = mapped_table.find_item(kwargs)
+        if not item:
+            self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
+            item = mapped_table.find_item(kwargs)
+        if not item or not item.is_valid():
+            raise SpineDBAPIError("no such item")
+        return item.public_item
+
     def item_by_type(self, item_type: str, **kwargs) -> PublicItem:
         return self.item(self._mapped_tables[item_type], **kwargs)
 
@@ -506,15 +525,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                     print(f"{entity['name']}: {entity['description']}")
         """
         mapped_table.check_fields(kwargs, valid_types=(type(None),))
+        fetched = self._fetched.get(mapped_table.item_type, -1) == self._get_commit_count()
         if not kwargs:
-            self.do_fetch_all(mapped_table)
+            if not fetched:
+                self.do_fetch_all(mapped_table)
             return [i.public_item for i in mapped_table.values() if i.is_valid()]
-        self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
-        return [
-            i.public_item
-            for i in mapped_table.values()
-            if i.is_valid() and all(i.get(k) == v for k, v in kwargs.items())
-        ]
+        if not fetched:
+            self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
+        return [i.public_item for i in mapped_table.values() if i.is_valid() and _fields_equal(i, kwargs)]
 
     def find_by_type(self, item_type: str, **kwargs) -> list[PublicItem]:
         return self.find(self._mapped_tables[item_type], **kwargs)
@@ -963,9 +981,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             value = resolve(value)
             if hasattr(sq.c, key):
                 qry = qry.filter(getattr(sq.c, key) == value)
-            elif key in self.item_factory(item_type)._external_fields:
-                src_key, key = self.item_factory(item_type)._external_fields[key]
-                ref_type = self.item_factory(item_type)._references[src_key]
+            elif key in (item_class := ITEM_CLASS_BY_TYPE[item_type])._external_fields:
+                src_key, key = item_class._external_fields[key]
+                ref_type = item_class._references[src_key]
                 ref_sq = self._make_sq(ref_type)
                 try:
                     qry = qry.filter(getattr(sq.c, src_key) == getattr(ref_sq.c, "id"), getattr(ref_sq.c, key) == value)
@@ -999,7 +1017,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if is_db_dirty:
             # We need to fetch the most recent references because their ids might have changed in the DB
             item_type = mapped_table.item_type
-            for ref_type in self.item_factory(item_type).ref_types():
+            for ref_type in ITEM_CLASS_BY_TYPE[item_type].ref_types():
                 if ref_type != item_type:
                     self.do_fetch_all(self._mapped_tables[ref_type], commit_count=real_commit_count)
         items = []
@@ -1195,6 +1213,21 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return self._filter_configs
 
 
+def _fields_equal(item: MappedItemBase, required: dict) -> bool:
+    for key, required_value in required.items():
+        item_value = item[key]
+        if isinstance(required_value, (list, tuple)):
+            if any(
+                value_bit != required_bit if required_bit is not Asterisk else False
+                for value_bit, required_bit in zip(item_value, required_value)
+            ):
+                return False
+        else:
+            if item_value != required_value:
+                return False
+    return True
+
+
 def _pluralize(item_type: str) -> str:
     plural = {
         "entity": "entities",
@@ -1268,7 +1301,7 @@ def _add_convenience_methods(node):
     padding = 20 * " "
     children = {}
     for item_type in DatabaseMapping.item_types():
-        factory = DatabaseMapping.item_factory(item_type)
+        factory = ITEM_CLASS_BY_TYPE[item_type]
         a = _a(item_type)
         get_kwargs = _kwargs(_uq_fields(factory))
         child = astroid.extract_node(

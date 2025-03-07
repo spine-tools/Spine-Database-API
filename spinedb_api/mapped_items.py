@@ -32,11 +32,6 @@ from .parameter_value import (
 )
 from .temp_id import TempId
 
-
-def item_factory(item_type):
-    return ITEM_CLASS_BY_TYPE.get(item_type, MappedItemBase)
-
-
 _ENTITY_BYNAME_VALUE = (
     "A tuple with the entity name as single element if the entity is 0-dimensional, "
     "or the 0-dimensional element names if it is multi-dimensional."
@@ -200,11 +195,11 @@ class EntityItem(MappedItemBase):
     def resolve_internal_fields(self, skip_keys=()):
         """Overridden to translate byname into element name list."""
         super().resolve_internal_fields(skip_keys=skip_keys)
-        byname = dict.pop(self, "entity_byname", None)
-        if byname is None:
+        try:
+            byname = dict.pop(self, "entity_byname")
+        except KeyError:
             return
-        dim_count = len(self["dimension_id_list"])
-        if not dim_count:
+        if not self["dimension_id_list"]:
             self["name"] = byname[0]
             return
         byname_remainder = list(byname)

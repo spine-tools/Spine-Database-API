@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 import unittest
-from spinedb_api import DatabaseMapping, SpineDBAPIError
+from spinedb_api import Asterisk, DatabaseMapping, SpineDBAPIError
 
 
 class TestItem(unittest.TestCase):
@@ -90,6 +90,52 @@ class TestFind(unittest.TestCase):
             found = db_map.find(mapped_table)
             self.assertEqual(len(found), 2)
             self.assertCountEqual([i["name"] for i in found], ["Base", "new"])
+
+    def test_asterisk_works_with_bynames(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity(name="o1", entity_class_name="Object")
+            db_map.add_entity(name="o2", entity_class_name="Object")
+            db_map.add_entity(name="o3", entity_class_name="Object")
+            db_map.add_entity_class(dimension_name_list=["Object", "Object"])
+            db_map.add_entity(entity_class_name="Object__Object", entity_byname=("o1", "o1"))
+            db_map.add_entity(entity_class_name="Object__Object", entity_byname=("o1", "o2"))
+            db_map.add_entity(entity_class_name="Object__Object", entity_byname=("o1", "o3"))
+            db_map.add_entity(entity_class_name="Object__Object", entity_byname=("o3", "o2"))
+            db_map.add_entity(entity_class_name="Object__Object", entity_byname=("o3", "o1"))
+            self.assertCountEqual(
+                [
+                    i["entity_byname"]
+                    for i in db_map.find_entities(
+                        entity_class_name="Object__Object", entity_byname=(Asterisk, Asterisk)
+                    )
+                ],
+                [("o1", "o1"), ("o1", "o2"), ("o1", "o3"), ("o3", "o2"), ("o3", "o1")],
+            )
+            self.assertCountEqual(
+                [
+                    i["entity_byname"]
+                    for i in db_map.find_entities(entity_class_name="Object__Object", entity_byname=("o2", Asterisk))
+                ],
+                [],
+            )
+            self.assertCountEqual(
+                [
+                    i["entity_byname"]
+                    for i in db_map.find_entities(entity_class_name="Object__Object", entity_byname=("o3", Asterisk))
+                ],
+                [("o3", "o2"), ("o3", "o1")],
+            )
+            self.assertCountEqual(
+                [
+                    i["entity_byname"]
+                    for i in db_map.find_entities(entity_class_name="Object__Object", entity_byname=(Asterisk, "o2"))
+                ],
+                [
+                    ("o1", "o2"),
+                    ("o3", "o2"),
+                ],
+            )
 
 
 class TestFindByType(unittest.TestCase):
