@@ -283,6 +283,12 @@ class EntityItem(MappedItemBase):
             index += 1
         self["name"] = name
 
+    def check_mutability(self):
+        superclass_subclass_table = self._db_map.mapped_table("superclass_subclass")
+        if self._db_map.find(superclass_subclass_table, superclass_id=self["class_id"]):
+            raise SpineDBAPIError("an entity class that is a superclass cannot have entities")
+        super().check_mutability()
+
 
 class EntityGroupItem(MappedItemBase):
     item_type = "entity_group"
@@ -1139,25 +1145,12 @@ class SuperclassSubclassItem(MappedItemBase):
     }
     _internal_fields = {"superclass_id": (("superclass_name",), "id"), "subclass_id": (("subclass_name",), "id")}
 
-    def polish(self):
-        super().polish()
-        entity_class_table = self._db_map.mapped_table("entity_class")
-        subclass = entity_class_table.find_item_by_id(self["subclass_id"])
-        superclass_subclass_table = self._db_map.mapped_table("superclass_subclass")
-        self._check_subclass_validity(self["superclass_id"], subclass, entity_class_table, superclass_subclass_table)
-
-    def merge(self, other):
-        entity_class_table = self._db_map.mapped_table("entity_class")
-        subclass = entity_class_table.find_item({"id": other.get("subclass_id"), "name": other.get("subclass_name")})
-        if not subclass:
-            subclass = entity_class_table[self["subclass_id"]]
-        superclass_subclass_table = self._db_map.mapped_table("superclass_subclass")
-        superclass = superclass_subclass_table.find_item(
-            {"id": other.get("superclass_id"), "name": other.get("superclass_name")}
-        )
-        if not superclass:
-            self._check_subclass_validity(self["id"], subclass, entity_class_table, superclass_subclass_table)
-        return super().merge(other)
+    def _check_superclass_validity(self, superclass: EntityClassItem):
+        if len(superclass["dimension_id_list"]) != 0:
+            raise SpineDBAPIError("superclass cannot have more than zero dimensions")
+        entity_table = self._db_map.mapped_table("entity")
+        if self._db_map.find(entity_table, class_id=superclass["id"]):
+            raise SpineDBAPIError("cannot turn a class that has entities into superclass")
 
     def _check_subclass_validity(
         self,
@@ -1178,8 +1171,16 @@ class SuperclassSubclassItem(MappedItemBase):
             raise SpineDBAPIError("subclass or any of its dimensions cannot be a superclass")
 
     def check_mutability(self):
-        if self._db_map.find_entities(class_id=self["subclass_id"]):
+        entity_table = self._db_map.mapped_table("entity")
+        if self._db_map.find(entity_table, class_id=self["subclass_id"]):
             raise SpineDBAPIError("can't set or modify the superclass for a class that already has entities")
+        superclass_id = self["superclass_id"]
+        entity_class_table = self._db_map.mapped_table("entity_class")
+        superclass = entity_class_table.find_item_by_id(superclass_id)
+        self._check_superclass_validity(superclass)
+        subclass = entity_class_table.find_item_by_id(self["subclass_id"])
+        superclass_subclass_table = self._db_map.mapped_table("superclass_subclass")
+        self._check_subclass_validity(superclass_id, subclass, entity_class_table, superclass_subclass_table)
         return super().check_mutability()
 
     def commit(self, _commit_id):
