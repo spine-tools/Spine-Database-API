@@ -558,7 +558,7 @@ class ParameterItemBase(ParsedValueBase):
 
     def polish(self):
         self["list_value_id"] = None
-        error = super().polish()
+        super().polish()
         list_name = self["parameter_value_list_name"]
         if list_name is None:
             self["list_value_id"] = None
