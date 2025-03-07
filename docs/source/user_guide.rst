@@ -1,3 +1,5 @@
+.. _SQLAlchemy: http://www.sqlalchemy.org/
+
 .. _user_guide:
 
 **********
@@ -111,7 +113,7 @@ A removed item is also *invalid*::
         alternative.restore()
         assert alternative.is_valid()
 
-Refer to `Removing items and purging`_ and `Restoring items`_ for removing and restoring items directly with :class:`.DatabaseMapping`.
+Refer to `Removing and purging`_ and `Restoring items and rollback`_ for removing and restoring items directly with :class:`.DatabaseMapping`.
 
 .. note::
 
@@ -340,8 +342,8 @@ Therefore, :class:`.DatabaseMapping` provides :meth:`.DatabaseMapping.add_or_upd
 and its convenience methods.
 They work much like the add and update methods described above.
 
-Removing items and purging
---------------------------
+Removing and purging
+--------------------
 
 .. note::
 
@@ -373,8 +375,18 @@ The base :meth:`.DatabaseMapping.remove` is sometimes useful as well::
 
 The remove methods will raise :class:`~.SpineDBAPIError` if the item is not found.
 
-Restoring items
----------------
+*Purging* is the operation where all items are removed from the database mapping.
+Items can be purged by type directly with :meth:`.DatabaseMapping.purge_items`::
+
+    with api.DatabaseMapping(url) as db_map:
+        if db_map.purge_items("entity"):
+            print("Deleted all entities.")
+
+The :mod:`purge` module contains some utility functions for purging multiple item types on the same go
+as well as purging databases with URL only.
+
+Restoring items and rollback
+----------------------------
 
 While :class:`~.PublicItem` offers the :meth:`~.PublicItem.restore` method,
 also :class:`.DatabaseMapping` has ways to restore removed items::
@@ -401,6 +413,9 @@ The base :meth:`.DatabaseMapping.restore` can be used too::
 
 The restore methods will raise :class:`~.SpineDBAPIError` in case the operation failed.
 
+All changes since the last commit can be cancelled with :meth:`.DatabaseMapping.rollback_session`.
+This will remove all added items, restore removed items and return updated items to their original state.
+
 Committing changes
 ------------------
 
@@ -416,3 +431,46 @@ This structure has some specialized uses in Spine Toolbox and can usually be ign
 
 :meth:`.DatabaseMapping.commit_session` raises :class:`NothingToCommit` when there are no changes to save.
 Other errors raise :class:`SpineDBAPIError`.
+
+Performance
+-----------
+
+.. warning::
+
+    Premature optimization is the root of all evil.
+
+The item find methods discussed in `Finding items`_ fetch the items from the database
+if they have not been fetched already.
+This is not an issue if these functions are called just a few times.
+However, processing a large number of items in a loop
+means :class:`.DatabaseMapping` spends a lot of time doing database queries.
+This is not very efficient::
+
+    entity_names = ...
+    with api.DatabaseMapping(url) as db_map:
+        for name in entity_names:
+            entity = db_map.entity(entity_class_name="cutlery", name=name)
+            ...
+
+:meth:`.DatabaseMapping.fetch_all` fetches all requested items in one go
+making later access to individual items quick::
+
+    entity_names = ...
+    with api.DatabaseMapping(url) as db_map:
+        db_map.fetch_all("entity")
+        for name in entity_names:
+            entity = db_map.entity(entity_class_name="cutlery", name=name)
+            ...
+
+Another option is to use :meth:`.DatabaseMapping.find`
+which also fetches multiple items at once::
+
+    with api.DatabaseMapping(url) as db_map:
+        for entity in db_map.find_entities(entity_class_name="cutlery"):
+            ...
+
+The SQLAlchemy_ queries that are used to fetch the data can be used directly
+if reading the data is all that is needed.
+This is the fastest interface to the database.
+It also lacks the convenience of :class:`.DatabaseMapping`,
+including any kind of documentation.
