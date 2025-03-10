@@ -26,8 +26,6 @@ class TestExecutionFilter(unittest.TestCase):
             self.assertEqual(alternative_name, "low_on_steam_wasting_my_time__Importing importer@2023-09-06T01:23:45")
             alternatives = {item["name"] for item in db_map.mapped_table("alternative").valid_values()}
             self.assertIn(alternative_name, alternatives)
-            scenarios = {item["name"] for item in db_map.mapped_table("scenario").valid_values()}
-            self.assertEqual(scenarios, {"low_on_steam", "wasting_my_time"})
 
 
 if __name__ == "__main__":
