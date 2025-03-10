@@ -692,11 +692,13 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             result (bool or None): True if the item is active, False if not,
                 None if no entity alternatives are specified.
         """
-        scenario = self.get_item("scenario", id=scenario_id)
-        ent_alts = self.get_items("entity_alternative", entity_id=item["id"])
+        scenario_table = self._mapped_tables["scenario"]
+        scenario = scenario_table.find_item_by_id(scenario_id)
+        entity_alternative_table = self._mapped_tables["entity_alternative"]
+        entity_alternatives = self.find(entity_alternative_table, entity_id=item["id"])
         alts_ordered_by_rank = scenario["alternative_id_list"]
         alt_id_to_active = {}
-        for ent_alt in ent_alts:
+        for ent_alt in entity_alternatives:
             alt_id_to_active[ent_alt["alternative_id"]] = ent_alt["active"]
         result = None
         for id_ in reversed(alts_ordered_by_rank):
