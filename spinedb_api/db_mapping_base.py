@@ -1012,9 +1012,11 @@ class MappedItemBase(dict):
                 continue
             if not id_:
                 continue
-            ref = self._db_map.mapped_table(ref_table).find_item_by_id(id_, fetch=False)
-            if ref:
-                ref.add_weak_referrer(self)
+            try:
+                ref = self._db_map.mapped_table(ref_table)[id_]
+            except KeyError:
+                continue
+            ref.add_weak_referrer(self)
 
     def cascade_restore(self, source=None):
         """Restores this item (if removed) and all its referrers in cascade.
