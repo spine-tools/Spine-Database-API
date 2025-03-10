@@ -247,10 +247,6 @@ class DatabaseMappingBase:
             if not changed:
                 break
 
-    def get_mapped_item(self, item_type, id_, fetch=True):
-        mapped_table = self._mapped_tables[item_type]
-        return mapped_table.find_item_by_id(id_, fetch=fetch) or {}
-
     def _get_commit_count(self):
         """Returns current commit count.
 
