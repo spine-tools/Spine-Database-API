@@ -221,6 +221,7 @@ class DatabaseMappingBase:
         """Resets the mapping for given item types as if nothing was fetched from the DB or modified in the mapping.
         Any modifications in the mapping that aren't committed to the DB are lost after this.
         """
+        self._commit_count = None
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
         self._add_descendants(item_types)
         for item_type in item_types:
