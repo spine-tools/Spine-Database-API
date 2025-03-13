@@ -584,6 +584,7 @@ class MappedTable(dict):
     def reset(self):
         self._ids_by_unique_key_value.clear()
         self._temp_id_lookup.clear()
+        self.wildcard_item.status = Status.committed
         self.clear()
 
 

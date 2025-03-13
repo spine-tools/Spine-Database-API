@@ -2283,6 +2283,19 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with self.assertRaisesRegex(SpineDBAPIError, "an entity class that is a superclass cannot have entities"):
                 entity.update(entity_class_name="Superclass")
 
+    def test_reset_resets_purging(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_parameter_value_list(name="enum")
+                db_map.commit_session("Add test data")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("parameter_value_list")
+                db_map.reset()
+                items = db_map.find_parameter_value_lists()
+                self.assertEqual(len(items), 1)
+                self.assertEqual(items[0]["name"], "enum")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
