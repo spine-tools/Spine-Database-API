@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for export_functions. """
+"""Unit tests for export_functions."""
 
 import unittest
 from spinedb_api import (
@@ -159,7 +159,9 @@ class TestExportFunctions(unittest.TestCase):
                 import_object_parameter_values(db_map, [("object_class", "object", "object_parameter", 2.3)])
             )
             self._assert_import_success(import_relationship_classes(db_map, [("relationship_class", ["object_class"])]))
-            self._assert_import_success(import_relationship_classes(db_map, [("compound_class", ["relationship_class", "relationship_class"])]))
+            self._assert_import_success(
+                import_relationship_classes(db_map, [("compound_class", ["relationship_class", "relationship_class"])])
+            )
             self._assert_import_success(
                 import_relationship_parameters(db_map, [("relationship_class", "relationship_parameter")])
             )
@@ -198,7 +200,7 @@ class TestExportFunctions(unittest.TestCase):
                 [
                     ("object_class", (), None, None, True),
                     ("relationship_class", ("object_class",), None, None, True),
-                    ("compound_class", ("relationship_class", "relationship_class"), None, None, True)
+                    ("compound_class", ("relationship_class", "relationship_class"), None, None, True),
                 ],
             )
             self.assertIn("parameter_definitions", exported)
@@ -212,11 +214,12 @@ class TestExportFunctions(unittest.TestCase):
             )
             self.assertIn("entities", exported)
             self.assertEqual(
-                exported["entities"], [
+                exported["entities"],
+                [
                     ("object_class", "object", None),
                     ("relationship_class", ("object",), None),
                     ("compound_class", ("object", "object"), None),
-                ]
+                ],
             )
             self.assertIn("parameter_values", exported)
             self.assertEqual(
