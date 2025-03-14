@@ -194,20 +194,17 @@ class DatabaseMappingBase:
                     item.invalidate_id()
         return True
 
-    def _refresh(self):
+    def refresh_session(self):
         """Clears fetch progress, so the DB is queried again, and committed, unchanged items."""
-        if self._commit_count == self._query_commit_count():
-            return
+        self._commit_count = None
         self._fetched.clear()
+        changed_statuses = {Status.to_add, Status.to_update, Status.to_remove}
         for item_type in self.item_types():
             mapped_table = self._mapped_tables[item_type]
-            ids_to_drop = []
-            for item in mapped_table.values():
-                if item.status not in {Status.to_add, Status.to_update, Status.to_remove}:
+            for item in list(mapped_table.values()):
+                if item.status not in changed_statuses:
                     mapped_table.remove_unique(item)
-                    ids_to_drop.append(item["id"])
-            for id_ in ids_to_drop:
-                del mapped_table[id_]
+                    del mapped_table[item["id"]]
 
     def mapped_table(self, item_type: str) -> MappedTable:
         """Returns mapped table for given item type."""
@@ -221,12 +218,16 @@ class DatabaseMappingBase:
         """Resets the mapping for given item types as if nothing was fetched from the DB or modified in the mapping.
         Any modifications in the mapping that aren't committed to the DB are lost after this.
         """
-        item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
-        self._add_descendants(item_types)
+        if not item_types:
+            self._commit_count = None
+            item_types = set(self.item_types())
+        else:
+            item_types = set(item_types) & set(self.item_types())
+            self._add_descendants(item_types)
         for item_type in item_types:
             self._mapped_tables[item_type].reset()
             with suppress(KeyError):
-                self._fetched.clear()
+                del self._fetched[item_type]
 
     def reset_purging(self):
         """Resets purging status for all item types.
@@ -246,10 +247,6 @@ class DatabaseMappingBase:
                     changed = True
             if not changed:
                 break
-
-    def get_mapped_item(self, item_type, id_, fetch=True):
-        mapped_table = self._mapped_tables[item_type]
-        return mapped_table.find_item_by_id(id_, fetch=fetch) or {}
 
     def _get_commit_count(self):
         """Returns current commit count.
@@ -588,6 +585,7 @@ class MappedTable(dict):
     def reset(self):
         self._ids_by_unique_key_value.clear()
         self._temp_id_lookup.clear()
+        self.wildcard_item.status = Status.committed
         self.clear()
 
 
@@ -1016,9 +1014,11 @@ class MappedItemBase(dict):
                 continue
             if not id_:
                 continue
-            ref = self._db_map.mapped_table(ref_table).find_item_by_id(id_, fetch=False)
-            if ref:
-                ref.add_weak_referrer(self)
+            try:
+                ref = self._db_map.mapped_table(ref_table)[id_]
+            except KeyError:
+                continue
+            ref.add_weak_referrer(self)
 
     def cascade_restore(self, source=None):
         """Restores this item (if removed) and all its referrers in cascade.

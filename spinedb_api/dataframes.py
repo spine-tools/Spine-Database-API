@@ -204,8 +204,9 @@ def add_or_update_from(dataframe: pd.DataFrame, db_map: DatabaseMapping) -> None
     """
     class_bynames = {}
     unique_bynames = set()
+    entity_class_table = db_map.mapped_table("entity_class")
     for class_name in dataframe.loc[:, "entity_class_name"].unique():
-        entity_class = db_map.get_item("entity_class", name=class_name)
+        entity_class = db_map.item(entity_class_table, name=class_name)
         if not entity_class:
             raise SpineDBAPIError(f"no such entity class '{class_name}'")
         elemental_names = entity_class["entity_class_byname"]

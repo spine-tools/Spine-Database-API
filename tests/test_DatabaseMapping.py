@@ -31,7 +31,7 @@ from spinedb_api import (
 from spinedb_api.db_mapping_base import PublicItem, Status
 from spinedb_api.exception import NothingToCommit
 from spinedb_api.filters.scenario_filter import scenario_filter_config
-from spinedb_api.helpers import Asterisk, DisplayStatus, name_from_elements
+from spinedb_api.helpers import Asterisk, DisplayStatus, create_new_spine_database, name_from_elements
 from spinedb_api.parameter_value import Duration, type_for_scalar
 from tests.mock_helpers import AssertSuccessTestCase
 
@@ -2282,6 +2282,30 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             entity = db_map.add_entity(name="object", entity_class_name="Widget")
             with self.assertRaisesRegex(SpineDBAPIError, "an entity class that is a superclass cannot have entities"):
                 entity.update(entity_class_name="Superclass")
+
+    def test_reset_resets_purging(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_parameter_value_list(name="enum")
+                db_map.commit_session("Add test data")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("parameter_value_list")
+                db_map.reset()
+                items = db_map.find_parameter_value_lists()
+                self.assertEqual(len(items), 1)
+                self.assertEqual(items[0]["name"], "enum")
+
+    def test_data_is_fetched_again_after_reset(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            create_new_spine_database(url)
+            with DatabaseMapping(url) as db_map:
+                self.assertTrue(db_map.has_external_commits())
+                db_map.fetch_all("alternative")
+                self.assertFalse(db_map.has_external_commits())
+                db_map.reset()
+                self.assertTrue(db_map.has_external_commits())
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
