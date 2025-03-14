@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Functions for exporting data from a Spine database in a standard format. """
+"""Functions for exporting data from a Spine database in a standard format."""
 from collections import namedtuple
 from operator import itemgetter
 from .helpers import Asterisk
@@ -207,7 +207,7 @@ def export_parameter_values(db_map, ids=Asterisk, parse_value=from_database):
         (
             (
                 x.entity_class_name,
-                x.element_name_list or x.entity_name,
+                x.entity_byname if x.element_name_list else x.entity_name,
                 x.parameter_name,
                 parse_value(x.value, x.type),
                 x.alternative_name,
