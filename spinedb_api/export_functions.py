@@ -207,7 +207,7 @@ def export_parameter_values(db_map, ids=Asterisk, parse_value=from_database):
         (
             (
                 x.entity_class_name,
-                x.entity_byname if x.element_name_list else x.name,
+                x.entity_byname if x.element_name_list else x.entity_name,
                 x.parameter_name,
                 parse_value(x.value, x.type),
                 x.alternative_name,
