@@ -1162,10 +1162,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if self._memory:
             self._memory_dirty = False
 
-    def refresh_session(self):
-        """Resets the fetch status so new items from the DB can be retrieved."""
-        self._refresh()
-
     def has_external_commits(self):
         """Tests whether the database has had commits from other sources than this mapping.
 

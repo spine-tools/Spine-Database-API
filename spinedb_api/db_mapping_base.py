@@ -194,20 +194,17 @@ class DatabaseMappingBase:
                     item.invalidate_id()
         return True
 
-    def _refresh(self):
+    def refresh_session(self):
         """Clears fetch progress, so the DB is queried again, and committed, unchanged items."""
-        if self._commit_count == self._query_commit_count():
-            return
+        self._commit_count = None
         self._fetched.clear()
+        changed_statuses = {Status.to_add, Status.to_update, Status.to_remove}
         for item_type in self.item_types():
             mapped_table = self._mapped_tables[item_type]
-            ids_to_drop = []
-            for item in mapped_table.values():
-                if item.status not in {Status.to_add, Status.to_update, Status.to_remove}:
+            for item in list(mapped_table.values()):
+                if item.status not in changed_statuses:
                     mapped_table.remove_unique(item)
-                    ids_to_drop.append(item["id"])
-            for id_ in ids_to_drop:
-                del mapped_table[id_]
+                    del mapped_table[item["id"]]
 
     def mapped_table(self, item_type: str) -> MappedTable:
         """Returns mapped table for given item type."""
@@ -221,13 +218,16 @@ class DatabaseMappingBase:
         """Resets the mapping for given item types as if nothing was fetched from the DB or modified in the mapping.
         Any modifications in the mapping that aren't committed to the DB are lost after this.
         """
-        self._commit_count = None
-        item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
-        self._add_descendants(item_types)
+        if not item_types:
+            self._commit_count = None
+            item_types = set(self.item_types())
+        else:
+            item_types = set(item_types) & set(self.item_types())
+            self._add_descendants(item_types)
         for item_type in item_types:
             self._mapped_tables[item_type].reset()
             with suppress(KeyError):
-                self._fetched.clear()
+                del self._fetched[item_type]
 
     def reset_purging(self):
         """Resets purging status for all item types.
