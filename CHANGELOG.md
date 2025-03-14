@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `export_parameter_values` now correctly exports `entity_byname` for compound classes.
+
 ### Security
 
 ## [0.33.0]
