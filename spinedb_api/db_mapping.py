@@ -130,6 +130,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         "metadata": "metadata_sq",
         "entity_metadata": "entity_metadata_sq",
         "parameter_value_metadata": "parameter_value_metadata_sq",
+        "entity_location": "entity_location_sq",
         "commit": "commit_sq",
     }
 
