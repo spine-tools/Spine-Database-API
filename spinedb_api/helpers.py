@@ -636,6 +636,18 @@ def create_spine_metadata():
         UniqueConstraint("entity_id", "metadata_id"),
     )
     Table(
+        "entity_location",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("entity_id", Integer, ForeignKey("entity.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False),
+        Column("lat", Float),
+        Column("lon", Float),
+        Column("alt", Float),
+        Column("shape_name", String(155)),
+        Column("shape_blob", Text, server_default=null()),
+        UniqueConstraint("entity_id"),
+    )
+    Table(
         "alembic_version",
         meta,
         Column("version_num", String(32), nullable=False),
