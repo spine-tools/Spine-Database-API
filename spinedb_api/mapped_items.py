@@ -579,13 +579,12 @@ class ParameterItemBase(ParsedValueBase):
         if parsed_value is None:
             return
         mapped_table = self._db_map.mapped_table("list_value")
-        try:
-            list_value_id = self._db_map.item(
-                mapped_table, parameter_value_list_name=list_name, value=value, type=type_
-            )["id"]
-        except SpineDBAPIError:
+        list_value = mapped_table.find_item_by_unique_key(
+            {"parameter_value_list_name": list_name, "value": value, "type": type_}
+        )
+        if not list_value:
             raise SpineDBAPIError(self._value_not_in_list_error(parsed_value, list_name))
-        self["list_value_id"] = list_value_id
+        self["list_value_id"] = list_value["id"]
         self[self.type_key] = "list_value_ref"
 
 

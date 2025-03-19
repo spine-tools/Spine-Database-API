@@ -460,10 +460,14 @@ class MappedTable(dict):
             if id_ in ids:
                 ids.remove(id_)
 
-    def _make_and_add_item(self, item):
+    def _make_and_add_item(self, item, ignore_polishing_errors):
         if not isinstance(item, MappedItemBase):
             item = self._db_map.make_item(self.item_type, **item)
-            item.polish()
+            try:
+                item.polish()
+            except SpineDBAPIError as error:
+                if not ignore_polishing_errors:
+                    raise error
         db_id = item.pop("id", None) if item.has_valid_id else None
         item["id"] = new_id = TempId.new_unique(self.item_type, self._temp_id_lookup)
         if db_id is not None:
@@ -499,7 +503,7 @@ class MappedTable(dict):
             if is_db_clean or self._same_item(mapped_item.db_equivalent(), item):
                 return mapped_item, False
             mapped_item.handle_id_steal()
-        mapped_item = self._make_and_add_item(item)
+        mapped_item = self._make_and_add_item(item, ignore_polishing_errors=True)
         if self.purged:
             # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
             mapped_item.cascade_remove()
@@ -545,7 +549,7 @@ class MappedTable(dict):
             raise SpineDBAPIError("\n".join(errors))
 
     def add_item(self, item):
-        item = self._make_and_add_item(item)
+        item = self._make_and_add_item(item, ignore_polishing_errors=False)
         self.add_unique(item)
         item.become_referrer()
         item.status = Status.to_add

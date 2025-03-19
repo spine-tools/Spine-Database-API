@@ -2307,6 +2307,35 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.reset()
                 self.assertTrue(db_map.has_external_commits())
 
+    def test_purge_parameter_definition_with_default_value_from_value_list(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_parameter_value_list(name="possibilities")
+                db_map.add_list_value(parameter_value_list_name="possibilities", parsed_value="infinite", index=0)
+                db_map.add_entity_class(name="Object")
+                db_map.add_parameter_definition(
+                    entity_class_name="Object",
+                    name="X",
+                    parameter_value_list_name="possibilities",
+                    parsed_value="infinite",
+                )
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("parameter_value_list")
+                db_map.purge_items("parameter_definition")
+                db_map.commit_session("Purge.")
+                definitions = db_map.find_parameter_definitions()
+                self.assertEqual(definitions, [])
+                list_values = db_map.find_list_values()
+                self.assertEqual(list_values, [])
+                value_lists = db_map.find_parameter_value_lists()
+                self.assertEqual(value_lists, [])
+            with DatabaseMapping(url) as db_map:
+                self.assertEqual(db_map.query(db_map.parameter_value_list_sq).all(), [])
+                self.assertEqual(db_map.query(db_map.list_value_sq).all(), [])
+                self.assertEqual(db_map.query(db_map.parameter_definition_sq).all(), [])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
