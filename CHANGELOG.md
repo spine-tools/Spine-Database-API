@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `update()` and convenience methods to `DatabaseMapping` that supersede `update_item()`.
 - Added `remove()` and convenience methods to `DatabaseMapping` that supersede `remove_item()`.
 - Added `add_or_update()` and convenience methods to `DatabaseMapping` that supersede `add_update_item()`.
-- Entity's location data and shape polygon (as GEOJSON feature) can now be stored in the `entity_location` table.
+- Entity's location data and shape polygon (as GeoJSON feature) can now be stored in the `entity_location` table.
   The main entry point to the data is via `EntityItems`'s `lat`, `lon`, `alt`, `shape_name` and `shape_blob`
   fields.
 
