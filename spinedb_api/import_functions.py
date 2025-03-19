@@ -16,6 +16,9 @@ This functionality is equivalent to the one provided by :meth:`.DatabaseMapping.
 but the syntax is a little more compact.
 """
 from collections import defaultdict
+from collections.abc import Iterable, Iterator
+from contextlib import suppress
+from typing import Any
 from .helpers import _parse_metadata
 from .parameter_value import fancy_type_to_type_and_rank, get_conflict_fixer, to_database
 
@@ -138,35 +141,26 @@ def get_data_for_import(
         all_errors (list of str): errors encountered during import
         unparse_value (Callable): function to call when parsing parameter values
         fix_value_conflict (Callable): parameter value conflict resolution function
-        entity_classes (list(tuple(str,tuple,str,int)): tuples of
-            (name, dimension name tuple, description, display icon integer)
-        parameter_definitions (list(tuple(str,str,str,str)):
-            tuples of (class name, parameter name, default value, parameter value list name)
-        parameter_types (list(tuple(str,str,str))):
-            tuples of (class name, parameter name, type, preceding type)
-        entities: (list(tuple(str,str or tuple(str)): tuples of (class name, entity name or element name list)
-        entity_alternatives: (list(tuple(str,str or tuple(str),str,bool): tuples of
-            (class name, entity name or element name list, alternative name, activity)
-        entity_groups (list(tuple(str,str,str))): tuples of (class name, group entity name, member entity name)
-        parameter_values (list(tuple(str,str or tuple(str),str,str|numeric,str]):
-            tuples of (class name, entity name or element name list, parameter name, value, alternative name)
-        alternatives (list(str,str)): tuples of (name, description)
-        scenarios (list(str,str)): tuples of (name, description)
-        scenario_alternatives (list(str,str,str)): tuples of
-            (scenario name, alternative name, preceding alternative name)
-        parameter_value_lists (list(str,str|numeric)): tuples of (list name, value)
-        metadata (list(tuple(str,str))): tuples of (name, value)
-        entity_metadata (list(tuple(str,tuple,str,str))):
-            tuples of (class name, entity byname, metadata name, value)
-        parameter_value_metadata (list(tuple(str,tuple,str,str,str,str))):
-            tuples of (class name, entity byname, parameter name, metadata name, value, alternative name)
-        superclass_subclasses (list(tuple(str,str))): tuples of (superclass name, subclass name)
-        display_modes (list(tuple(str,str))): tuples of (name, description)
-        entity_class_display_modes (list(tuple(str,str,int))): tuples of (display mode name, entity class name, display order)
+        entity_classes (Iterable of Sequence): entity class tuples
+        parameter_definitions (Iterable of Sequence): tuples of parameter definitions
+        parameter_types (Iterable of Sequence): tuples of parameter types
+        entities (Iterable of Sequence): tuples of entities
+        entity_alternatives (Iterable of Sequence): tuples of entity alternatives
+        entity_groups (Iterable of Sequence): tuples of entity groups
+        parameter_values (Iterable of Sequence): tuples of parameter values
+        alternatives (Iterable of Sequence): tuples of alternatives
+        scenarios (Iterable of Sequence): tuples of scenarios
+        scenario_alternatives (Iterable of Sequence): tuples of scenario alternatives
+        parameter_value_lists (Iterable of Sequence): tuples of parameter value lists
+        metadata (Iterable of Sequence): tuples of metadata
+        entity_metadata (Iterable of Sequence): tuples of entity metadata
+        parameter_value_metadata (Iterable of Sequence): tuples of parameter value metadata
+        superclass_subclasses (Iterable of Sequence): tuples of superclass subclasses
+        display_modes (Iterable of Sequence): tuples of display modes
+        entity_class_display_modes (Iterable of Sequence): tuples of entity class display modes
 
     Yields:
-        str: item type
-        tuple(list,list,list): tuple of (items to add, items to update, errors)
+        tuple: tuple of (item type, (items to add, items to update, errors))
     """
     # NOTE: The order is important, because of references. E.g., we want to import alternatives before parameter_values
     if alternatives:
@@ -276,11 +270,10 @@ def import_superclass_subclasses(db_map, data):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (list(tuple(str,tuple,str,int)): tuples of (superclass name, subclass name)
+        data (Iterable of Sequence): tuples of (superclass name [str], subclass name [str])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, superclass_subclasses=data)
 
@@ -290,12 +283,11 @@ def import_entity_classes(db_map, data):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (list(tuple(str,tuple,str,int,bool)): tuples of
-            (name, dimension name tuple, description, display icon integer, active by default flag)
+        data (Iterable of Sequence): tuples of
+            (name [str], [(dimension 1 name [str], dimension 2 name [str],...)], [description [str]], [display icon integer [int]], [active by default [bool]])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, entity_classes=data)
 
@@ -305,11 +297,11 @@ def import_entities(db_map, data):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data: (list(tuple(str,str or tuple(str)): tuples of (class name, entity name or element name list)
+        data (Iterable of Sequence): tuples of (class name [str], entity name or byname [str or tuple[str]], [description [str]], [location [tuple]])
+            where location is a tuple of (latitude [float], longitude [float], altitude [float], shape name [str], shape GEOJSON [str])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, entities=data)
 
@@ -319,12 +311,11 @@ def import_entity_alternatives(db_map, data):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data: (list(tuple(str,str or tuple(str),str,bool): tuples of
-            (class name, entity name or element name list, alternative name, activity)
+        data: (Iterable of Sequence): tuples of
+            (class name [str], entity name or byname [str or tuple[str]], alternative name [str], activity [bool])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, entity_alternatives=data)
 
@@ -334,11 +325,10 @@ def import_entity_groups(db_map, data):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (list(tuple(str,str,str))): tuples of (class name, group entity name, member entity name)
+        data (Iterable of Sequence): tuples of (class name [str], group entity name [str], member entity name [str])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, entity_groups=data)
 
@@ -348,13 +338,12 @@ def import_parameter_definitions(db_map, data, unparse_value=to_database):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (list(tuple(str,str,str,str)):
-            tuples of (class name, parameter name, default value, parameter value list name)
+        data (Iterable of Sequence):
+            tuples of (class name [str], parameter name [str], [default value], [default type [str]], [parameter value list name [str]], [description [str]])
         unparse_value (Callable): function to parse parameter values
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, parameter_definitions=data, unparse_value=unparse_value)
 
@@ -364,13 +353,12 @@ def import_parameter_types(db_map, data, unparse_value=to_database):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (Iterable of Iterable):
-            Iterable of (class name, parameter name, type, [succeeding type])
+        data (Iterable of Sequence):
+            tuple of (class name [str], parameter name [str], type [str], [succeeding type [str]])
         unparse_value (Callable): function to parse parameter values
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, parameter_types=data, unparse_value=unparse_value)
 
@@ -380,14 +368,13 @@ def import_parameter_values(db_map, data, unparse_value=to_database, on_conflict
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (list(tuple(str,str or tuple(str),str,str|numeric,str]):
-            tuples of (class name, entity name or element name list, parameter name, value, alternative name)
+        data (Iterable of Sequence):
+            tuples of (class name [str], entity name [str] or byname [tuple[str]], parameter definition name [str], value, [alternative_name [str]])
         unparse_value (Callable): function to parse parameter values
-        on_conflict (str): Conflict resolution strategy for :func:`~spinedb_api.parameter_value.fix_conflict`
+        on_conflict (str): Conflict resolution strategy; options: "keep", "replace", "merge"
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, parameter_values=data, unparse_value=unparse_value, on_conflict=on_conflict)
 
@@ -397,11 +384,10 @@ def import_alternatives(db_map, data):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (list(str,str)): tuples of (name, description)
+        data (Iterable of Sequence): tuples of (name [str], [description [str]])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, alternatives=data)
 
@@ -411,11 +397,10 @@ def import_scenarios(db_map, data):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (list(str, bool, str)): tuples of (name, <unused_bool>, description)
+        data (Iterable of Sequence): tuples of (name [str], [<unused bool>], [description [str]])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, scenarios=data)
 
@@ -424,12 +409,11 @@ def import_display_modes(db_map, data):
     """Imports display modes into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DatabaseMapping): database mapping
-        data (list(str, str)): tuples of (name, description)
+        db_map (DatabaseMapping): database mapping
+        data (Iterable of Sequence): tuples of (name [str], [description [str]])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, display_modes=data)
 
@@ -438,12 +422,11 @@ def import_entity_class_display_modes(db_map, data):
     """Imports entity class display modes into a Spine database using a standard format.
 
     Args:
-        db_map (spinedb_api.DatabaseMapping): database mapping
-        data (list(str,str,int)): tuples of (display mode name, entity class name, display order)
+        db_map (DatabaseMapping): database mapping
+        data (Iterable of Sequence): tuples of (display mode name [str], entity class name [str], display order [int])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, entity_class_display_modes=data)
 
@@ -453,11 +436,10 @@ def import_scenario_alternatives(db_map, data):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (list(str,str,str)): tuples of (scenario name, alternative name, [succeeding alternative name])
+        data (Iterable of Sequence): tuples of (scenario [str], alternative [str], [succeeding alternative [str]])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, scenario_alternatives=data)
 
@@ -467,12 +449,11 @@ def import_parameter_value_lists(db_map, data, unparse_value=to_database):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (list(str,str|numeric)): tuples of (list name, value)
+        data (Iterable of Sequence): tuples of (list name [str], value)
         unparse_value (Callable): function to parse parameter values
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, parameter_value_lists=data, unparse_value=unparse_value)
 
@@ -482,11 +463,10 @@ def import_metadata(db_map, data):
 
     Args:
         db_map (DatabaseMapping): database mapping
-        data (list(tuple(str,str))): tuples of (entry name, value)
+        data (Iterable of Sequence): tuples of (entry name [str], value [str])
 
     Returns:
-        int: number of items imported
-        list: errors
+        tuple: tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, metadata=data)
 
@@ -589,17 +569,26 @@ def _get_entity_class_display_modes_for_import(data):
         yield dict(zip(key, (display_mode_name, entity_class_name, display_order, *optionals)))
 
 
-def _get_entities_for_import(data):
-    items_by_el_count = {}
-    key = ("entity_class_name", "entity_byname", "description")
+def _get_entities_for_import(data: Iterable[Iterable[Any]]) -> Iterator[list[dict]]:
+    items_by_el_count: dict[int, list[dict]] = {}
+    key = ("entity_class_name", "entity_byname", "description", "location")
     for class_name, name_or_el_name_list, *optionals in data:
-        if isinstance(name_or_el_name_list, (list, tuple)):
-            el_count = len(name_or_el_name_list)
-            byname = name_or_el_name_list
-        else:
+        if isinstance(name_or_el_name_list, str):
             el_count = 0
             byname = (name_or_el_name_list,)
+        else:
+            el_count = len(name_or_el_name_list)
+            byname = name_or_el_name_list
         item = dict(zip(key, (class_name, byname, *optionals)))
+        if "location" in item:
+            location = item.pop("location")
+            if location is not None:
+                with suppress(IndexError):
+                    item["lat"] = location[0]
+                    item["lon"] = location[1]
+                    item["alt"] = location[2]
+                    item["shape_name"] = location[3]
+                    item["shape_blob"] = location[4]
         items_by_el_count.setdefault(el_count, []).append(item)
     return (items_by_el_count[el_count] for el_count in sorted(items_by_el_count))
 

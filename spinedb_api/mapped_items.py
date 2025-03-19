@@ -209,6 +209,8 @@ class EntityItem(MappedItemBase):
             if location_item is None or location_item.removed:
                 return None
             return location_item[key]
+        elif key == "entity_location_id":
+            return self._get_location_id()
         return super().__getitem__(key)
 
     def _asdict(self):
@@ -404,6 +406,16 @@ class EntityItem(MappedItemBase):
         else:
             self._location_id = _unfetched
         self._init_location = None
+
+    def _get_location_id(self) -> TempId:
+        if self._location_id is _unfetched:
+            location_table = self._db_map.mapped_table("entity_location")
+            location = location_table.find_item_by_unique_key({"entity_id": dict.__getitem__(self, "id")})
+            if not location:
+                self._location_id = None
+            else:
+                self._location_id = dict.__getitem__(location, "id")
+        return self._location_id
 
     def _get_location_item(self, location_table: MappedTable) -> Optional[EntityLocationItem]:
         if self._location_id is None:

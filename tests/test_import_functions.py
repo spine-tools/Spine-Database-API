@@ -592,6 +592,19 @@ class TestImportEntity(AssertSuccessTestCase):
             self.assertEqual(entities[0]["entity_class_name"], "flow__flow")
             self.assertEqual(entities[0]["dimension_name_list"], ("flow", "flow"))
 
+    def test_entity_location(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_entity_classes(db_map, [("Object",)]))
+            self._assert_imports(
+                import_entities(db_map, [("Object", "shape", None, (2.3, 3.2, 55.0, "polyhedron", "{}"))])
+            )
+            shape = db_map.entity(entity_class_name="Object", name="shape")
+            self.assertEqual(shape["lat"], 2.3)
+            self.assertEqual(shape["lon"], 3.2)
+            self.assertEqual(shape["alt"], 55.0)
+            self.assertEqual(shape["shape_name"], "polyhedron")
+            self.assertEqual(shape["shape_blob"], "{}")
+
 
 class TestImportRelationship(AssertSuccessTestCase):
     def populate(self, db_map):
