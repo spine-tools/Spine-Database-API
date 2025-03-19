@@ -10,9 +10,10 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 from __future__ import annotations
+from collections.abc import Iterator
 from contextlib import suppress
 from difflib import SequenceMatcher
-from typing import ClassVar, Optional, Set
+from typing import ClassVar, Optional, Set, Union
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
 from .mapped_item_status import Status
@@ -335,7 +336,7 @@ class MappedTable(dict):
             return None
         return mapped_item
 
-    def valid_values(self):
+    def valid_values(self) -> Iterator[MappedItemBase]:
         return (x for x in self.values() if x.is_valid())
 
     def find_item(self, item, skip_keys=(), fetch=True):
