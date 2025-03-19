@@ -1323,7 +1323,7 @@ def _add_convenience_methods(node):
         children.setdefault("get", []).append(child)
         child = astroid.extract_node(
             f'''
-            def find_{item_type}(self, **kwargs):
+            def find_{_pluralize(item_type)}(self, **kwargs):
                 """Finds and returns all `{item_type}` items matching the keyword arguments.
 
                 Args:
