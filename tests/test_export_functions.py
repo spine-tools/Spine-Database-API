@@ -20,6 +20,7 @@ from spinedb_api import (
     export_scenario_alternatives,
     export_scenarios,
     import_alternatives,
+    import_data,
     import_display_modes,
     import_entity_class_display_modes,
     import_object_classes,
@@ -149,6 +150,57 @@ class TestExportFunctions(unittest.TestCase):
                 "parameter_types": [("Widget", "q", "duration", 0)],
             }
             self.assertEqual(exported_data, expected_data)
+
+    def test_export_entity_groups(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity(entity_class_name="Object", name="my_group")
+            db_map.add_entity(entity_class_name="Object", name="vip_member")
+            db_map.add_entity_group(entity_class_name="Object", group_name="my_group", member_name="vip_member")
+            data = export_data(db_map)
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_import_success(import_data(db_map, **data))
+            self.assertTrue(
+                db_map.entity_group(entity_class_name="Object", group_name="my_group", member_name="vip_member")
+            )
+
+    def test_export_entity_alternatives(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_alternative(name="alt")
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity(entity_class_name="Object", name="ghost")
+            db_map.add_entity_alternative(
+                entity_class_name="Object", entity_byname=("ghost",), alternative_name="alt", active=True
+            )
+            data = export_data(db_map)
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_import_success(import_data(db_map, **data))
+            self.assertTrue(
+                db_map.entity_alternative(entity_class_name="Object", entity_byname=("ghost",), alternative_name="alt")[
+                    "active"
+                ]
+            )
+
+    def test_export_superclass_subclasses(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Super")
+            db_map.add_entity_class(name="Sub")
+            db_map.add_superclass_subclass(superclass_name="Super", subclass_name="Sub")
+            data = export_data(db_map)
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_import_success(import_data(db_map, **data))
+            self.assertTrue(db_map.superclass_subclass(superclass_name="Super", subclass_name="Sub"))
+
+    def test_export_parameter_value_lists(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_parameter_value_list(name="possibilities")
+            db_map.add_list_value(parameter_value_list_name="possibilities", parsed_value="infinite", index=0)
+            data = export_data(db_map)
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_import_success(import_data(db_map, **data))
+            self.assertEqual(
+                db_map.list_value(parameter_value_list_name="possibilities", index=0)["parsed_value"], "infinite"
+            )
 
     def test_export_data(self):
         with DatabaseMapping("sqlite://", username="UnitTest", create=True) as db_map:

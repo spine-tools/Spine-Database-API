@@ -1130,12 +1130,6 @@ class MappedItemBase(dict):
         """Overridden to return a more verbose representation."""
         return f"{self.item_type}{self.extended()}"
 
-    def __getattr__(self, name):
-        """Overridden to return the dictionary key named after the attribute, or None if it doesn't exist."""
-        # FIXME: We should try and get rid of this one
-
-        return self.get(name)
-
     def __getitem__(self, key):
         """Overridden to return references."""
         source_and_target_key = self._external_fields.get(key)

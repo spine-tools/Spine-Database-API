@@ -968,9 +968,9 @@ class ScenarioItem(MappedItemBase):
 
     def __getitem__(self, key):
         if key == "alternative_id_list":
-            return [x["alternative_id"] for x in self.sorted_scenario_alternatives]
+            return [x["alternative_id"] for x in self["sorted_scenario_alternatives"]]
         if key == "alternative_name_list":
-            return [x["alternative_name"] for x in self.sorted_scenario_alternatives]
+            return [x["alternative_name"] for x in self["sorted_scenario_alternatives"]]
         if key == "sorted_scenario_alternatives":
             mapped_table = self._db_map.mapped_table("scenario_alternative")
             self._db_map.do_fetch_all(mapped_table)

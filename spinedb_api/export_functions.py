@@ -11,6 +11,7 @@
 ######################################################################################################################
 """Functions for exporting data from a Spine database in a standard format."""
 from collections import namedtuple
+from collections.abc import Iterator
 from operator import itemgetter
 from .helpers import Asterisk
 from .parameter_value import from_database
@@ -82,7 +83,7 @@ def export_data(
     return {key: value for key, value in data.items() if value}
 
 
-def _get_items(db_map, tablename, ids):
+def _get_items(db_map, tablename, ids) -> Iterator[dict]:
     if not ids:
         return ()
     _process_item = _make_item_processor(db_map, tablename)
@@ -109,23 +110,20 @@ def _make_item_processor(db_map, tablename):
     return lambda item: (item,)
 
 
-ValueRow = namedtuple("ValueRow", ["name", "value", "type"])
-
-
 class _ParameterValueListProcessor:
     def __init__(self, value_items):
         self._value_items_by_list_id = {}
         for x in value_items:
-            self._value_items_by_list_id.setdefault(x.parameter_value_list_id, []).append(x)
+            self._value_items_by_list_id.setdefault(x["parameter_value_list_id"], []).append(x)
 
     def __call__(self, item):
-        for list_value_item in sorted(self._value_items_by_list_id.get(item.id, ()), key=lambda x: x.index):
-            yield ValueRow(item.name, list_value_item.value, list_value_item.type)
+        for list_value_item in sorted(self._value_items_by_list_id.get(item["id"], ()), key=itemgetter("index")):
+            yield {"name": item["name"], "value": list_value_item["value"], "type": list_value_item["type"]}
 
 
 def export_parameter_value_lists(db_map, ids=Asterisk, parse_value=from_database):
     return sorted(
-        ((x.name, parse_value(x.value, x.type)) for x in _get_items(db_map, "parameter_value_list", ids)),
+        ((x["name"], parse_value(x["value"], x["type"])) for x in _get_items(db_map, "parameter_value_list", ids)),
         key=itemgetter(0),
     )
 
@@ -133,7 +131,7 @@ def export_parameter_value_lists(db_map, ids=Asterisk, parse_value=from_database
 def export_entity_classes(db_map, ids=Asterisk):
     return sorted(
         (
-            (x.name, x.dimension_name_list, x.description, x.display_icon, x.active_by_default)
+            (x["name"], x["dimension_name_list"], x["description"], x["display_icon"], x["active_by_default"])
             for x in _get_items(db_map, "entity_class", ids)
         ),
         key=lambda x: (len(x[1]), x[0]),
@@ -141,22 +139,22 @@ def export_entity_classes(db_map, ids=Asterisk):
 
 
 def export_superclass_subclasses(db_map, ids=Asterisk):
-    return sorted(((x.superclass_name, x.subclass_name) for x in _get_items(db_map, "superclass_subclass", ids)))
+    return sorted(((x["superclass_name"], x["subclass_name"]) for x in _get_items(db_map, "superclass_subclass", ids)))
 
 
 def export_display_modes(db_map, ids=Asterisk):
-    return sorted(((x.name, x.description) for x in _get_items(db_map, "display_mode", ids)))
+    return sorted(((x["name"], x["description"]) for x in _get_items(db_map, "display_mode", ids)))
 
 
 def export_entity_class_display_modes(db_map, ids=Asterisk):
     return sorted(
         (
-            x.display_mode_name,
-            x.entity_class_name,
-            x.display_order,
-            x.display_status,
-            x.display_font_color,
-            x.display_background_color,
+            x["display_mode_name"],
+            x["entity_class_name"],
+            x["display_order"],
+            x["display_status"],
+            x["display_font_color"],
+            x["display_background_color"],
         )
         for x in _get_items(db_map, "entity_class_display_mode", ids)
     )
@@ -165,7 +163,7 @@ def export_entity_class_display_modes(db_map, ids=Asterisk):
 def export_entities(db_map, ids=Asterisk):
     return sorted(
         (
-            (x.entity_class_name, x.entity_byname if x.element_name_list else x.name, x.description)
+            (x["entity_class_name"], x["entity_byname"] if x["element_name_list"] else x["name"], x["description"])
             for x in _get_items(db_map, "entity", ids)
         ),
         key=lambda x: (0 if isinstance(x[1], str) else len(x[1]), x[0], (x[1],) if isinstance(x[1], str) else x[1]),
@@ -173,12 +171,14 @@ def export_entities(db_map, ids=Asterisk):
 
 
 def export_entity_groups(db_map, ids=Asterisk):
-    return sorted((x.entity_class_name, x.group_name, x.member_name) for x in _get_items(db_map, "entity_group", ids))
+    return sorted(
+        (x["entity_class_name"], x["group_name"], x["member_name"]) for x in _get_items(db_map, "entity_group", ids)
+    )
 
 
 def export_entity_alternatives(db_map, ids=Asterisk):
     return sorted(
-        (x.entity_class_name, x.entity_byname, x.alternative_name, x.active)
+        (x["entity_class_name"], x["entity_byname"], x["alternative_name"], x["active"])
         for x in _get_items(db_map, "entity_alternative", ids)
     )
 
@@ -186,11 +186,11 @@ def export_entity_alternatives(db_map, ids=Asterisk):
 def export_parameter_definitions(db_map, ids=Asterisk, parse_value=from_database):
     return sorted(
         (
-            x.entity_class_name,
-            x.name,
-            parse_value(x.default_value, x.default_type),
-            x.parameter_value_list_name,
-            x.description,
+            x["entity_class_name"],
+            x["name"],
+            parse_value(x["default_value"], x["default_type"]),
+            x["parameter_value_list_name"],
+            x["description"],
         )
         for x in _get_items(db_map, "parameter_definition", ids)
     )
@@ -198,7 +198,7 @@ def export_parameter_definitions(db_map, ids=Asterisk, parse_value=from_database
 
 def export_parameter_types(db_map, ids=Asterisk):
     return sorted(
-        (x.entity_class_name, x.parameter_definition_name, x.type, x.rank)
+        (x["entity_class_name"], x["parameter_definition_name"], x["type"], x["rank"])
         for x in _get_items(db_map, "parameter_type", ids)
     )
 
@@ -207,11 +207,11 @@ def export_parameter_values(db_map, ids=Asterisk, parse_value=from_database):
     return sorted(
         (
             (
-                x.entity_class_name,
-                x.entity_byname if x.element_name_list else x.entity_name,
-                x.parameter_name,
-                parse_value(x.value, x.type),
-                x.alternative_name,
+                x["entity_class_name"],
+                x["entity_byname"] if x["element_name_list"] else x["entity_name"],
+                x["parameter_name"],
+                parse_value(x["value"], x["type"]),
+                x["alternative_name"],
             )
             for x in _get_items(db_map, "parameter_value", ids)
         ),
@@ -220,17 +220,17 @@ def export_parameter_values(db_map, ids=Asterisk, parse_value=from_database):
 
 
 def export_alternatives(db_map, ids=Asterisk):
-    return sorted((x.name, x.description) for x in _get_items(db_map, "alternative", ids))
+    return sorted((x["name"], x["description"]) for x in _get_items(db_map, "alternative", ids))
 
 
 def export_scenarios(db_map, ids=Asterisk):
-    return sorted((x.name, x.active, x.description) for x in _get_items(db_map, "scenario", ids))
+    return sorted((x["name"], x["active"], x["description"]) for x in _get_items(db_map, "scenario", ids))
 
 
 def export_scenario_alternatives(db_map, ids=Asterisk):
     return sorted(
         (
-            (x.scenario_name, x.alternative_name, x.before_alternative_name)
+            (x["scenario_name"], x["alternative_name"], x["before_alternative_name"])
             for x in _get_items(db_map, "scenario_alternative", ids)
         ),
         key=itemgetter(0),
