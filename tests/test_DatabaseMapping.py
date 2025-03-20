@@ -2618,7 +2618,32 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertEqual(sphere["lat"], 2.3)
             self.assertEqual(sphere["lon"], 3.2)
 
-
+    def test_purge_entity_location_sets_entitys_location_data_to_none(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            entity = db_map.add_entity(entity_class_name="Object", name="mouse", lat=2.3, lon=3.2)
+            db_map.purge_items("entity_location")
+            self.assertIsNone(entity["lat"])
+            self.assertIsNone(entity["lon"])
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            entity = db_map.add_entity(entity_class_name="Object", name="mouse", lat=2.3, lon=3.2)
+            self.assertEqual(entity["lat"], 2.3)
+            self.assertEqual(entity["lon"], 3.2)
+            db_map.purge_items("entity_location")
+            self.assertIsNone(entity["lat"])
+            self.assertIsNone(entity["lon"])
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object")
+                db_map.add_entity(entity_class_name="Object", name="mouse", lat=2.3, lon=3.2)
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("entity_location")
+                entity = db_map.entity(entity_class_name="Object", name="mouse")
+                self.assertIsNone(entity["lat"])
+                self.assertIsNone(entity["lon"])
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
