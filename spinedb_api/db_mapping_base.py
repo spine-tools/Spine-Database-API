@@ -10,9 +10,10 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 from __future__ import annotations
+from collections.abc import Iterator
 from contextlib import suppress
 from difflib import SequenceMatcher
-from typing import ClassVar, Optional, Set
+from typing import ClassVar, Optional, Set, Union
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
 from .mapped_item_status import Status
@@ -336,7 +337,7 @@ class MappedTable(dict):
             return None
         return mapped_item
 
-    def valid_values(self):
+    def valid_values(self) -> Iterator[MappedItemBase]:
         return (x for x in self.values() if x.is_valid())
 
     def find_item(self, item, skip_keys=(), fetch=True):
@@ -1185,9 +1186,8 @@ class MappedItemBase(dict):
                         invalidate_ref(id_)
                 else:
                     invalidate_ref(src_val)
-        id_ = dict.__getitem__(self, "id")
+        del other["id"]
         super().update(other)
-        self["id"] = id_
         if self._backup is not None:
             backup = self._backup
             as_dict = self._asdict()
@@ -1275,11 +1275,11 @@ class PublicItem:
 
     def update(self, **kwargs) -> Optional[PublicItem]:
         mapped_table = self._mapped_item.db_map.mapped_table(self._mapped_item.item_type)
-        return self._mapped_item.db_map.update(mapped_table, id=self["id"], **kwargs)
+        return self._mapped_item.db_map.update(mapped_table, id=dict.__getitem__(self._mapped_item, "id"), **kwargs)
 
     def remove(self) -> None:
         db_map = self._mapped_item.db_map
-        db_map.remove(db_map.mapped_table(self.item_type), id=self["id"])
+        db_map.remove(db_map.mapped_table(self.item_type), id=dict.__getitem__(self._mapped_item, "id"))
 
     def restore(self) -> PublicItem:
         mapped_table = self._mapped_item.db_map.mapped_table(self.item_type)
@@ -1292,7 +1292,7 @@ class PublicItem:
                 mapped_table.remove_unique(existing_item)
                 self._mapped_item.validate_id()
                 mapped_table.add_unique(self._mapped_item)
-        return self._mapped_item.db_map.restore(mapped_table, id=self["id"])
+        return self._mapped_item.db_map.restore(mapped_table, id=dict.__getitem__(self._mapped_item, "id"))
 
     def add_update_callback(self, callback):
         self._mapped_item.update_callbacks.add(callback)

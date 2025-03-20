@@ -474,3 +474,80 @@ if reading the data is all that is needed.
 This is the fastest interface to the database.
 It also lacks the convenience of :class:`.DatabaseMapping`,
 including any kind of documentation.
+
+Parameter types
+---------------
+
+The :ref:`db_mapping_schema` defines a ``parameter_type`` item
+that can be used to specify valid types for a parameter.
+Spine DB API does not do any type validation, however.
+It is up to the user to make use of the type information.
+The :mod:`~.db_mapping_helpers` module contains some functions that may be useful for this purpose.
+
+Direct use of ``parameter_type`` is not recommended
+as ``parameter_definition`` gives more convenient access to its valid types through the ``parameter_type_list`` field.
+Using the ``parameter_type_list`` field does the required operations for ``parameter_type`` items in the background.
+
+``parameter_type_list`` is a sequence of valid types.
+Available types are listed in :data:`spinedb_api.parameter_value.VALUE_TYPES`
+and they are ``float``, ``bool``, ``str``, ``duration``, ``date_time``, ``array``, ``time_pattern`` and ``time_series``.
+``map`` is a special case as the number of dimensions must be mentioned explicitly:
+``1d_map``, ``2d_map``,...
+
+New parameters with valid types can be added with::
+
+    with api.DatabaseMapping(url) as db_map:
+        db_map.add_parameter_definition(
+            entity_class_name=...,
+            name=...,
+            parameter_type_list=("float", "array", "1d_map")
+        )
+
+Adding types to existing parameter or changing its current types can be done with :meth:`~.PublicItem.update`::
+
+    with api.DatabaseMapping(url) as db_map:
+        definition = db_map.parameter_definition(entity_class_name=..., name=...)
+        definition.update(parameter_type_list=("bool",))
+
+``parameter_type_list`` can be set to ``None`` to clear the list
+and make the parameter accept any type.
+
+Location data for entities
+--------------------------
+
+The ``entity_location`` item in the :ref:`db_mapping_schema` contains geographic information system (GIS) data for entities.
+Rather than using ``entity_location`` directly, it is recommended to access the location information via ``entity`` items.
+
+Available location fields in ``entity`` are ``lat`` (latitude), ``lon`` (longitude), ``alt`` (altitude),
+``shape_name`` (name of the shape) and ``shape_blob`` (`GeoJSON <https://geojson.org>`_ feature or geometry).
+The id of the ``entity_location`` item is available in the ``entity_location_id`` field.
+
+Both ``lat`` and ``lon`` must be set or None.
+``alt`` can only be set if ``lat`` and ``lon`` have been set.
+Similarly, both ``shape_name`` and ``shape_blob`` must be set or None
+but they can be set independently of ``lat`` and ``lon``.
+Therefore, an entity can have a position, a shape or both.
+
+Location data can be set on entity creation or updated with :meth:`~PublidItem.update`::
+
+    with api.DatabaseMapping(url) as db_map:
+        db_map.add_entity(entity_class_name="node", name="region", lat=2.3, lon=3.2)
+        shape_blob = json.dumps({
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [2.3+3.2i, 3.2-2.3i]
+            },
+            "properties": {
+                "name": "Atlantis island"
+            },
+        })
+        atlantis = db_map.add_entity(
+            entity_class_name=node,
+            name="secret_place",
+            shape_name="Atlantis",
+            shape_blob=shape_blob
+        )
+        atlantis.update(lat=0.0, lon=0.0, alt=-10000.0)
+
+Setting all location fields to None deletes the corresponding location item.

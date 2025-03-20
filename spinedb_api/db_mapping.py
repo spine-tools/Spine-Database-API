@@ -129,6 +129,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         "metadata": "metadata_sq",
         "entity_metadata": "entity_metadata_sq",
         "parameter_value_metadata": "parameter_value_metadata_sq",
+        "entity_location": "entity_location_sq",
         "commit": "commit_sq",
     }
 
@@ -1318,7 +1319,7 @@ def _add_convenience_methods(node):
         children.setdefault("get", []).append(child)
         child = astroid.extract_node(
             f'''
-            def find_{item_type}(self, **kwargs):
+            def find_{_pluralize(item_type)}(self, **kwargs):
                 """Finds and returns all `{item_type}` items matching the keyword arguments.
 
                 Args:

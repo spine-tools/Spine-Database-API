@@ -37,46 +37,38 @@ from spinedb_api import (
 )
 from spinedb_api.export_functions import export_parameter_types
 from spinedb_api.helpers import DisplayStatus
+from tests.mock_helpers import AssertSuccessTestCase
 
 
-class TestExportFunctions(unittest.TestCase):
-    def _assert_import_success(self, result):
-        errors = result[1]
-        self.assertEqual(errors, [])
-
-    def _assert_addition_success(self, result):
-        error = result[1]
-        self.assertIsNone(error)
+class TestExportFunctions(AssertSuccessTestCase):
 
     def test_export_alternatives(self):
         with DatabaseMapping("sqlite://", username="UnitTest", create=True) as db_map:
-            self._assert_import_success(import_alternatives(db_map, [("alternative", "Description")]))
+            self._assert_imports(import_alternatives(db_map, [("alternative", "Description")]))
             exported = export_alternatives(db_map)
             self.assertEqual(exported, [("Base", "Base alternative"), ("alternative", "Description")])
 
     def test_export_scenarios(self):
         with DatabaseMapping("sqlite://", username="UnitTest", create=True) as db_map:
-            self._assert_import_success(import_scenarios(db_map, [("scenario", False, "Description")]))
+            self._assert_imports(import_scenarios(db_map, [("scenario", False, "Description")]))
             exported = export_scenarios(db_map)
             self.assertEqual(exported, [("scenario", False, "Description")])
 
     def test_export_scenario_alternatives(self):
         with DatabaseMapping("sqlite://", username="UnitTest", create=True) as db_map:
-            self._assert_import_success(import_alternatives(db_map, ["alternative"]))
-            self._assert_import_success(import_scenarios(db_map, ["scenario"]))
-            self._assert_import_success(import_scenario_alternatives(db_map, (("scenario", "alternative"),)))
+            self._assert_imports(import_alternatives(db_map, ["alternative"]))
+            self._assert_imports(import_scenarios(db_map, ["scenario"]))
+            self._assert_imports(import_scenario_alternatives(db_map, (("scenario", "alternative"),)))
             exported = export_scenario_alternatives(db_map)
             self.assertEqual(exported, [("scenario", "alternative", None)])
 
     def test_export_multiple_scenario_alternatives(self):
         with DatabaseMapping("sqlite://", username="UnitTest", create=True) as db_map:
-            self._assert_import_success(import_alternatives(db_map, ["alternative1"]))
-            self._assert_import_success(import_alternatives(db_map, ["alternative2"]))
-            self._assert_import_success(import_scenarios(db_map, ["scenario"]))
-            self._assert_import_success(import_scenario_alternatives(db_map, (("scenario", "alternative1"),)))
-            self._assert_import_success(
-                import_scenario_alternatives(db_map, (("scenario", "alternative2", "alternative1"),))
-            )
+            self._assert_imports(import_alternatives(db_map, ["alternative1"]))
+            self._assert_imports(import_alternatives(db_map, ["alternative2"]))
+            self._assert_imports(import_scenarios(db_map, ["scenario"]))
+            self._assert_imports(import_scenario_alternatives(db_map, (("scenario", "alternative1"),)))
+            self._assert_imports(import_scenario_alternatives(db_map, (("scenario", "alternative2", "alternative1"),)))
             exported = export_scenario_alternatives(db_map)
             self.assertEqual(
                 set(exported), {("scenario", "alternative2", "alternative1"), ("scenario", "alternative1", None)}
@@ -84,10 +76,8 @@ class TestExportFunctions(unittest.TestCase):
 
     def test_export_entity_classes(self):
         with DatabaseMapping("sqlite://", username="UnitTest", create=True) as db_map:
-            self._assert_addition_success(db_map.add_entity_class_item(name="Object"))
-            self._assert_addition_success(
-                db_map.add_entity_class_item(name="Relation", dimension_name_list=("Object",))
-            )
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_entity_class_item(name="Relation", dimension_name_list=("Object",)))
             exported = export_entity_classes(db_map)
             expected = (("Object", (), None, None, True), ("Relation", ("Object",), None, None, True))
             self.assertCountEqual(exported, expected)
@@ -128,11 +118,33 @@ class TestExportFunctions(unittest.TestCase):
                 ],
             )
 
+    def test_export_entities_with_location(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity(
+                entity_class_name="Object",
+                name="shape",
+                lat=2.3,
+                lon=3.2,
+                alt=55.0,
+                shape_name="pentadron",
+                shape_blob="{}",
+            )
+            data = export_data(db_map)
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_data(db_map, **data))
+            shape = db_map.entity(entity_class_name="Object", name="shape")
+            self.assertEqual(shape["lat"], 2.3)
+            self.assertEqual(shape["lon"], 3.2)
+            self.assertEqual(shape["alt"], 55.0)
+            self.assertEqual(shape["shape_name"], "pentadron")
+            self.assertEqual(shape["shape_blob"], "{}")
+
     def test_export_single_parameter_type(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_addition_success(db_map.add_entity_class_item(name="Widget"))
-            self._assert_addition_success(db_map.add_parameter_definition_item(name="q", entity_class_name="Widget"))
-            self._assert_addition_success(
+            self._assert_success(db_map.add_entity_class_item(name="Widget"))
+            self._assert_success(db_map.add_parameter_definition_item(name="q", entity_class_name="Widget"))
+            self._assert_success(
                 db_map.add_parameter_type_item(
                     entity_class_name="Widget", parameter_definition_name="q", rank=0, type="duration"
                 )
@@ -159,7 +171,7 @@ class TestExportFunctions(unittest.TestCase):
             db_map.add_entity_group(entity_class_name="Object", group_name="my_group", member_name="vip_member")
             data = export_data(db_map)
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_import_success(import_data(db_map, **data))
+            self._assert_imports(import_data(db_map, **data))
             self.assertTrue(
                 db_map.entity_group(entity_class_name="Object", group_name="my_group", member_name="vip_member")
             )
@@ -174,7 +186,7 @@ class TestExportFunctions(unittest.TestCase):
             )
             data = export_data(db_map)
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_import_success(import_data(db_map, **data))
+            self._assert_imports(import_data(db_map, **data))
             self.assertTrue(
                 db_map.entity_alternative(entity_class_name="Object", entity_byname=("ghost",), alternative_name="alt")[
                     "active"
@@ -188,7 +200,7 @@ class TestExportFunctions(unittest.TestCase):
             db_map.add_superclass_subclass(superclass_name="Super", subclass_name="Sub")
             data = export_data(db_map)
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_import_success(import_data(db_map, **data))
+            self._assert_imports(import_data(db_map, **data))
             self.assertTrue(db_map.superclass_subclass(superclass_name="Super", subclass_name="Sub"))
 
     def test_export_parameter_value_lists(self):
@@ -197,49 +209,45 @@ class TestExportFunctions(unittest.TestCase):
             db_map.add_list_value(parameter_value_list_name="possibilities", parsed_value="infinite", index=0)
             data = export_data(db_map)
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_import_success(import_data(db_map, **data))
+            self._assert_imports(import_data(db_map, **data))
             self.assertEqual(
                 db_map.list_value(parameter_value_list_name="possibilities", index=0)["parsed_value"], "infinite"
             )
 
     def test_export_data(self):
         with DatabaseMapping("sqlite://", username="UnitTest", create=True) as db_map:
-            self._assert_import_success(import_object_classes(db_map, ["object_class"]))
-            self._assert_import_success(import_object_parameters(db_map, [("object_class", "object_parameter")]))
-            self._assert_import_success(import_objects(db_map, [("object_class", "object")]))
-            self._assert_import_success(
+            self._assert_imports(import_object_classes(db_map, ["object_class"]))
+            self._assert_imports(import_object_parameters(db_map, [("object_class", "object_parameter")]))
+            self._assert_imports(import_objects(db_map, [("object_class", "object")]))
+            self._assert_imports(
                 import_object_parameter_values(db_map, [("object_class", "object", "object_parameter", 2.3)])
             )
-            self._assert_import_success(import_relationship_classes(db_map, [("relationship_class", ["object_class"])]))
-            self._assert_import_success(
+            self._assert_imports(import_relationship_classes(db_map, [("relationship_class", ["object_class"])]))
+            self._assert_imports(
                 import_relationship_classes(db_map, [("compound_class", ["relationship_class", "relationship_class"])])
             )
-            self._assert_import_success(
+            self._assert_imports(
                 import_relationship_parameters(db_map, [("relationship_class", "relationship_parameter")])
             )
-            self._assert_import_success(
-                import_relationship_parameters(db_map, [("compound_class", "compound_parameter")])
-            )
-            self._assert_import_success(import_relationships(db_map, [("relationship_class", ["object"])]))
-            self._assert_import_success(import_relationships(db_map, [("compound_class", ["object", "object"])]))
-            self._assert_import_success(
+            self._assert_imports(import_relationship_parameters(db_map, [("compound_class", "compound_parameter")]))
+            self._assert_imports(import_relationships(db_map, [("relationship_class", ["object"])]))
+            self._assert_imports(import_relationships(db_map, [("compound_class", ["object", "object"])]))
+            self._assert_imports(
                 import_relationship_parameter_values(
                     db_map, [("relationship_class", ["object"], "relationship_parameter", 3.14)]
                 )
             )
-            self._assert_import_success(
+            self._assert_imports(
                 import_relationship_parameter_values(
                     db_map, [("compound_class", ["object", "object"], "compound_parameter", 2.71)]
                 )
             )
-            self._assert_import_success(
-                import_parameter_value_lists(db_map, [("value_list", "5.5"), ("value_list", "6.4")])
-            )
-            self._assert_import_success(import_alternatives(db_map, ["alternative"]))
-            self._assert_import_success(import_scenarios(db_map, ["scenario"]))
-            self._assert_import_success(import_scenario_alternatives(db_map, [("scenario", "alternative")]))
-            self._assert_import_success(import_display_modes(db_map, ["display_mode"]))
-            self._assert_import_success(
+            self._assert_imports(import_parameter_value_lists(db_map, [("value_list", "5.5"), ("value_list", "6.4")]))
+            self._assert_imports(import_alternatives(db_map, ["alternative"]))
+            self._assert_imports(import_scenarios(db_map, ["scenario"]))
+            self._assert_imports(import_scenario_alternatives(db_map, [("scenario", "alternative")]))
+            self._assert_imports(import_display_modes(db_map, ["display_mode"]))
+            self._assert_imports(
                 import_entity_class_display_modes(
                     db_map, (("display_mode", "object_class", 1, DisplayStatus.hidden.name),)
                 )
