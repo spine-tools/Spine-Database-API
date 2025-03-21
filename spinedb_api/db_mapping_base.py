@@ -363,7 +363,9 @@ class MappedTable(dict):
         return current_item
 
     def _find_fully_qualified_item_by_unique_key(self, item, skip_keys, fetch, valid_only):
-        for key, value in self._db_map.item_factory(self.item_type).unique_values_for_item(item, skip_keys=skip_keys):
+        for key, value in self._db_map.item_factory(self.item_type).unique_values_for_item(item):
+            if key in skip_keys:
+                continue
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch, valid_only=valid_only)
             if current_item:
                 return current_item
@@ -379,7 +381,9 @@ class MappedTable(dict):
             mapped_item.resolve_internal_fields(skip_keys=item.keys())
         except SpineDBAPIError:
             return {}
-        for key, value in mapped_item.unique_key_values(skip_keys=skip_keys):
+        for key, value in mapped_item.unique_values_for_item(mapped_item):
+            if key in skip_keys:
+                continue
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch, valid_only=valid_only)
             if current_item:
                 return current_item
@@ -429,7 +433,7 @@ class MappedTable(dict):
         if first_invalid_key:
             raise SpineDBAPIError(f"invalid {first_invalid_key} for {self.item_type}")
         try:
-            for key, value in candidate_item.unique_key_values():
+            for key, value in candidate_item.unique_values_for_item(candidate_item):
                 empty = {k for k, v in zip(key, value) if v == ""}
                 if empty:
                     raise SpineDBAPIError(f"invalid empty keys {empty} for {self.item_type}")
@@ -449,12 +453,12 @@ class MappedTable(dict):
 
     def add_unique(self, item):
         id_ = item["id"]
-        for key, value in item.unique_key_values():
+        for key, value in item.unique_values_for_item(item):
             self._ids_by_unique_key_value.setdefault(key, {}).setdefault(value, []).append(id_)
 
     def remove_unique(self, item):
         id_ = item["id"]
-        for key, value in item.unique_key_values():
+        for key, value in item.unique_values_for_item(item):
             ids = self._ids_by_unique_key_value.get(key, {}).get(value, [])
             if id_ in ids:
                 ids.remove(id_)
@@ -517,7 +521,7 @@ class MappedTable(dict):
         """
         db_item = self._db_map.make_item(self.item_type, **db_item)
         db_item.polish()
-        return dict(mapped_item.unique_key_values()) == dict(db_item.unique_key_values())
+        return dict(mapped_item.unique_values_for_item(mapped_item)) == dict(db_item.unique_values_for_item(db_item))
 
     def check_fields(self, item, valid_types=()):
         factory = self._db_map.item_factory(self.item_type)
@@ -844,23 +848,11 @@ class MappedItemBase(dict):
         return ref
 
     @classmethod
-    def unique_values_for_item(cls, item, skip_keys=()):
+    def unique_values_for_item(cls, item):
         for key_set in cls.unique_keys:
-            if key_set not in skip_keys:
-                value = tuple(item.get(key) for key in key_set)
-                if None not in value:
-                    yield key_set, value
-
-    def unique_key_values(self, skip_keys=()):
-        """Yields tuples of unique keys and their values.
-
-        Args:
-            skip_keys: Don't yield these keys
-
-        Yields:
-            tuple(tuple,tuple): the first element is the unique key, the second is the values.
-        """
-        yield from self.unique_values_for_item(self, skip_keys=skip_keys)
+            value = tuple(item.get(key) for key in key_set)
+            if None not in value:
+                yield key_set, value
 
     def resolve_internal_fields(self, skip_keys=()):
         """Goes through the ``_internal_fields`` class attribute and updates this item

@@ -180,7 +180,9 @@ class EntityItem(MappedItemBase):
     @classmethod
     def unique_values_for_item(cls, item, skip_keys=()):
         """Overridden to also yield unique values for the superclass."""
-        for key, value in super().unique_values_for_item(item, skip_keys=skip_keys):
+        for key, value in super().unique_values_for_item(item):
+            if key in skip_keys:
+                continue
             yield key, value
             sc_value = tuple(item.get("superclass_name" if k == "entity_class_name" else k) for k in key)
             if None not in sc_value:
