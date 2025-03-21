@@ -445,7 +445,6 @@ class MappedTable(dict):
         current_item = self.find_item_by_id(id_)
         if not current_item:
             return None
-        current_item.check_mutability()
         return current_item
 
     def add_unique(self, item):
@@ -909,7 +908,7 @@ class MappedItemBase(dict):
             self.setdefault(key, default_value)
 
     def check_mutability(self):
-        """Called before adding, updating, or removing this item.
+        """Called before adding or updating this item.
 
         Raises any errors that prevent the operation."""
 
