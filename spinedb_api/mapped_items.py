@@ -114,10 +114,10 @@ class EntityClassItem(MappedItemBase):
 
     def __getitem__(self, key):
         if key in ("superclass_id", "superclass_name"):
-            mapped_table = self._db_map.mapped_table("superclass_subclass")
+            mapped_table = self.db_map.mapped_table("superclass_subclass")
             return mapped_table.find_item({"subclass_id": self["id"]}, fetch=True).get(key)
         if key == "entity_class_byname":
-            entity_class_table = self._db_map.mapped_table("entity_class")
+            entity_class_table = self.db_map.mapped_table("entity_class")
             return tuple(_byname_iter(self, "dimension_id_list", entity_class_table))
         return super().__getitem__(key)
 
@@ -188,7 +188,7 @@ class EntityItem(MappedItemBase):
 
     def __getitem__(self, key):
         if key == "entity_byname":
-            entity_table = self._db_map.mapped_table("entity")
+            entity_table = self.db_map.mapped_table("entity")
             return tuple(_byname_iter(self, "element_id_list", entity_table))
         return super().__getitem__(key)
 
@@ -215,10 +215,10 @@ class EntityItem(MappedItemBase):
         If the class is a superclass then it tries for each subclass until finding something useful.
         """
         class_names = [
-            x["subclass_name"] for x in self._db_map.find_superclass_subclasses(superclass_name=class_name)
+            x["subclass_name"] for x in self.db_map.find_superclass_subclasses(superclass_name=class_name)
         ] or [class_name]
-        entity_class_table = self._db_map.mapped_table("entity_class")
-        entity_table = self._db_map.mapped_table("entity")
+        entity_class_table = self.db_map.mapped_table("entity_class")
+        entity_table = self.db_map.mapped_table("entity")
         for class_name_ in class_names:
             dimension_name_list = entity_class_table.find_item_by_unique_key({"name": class_name_}).get(
                 "dimension_name_list"
@@ -254,7 +254,7 @@ class EntityItem(MappedItemBase):
 
     def polish(self):
         super().polish()
-        entity_table = self._db_map.mapped_table("entity")
+        entity_table = self.db_map.mapped_table("entity")
         dim_name_lst = dict.get(self, "dimension_name_list")
         if dim_name_lst:
             el_name_lst = dict.get(self, "element_name_list")
@@ -279,8 +279,8 @@ class EntityItem(MappedItemBase):
         self["name"] = name
 
     def check_mutability(self):
-        superclass_subclass_table = self._db_map.mapped_table("superclass_subclass")
-        if self._db_map.find(superclass_subclass_table, superclass_id=self["class_id"]):
+        superclass_subclass_table = self.db_map.mapped_table("superclass_subclass")
+        if self.db_map.find(superclass_subclass_table, superclass_id=self["class_id"]):
             raise SpineDBAPIError("an entity class that is a superclass cannot have entities")
         super().check_mutability()
 
@@ -578,7 +578,7 @@ class ParameterItemBase(ParsedValueBase):
         parsed_value = from_database(value, type_)
         if parsed_value is None:
             return
-        mapped_table = self._db_map.mapped_table("list_value")
+        mapped_table = self.db_map.mapped_table("list_value")
         list_value = mapped_table.find_item_by_unique_key(
             {"parameter_value_list_name": list_name, "value": value, "type": type_}
         )
@@ -635,8 +635,8 @@ class ParameterDefinitionItem(ParameterItemBase):
         if key == "parameter_type_id_list":
             return tuple(x["id"] for x in self._sorted_parameter_types())
         if key == "parameter_type_list":
-            mapped_table = self._db_map.mapped_table("parameter_type")
-            self._db_map.do_fetch_all(mapped_table)
+            mapped_table = self.db_map.mapped_table("parameter_type")
+            self.db_map.do_fetch_all(mapped_table)
             return tuple(type_and_rank_to_fancy_type(x["type"], x["rank"]) for x in self._sorted_parameter_types())
         if key == "value_list_id":
             return super().__getitem__("parameter_value_list_id")
@@ -648,14 +648,14 @@ class ParameterDefinitionItem(ParameterItemBase):
             list_value_id = self["list_value_id"]
             if list_value_id is not None:
                 list_value_key = {"default_value": "value", "default_type": "type"}[key]
-                mapped_table = self._db_map.mapped_table("list_value")
+                mapped_table = self.db_map.mapped_table("list_value")
                 return mapped_table.find_item_by_id(list_value_id).get(list_value_key)
             return dict.get(self, key)
         return super().__getitem__(key)
 
     def _sorted_parameter_types(self):
-        mapped_table = self._db_map.mapped_table("parameter_type")
-        self._db_map.do_fetch_all(mapped_table)
+        mapped_table = self.db_map.mapped_table("parameter_type")
+        self.db_map.do_fetch_all(mapped_table)
         if "id" in self:
             id_ = dict.__getitem__(self, "id")
             return sorted(
@@ -686,7 +686,7 @@ class ParameterDefinitionItem(ParameterItemBase):
             and other_parameter_value_list_id != self["parameter_value_list_id"]
             and any(
                 x["parameter_definition_id"] == self["id"]
-                for x in self._db_map.mapped_table("parameter_value").valid_values()
+                for x in self.db_map.mapped_table("parameter_value").valid_values()
             )
         ):
             del other["parameter_value_list_id"]
@@ -705,7 +705,7 @@ class ParameterDefinitionItem(ParameterItemBase):
         new_types = set(new_type_list)
         current_types = set(self["parameter_type_list"])
         items_to_add = []
-        type_table = self._db_map.mapped_table("parameter_type")
+        type_table = self.db_map.mapped_table("parameter_type")
         class_name = self["entity_class_name"]
         parameter_name = self["name"]
         for type_to_add in new_types - current_types:
@@ -724,7 +724,7 @@ class ParameterDefinitionItem(ParameterItemBase):
     def _update_types(self, new_type_list, type_items_to_add):
         new_types = set(new_type_list)
         current_types = set(self["parameter_type_list"])
-        type_table = self._db_map.mapped_table("parameter_type")
+        type_table = self.db_map.mapped_table("parameter_type")
         class_name = self["entity_class_name"]
         parameter_name = self["name"]
         types_to_remove = current_types - new_types
@@ -749,7 +749,7 @@ class ParameterDefinitionItem(ParameterItemBase):
         super().added_to_mapped_table()
         if self._init_type_list is None:
             return
-        type_table = self._db_map.mapped_table("parameter_type")
+        type_table = self.db_map.mapped_table("parameter_type")
         for fancy_type in self._init_type_list:
             type_, rank = fancy_type_to_type_and_rank(fancy_type)
             item = type_table.add_item(
@@ -893,7 +893,7 @@ class ParameterValueItem(ParameterItemBase):
         if key in ("value", "type"):
             list_value_id = self["list_value_id"]
             if list_value_id:
-                mapped_table = self._db_map.mapped_table("list_value")
+                mapped_table = self.db_map.mapped_table("list_value")
                 return mapped_table.find_item_by_id(list_value_id).get(key)
         return super().__getitem__(key)
 
@@ -972,8 +972,8 @@ class ScenarioItem(MappedItemBase):
         if key == "alternative_name_list":
             return [x["alternative_name"] for x in self["sorted_scenario_alternatives"]]
         if key == "sorted_scenario_alternatives":
-            mapped_table = self._db_map.mapped_table("scenario_alternative")
-            self._db_map.do_fetch_all(mapped_table)
+            mapped_table = self.db_map.mapped_table("scenario_alternative")
+            self.db_map.do_fetch_all(mapped_table)
             return sorted(
                 (x for x in mapped_table.valid_values() if x["scenario_id"] == self["id"]),
                 key=itemgetter("rank"),
@@ -1001,10 +1001,10 @@ class ScenarioAlternativeItem(MappedItemBase):
         # the second will have the third, etc., and the last will have None.
         # Note that alternatives with higher ranks overwrite the values of those with lower ranks.
         if key == "before_alternative_name":
-            mapped_table = self._db_map.mapped_table("alternative")
+            mapped_table = self.db_map.mapped_table("alternative")
             return mapped_table.find_item_by_id(self["before_alternative_id"]).get("name")
         if key == "before_alternative_id":
-            mapped_table = self._db_map.mapped_table("scenario")
+            mapped_table = self.db_map.mapped_table("scenario")
             scenario = mapped_table.find_item_by_id(self["scenario_id"])
             try:
                 return scenario["alternative_id_list"][self["rank"]]
@@ -1142,8 +1142,8 @@ class SuperclassSubclassItem(MappedItemBase):
     def _check_superclass_validity(self, superclass: EntityClassItem):
         if len(superclass["dimension_id_list"]) != 0:
             raise SpineDBAPIError("superclass cannot have more than zero dimensions")
-        entity_table = self._db_map.mapped_table("entity")
-        if self._db_map.find(entity_table, class_id=superclass["id"]):
+        entity_table = self.db_map.mapped_table("entity")
+        if self.db_map.find(entity_table, class_id=superclass["id"]):
             raise SpineDBAPIError("cannot turn a class that has entities into superclass")
 
     def _check_subclass_validity(
@@ -1154,26 +1154,26 @@ class SuperclassSubclassItem(MappedItemBase):
         superclass_subclass_table,
     ) -> None:
         dimension_count = len(subclass["dimension_name_list"])
-        self._db_map.do_fetch_all(superclass_subclass_table)
+        self.db_map.do_fetch_all(superclass_subclass_table)
         for existing_record in superclass_subclass_table.values():
             if existing_record["superclass_id"] != superclass_id or not existing_record.is_valid():
                 continue
             existing = entity_class_table[existing_record["subclass_id"]]
             if len(existing["dimension_name_list"]) != dimension_count:
                 raise SpineDBAPIError("subclass has different dimension count to existing subclasses")
-        if _is_superclass_recursive(subclass, entity_class_table, self._db_map):
+        if _is_superclass_recursive(subclass, entity_class_table, self.db_map):
             raise SpineDBAPIError("subclass or any of its dimensions cannot be a superclass")
 
     def check_mutability(self):
-        entity_table = self._db_map.mapped_table("entity")
-        if self._db_map.find(entity_table, class_id=self["subclass_id"]):
+        entity_table = self.db_map.mapped_table("entity")
+        if self.db_map.find(entity_table, class_id=self["subclass_id"]):
             raise SpineDBAPIError("can't set or modify the superclass for a class that already has entities")
         superclass_id = self["superclass_id"]
-        entity_class_table = self._db_map.mapped_table("entity_class")
+        entity_class_table = self.db_map.mapped_table("entity_class")
         superclass = entity_class_table.find_item_by_id(superclass_id)
         self._check_superclass_validity(superclass)
         subclass = entity_class_table.find_item_by_id(self["subclass_id"])
-        superclass_subclass_table = self._db_map.mapped_table("superclass_subclass")
+        superclass_subclass_table = self.db_map.mapped_table("superclass_subclass")
         self._check_subclass_validity(superclass_id, subclass, entity_class_table, superclass_subclass_table)
         return super().check_mutability()
 
