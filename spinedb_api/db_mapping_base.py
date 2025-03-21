@@ -110,9 +110,8 @@ class DatabaseMappingBase:
         """
         raise NotImplementedError()
 
-    def make_item(self, item_type, **item):
-        factory = self.item_factory(item_type)
-        return factory(self, **item)
+    def make_item(self, item_type: str, **item) -> MappedItemBase:
+        raise NotImplementedError
 
     def dirty_ids(self, item_type):
         return {
