@@ -93,6 +93,17 @@ class TestDatabaseMappingConstruction(AssertSuccessTestCase):
 
 
 class TestDatabaseMapping(AssertSuccessTestCase):
+    def test_rolling_back_new_item_invalidates_its_id(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            mapped_table = db_map.mapped_table("entity_class")
+            item = mapped_table.add_item({"name": "Object"})
+            self.assertTrue(item.has_valid_id)
+            self.assertIn("id", item)
+            id_ = item["id"]
+            db_map._rollback()
+            self.assertFalse(item.has_valid_id)
+            self.assertEqual(item["id"], id_)
+
     def test_active_by_default_is_initially_true_for_zero_dimensional_entity_class(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             item = self._assert_success(db_map.add_entity_class_item(name="Entity"))
