@@ -9,11 +9,13 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
+from __future__ import annotations
 from collections.abc import Iterator
+from contextlib import suppress
 import inspect
 from operator import itemgetter
 import re
-from typing import ClassVar, Union
+from typing import ClassVar, Optional, Union
 from . import arrow_value
 from .db_mapping_base import MappedItemBase, MappedTable
 from .exception import SpineDBAPIError
@@ -113,7 +115,7 @@ class EntityClassItem(MappedItemBase):
         super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
-        if key in ("superclass_id", "superclass_name"):
+        if key == "superclass_id" or key == "superclass_name":
             mapped_table = self.db_map.mapped_table("superclass_subclass")
             return mapped_table.find_item({"subclass_id": self["id"]}, fetch=True).get(key)
         if key == "entity_class_byname":
@@ -131,6 +133,11 @@ class EntityClassItem(MappedItemBase):
         super().commit(None)
 
 
+_unfetched = object()
+_unset = object()
+_ENTITY_LOCATION_FIELDS = {"lat", "lon", "alt", "shape_name", "shape_blob"}
+
+
 class EntityItem(MappedItemBase):
     item_type = "entity"
     fields = {
@@ -142,6 +149,11 @@ class EntityItem(MappedItemBase):
             "value": _ENTITY_BYNAME_VALUE,
         },
         "description": {"type": str, "value": "The entity description.", "optional": True},
+        "lat": {"type": float, "value": "The latitude of entity.", "optional": True},
+        "lon": {"type": float, "value": "The longitude of entity.", "optional": True},
+        "alt": {"type": float, "value": "The altitude of entity.", "optional": True},
+        "shape_name": {"type": str, "value": "The name of the entity's shape.", "optional": True},
+        "shape_blob": {"type": str, "value": "The shape as GEOJSON string.", "optional": True},
     }
 
     _defaults = {"description": None}
@@ -172,9 +184,11 @@ class EntityItem(MappedItemBase):
             element_id_list = ()
             if "name" not in kwargs and "element_name_list" in kwargs:
                 kwargs["name"] = name_from_elements(kwargs["element_name_list"])
-        if isinstance(element_id_list, str):
+        elif isinstance(element_id_list, str):
             element_id_list = (int(id_) for id_ in element_id_list.split(","))
         kwargs["element_id_list"] = tuple(element_id_list)
+        self._location_id = _unfetched
+        self._init_location = self._pop_location_data(kwargs)
         super().__init__(*args, **kwargs)
 
     @classmethod
@@ -192,7 +206,82 @@ class EntityItem(MappedItemBase):
         if key == "entity_byname":
             entity_table = self.db_map.mapped_table("entity")
             return tuple(_byname_iter(self, "element_id_list", entity_table))
+        elif key in _ENTITY_LOCATION_FIELDS:
+            location_item = self._get_location_item(self.db_map.mapped_table("entity_location"))
+            if location_item is None or location_item.removed:
+                return None
+            return location_item[key]
+        elif key == "entity_location_id":
+            return self._get_location_id()
         return super().__getitem__(key)
+
+    def _asdict(self):
+        d = super()._asdict()
+        if self._init_location is None:
+            location_item = self._get_location_item(self.db_map.mapped_table("entity_location"))
+            if location_item is not None and not location_item.removed:
+                d["lat"] = location_item["lat"]
+                d["lon"] = location_item["lon"]
+                d["alt"] = location_item["alt"]
+                d["shape_name"] = location_item["shape_name"]
+                d["shape_blob"] = location_item["shape_blob"]
+            else:
+                d.update(
+                    {
+                        "lat": None,
+                        "lon": None,
+                        "alt": None,
+                        "shape_name": None,
+                        "shape_blob": None,
+                    }
+                )
+        else:
+            d.update(self._init_location)
+        return d
+
+    def update(self, other):
+        if any(location_key in other for location_key in _ENTITY_LOCATION_FIELDS):
+            location = {
+                "lat": other.pop("lat", _unset),
+                "lon": other.pop("lon", _unset),
+                "alt": other.pop("alt", _unset),
+                "shape_name": other.pop("shape_name", _unset),
+                "shape_blob": other.pop("shape_blob", _unset),
+            }
+            self._update_location(location)
+            if not other:
+                return
+        super().update(other)
+
+    def _update_location(self, location: dict) -> None:
+        location_table = self.db_map.mapped_table("entity_location")
+        existing_location_item = self._get_location_item(location_table)
+        if existing_location_item is not None:
+            if existing_location_item.removed:
+                existing_location_item.public_item.restore()
+            self._merge_existing_location(location, existing_location_item)
+            if all(value is None for value in location.values()):
+                self.db_map.remove(location_table, id=dict.__getitem__(existing_location_item, "id"))
+                self._location_id = None
+                return
+            location["id"] = dict.__getitem__(existing_location_item, "id")
+            existing_location_item.update(location)
+        else:
+            added_location = self.db_map.add(location_table, entity_id=dict.__getitem__(self, "id"), **location)
+            self._location_id = added_location["id"]
+
+    @staticmethod
+    def _merge_existing_location(location_update: dict, location_item: dict) -> None:
+        if location_update["lat"] is _unset:
+            location_update["lat"] = location_item["lat"]
+        if location_update["lon"] is _unset:
+            location_update["lon"] = location_item["lon"]
+        if location_update["alt"] is _unset:
+            location_update["alt"] = location_item["alt"]
+        if location_update["shape_name"] is _unset:
+            location_update["shape_name"] = location_item["shape_name"]
+        if location_update["shape_blob"] is _unset:
+            location_update["shape_blob"] = location_item["shape_blob"]
 
     def resolve_internal_fields(self, skip_keys=()):
         """Overridden to translate byname into element name list."""
@@ -285,6 +374,63 @@ class EntityItem(MappedItemBase):
         if self.db_map.find(superclass_subclass_table, superclass_id=self["class_id"]):
             raise SpineDBAPIError("an entity class that is a superclass cannot have entities")
         super().check_mutability()
+
+    @staticmethod
+    def _pop_location_data(item: dict) -> dict[str, str]:
+        location = {}
+        if "lat" in item:
+            if "lon" not in item:
+                raise SpineDBAPIError("cannot set latitude without longitude")
+            location["lat"] = item.pop("lat")
+            location["lon"] = item.pop("lon")
+            with suppress(KeyError):
+                location["alt"] = item.pop("alt")
+        elif "lon" in item:
+            raise SpineDBAPIError("cannot set longitude without latitude")
+        elif "alt" in item:
+            raise SpineDBAPIError("cannot set altitude without latitude and longitude")
+        if "shape_name" in item:
+            if "shape_blob" not in item:
+                raise SpineDBAPIError("cannot set shape_name without shape_blob")
+            location["shape_name"] = item.pop("shape_name")
+            location["shape_blob"] = item.pop("shape_blob")
+        elif "shape_blob" in item:
+            raise SpineDBAPIError("cannot set shape_blob without shape_name")
+        return location
+
+    def added_to_mapped_table(self) -> None:
+        super().added_to_mapped_table()
+        if self._init_location:
+            self._init_location["entity_id"] = dict.__getitem__(self, "id")
+            location_table = self.db_map.mapped_table("entity_location")
+            item = location_table.add_item(self._init_location)
+            self._location_id = item["id"]
+        else:
+            self._location_id = _unfetched
+        self._init_location = None
+
+    def _get_location_id(self) -> TempId:
+        if self._location_id is _unfetched:
+            location_table = self.db_map.mapped_table("entity_location")
+            location = location_table.find_item_by_unique_key({"entity_id": dict.__getitem__(self, "id")})
+            if not location:
+                self._location_id = None
+            else:
+                self._location_id = dict.__getitem__(location, "id")
+        return self._location_id
+
+    def _get_location_item(self, location_table: MappedTable) -> Optional[EntityLocationItem]:
+        if self._location_id is None:
+            return None
+        if self._location_id is _unfetched:
+            location = location_table.find_item_by_unique_key({"entity_id": dict.__getitem__(self, "id")})
+            if not location:
+                self._location_id = None
+                return None
+            self._location_id = dict.__getitem__(location, "id")
+        else:
+            location = location_table.find_item_by_id(self._location_id)
+        return location
 
 
 class EntityGroupItem(MappedItemBase):
@@ -754,7 +900,7 @@ class ParameterDefinitionItem(ParameterItemBase):
         type_table = self.db_map.mapped_table("parameter_type")
         for fancy_type in self._init_type_list:
             type_, rank = fancy_type_to_type_and_rank(fancy_type)
-            item = type_table.add_item(
+            type_table.add_item(
                 {
                     "entity_class_id": self["entity_class_id"],
                     "parameter_definition_id": self["id"],
@@ -762,8 +908,6 @@ class ParameterDefinitionItem(ParameterItemBase):
                     "rank": rank,
                 }
             )
-            if not item:
-                raise RuntimeError("Logic error: failed to add parameter type.")
         self._init_type_list = None
 
     def cascade_update(self):
@@ -1192,6 +1336,59 @@ def _is_superclass_recursive(
         _is_superclass_recursive(entity_class_table.find_item_by_id(id_), entity_class_table, db_map)
         for id_ in entity_class["dimension_id_list"]
     )
+
+
+class EntityLocationItem(MappedItemBase):
+    item_type = "entity_location"
+    fields = {
+        "entity_class_name": {"type": str, "value": "The entity class name."},
+        "entity_byname": {"type": tuple, "value": _ENTITY_BYNAME_VALUE},
+        "lat": {"type": float, "value": "Latitude.", "optional": True},
+        "lon": {"type": float, "value": "Longitude.", "optional": True},
+        "alt": {"type": float, "value": "Altitude.", "optional": True},
+        "shape_name": {"type": str, "value": "Name identifying the shape.", "optional": True},
+        "shape_blob": {"type": str, "value": "Shape as GEOJSON feature.", "optional": True},
+    }
+    _defaults = {"lat": None, "lon": None, "alt": None, "shape_name": None, "shape_blob": None}
+    unique_keys = (("entity_class_name", "entity_byname"),)
+    required_key_combinations = (
+        ("entity_class_name", "entity_class_id", "entity_id"),
+        ("entity_byname", "entity_id"),
+    )
+    _references = {
+        "entity_id": "entity",
+        "entity_class_id": "entity_class",
+    }
+    _external_fields = {
+        "entity_class_id": ("entity_id", "class_id"),
+        "entity_class_name": ("entity_class_id", "name"),
+        "entity_name": ("entity_id", "name"),
+        "entity_byname": ("entity_id", "entity_byname"),
+    }
+    _alt_references = {
+        ("entity_class_name", "entity_byname"): ("entity", ("entity_class_name", "entity_byname")),
+    }
+    _internal_fields = {
+        "entity_id": (("entity_class_name", "entity_byname"), "id"),
+    }
+
+    def check_mutability(self):
+        latitude = dict.__getitem__(self, "lat")
+        longitude = dict.__getitem__(self, "lon")
+        if latitude is not None:
+            if longitude is None:
+                raise SpineDBAPIError("latitude cannot be set if longitude is None")
+        elif longitude is not None:
+            raise SpineDBAPIError("longitude cannot be set if latitude is None")
+        if dict.__getitem__(self, "alt") is not None and latitude is None and longitude is None:
+            raise SpineDBAPIError("altitude cannot be set if latitude and longitude are None")
+        name = dict.__getitem__(self, "shape_name")
+        blob = dict.__getitem__(self, "shape_blob")
+        if name is not None:
+            if blob is None:
+                raise SpineDBAPIError("shape_name cannot be set if shape_blob is None")
+        elif blob is not None:
+            raise SpineDBAPIError("shape_blob cannot be set if shape_name is None")
 
 
 ITEM_CLASSES = tuple(

@@ -2347,6 +2347,304 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(db_map.query(db_map.list_value_sq).all(), [])
                 self.assertEqual(db_map.query(db_map.parameter_definition_sq).all(), [])
 
+    def test_add_entity_with_location_data(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            lat_lon_entity = db_map.add_entity(entity_class_name="Object", name="lat_lon", lat=2.3, lon=3.2)
+            self.assertEqual(lat_lon_entity["lat"], 2.3)
+            self.assertEqual(lat_lon_entity["lon"], 3.2)
+            self.assertEqual(lat_lon_entity["alt"], None)
+            self.assertIsNone(lat_lon_entity["shape_name"])
+            self.assertIsNone(lat_lon_entity["shape_blob"])
+            lat_lon_alt_entity = db_map.add_entity(
+                entity_class_name="Object", name="lat_lon_alt", lat=2.3, lon=3.2, alt=55.0
+            )
+            self.assertEqual(lat_lon_alt_entity["lat"], 2.3)
+            self.assertEqual(lat_lon_alt_entity["lon"], 3.2)
+            self.assertEqual(lat_lon_alt_entity["alt"], 55.0)
+            self.assertIsNone(lat_lon_alt_entity["shape_name"])
+            self.assertIsNone(lat_lon_alt_entity["shape_blob"])
+            shape_blob_and_name_entity = db_map.add_entity(
+                entity_class_name="Object", name="name_shape_blob", shape_name="island", shape_blob="{}"
+            )
+            self.assertIsNone(shape_blob_and_name_entity["lat"])
+            self.assertIsNone(shape_blob_and_name_entity["lon"])
+            self.assertIsNone(shape_blob_and_name_entity["alt"])
+            self.assertEqual(shape_blob_and_name_entity["shape_name"], "island")
+            self.assertEqual(shape_blob_and_name_entity["shape_blob"], "{}")
+            entity = db_map.add_entity(
+                entity_class_name="Object",
+                name="all_data",
+                lat=2.3,
+                lon=-3.2,
+                alt=55.0,
+                shape_name="island",
+                shape_blob="{}",
+            )
+            self.assertEqual(entity["lat"], 2.3)
+            self.assertEqual(entity["lon"], -3.2)
+            self.assertEqual(entity["alt"], 55.0)
+            self.assertEqual(entity["shape_name"], "island")
+            self.assertEqual(entity["shape_blob"], "{}")
+
+    def test_add_entity_with_incomplete_location_data_raises(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            with self.assertRaisesRegex(SpineDBAPIError, "cannot set latitude without longitude"):
+                db_map.add_entity(entity_class_name="Object", name="gadget", lat=2.3)
+            with self.assertRaisesRegex(SpineDBAPIError, "cannot set longitude without latitude"):
+                db_map.add_entity(entity_class_name="Object", name="gadget", lon=3.2)
+            with self.assertRaisesRegex(SpineDBAPIError, "cannot set altitude without latitude and longitude"):
+                db_map.add_entity(entity_class_name="Object", name="gadget", alt=55.0)
+            with self.assertRaisesRegex(SpineDBAPIError, "cannot set shape_name without shape_blob"):
+                db_map.add_entity(entity_class_name="Object", name="gadget", shape_name="island")
+            with self.assertRaisesRegex(SpineDBAPIError, "cannot set shape_blob without shape_name"):
+                db_map.add_entity(entity_class_name="Object", name="gadget", shape_blob="{}}")
+
+    def test_location_data_available_from_database(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object")
+                db_map.add_entity(entity_class_name="Object", name="no_location")
+                db_map.add_entity(
+                    entity_class_name="Object",
+                    name="locations_and_shapes",
+                    lat=2.3,
+                    lon=3.2,
+                    alt=55.0,
+                    shape_name="hexagon",
+                    shape_blob="{}",
+                )
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                no_location = db_map.entity(entity_class_name="Object", name="no_location")
+                self.assertIsNone(no_location["lat"])
+                self.assertIsNone(no_location["lon"])
+                self.assertIsNone(no_location["alt"])
+                self.assertIsNone(no_location["shape_name"])
+                self.assertIsNone(no_location["shape_blob"])
+                with_location = db_map.entity(entity_class_name="Object", name="locations_and_shapes")
+                self.assertEqual(with_location["lat"], 2.3)
+                self.assertEqual(with_location["lon"], 3.2)
+                self.assertEqual(with_location["alt"], 55.0)
+                self.assertEqual(with_location["shape_name"], "hexagon")
+                self.assertEqual(with_location["shape_blob"], "{}")
+
+    def test_entity_location_data_available_in_asdict(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            entity_class = db_map.add_entity_class(name="Object")
+            no_location = db_map.add_entity(entity_class_name="Object", name="no_location")
+            yes_location = db_map.add_entity(
+                entity_class_name="Object",
+                name="yes_location",
+                lat=2.3,
+                lon=3.2,
+                alt=55.0,
+                shape_name="hexagon",
+                shape_blob="{}",
+            )
+            self.assertEqual(
+                no_location._asdict(),
+                {
+                    "class_id": entity_class["id"],
+                    "id": no_location["id"],
+                    "name": "no_location",
+                    "element_id_list": (),
+                    "description": None,
+                    "lat": None,
+                    "lon": None,
+                    "alt": None,
+                    "shape_name": None,
+                    "shape_blob": None,
+                },
+            )
+            self.assertEqual(
+                yes_location._asdict(),
+                {
+                    "class_id": entity_class["id"],
+                    "id": yes_location["id"],
+                    "name": "yes_location",
+                    "element_id_list": (),
+                    "description": None,
+                    "lat": 2.3,
+                    "lon": 3.2,
+                    "alt": 55.0,
+                    "shape_name": "hexagon",
+                    "shape_blob": "{}",
+                },
+            )
+
+    def test_entity_location_is_removed_in_cascade_with_entity(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            entity = db_map.add_entity(entity_class_name="Object", name="cube", lat=2.3, lon=3.2)
+            locations = db_map.find_entity_locations(lat=2.3, lon=3.2)
+            self.assertEqual(len(locations), 1)
+            self.assertTrue(locations[0].is_valid())
+            entity.remove()
+            self.assertFalse(locations[0].is_valid())
+
+    def test_entity_location_is_removed_when_all_its_data_is_set_to_none(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            lat_lon_entity = db_map.add_entity(entity_class_name="Object", name="point", lat=2.3, lon=3.2)
+            locations = db_map.find_entity_locations(lat=2.3, lon=3.2)
+            self.assertEqual(len(locations), 1)
+            self.assertTrue(locations[0].is_valid())
+            lat_lon_entity.update(lat=None, lon=None)
+            self.assertFalse(locations[0].is_valid())
+            shape_entity = db_map.add_entity(
+                entity_class_name="Object", name="polygon", shape_name="hexagon", shape_blob="{}"
+            )
+            locations = db_map.find_entity_locations(shape_name="hexagon", shape_blob="{}")
+            self.assertEqual(len(locations), 1)
+            self.assertTrue(locations[0].is_valid())
+            shape_entity.update(shape_name=None, shape_blob=None)
+            self.assertFalse(locations[0].is_valid())
+
+    def test_entity_location_is_not_removed_when_some_of_its_data_is_set_to_none(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            locationed_entity1 = db_map.add_entity(
+                entity_class_name="Object", name="soon_polygon", lat=2.3, lon=3.2, shape_name="hexagon", shape_blob="{}"
+            )
+            locations = db_map.find_entity_locations(lat=2.3, lon=3.2)
+            self.assertEqual(len(locations), 1)
+            self.assertTrue(locations[0].is_valid())
+            locationed_entity1.update(lat=None, lon=None)
+            self.assertTrue(locations[0].is_valid())
+            self.assertEqual(locations[0]["entity_byname"], ("soon_polygon",))
+            self.assertIsNone(locations[0]["lat"])
+            self.assertIsNone(locations[0]["lon"])
+            self.assertIsNone(locations[0]["alt"])
+            self.assertEqual(locations[0]["shape_name"], "hexagon")
+            self.assertEqual(locations[0]["shape_blob"], "{}")
+            locationed_entity2 = db_map.add_entity(
+                entity_class_name="Object",
+                name="soon_point",
+                lat=2.3,
+                lon=3.2,
+                alt=55.0,
+                shape_name="hexagon",
+                shape_blob="{}",
+            )
+            locations = db_map.find_entity_locations(lat=2.3, lon=3.2)
+            self.assertEqual(len(locations), 1)
+            self.assertTrue(locations[0].is_valid())
+            locationed_entity2.update(shape_name=None, shape_blob=None)
+            self.assertTrue(locations[0].is_valid())
+            self.assertEqual(locations[0]["entity_byname"], ("soon_point",))
+            self.assertEqual(locations[0]["lat"], 2.3)
+            self.assertEqual(locations[0]["lon"], 3.2)
+            self.assertEqual(locations[0]["alt"], 55.0)
+            self.assertIsNone(locations[0]["shape_name"])
+            self.assertIsNone(locations[0]["shape_blob"])
+
+    def test_updating_entitys_location_data_adds_location_item(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            entity = db_map.add_entity(entity_class_name="Object", name="soon_to_have_location")
+            self.assertEqual(db_map.find_entity_locations(), [])
+            entity.update(lat=2.3, lon=3.2)
+            locations = db_map.find_entity_locations()
+            self.assertEqual(len(locations), 1)
+            self.assertEqual(locations[0]["entity_byname"], ("soon_to_have_location",))
+            self.assertEqual(locations[0]["lat"], 2.3)
+            self.assertEqual(locations[0]["lon"], 3.2)
+            self.assertIsNone(locations[0]["alt"])
+            self.assertIsNone(locations[0]["shape_name"])
+            self.assertIsNone(locations[0]["shape_blob"])
+            entity.update(lat=None, lon=None)
+            self.assertEqual(db_map.find_entity_locations(), [])
+            entity.update(shape_name="polygon", shape_blob="{}")
+            locations = db_map.find_entity_locations()
+            self.assertEqual(len(locations), 1)
+            self.assertEqual(locations[0]["entity_byname"], ("soon_to_have_location",))
+            self.assertIsNone(locations[0]["lat"])
+            self.assertIsNone(locations[0]["lon"])
+            self.assertIsNone(locations[0]["alt"])
+            self.assertEqual(locations[0]["shape_name"], "polygon")
+            self.assertEqual(locations[0]["shape_blob"], "{}")
+
+    def test_updating_entitys_location_data_with_missing_data_raises_exception(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            entity = db_map.add_entity(entity_class_name="Object", name="soon_to_have_location")
+            with self.assertRaisesRegex(SpineDBAPIError, "latitude cannot be set if longitude is None"):
+                entity.update(lat=2.3)
+            with self.assertRaisesRegex(SpineDBAPIError, "longitude cannot be set if latitude is None"):
+                entity.update(lon=3.2)
+            with self.assertRaisesRegex(SpineDBAPIError, "altitude cannot be set if latitude and longitude are None"):
+                entity.update(alt=55.0)
+            with self.assertRaisesRegex(SpineDBAPIError, "shape_name cannot be set if shape_blob is None"):
+                entity.update(shape_name="monogon")
+            with self.assertRaisesRegex(SpineDBAPIError, "shape_blob cannot be set if shape_name is None"):
+                entity.update(shape_blob="{}}")
+
+    def test_removing_entity_location_sets_entitys_location_id_to_none(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            sphere = db_map.add_entity(entity_class_name="Object", name="sphere", lat=2.3, lon=3.2)
+            location = db_map.entity_location(entity_class_name="Object", entity_byname=("sphere",))
+            location.remove()
+            self.assertIsNone(sphere["lat"])
+            self.assertIsNone(sphere["lon"])
+
+    def test_updating_manually_removed_entity_location_via_entity_restores_location(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            sphere = db_map.add_entity(entity_class_name="Object", name="sphere", lat=2.3, lon=3.2)
+            location = db_map.entity_location(entity_class_name="Object", entity_byname=("sphere",))
+            location.remove()
+            self.assertFalse(location.is_valid())
+            sphere.update(shape_name="metagon", shape_blob="{}")
+            self.assertTrue(location.is_valid())
+            self.assertIsNone(location["lat"])
+            self.assertIsNone(location["lon"])
+            self.assertIsNone(location["alt"])
+            self.assertEqual(location["shape_name"], "metagon")
+            self.assertEqual(location["shape_blob"], "{}")
+
+    def test_restoring_entity_restores_its_location(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            sphere = db_map.add_entity(entity_class_name="Object", name="sphere", lat=2.3, lon=3.2)
+            location = db_map.entity_location(entity_class_name="Object", entity_byname=("sphere",))
+            sphere.remove()
+            self.assertFalse(location.is_valid())
+            sphere.restore()
+            self.assertTrue(location.is_valid())
+            self.assertEqual(sphere["lat"], 2.3)
+            self.assertEqual(sphere["lon"], 3.2)
+
+    def test_purge_entity_location_sets_entitys_location_data_to_none(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            entity = db_map.add_entity(entity_class_name="Object", name="mouse", lat=2.3, lon=3.2)
+            db_map.purge_items("entity_location")
+            self.assertIsNone(entity["lat"])
+            self.assertIsNone(entity["lon"])
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            entity = db_map.add_entity(entity_class_name="Object", name="mouse", lat=2.3, lon=3.2)
+            self.assertEqual(entity["lat"], 2.3)
+            self.assertEqual(entity["lon"], 3.2)
+            db_map.purge_items("entity_location")
+            self.assertIsNone(entity["lat"])
+            self.assertIsNone(entity["lon"])
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object")
+                db_map.add_entity(entity_class_name="Object", name="mouse", lat=2.3, lon=3.2)
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("entity_location")
+                entity = db_map.entity(entity_class_name="Object", name="mouse")
+                self.assertIsNone(entity["lat"])
+                self.assertIsNone(entity["lon"])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
