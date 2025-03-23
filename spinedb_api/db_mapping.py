@@ -15,6 +15,7 @@ This module defines the :class:`.DatabaseMapping` class, the main mean to commun
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
 :ref:`db_mapping_schema`.
 """
+from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import partialmethod
 import logging
@@ -234,6 +235,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def _query_commit_count(self) -> int:
         with self:
             return self.query(self.commit_sq).count()
+
+    def make_item(self, item_type: str, **item) -> MappedItemBase:
+        return ITEM_CLASS_BY_TYPE[item_type](self, **item)
 
     def _make_sq(self, item_type):
         sq_name = self._sq_name_by_item_type[item_type]
