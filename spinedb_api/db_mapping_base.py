@@ -355,8 +355,8 @@ class MappedTable(dict):
         return self.find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
 
     def find_item_by_id(self, id_, fetch=True):
-        current_item = self.get(id_, {})
-        if not current_item and fetch:
+        current_item = self.get(id_)
+        if current_item is None and fetch:
             self._db_map.do_fetch_all(self)
             current_item = self.get(id_, {})
         return current_item
@@ -715,18 +715,6 @@ class MappedItemBase(dict):
         return self._removed
 
     @property
-    def key(self):
-        """Returns a tuple (item_type, id) for convenience, or None if this item doesn't yet have an id.
-
-        Returns:
-            tuple(str,int) or None
-        """
-        id_ = dict.get(self, "id")
-        if not isinstance(id_, TempId):
-            return None
-        return (self.item_type, id_)
-
-    @property
     def has_valid_id(self):
         return self._has_valid_id
 
@@ -930,10 +918,11 @@ class MappedItemBase(dict):
         Args:
             referrer (MappedItemBase)
         """
-        key = referrer.key
-        if key is None:
-            raise RuntimeError("Referre's key is None")
-        self._referrers[key] = referrer
+        try:
+            id_ = dict.__getitem__(referrer, "id")
+        except KeyError as error:
+            raise RuntimeError("referrer is missing id") from error
+        self._referrers[(referrer.item_type, id_)] = referrer
 
     def remove_referrer(self, referrer):
         """Removes a strong referrer.
@@ -941,9 +930,11 @@ class MappedItemBase(dict):
         Args:
             referrer (MappedItemBase)
         """
-        key = referrer.key
-        if key is not None:
-            self._referrers.pop(key, None)
+        try:
+            id_ = dict.__getitem__(referrer, "id")
+        except KeyError:
+            return
+        self._referrers.pop((referrer.item_type, id_), None)
 
     def add_weak_referrer(self, referrer):
         """Adds a weak referrer to this item.
@@ -952,10 +943,11 @@ class MappedItemBase(dict):
         Args:
             referrer (MappedItemBase)
         """
-        key = referrer.key
-        if key is None:
-            raise RuntimeError("Weak referrers key is None")
-        self._weak_referrers[key] = referrer
+        try:
+            id_ = dict.__getitem__(referrer, "id")
+        except KeyError as error:
+            raise RuntimeError("weak referrer is missing id") from error
+        self._weak_referrers[(referrer.item_type, id_)] = referrer
 
     def _update_weak_referrers(self):
         for weak_referrer in self._weak_referrers.values():
@@ -963,13 +955,13 @@ class MappedItemBase(dict):
 
     def become_referrer(self):
         def add_self_as_referrer(ref_id):
-            ref = find_by_id(ref_id, fetch=False)
-            if not ref:
+            ref = mapped_table.get(ref_id)
+            if ref is None:
                 raise RuntimeError(f"Reference id {ref_id} in '{ref_table}' table not found")
             ref.add_referrer(self)
 
         for field, ref_table in self._references.items():
-            find_by_id = self.db_map.mapped_table(ref_table).find_item_by_id
+            mapped_table = self.db_map.mapped_table(ref_table)
             field_value = self[field]
             if not field_value:
                 return
