@@ -922,7 +922,7 @@ class MappedItemBase(dict):
             id_ = dict.__getitem__(referrer, "id")
         except KeyError as error:
             raise RuntimeError("referrer is missing id") from error
-        self._referrers[(referrer.item_type, id_)] = referrer
+        self._referrers[id_] = referrer
 
     def remove_referrer(self, referrer):
         """Removes a strong referrer.
@@ -934,7 +934,7 @@ class MappedItemBase(dict):
             id_ = dict.__getitem__(referrer, "id")
         except KeyError:
             return
-        self._referrers.pop((referrer.item_type, id_), None)
+        self._referrers.pop(id_, None)
 
     def add_weak_referrer(self, referrer):
         """Adds a weak referrer to this item.
