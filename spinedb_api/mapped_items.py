@@ -240,21 +240,18 @@ class EntityItem(MappedItemBase):
         return d
 
     def merge(self, other):
-        latitude = other.get("lat", _unset)
-        longitude = other.get("lon", _unset)
-        shape_name = other.get("shape_name", _unset)
-        shape_blob = other.get("shape_blob", _unset)
+        other_location = {
+            "lat": other.get("lat", _unset),
+            "lon": other.get("lon", _unset),
+            "alt": other.get("alt", _unset),
+            "shape_name": other.get("shape_name", _unset),
+            "shape_blob": other.get("shape_blob", _unset),
+        }
         merged = super().merge(other)
         if merged is None:
             return None
-        if latitude is _unset:
-            merged["lat"] = self["lat"]
-        if longitude is _unset:
-            merged["lon"] = self["lon"]
-        if shape_name is _unset:
-            merged["shape_name"] = self["shape_name"]
-        if shape_blob is _unset:
-            merged["shape_blob"] = self["shape_blob"]
+        self._merge_existing_location(other_location, self)
+        merged.update(other_location)
         return merged
 
     def update(self, other):
