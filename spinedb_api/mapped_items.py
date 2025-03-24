@@ -267,6 +267,7 @@ class EntityItem(MappedItemBase):
             location["id"] = dict.__getitem__(existing_location_item, "id")
             existing_location_item.update(location)
         else:
+            location = {key: value if value is not _unset else None for key, value in location.items()}
             added_location = self.db_map.add(location_table, entity_id=dict.__getitem__(self, "id"), **location)
             self._location_id = added_location["id"]
 
