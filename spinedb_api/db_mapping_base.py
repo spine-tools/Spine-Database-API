@@ -762,8 +762,6 @@ class MappedItemBase(dict):
         if not other:
             return None
         merged = {**self.extended(), **other}
-        if not isinstance(merged["id"], int):
-            merged["id"] = dict.__getitem__(self, "id")
         return merged
 
     def _strip_equal_fields(self, other):

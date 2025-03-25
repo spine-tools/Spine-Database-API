@@ -239,6 +239,21 @@ class EntityItem(MappedItemBase):
             d.update(self._init_location)
         return d
 
+    def merge(self, other):
+        other_location = {
+            "lat": other.get("lat", _unset),
+            "lon": other.get("lon", _unset),
+            "alt": other.get("alt", _unset),
+            "shape_name": other.get("shape_name", _unset),
+            "shape_blob": other.get("shape_blob", _unset),
+        }
+        merged = super().merge(other)
+        if merged is None:
+            return None
+        self._merge_existing_location(other_location, self)
+        merged.update(other_location)
+        return merged
+
     def update(self, other):
         if any(location_key in other for location_key in _ENTITY_LOCATION_FIELDS):
             location = {
@@ -267,6 +282,7 @@ class EntityItem(MappedItemBase):
             location["id"] = dict.__getitem__(existing_location_item, "id")
             existing_location_item.update(location)
         else:
+            location = {key: value if value is not _unset else None for key, value in location.items()}
             added_location = self.db_map.add(location_table, entity_id=dict.__getitem__(self, "id"), **location)
             self._location_id = added_location["id"]
 

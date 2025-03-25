@@ -2567,6 +2567,120 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertEqual(locations[0]["shape_name"], "polygon")
             self.assertEqual(locations[0]["shape_blob"], "{}")
 
+    def test_updating_location_of_entity_from_database(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Unit")
+                db_map.add_entity(entity_class_name="Unit", name="mana_source")
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                entity = db_map.entity(entity_class_name="Unit", name="mana_source")
+                entity.update(lat=2.3, lon=3.2)
+                self.assertEqual(entity["lat"], 2.3)
+                self.assertEqual(entity["lon"], 3.2)
+
+    def test_update_fetched_entitys_location_by_single_field(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Unit")
+                db_map.add_entity(
+                    entity_class_name="Unit",
+                    name="mana_source",
+                    lat=2.3,
+                    lon=3.2,
+                    alt=55.0,
+                    shape_name="diagon",
+                    shape_blob="{}",
+                )
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                entity = db_map.entity(entity_class_name="Unit", name="mana_source")
+                self.assertEqual(entity["lat"], 2.3)
+                self.assertEqual(entity["lon"], 3.2)
+                self.assertEqual(entity["alt"], 55.0)
+                self.assertEqual(entity["shape_name"], "diagon")
+                self.assertEqual(entity["shape_blob"], "{}")
+                entity.update(lat=-2.3)
+                self.assertEqual(entity["lat"], -2.3)
+                self.assertEqual(entity["lon"], 3.2)
+                self.assertEqual(entity["alt"], 55.0)
+                self.assertEqual(entity["shape_name"], "diagon")
+                self.assertEqual(entity["shape_blob"], "{}")
+                entity.update(lon=-3.2)
+                self.assertEqual(entity["lat"], -2.3)
+                self.assertEqual(entity["lon"], -3.2)
+                self.assertEqual(entity["alt"], 55.0)
+                self.assertEqual(entity["shape_name"], "diagon")
+                self.assertEqual(entity["shape_blob"], "{}")
+                entity.update(alt=-55.0)
+                self.assertEqual(entity["lat"], -2.3)
+                self.assertEqual(entity["lon"], -3.2)
+                self.assertEqual(entity["alt"], -55.0)
+                self.assertEqual(entity["shape_name"], "diagon")
+                self.assertEqual(entity["shape_blob"], "{}")
+                entity.update(shape_name="polygram")
+                self.assertEqual(entity["lat"], -2.3)
+                self.assertEqual(entity["lon"], -3.2)
+                self.assertEqual(entity["alt"], -55.0)
+                self.assertEqual(entity["shape_name"], "polygram")
+                self.assertEqual(entity["shape_blob"], "{}")
+                entity.update(shape_blob='{"feature": {}}')
+                self.assertEqual(entity["lat"], -2.3)
+                self.assertEqual(entity["lon"], -3.2)
+                self.assertEqual(entity["alt"], -55.0)
+                self.assertEqual(entity["shape_name"], "polygram")
+                self.assertEqual(entity["shape_blob"], '{"feature": {}}')
+
+    def test_update_entitys_location_with_half_new_data(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Unit")
+                db_map.add_entity(
+                    entity_class_name="Unit",
+                    name="mana_source",
+                    lat=2.3,
+                    lon=3.2,
+                    alt=55.0,
+                    shape_name="diagon",
+                    shape_blob="{}",
+                )
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                entity = db_map.entity(entity_class_name="Unit", name="mana_source")
+                entity.update(lat=-2.3, lon=3.2)
+                self.assertEqual(entity["lat"], -2.3)
+                self.assertEqual(entity["lon"], 3.2)
+                self.assertEqual(entity["alt"], 55.0)
+                self.assertEqual(entity["shape_name"], "diagon")
+                self.assertEqual(entity["shape_blob"], "{}")
+                entity.update(lat=-2.3, lon=-3.2)
+                self.assertEqual(entity["lat"], -2.3)
+                self.assertEqual(entity["lon"], -3.2)
+                self.assertEqual(entity["alt"], 55.0)
+                self.assertEqual(entity["shape_name"], "diagon")
+                self.assertEqual(entity["shape_blob"], "{}")
+                entity.update(lat=-2.3, lon=-3.2, alt=-55.0)
+                self.assertEqual(entity["lat"], -2.3)
+                self.assertEqual(entity["lon"], -3.2)
+                self.assertEqual(entity["alt"], -55.0)
+                self.assertEqual(entity["shape_name"], "diagon")
+                self.assertEqual(entity["shape_blob"], "{}")
+                entity.update(shape_name="polygram", shape_blob="{}")
+                self.assertEqual(entity["lat"], -2.3)
+                self.assertEqual(entity["lon"], -3.2)
+                self.assertEqual(entity["alt"], -55.0)
+                self.assertEqual(entity["shape_name"], "polygram")
+                self.assertEqual(entity["shape_blob"], "{}")
+                entity.update(shape_name="polygram", shape_blob='{"feature": {}}')
+                self.assertEqual(entity["lat"], -2.3)
+                self.assertEqual(entity["lon"], -3.2)
+                self.assertEqual(entity["alt"], -55.0)
+                self.assertEqual(entity["shape_name"], "polygram")
+                self.assertEqual(entity["shape_blob"], '{"feature": {}}')
+
     def test_updating_entitys_location_data_with_missing_data_raises_exception(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_entity_class(name="Object")
