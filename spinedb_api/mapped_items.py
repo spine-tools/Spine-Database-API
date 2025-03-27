@@ -1003,7 +1003,7 @@ class ParameterValueItem(ParameterItemBase):
             "value": _ENTITY_BYNAME_VALUE,
         },
         "value": {"type": bytes, "value": "The value's database representation."},
-        "type": {"type": str, "value": "The value's type.", "optional": True},
+        "type": {"type": str, "value": "The value's type. Optional only when value is null.", "optional": True},
         "parsed_value": {"type": ParameterValue, "value": "The value.", "optional": True},
         "alternative_name": {"type": str, "value": "The alternative name - defaults to 'Base'.", "optional": True},
     }
@@ -1064,6 +1064,13 @@ class ParameterValueItem(ParameterItemBase):
             f"value {parsed_value} of {self['parameter_definition_name']} for {self['entity_byname']} "
             f"is not in {list_name}"
         )
+
+    def check_mutability(self):
+        if (
+            dict.__getitem__(self, self.type_key) is None
+            and dict.__getitem__(self, self.value_key) != UNPARSED_NULL_VALUE
+        ):
+            raise SpineDBAPIError("'type' is missing")
 
 
 class ParameterValueListItem(MappedItemBase):
