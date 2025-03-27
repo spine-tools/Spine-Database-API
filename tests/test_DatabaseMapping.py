@@ -1523,7 +1523,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 value=value,
                 type=None,
             )
-            self.assertEqual(error, "invalid type for parameter_value")
+            self.assertEqual(error, "'type' is missing")
             self.assertIsNone(value_item)
 
     def test_parameter_definition_callbacks_get_called_on_default_value_update(self):
@@ -3872,13 +3872,13 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
             import_functions.import_relationship_parameters(db_map, [("fish_dog", "rel_speed")])
             _, errors = db_map.add_items(
                 "parameter_value",
-                {"parameter_definition_id": 1, "object_id": 3, "value": b'"orange"', "alternative_id": 1},
+                {"parameter_definition_id": 1, "object_id": 3, "parsed_value": "orange", "alternative_id": 1},
                 strict=False,
             )
             self.assertEqual([str(e) for e in errors], ["invalid entity_class_id for parameter_value"])
             _, errors = db_map.add_items(
                 "parameter_value",
-                {"parameter_definition_id": 2, "relationship_id": 2, "value": b"125", "alternative_id": 1},
+                {"parameter_definition_id": 2, "relationship_id": 2, "parsed_value": 125, "alternative_id": 1},
                 strict=False,
             )
             self.assertEqual([str(e) for e in errors], ["invalid entity_class_id for parameter_value"])
