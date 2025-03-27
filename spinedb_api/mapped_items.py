@@ -1003,7 +1003,7 @@ class ParameterValueItem(ParameterItemBase):
             "value": _ENTITY_BYNAME_VALUE,
         },
         "value": {"type": bytes, "value": "The value's database representation."},
-        "type": {"type": str, "value": "The value's type.", "optional": True},
+        "type": {"type": str, "value": "The value's type."},
         "parsed_value": {"type": ParameterValue, "value": "The value.", "optional": True},
         "alternative_name": {"type": str, "value": "The alternative name - defaults to 'Base'.", "optional": True},
     }
