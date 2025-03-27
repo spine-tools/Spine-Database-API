@@ -196,8 +196,6 @@ class DatabaseMappingBase:
 
     def refresh_session(self):
         """Clears fetch progress, so the DB is queried again, and committed, unchanged items."""
-        self._commit_count = None
-        self._fetched.clear()
         changed_statuses = {Status.to_add, Status.to_update, Status.to_remove}
         for item_type in self.item_types():
             mapped_table = self._mapped_tables[item_type]
@@ -205,6 +203,8 @@ class DatabaseMappingBase:
                 if item.status not in changed_statuses:
                     mapped_table.remove_unique(item)
                     del mapped_table[item["id"]]
+        self._commit_count = None
+        self._fetched.clear()
 
     def mapped_table(self, item_type: str) -> MappedTable:
         """Returns mapped table for given item type."""
