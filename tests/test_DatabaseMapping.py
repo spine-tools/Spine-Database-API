@@ -2800,6 +2800,48 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertEqual(value["parsed_value"], 55.0)
 
+    def test_refresh_session_should_not_destroy_added_value(self):
+        with TemporaryDirectory() as temp_dir:
+            target_url = "sqlite:///" + os.path.join(temp_dir, "target.sqlite")
+            with DatabaseMapping(target_url, create=True) as db_map:
+                db_map.add_entity_class(name="unit")
+                db_map.add_entity(entity_class_name="unit", name="power_plant_a")
+                db_map.add_entity_class(name="node")
+                db_map.add_entity(entity_class_name="node", name="fuel_node")
+                db_map.add_entity_class(name="unit__to_node", dimension_name_list=("unit", "node"))
+                db_map.add_parameter_definition(entity_class_name="unit__to_node", name="unit_capacity")
+                db_map.add_parameter_definition(entity_class_name="unit__to_node", name="vom_cost")
+                db_map.add_entity(
+                    entity_class_name="unit__to_node",
+                    entity_byname=("power_plant_a", "fuel_node"),
+                )
+                db_map.add_parameter_value(
+                    entity_class_name="unit__to_node",
+                    entity_byname=("power_plant_a", "fuel_node"),
+                    parameter_definition_name="vom_cost",
+                    parsed_value=55.0,
+                    alternative_name="Base",
+                )
+                db_map.commit_session("Add base data")
+            with DatabaseMapping(target_url) as db_map:
+                db_map.add_parameter_value(
+                    entity_class_name="unit__to_node",
+                    entity_byname=("power_plant_a", "fuel_node"),
+                    parameter_definition_name="unit_capacity",
+                    parsed_value=2.3,
+                    alternative_name="Base",
+                )
+                db_map.refresh_session()
+                db_map.commit_session("Add value.")
+            with DatabaseMapping(target_url) as db_map:
+                value_item = db_map.parameter_value(
+                    entity_class_name="unit__to_node",
+                    entity_byname=("power_plant_a", "fuel_node"),
+                    parameter_definition_name="unit_capacity",
+                    alternative_name="Base",
+                )
+                self.assertEqual(value_item["parsed_value"], 2.3)
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
