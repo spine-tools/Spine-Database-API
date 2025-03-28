@@ -10,10 +10,10 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 from __future__ import annotations
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import suppress
 from difflib import SequenceMatcher
-from typing import ClassVar, Optional, Set, Union
+from typing import ClassVar, Optional
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
 from .mapped_item_status import Status
@@ -202,7 +202,7 @@ class DatabaseMappingBase:
             for item in list(mapped_table.values()):
                 if item.status not in changed_statuses:
                     mapped_table.remove_unique(item)
-                    del mapped_table[item["id"]]
+                    del mapped_table[dict.__getitem__(item, "id")]
         self._commit_count = None
         self._fetched.clear()
 
@@ -457,11 +457,13 @@ class MappedTable(dict):
             self._ids_by_unique_key_value.setdefault(key, {}).setdefault(value, []).append(id_)
 
     def remove_unique(self, item):
-        id_ = item["id"]
+        id_ = dict.__getitem__(item, "id")
         for key, value in item.unique_values_for_item(item):
             ids = self._ids_by_unique_key_value.get(key, {}).get(value, [])
-            if id_ in ids:
+            try:
                 ids.remove(id_)
+            except ValueError:
+                pass
 
     def _make_and_add_item(self, item, ignore_polishing_errors):
         if not isinstance(item, MappedItemBase):
@@ -650,9 +652,9 @@ class MappedItemBase(dict):
         self.db_map = db_map
         self._referrers = {}
         self._weak_referrers = {}
-        self.restore_callbacks = set()
-        self.update_callbacks = set()
-        self.remove_callbacks = set()
+        self.restore_callbacks: set[Callable[[MappedItemBase], bool]] = set()
+        self.update_callbacks: set[Callable[[MappedItemBase], bool]] = set()
+        self.remove_callbacks: set[Callable[[MappedItemBase], bool]] = set()
         self._has_valid_id = True
         self._removed = False
         self._valid = None
@@ -665,7 +667,7 @@ class MappedItemBase(dict):
         self._referenced_value_cache = {}
         self.public_item = PublicItem(self)
 
-    def handle_refetch(self):
+    def handle_refetch(self) -> None:
         """Called when an equivalent item is fetched from the DB.
 
         1. If this item is committed, then assume the one from the DB is newer and reset the state.
@@ -676,21 +678,13 @@ class MappedItemBase(dict):
             self._valid = None
 
     @classmethod
-    def ref_types(cls):
-        """Returns a set of item types that this class refers.
-
-        Returns:
-            set of str
-        """
+    def ref_types(cls) -> set[str]:
+        """Returns a set of item types that this class refers."""
         return set(cls._references.values())
 
     @classmethod
-    def internal_external_private_fields(cls) -> Set[str]:
-        """Returns a union of internal, external and private fields.
-
-        Returns:
-            set of str: field union
-        """
+    def internal_external_private_fields(cls) -> set[str]:
+        """Returns a union of internal, external and private fields."""
         if cls._internal_external_private_fields is None:
             cls._internal_external_private_fields = (
                 set(cls._internal_fields) | set(cls._external_fields) | cls._private_fields
@@ -698,51 +692,35 @@ class MappedItemBase(dict):
         return cls._internal_external_private_fields
 
     @property
-    def backup(self):
-        """Returns the committed version of this item.
-
-        Returns:
-            dict or None
-        """
+    def backup(self) -> Optional[dict]:
+        """Returns the committed version of this item."""
         return self._backup
 
     @property
-    def removed(self):
-        """Returns whether this item has been removed.
-
-        Returns:
-            bool
-        """
+    def removed(self) -> bool:
+        """Returns whether this item has been removed."""
         return self._removed
 
     @property
-    def has_valid_id(self):
+    def has_valid_id(self) -> bool:
         return self._has_valid_id
 
-    def invalidate_id(self):
+    def invalidate_id(self) -> None:
         """Sets id as invalid."""
         self._has_valid_id = False
 
-    def validate_id(self):
+    def validate_id(self) -> None:
         """Sets id as valid"""
         self._has_valid_id = True
 
-    def extended(self):
-        """Returns a dict from this item's original fields plus all the references resolved statically.
-
-        Returns:
-            dict
-        """
+    def extended(self) -> dict:
+        """Returns a dict from this item's original fields plus all the references resolved statically."""
         d = self._asdict()
         d.update({key: self[key] for key in self._external_fields})
         return d
 
     def _asdict(self) -> dict:
-        """Returns a dict from this item's original fields.
-
-        Returns:
-            dict
-        """
+        """Returns a dict from this item's original fields."""
         return dict(self)
 
     def resolve(self) -> dict:
@@ -777,12 +755,8 @@ class MappedItemBase(dict):
             and _resolved(self.get(key)) != _resolved(value)
         }
 
-    def db_equivalent(self):
-        """The equivalent of this item in the DB.
-
-        Returns:
-            MappedItemBase
-        """
+    def db_equivalent(self) -> MappedItemBase:
+        """The equivalent of this item in the DB."""
         if self.status == Status.to_update:
             db_item = self.db_map.make_item(self.item_type, **self.backup)
             db_item.polish()
@@ -890,32 +864,31 @@ class MappedItemBase(dict):
 
         Raises any errors that prevent the operation."""
 
-    def is_valid(self):
+    def is_valid(self) -> bool:
         """Checks if this item has all its references.
-        Removes the item from the in-memory mapping if not valid by calling ``cascade_remove``.
 
-        Returns:
-            bool
+        Removes the item from the in-memory mapping if not valid by calling ``cascade_remove``.
         """
         self.validate()
         return self._valid
 
-    def validate(self):
+    def validate(self) -> None:
         """Resolves all references and checks if the item is valid.
-        The item is valid if it's not removed, has all of its references, and none of them is removed."""
+
+        Removes the item from the in-memory mapping if not valid by calling ``cascade_remove``.
+
+        The item is valid if it or any of its references have not been removed."""
         if self._valid is not None:
             return
-        refs = [ref for _, ref in self._resolve_refs()]
-        self._valid = not self._removed and all(ref and not ref.removed for ref in refs)
+        refs = [ref for _, ref in self._resolve_refs() if ref]
+        self._valid = not self._removed and all(not ref.removed for ref in refs)
         if not self._valid:
             self.cascade_remove()
 
-    def add_referrer(self, referrer):
-        """Adds a strong referrer to this item. Strong referrers are removed, updated and restored
-        in cascade with this item.
+    def add_referrer(self, referrer: MappedItemBase) -> None:
+        """Adds a strong referrer to this item.
 
-        Args:
-            referrer (MappedItemBase)
+        Strong referrers are removed, updated and restored in cascade with this item.
         """
         try:
             id_ = dict.__getitem__(referrer, "id")
@@ -923,24 +896,17 @@ class MappedItemBase(dict):
             raise RuntimeError("referrer is missing id") from error
         self._referrers[id_] = referrer
 
-    def remove_referrer(self, referrer):
-        """Removes a strong referrer.
-
-        Args:
-            referrer (MappedItemBase)
-        """
+    def remove_referrer(self, referrer: MappedItemBase) -> None:
+        """Removes a strong referrer."""
         try:
             id_ = dict.__getitem__(referrer, "id")
         except KeyError:
             return
         self._referrers.pop(id_, None)
 
-    def add_weak_referrer(self, referrer):
+    def add_weak_referrer(self, referrer: MappedItemBase) -> None:
         """Adds a weak referrer to this item.
         Weak referrers' update callbacks are called whenever this item changes.
-
-        Args:
-            referrer (MappedItemBase)
         """
         try:
             id_ = dict.__getitem__(referrer, "id")
@@ -948,11 +914,11 @@ class MappedItemBase(dict):
             raise RuntimeError("weak referrer is missing id") from error
         self._weak_referrers[(referrer.item_type, id_)] = referrer
 
-    def _update_weak_referrers(self):
+    def _update_weak_referrers(self) -> None:
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
 
-    def become_referrer(self):
+    def become_referrer(self) -> None:
         def add_self_as_referrer(ref_id):
             ref = mapped_table.get(ref_id)
             if ref is None:
@@ -982,7 +948,7 @@ class MappedItemBase(dict):
                 continue
             ref.add_weak_referrer(self)
 
-    def cascade_restore(self, source=None):
+    def cascade_restore(self, source: Optional[object] = None) -> None:
         """Restores this item (if removed) and all its referrers in cascade.
         Also, updates items' status and calls their restore callbacks.
         """
@@ -1001,7 +967,7 @@ class MappedItemBase(dict):
         self._valid = None
         # First restore this, then referrers
         obsolete = set()
-        for callback in list(self.restore_callbacks):
+        for callback in self.restore_callbacks:
             if not callback(self):
                 obsolete.add(callback)
         self.restore_callbacks -= obsolete
@@ -1009,7 +975,7 @@ class MappedItemBase(dict):
             referrer.cascade_restore(source=self)
         self._update_weak_referrers()
 
-    def cascade_remove(self, source=None):
+    def cascade_remove(self, source: Optional[object] = None) -> None:
         """Removes this item and all its referrers in cascade.
         Also, updates items' status and calls their remove callbacks.
         """
@@ -1030,12 +996,12 @@ class MappedItemBase(dict):
             referrer.cascade_remove(source=self)
         self._update_weak_referrers()
         obsolete = set()
-        for callback in list(self.remove_callbacks):
+        for callback in self.remove_callbacks:
             if not callback(self):
                 obsolete.add(callback)
         self.remove_callbacks -= obsolete
 
-    def cascade_update(self):
+    def cascade_update(self) -> None:
         """Updates this item and all its referrers in cascade.
         Also, calls items' update callbacks.
         """
@@ -1047,14 +1013,14 @@ class MappedItemBase(dict):
             referrer.cascade_update()
         self._update_weak_referrers()
 
-    def call_update_callbacks(self):
+    def call_update_callbacks(self) -> None:
         obsolete = set()
-        for callback in list(self.update_callbacks):
+        for callback in self.update_callbacks:
             if not callback(self):
                 obsolete.add(callback)
         self.update_callbacks -= obsolete
 
-    def cascade_add_unique(self):
+    def cascade_add_unique(self) -> None:
         """Adds item and all its referrers unique keys and ids in cascade."""
         self._referenced_value_cache.clear()
         mapped_table = self.db_map.mapped_table(self.item_type)
@@ -1062,22 +1028,18 @@ class MappedItemBase(dict):
         for referrer in self._referrers.values():
             referrer.cascade_add_unique()
 
-    def cascade_remove_unique(self):
+    def cascade_remove_unique(self) -> None:
         """Removes item and all its referrers unique keys and ids in cascade."""
         mapped_table = self.db_map.mapped_table(self.item_type)
         mapped_table.remove_unique(self)
         for referrer in self._referrers.values():
             referrer.cascade_remove_unique()
 
-    def is_committed(self):
-        """Returns whether this item is committed to the DB.
-
-        Returns:
-            bool
-        """
+    def is_committed(self) -> bool:
+        """Returns whether this item is committed to the DB."""
         return self.status == Status.committed
 
-    def commit(self, commit_id):
+    def commit(self, commit_id) -> None:
         """Sets this item as committed with the given commit id."""
         self._status_when_committed = self.status
         self.status = Status.committed
@@ -1257,7 +1219,7 @@ class PublicItem:
     def add_remove_callback(self, callback):
         self._mapped_item.remove_callbacks.add(callback)
 
-    def add_restore_callback(self, callback):
+    def add_restore_callback(self, callback) -> None:
         self._mapped_item.restore_callbacks.add(callback)
 
     def resolve(self) -> dict:
