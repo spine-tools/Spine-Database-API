@@ -20,7 +20,9 @@ from spinedb_api.helpers import (
     compare_schemas,
     copy_database,
     create_new_spine_database,
+    fix_name_ambiguity,
     get_head_alembic_version,
+    group_consecutive,
     name_from_dimensions,
     name_from_elements,
     remove_credentials_from_url,
@@ -127,6 +129,31 @@ class TestCopyDatabase(AssertSuccessTestCase):
             with DatabaseMapping(target_url) as db_map:
                 entity_class = db_map.get_entity_class_item(name="ForgottenAtAGasStation")
                 self.assertTrue(bool(entity_class))
+
+
+class TestFixNameAmbiguity(unittest.TestCase):
+    def test_empty_input_list(self):
+        self.assertEqual(fix_name_ambiguity([]), [])
+
+    def test_unique_names_are_kept(self):
+        self.assertEqual(fix_name_ambiguity(["a", "b"]), ["a", "b"])
+
+    def test_ambiguous_names_get_prefixed(self):
+        self.assertEqual(fix_name_ambiguity(["a", "a"]), ["a1", "a2"])
+
+    def test_offset(self):
+        self.assertEqual(fix_name_ambiguity(["a", "a", "b"], offset=5), ["a6", "a7", "b"])
+
+    def test_prefix(self):
+        self.assertEqual(fix_name_ambiguity(["a", "b", "b"], prefix="/"), ["a", "b/1", "b/2"])
+
+
+class TestGroupConsecutive(unittest.TestCase):
+    def test_empty_input(self):
+        self.assertEqual(list(group_consecutive([])), [])
+
+    def test_grouping(self):
+        self.assertEqual(list(group_consecutive((1, 2, 6, 3, 7, 10))), [(1, 3), (6, 7), (10, 10)])
 
 
 if __name__ == "__main__":

@@ -11,11 +11,13 @@
 ######################################################################################################################
 """ General helper functions. """
 
+from collections.abc import Callable, Iterable, Iterator, Sequence
 import enum
 from itertools import groupby
 import json
 from operator import itemgetter
 import os
+from typing import Any
 import warnings
 from alembic.config import Config
 from alembic.environment import EnvironmentContext
@@ -49,10 +51,11 @@ from sqlalchemy import (
     true,
 )
 from sqlalchemy.dialects.mysql import DOUBLE, TINYINT
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DatabaseError, IntegrityError
-from sqlalchemy.ext.automap import generate_relationship
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import FunctionElement, bindparam, cast
+from sqlalchemy.sql.selectable import SelectBase
 from .exception import SpineDBAPIError, SpineDBVersionError
 
 SUPPORTED_DIALECTS = {
@@ -81,29 +84,15 @@ model_meta = MetaData(naming_convention=naming_convention)
 LONGTEXT_LENGTH = 2**32 - 1
 
 
-def name_from_elements(elements):
-    """Creates an entity name by combining element names.
-
-    Args:
-        elements (Sequence of str): element names
-
-    Returns:
-        str: entity name
-    """
+def name_from_elements(elements: Sequence[str]) -> str:
+    """Creates an entity name by combining a list of element names into a single string."""
     if len(elements) == 1:
         return elements[0] + "__"
     return "__".join(elements)
 
 
-def name_from_dimensions(dimensions):
-    """Creates an entity class name by combining dimension names.
-
-    Args:
-        dimensions (Sequence of str): dimension names
-
-    Returns:
-        str: entity class name
-    """
+def name_from_dimensions(dimensions: Sequence[str]) -> str:
+    """Creates an entity class name by combining a list of dimension names into a single string."""
     return name_from_elements(dimensions)
 
 
@@ -149,11 +138,11 @@ def compile_group_concat_mysql(element, compiler, **kw):
     )
 
 
-def _parse_metadata_fallback(metadata):
+def _parse_metadata_fallback(metadata: Any) -> Iterator[tuple[str, str]]:
     yield ("unnamed", str(metadata))
 
 
-def _parse_metadata(metadata):
+def _parse_metadata(metadata: str) -> Iterator[tuple[str, str]]:
     try:
         parsed = json.loads(metadata)
     except json.decoder.JSONDecodeError:
@@ -170,18 +159,13 @@ def _parse_metadata(metadata):
         yield (key, str(value))
 
 
-def _is_head(db_url, upgrade=False):
-    """Check whether db_url is at the head revision.
-
-    Args:
-        db_url (str): database url
-        upgrade (Bool): if True, upgrade db to head
-    """
+def _is_head(db_url: str, upgrade=False) -> bool:
+    """Check whether the database at db_url is at the head revision."""
     engine = create_engine(db_url, future=True)
     return is_head_engine(engine, upgrade=upgrade)
 
 
-def is_head_engine(engine, upgrade=False):
+def is_head_engine(engine: Engine, upgrade: bool = False) -> bool:
     config = Config()
     config.set_main_option("script_location", "spinedb_api:alembic")
     script = ScriptDirectory.from_config(config)
@@ -207,16 +191,23 @@ def is_head_engine(engine, upgrade=False):
     return True
 
 
-def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tables=(), skip_tables=()):
+def copy_database(
+    dest_url: str,
+    source_url: str,
+    overwrite: bool = True,
+    upgrade: bool = False,
+    only_tables: Sequence[str] = (),
+    skip_tables: Sequence[str] = (),
+) -> None:
     """Copy the database from one url to another.
 
     Args:
-        dest_url (str): The destination url.
-        source_url (str): The source url.
-        overwrite (bool, optional): whether to overwrite the destination.
-        upgrade (bool, optional): whether to upgrade the source to the latest Spine schema revision.
-        only_tables (tuple, optional): If given, only these tables are copied.
-        skip_tables (tuple, optional): If given, these tables are skipped.
+        dest_url: The destination url.
+        source_url: The source url.
+        overwrite: whether to overwrite the destination.
+        upgrade: whether to upgrade the source to the latest Spine schema revision.
+        only_tables: If given, only these tables are copied.
+        skip_tables: If given, these tables are skipped.
     """
     if not _is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=source_url)
@@ -231,7 +222,13 @@ def copy_database(dest_url, source_url, overwrite=True, upgrade=False, only_tabl
     )
 
 
-def copy_database_bind(dest_bind, source_bind, overwrite=True, only_tables=(), skip_tables=()):
+def copy_database_bind(
+    dest_bind: Engine,
+    source_bind: Engine,
+    overwrite: bool = True,
+    only_tables: Sequence[str] = (),
+    skip_tables: Sequence[str] = (),
+) -> None:
     source_meta = MetaData()
     source_meta.reflect(bind=source_bind)
     if inspect(dest_bind).get_table_names():
@@ -259,16 +256,7 @@ def copy_database_bind(dest_bind, source_bind, overwrite=True, only_tables=(), s
                 warnings.warn(f"Skipping table {table.name}: {e.orig.args}")
 
 
-def custom_generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw):
-    """Make all relationships view only to avoid warnings."""
-    kw["viewonly"] = True
-    kw["cascade"] = ""
-    kw["passive_deletes"] = False
-    kw["sync_backref"] = False
-    return generate_relationship(base, direction, return_fn, attrname, local_cls, referred_cls, **kw)
-
-
-def compare_schemas(left_engine, right_engine):
+def compare_schemas(left_engine: Engine, right_engine: Engine) -> bool:
     left_insp = inspect(left_engine)
     right_insp = inspect(right_engine)
     left_dict = schema_dict(left_insp)
@@ -276,7 +264,7 @@ def compare_schemas(left_engine, right_engine):
     return str(left_dict) == str(right_dict)
 
 
-def schema_dict(insp):
+def schema_dict(insp) -> dict:
     return {
         table_name: {
             "columns": sorted(insp.get_columns(table_name), key=itemgetter("name")),
@@ -288,7 +276,7 @@ def schema_dict(insp):
     }
 
 
-def is_empty(db_url):
+def is_empty(db_url: str) -> bool:
     try:
         engine = create_engine(db_url, future=True)
     except DatabaseError as e:
@@ -299,14 +287,14 @@ def is_empty(db_url):
     return True
 
 
-def get_head_alembic_version():
+def get_head_alembic_version() -> str:
     config = Config()
     config.set_main_option("script_location", "spinedb_api:alembic")
     script = ScriptDirectory.from_config(config)
     return script.get_current_head()
 
 
-def create_spine_metadata():
+def create_spine_metadata() -> MetaData:
     meta = MetaData(naming_convention=naming_convention)
     Table(
         "commit",
@@ -656,15 +644,8 @@ def create_spine_metadata():
     return meta
 
 
-def create_new_spine_database(db_url):
-    """Create a new Spine database at the given url.
-
-    Args:
-        db_url (str): The url.
-
-    Returns:
-        Engine
-    """
+def create_new_spine_database(db_url: str) -> Engine:
+    """Create a new Spine database at the given url."""
     try:
         engine = create_engine(db_url, future=True)
     except DatabaseError as e:
@@ -673,7 +654,7 @@ def create_new_spine_database(db_url):
     return engine
 
 
-def create_new_spine_database_from_engine(engine):
+def create_new_spine_database_from_engine(engine: Engine) -> None:
     # Drop existing tables. This is a Spine db now...
     meta = MetaData()
     meta.reflect(engine)
@@ -693,10 +674,8 @@ def create_new_spine_database_from_engine(engine):
         raise SpineDBAPIError(f"Unable to create Spine database: {e}") from None
 
 
-def _create_first_spine_database(db_url):
-    """Creates a Spine database with the very first version at the given url.
-    Used internally.
-    """
+def _create_first_spine_database(db_url: str) -> Engine:
+    """Creates a Spine database with the very first version at the given url."""
     try:
         engine = create_engine(db_url, future=True)
     except DatabaseError as e:
@@ -846,7 +825,7 @@ def _create_first_spine_database(db_url):
     return engine
 
 
-def forward_sweep(root, fn, *args):
+def forward_sweep(root: SelectBase, fn: Callable[[SelectBase, ...], None], *args) -> None:
     """Recursively visit, using `get_children()`, the given sqlalchemy object.
     Apply `fn` on every visited node."""
     current = root
@@ -875,7 +854,7 @@ def forward_sweep(root, fn, *args):
             break
 
 
-def labelled_columns(table):
+def labelled_columns(table: Table) -> list:
     return [c.label(c.name) for c in table.columns]
 
 
@@ -887,21 +866,21 @@ class AsteriskType:
 Asterisk = AsteriskType()
 
 
-def fix_name_ambiguity(input_list, offset=0, prefix=""):
+def fix_name_ambiguity(input_list: Sequence[str], offset: int = 0, prefix: str = "") -> list[str]:
     """Modify repeated entries in name list by appending an increasing integer."""
     result = []
-    ocurrences = {}
+    occurrences = {}
     for item in input_list:
-        n_ocurrences = input_list.count(item)
-        if n_ocurrences > 1:
-            ocurrence = ocurrences.get(item, 1)
-            ocurrences[item] = ocurrence + 1
-            item += prefix + str(offset + ocurrence)
+        n_occurrences = input_list.count(item)
+        if n_occurrences > 1:
+            occurrence = occurrences.get(item, 1)
+            occurrences[item] = occurrence + 1
+            item += prefix + str(offset + occurrence)
         result.append(item)
     return result
 
 
-def vacuum(url):
+def vacuum(url: str) -> tuple[int, str]:
     engine = create_engine(url, future=True)
     if not engine.url.drivername.startswith("sqlite"):
         return 0, "bytes"
@@ -917,15 +896,8 @@ def vacuum(url):
     return freed, units[k]
 
 
-def remove_credentials_from_url(url):
-    """Removes username and password information from URLs.
-
-    Args:
-        url (str): URL
-
-    Returns:
-        str: sanitized URL
-    """
+def remove_credentials_from_url(url: str) -> str:
+    """Removes username and password information from URLs."""
     if "@" not in url:
         return url
     head, tail = url.rsplit("@", maxsplit=1)
@@ -933,7 +905,7 @@ def remove_credentials_from_url(url):
     return scheme + "://" + tail
 
 
-def group_consecutive(list_of_numbers):
+def group_consecutive(list_of_numbers: Iterable[int]) -> Iterator[tuple[int, int]]:
     for _k, g in groupby(enumerate(sorted(list_of_numbers)), lambda x: x[0] - x[1]):
         group = list(map(itemgetter(1), g))
         yield group[0], group[-1]
@@ -943,18 +915,12 @@ _TRUTHS = {s.casefold() for s in ("yes", "true", "y", "t", "1")}
 _FALSES = {s.casefold() for s in ("no", "false", "n", "f", "0")}
 
 
-def string_to_bool(string):
+def string_to_bool(string: str) -> bool:
     """Converts string to boolean.
 
     Recognizes "yes", "true", "y", "t" and "1" as True, "no", "false", "n", "f" and "0" as False.
-    Case insensitive.
+    Case-insensitive.
     Raises Value error if value is not recognized.
-
-    Args:
-        string (str): string to convert
-
-    Returns:
-        bool: True or False
     """
     string = string.casefold()
     if string in _TRUTHS:
