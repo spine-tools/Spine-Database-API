@@ -25,7 +25,7 @@ def build_map() -> bytes:
 
 def dimension_count(loops: int, unparsed_map: bytes) -> float:
     duration = 0.0
-    map_type = Map.type_()
+    map_type = Map.TYPE
     for _ in range(loops):
         start = time.perf_counter()
         rank = from_database_to_dimension_count(unparsed_map, map_type)

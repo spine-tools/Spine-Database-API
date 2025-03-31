@@ -70,8 +70,8 @@ def is_parameter_type_valid(parameter_types, database_value, value, value_type):
     if value_type is not None:
         if not any(value_type == type_and_rank[0] for type_and_rank in parameter_types):
             return False
-        if value_type != Map.type_():
+        if value_type != Map.TYPE:
             return True
         rank = from_database_to_dimension_count(database_value, value_type)
-        return any(rank == type_and_rank[1] for type_and_rank in parameter_types if type_and_rank[0] == Map.type_())
+        return any(rank == type_and_rank[1] for type_and_rank in parameter_types if type_and_rank[0] == Map.TYPE)
     return any(type_for_value(value) == type_and_rank for type_and_rank in parameter_types)

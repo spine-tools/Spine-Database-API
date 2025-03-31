@@ -986,7 +986,7 @@ class ParameterTypeItem(MappedItemBase):
         if value_type not in VALUE_TYPES:
             return "type"
         rank = self["rank"]
-        if value_type == Map.type_():
+        if value_type == Map.TYPE:
             return "rank" if rank < 1 else None
         if value_type in RANK_1_TYPES:
             return "rank" if rank != 1 else None

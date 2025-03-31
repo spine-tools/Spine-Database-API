@@ -113,7 +113,7 @@ from sqlalchemy.sql import Subquery
 from spinedb_api import DatabaseMapping, Map, SpineDBAPIError
 from spinedb_api.arrow_value import from_database
 from spinedb_api.db_mapping_base import PublicItem
-from spinedb_api.parameter_value import RANK_1_TYPES, VALUE_TYPES, DateTime
+from spinedb_api.parameter_value import NON_ZERO_RANK_TYPES, RANK_1_TYPES, VALUE_TYPES, DateTime
 
 SpineScalarValue = Union[float, str, bool]
 SpineValue = Union[SpineScalarValue, None, pyarrow.RecordBatch]
@@ -410,9 +410,8 @@ def _convert_values_from_database(dataframe_row: pd.Series, list_value_map: IdTo
 def _expand_values(dataframe: pd.DataFrame) -> pd.DataFrame:
     grouped = dataframe.groupby("type", sort=False)
     expanded = []
-    rank_n_types = {Map.type_()}
     attributes = {}
-    for expandable_type in RANK_1_TYPES | rank_n_types:
+    for expandable_type in NON_ZERO_RANK_TYPES:
         try:
             group = grouped.indices[expandable_type]
         except KeyError:
@@ -425,7 +424,7 @@ def _expand_values(dataframe: pd.DataFrame) -> pd.DataFrame:
             left = pd.concat(value.shape[0] * [row], ignore_index=True)
             expanded.append(pd.concat((left, value), axis="columns"))
             attributes.update(value.attrs)
-    for non_expandable_type in VALUE_TYPES - RANK_1_TYPES - rank_n_types:
+    for non_expandable_type in VALUE_TYPES - NON_ZERO_RANK_TYPES:
         try:
             group = grouped.indices[non_expandable_type]
         except KeyError:
