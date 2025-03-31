@@ -11,7 +11,7 @@
 ######################################################################################################################
 
 """ Contains DataPackageReader class. """
-from itertools import chain, islice
+from itertools import chain
 import threading
 import frictionless
 from ...exception import ReaderError
@@ -92,11 +92,19 @@ class DatapackageReader(Reader):
             return iter([]), []
         max_rows = max_rows if max_rows >= 0 else None
 
-        def iterator(i):
-            try:
-                yield from i
-            except frictionless.exception.FrictionlessException as error:
-                raise ReaderError(str(error)) from error
+        def iterator(resource, max_rows):
+            with resource:
+                try:
+                    if max_rows is None:
+                        for row in resource.row_stream:
+                            yield row.to_list(json=True)
+                    else:
+                        for row_count, row in enumerate(resource.row_stream):
+                            if row_count >= max_rows:
+                                break
+                            yield row.to_list(json=True)
+                except frictionless.exception.FrictionlessException as error:
+                    raise ReaderError(str(error)) from error
 
         has_header = options.get("has_header", True)
         for resource in self._datapackage.resources:
@@ -104,8 +112,8 @@ class DatapackageReader(Reader):
                 if resource.name is None:
                     resource.infer()
             if table == resource.name:
+                i = iterator(resource, max_rows)
                 with resource:
-                    i = iterator(islice((row.to_list(json=True) for row in resource.row_stream), max_rows))
                     if has_header:
                         header = resource.header
                         return i, header

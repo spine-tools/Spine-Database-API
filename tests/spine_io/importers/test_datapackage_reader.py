@@ -112,6 +112,16 @@ class TestDatapackageReader(unittest.TestCase):
             with self.assertRaisesRegex(ReaderError, "no such table 'non-table'"):
                 reader.get_table_cell("non-table", 0, 0, {"has_header": False})
 
+    def test_get_large_data_does_not_raise_operation_on_closed_file(self):
+        header = ["header 1 ", "header 2", "header 3"]
+        data = [header] + 1000 * [["21", "22", "23"]]
+        with test_datapackage(data) as package_path:
+            reader = DatapackageReader(None)
+            reader.connect_to_source(str(package_path))
+            data, header = reader.get_data("test_data", {})
+            self.assertEqual(header, ["header 1", "header 2", "header 3"])
+            self.assertEqual(data, 1000 * [[21, 22, 23]])
+
 
 @contextmanager
 def test_datapackage(rows):
