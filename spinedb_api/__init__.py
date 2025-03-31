@@ -90,7 +90,6 @@ from .parameter_value import (
     DateTime,
     Duration,
     IndexedValue,
-    ListValueRef,
     Map,
     TimePattern,
     TimeSeries,

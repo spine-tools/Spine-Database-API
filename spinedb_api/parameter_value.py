@@ -81,14 +81,15 @@ use :func:`.from_database`::
     parsed_value = from_database(value, type_)
 """
 
-from collections.abc import Sequence
+from __future__ import annotations
+from collections.abc import Callable, Iterable, Sequence
 from copy import copy
 from datetime import datetime
 from itertools import takewhile
 import json
 from json.decoder import JSONDecodeError
 import re
-from typing import SupportsFloat
+from typing import Any, Optional, SupportsFloat, Type, Union
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import numpy as np
@@ -108,16 +109,16 @@ BOOLEAN_VALUE_TYPE = "bool"
 STRING_VALUE_TYPE = "str"
 
 
-def from_database(value, type_):
+def from_database(value: bytes, type_: Optional[str]) -> Optional[Value]:
     """
     Converts a parameter value from the DB into a Python object.
 
     Args:
-        value (bytes, optional): the `value` field from the ``parameter_value`` table.
-        type_ (str): the `type` field from the ``parameter_value`` table.
+        value: The binary blob containing the value data from database.
+        type_: Value's type.
 
     Returns:
-        :class:`ParameterValue`, float, str, bool or None: a Python object representing the parameter value.
+        A Python object representing the value.
     """
     parsed = load_db_value(value, type_)
     if isinstance(parsed, dict):
@@ -129,15 +130,15 @@ def from_database(value, type_):
     return parsed
 
 
-def to_database(parsed_value):
+def to_database(parsed_value: Optional[Value]) -> tuple[bytes, Optional[str]]:
     """
     Converts a Python object representing a parameter value into its DB representation.
 
     Args:
-        parsed_value (Any): the Python object.
+        parsed_value: A Python object representing the value.
 
     Returns:
-        tuple(bytes,str): the `value` and `type` fields that would go in the ``parameter_value`` table.
+        The value as a binary blob and its type string.
     """
     if hasattr(parsed_value, "to_database"):
         return parsed_value.to_database()
@@ -146,17 +147,17 @@ def to_database(parsed_value):
     return db_value, db_type
 
 
-def duration_to_relativedelta(duration):
+def duration_to_relativedelta(duration: str) -> relativedelta:
     """
-    Converts a duration to a relativedelta object.
+    Converts a duration to a ``relativedelta`` object.
 
     :meta private:
 
     Args:
-        duration (str): a duration string.
+        duration: a duration string.
 
     Returns:
-        :class:`~dateutil.relativedelta.relativedelta`: a relativedelta object corresponding to the given duration.
+        A relativedelta object corresponding to the given duration.
     """
     try:
         count, abbreviation, full_unit = re.split("\\s|([a-z]|[A-Z])", duration, maxsplit=1)
@@ -179,17 +180,17 @@ def duration_to_relativedelta(duration):
     raise ParameterValueFormatError(f'Could not parse duration "{duration}"')
 
 
-def relativedelta_to_duration(delta):
+def relativedelta_to_duration(delta: relativedelta) -> str:
     """
-    Converts a relativedelta to duration.
+    Converts a ``relativedelta`` to duration string.
 
     :meta private:
 
     Args:
-        delta (:class:`~dateutil.relativedelta.relativedelta`): the relativedelta to convert.
+        delta: The relativedelta to convert.
 
     Returns:
-        str: a duration string
+        A duration string.
     """
     if delta.seconds > 0:
         seconds = delta.seconds
@@ -219,19 +220,23 @@ def relativedelta_to_duration(delta):
     return "0h"
 
 
-def load_db_value(db_value, type_):
+JSONValue = Union[bool, float, str, dict]
+
+
+def load_db_value(db_value: bytes, type_: Optional[str]) -> Optional[JSONValue]:
     """
-    Parses a database representation of a parameter value (value and type) into a Python object, using JSON.
+    Parses a binary blob into a JSON object.
+
     If the result is a dict, adds the "type" property to it.
 
     :meta private:
 
     Args:
-        db_value (bytes, optional): the database value.
-        type_ (str): the value type.
+        db_value: The binary blob.
+        type_: The value type.
 
     Returns:
-        any: the parsed parameter value
+        The parsed parameter value.
     """
     if db_value is None:
         return None
@@ -244,59 +249,59 @@ def load_db_value(db_value, type_):
     return parsed
 
 
-def dump_db_value(parsed_value):
+def dump_db_value(parsed_value: JSONValue) -> tuple[bytes, str]:
     """
-    Unparses a Python object into a database representation of a parameter value (value and type), using JSON.
+    Unparses a JSON object into a binary blob and type string.
+
     If the given object is a dict, extracts the "type" property from it.
 
     :meta private:
 
     Args:
-        parsed_value (any): a Python object, typically obtained by calling :func:`load_db_value`.
+        parsed_value: A JSON object, typically obtained by calling :func:`load_db_value`.
 
     Returns:
-        tuple(str,str): database representation (value and type).
+        database representation (value and type).
     """
     value_type = parsed_value["type"] if isinstance(parsed_value, dict) else type_for_scalar(parsed_value)
     db_value = json.dumps(parsed_value).encode("UTF8")
     return db_value, value_type
 
 
-def from_database_to_single_value(database_value, value_type):
+def from_database_to_single_value(database_value: bytes, value_type: Optional[str]) -> Union[str, Optional[Value]]:
     """
-    Same as :func:`from_database`, but in the case of indexed types it returns just the type as a string.
+    Same as :func:`from_database`, but in the case of indexed types returns just the type as a string.
 
     :meta private:
 
     Args:
-        database_value (bytes): the database value
-        value_type (str, optional): the value type
+        database_value: the database value
+        value_type: the value type
 
     Returns:
-        :class:`ParameterValue`, float, str, bool or None: the encoded parameter value or its type.
+        the encoded parameter value or its type.
     """
-    if value_type is None or value_type not in {Map.type_(), TimeSeries.type_(), TimePattern.type_(), Array.type_()}:
+    if value_type is None or value_type not in NON_ZERO_RANK_TYPES:
         return from_database(database_value, value_type)
     return value_type
 
 
-def from_database_to_dimension_count(database_value, value_type):
+def from_database_to_dimension_count(database_value: bytes, value_type: Optional[str]) -> int:
     """
     Counts the dimensions in a database representation of a parameter value (value and type).
 
     :meta private:
 
     Args:
-        database_value (bytes): the database value
-        value_type (str, optional): the value type
+        database_value: the database value
+        value_type: the value type
 
     Returns:
-        int: number of dimensions
+        number of dimensions
     """
-
-    if value_type in {TimeSeries.type_(), TimePattern.type_(), Array.type_()}:
+    if value_type in RANK_1_TYPES:
         return 1
-    if value_type == Map.type_():
+    if value_type == Map.TYPE:
         parsed = load_db_value(database_value, value_type)
         if "rank" in parsed:
             return parsed["rank"]
@@ -305,48 +310,48 @@ def from_database_to_dimension_count(database_value, value_type):
     return 0
 
 
-def from_dict(value):
+def from_dict(value: dict) -> Optional[Value]:
     """
     Converts a dictionary representation of a parameter value into an encoded parameter value.
 
     :meta private:
 
     Args:
-        value (dict): the value dictionary including the "type" key.
+        value: the value dictionary including the "type" key.
 
     Returns:
-        :class:`ParameterValue`, float, str, bool or None: the encoded parameter value.
+        the encoded parameter value.
     """
     value_type = value["type"]
     try:
-        if value_type == DateTime.type_():
+        if value_type == DateTime.TYPE:
             return _datetime_from_database(value["data"])
-        if value_type == Duration.type_():
+        if value_type == Duration.TYPE:
             return _duration_from_database(value["data"])
-        if value_type == Map.type_():
+        if value_type == Map.TYPE:
             return _map_from_database(value)
-        if value_type == TimePattern.type_():
+        if value_type == TimePattern.TYPE:
             return _time_pattern_from_database(value)
-        if value_type == TimeSeries.type_():
+        if value_type == TimeSeries.TYPE:
             return _time_series_from_database(value)
-        if value_type == Array.type_():
+        if value_type == Array.TYPE:
             return _array_from_database(value)
         raise ParameterValueFormatError(f'Unknown or non-dictionary parameter value type "{value_type}"')
     except KeyError as error:
         raise ParameterValueFormatError(f'"{error.args[0]}" is missing in the parameter value description') from error
 
 
-def merge(value, other):
+def merge(value: tuple[bytes, Optional[str]], other: tuple[bytes, Optional[str]]) -> tuple[bytes, Optional[str]]:
     """Merges the DB representation of two parameter values.
 
     :meta private:
 
     Args:
-        value (tuple(bytes,str)): recipient value and type.
-        other (tuple(bytes,str)): other value and type.
+        value: recipient value and type.
+        other: other value and type.
 
     Returns:
-        tuple(bytes,str): the DB representation of the merged value.
+        the DB representation of the merged value.
     """
     parsed_value = from_database(*value)
     if not hasattr(parsed_value, "merge"):
@@ -355,7 +360,7 @@ def merge(value, other):
     return to_database(parsed_value.merge(parsed_other))
 
 
-def merge_parsed(parsed_value, parsed_other):
+def merge_parsed(parsed_value: Optional[Value], parsed_other: Optional[Value]) -> Optional[Value]:
     if not hasattr(parsed_value, "merge"):
         return parsed_value
     return parsed_value.merge(parsed_other)
@@ -364,16 +369,18 @@ def merge_parsed(parsed_value, parsed_other):
 _MERGE_FUNCTIONS = {"keep": lambda new, old: old, "replace": lambda new, old: new, "merge": merge}
 
 
-def get_conflict_fixer(on_conflict):
+def get_conflict_fixer(
+    on_conflict: str,
+) -> Callable[[tuple[bytes, Optional[str]], tuple[bytes, Optional[str]]], tuple[bytes, Optional[str]]]:
     """
     :meta private:
     Returns parameter value conflict resolution function.
 
     Args:
-        on_conflict (str): resolution action name
+        on_conflict: resolution action name
 
     Returns:
-        Callable: conflict resolution function
+        conflict resolution function
     """
     try:
         return _MERGE_FUNCTIONS[on_conflict]
@@ -383,7 +390,7 @@ def get_conflict_fixer(on_conflict):
         )
 
 
-def _break_dictionary(data):
+def _break_dictionary(data: dict) -> tuple[list, np.ndarray]:
     """Converts {"index": value} style dictionary into (list(indexes), numpy.ndarray(values)) tuple."""
     if not isinstance(data, dict):
         raise ParameterValueFormatError(
@@ -393,7 +400,7 @@ def _break_dictionary(data):
     return list(indexes), np.array(values)
 
 
-def _datetime_from_database(value):
+def _datetime_from_database(value: str) -> DateTime:
     """Converts a datetime database value into a DateTime object."""
     try:
         stamp = datetime.fromisoformat(value)
@@ -405,7 +412,7 @@ def _datetime_from_database(value):
     return DateTime(stamp)
 
 
-def _duration_from_database(value):
+def _duration_from_database(value: Union[int, str]) -> Union[Array, Duration]:
     """
     Converts a duration database value into a Duration object.
 
@@ -425,14 +432,14 @@ def _duration_from_database(value):
     return Duration(value)
 
 
-def _time_series_from_database(value_dict):
+def _time_series_from_database(value_dict: dict) -> TimeSeries:
     """Converts a time series database value into a time series object.
 
     Args:
-        value_dict (dict): time series dictionary
+        value_dict: time series dictionary
 
     Returns:
-        TimeSeries: restored time series
+        restored time series
     """
     data = value_dict["data"]
     if isinstance(data, dict):
@@ -444,7 +451,7 @@ def _time_series_from_database(value_dict):
     raise ParameterValueFormatError("Unrecognized time series format")
 
 
-def _variable_resolution_time_series_info_from_index(value):
+def _variable_resolution_time_series_info_from_index(value: dict) -> tuple[bool, bool]:
     """Returns ignore_year and repeat from index if present or their default values."""
     if "index" in value:
         data_index = value["index"]
@@ -464,14 +471,14 @@ def _variable_resolution_time_series_info_from_index(value):
     return ignore_year, repeat
 
 
-def _time_series_from_dictionary(value_dict):
+def _time_series_from_dictionary(value_dict: dict) -> TimeSeriesVariableResolution:
     """Converts a dictionary style time series into a TimeSeriesVariableResolution object.
 
     Args:
-        value_dict (dict): time series dictionary
+        value_dict: time series dictionary
 
     Returns:
-        TimeSeriesVariableResolution: restored time series
+        restored time series
     """
     data = value_dict["data"]
     stamps = []
@@ -488,14 +495,14 @@ def _time_series_from_dictionary(value_dict):
     return TimeSeriesVariableResolution(stamps, values, ignore_year, repeat, value_dict.get("index_name", ""))
 
 
-def _time_series_from_single_column(value_dict):
+def _time_series_from_single_column(value_dict: dict) -> TimeSeriesFixedResolution:
     """Converts a time series dictionary into a TimeSeriesFixedResolution object.
 
     Args:
-        value_dict (dict): time series dictionary
+        value_dict: time series dictionary
 
     Returns:
-        TimeSeriesFixedResolution: restored time series
+        restored time series
     """
     if "index" in value_dict:
         value_index = value_dict["index"]
@@ -545,14 +552,14 @@ def _time_series_from_single_column(value_dict):
     )
 
 
-def _time_series_from_two_columns(value_dict):
+def _time_series_from_two_columns(value_dict: dict) -> TimeSeriesVariableResolution:
     """Converts a two column style time series into a TimeSeriesVariableResolution object.
 
     Args:
-        value_dict (dict): time series dictionary
+        value_dict: time series dictionary
 
     Returns:
-        TimeSeriesVariableResolution: restored time series
+        restored time series
     """
     data = value_dict["data"]
     stamps = []
@@ -571,27 +578,27 @@ def _time_series_from_two_columns(value_dict):
     return TimeSeriesVariableResolution(stamps, values, ignore_year, repeat, value_dict.get("index_name", ""))
 
 
-def _time_pattern_from_database(value_dict):
+def _time_pattern_from_database(value_dict: dict) -> TimePattern:
     """Converts a time pattern database value into a TimePattern object.
 
     Args:
-        value_dict (dict): time pattern dictionary
+        value_dict: time pattern dictionary
 
     Returns:
-        TimePattern: restored time pattern
+        restored time pattern
     """
     patterns, values = _break_dictionary(value_dict["data"])
     return TimePattern(patterns, values, value_dict.get("index_name", TimePattern.DEFAULT_INDEX_NAME))
 
 
-def _map_from_database(value_dict):
+def _map_from_database(value_dict: dict) -> Map:
     """Converts a map from its database representation to a Map object.
 
     Args:
-        value_dict (dict): Map dictionary
+        value_dict: Map dictionary
 
     Returns:
-        Map: restored Map
+        restored Map
     """
     index_type = _map_index_type_from_database(value_dict["index_type"])
     index_name = value_dict.get("index_name", Map.DEFAULT_INDEX_NAME)
@@ -618,33 +625,28 @@ def _map_from_database(value_dict):
     return Map(indexes, values, index_type, index_name)
 
 
-def _map_index_type_from_database(index_type_in_db):
+def _map_index_type_from_database(index_type_in_db: str) -> MapIndexType:
     """Returns the type corresponding to index_type string."""
-    index_type = {
-        STRING_VALUE_TYPE: str,
-        DateTime.type_(): DateTime,
-        Duration.type_(): Duration,
-        FLOAT_VALUE_TYPE: float,
-    }.get(index_type_in_db, None)
-    if index_type is None:
+    try:
+        return _MAP_INDEX_TYPES[index_type_in_db]
+    except KeyError:
         raise ParameterValueFormatError(f'Unknown index_type "{index_type_in_db}".')
-    return index_type
 
 
-def _map_index_type_to_database(index_type):
+def _map_index_type_to_database(index_type: MapIndexType) -> str:
     """Returns the string corresponding to given index type."""
     if issubclass(index_type, str):
         return STRING_VALUE_TYPE
     if issubclass(index_type, float):
         return FLOAT_VALUE_TYPE
     if index_type == DateTime:
-        return DateTime.type_()
+        return DateTime.TYPE
     if index_type == Duration:
-        return Duration.type_()
+        return Duration.TYPE
     raise ParameterValueFormatError(f'Unknown index type "{index_type.__name__}".')
 
 
-def _map_indexes_from_database(indexes_in_db, index_type):
+def _map_indexes_from_database(indexes_in_db: Iterable[Union[float, str]], index_type: MapIndexType) -> list[MapIndex]:
     """Converts map's indexes from their database format."""
     try:
         indexes = [index_type(index) for index in indexes_in_db]
@@ -655,29 +657,29 @@ def _map_indexes_from_database(indexes_in_db, index_type):
     return indexes
 
 
-def _map_index_to_database(index):
+def _map_index_to_database(index: MapIndex) -> Union[float, str]:
     """Converts a single map index to database format."""
     if hasattr(index, "value_to_database_data"):
         return index.value_to_database_data()
     return index
 
 
-def _map_value_to_database(value):
+def _map_value_to_database(value: Value) -> tuple[Optional[Union[bool, float, str, dict]], int]:
     """Converts a single map value to database format."""
     if hasattr(value, "to_dict"):
-        value_type = value.type_()
+        value_type = value.TYPE
         value_dict = value.to_dict()
         if value_type == "map":
             rank = value_dict["rank"]
-        elif value_type in (TimeSeries.type_(), Array.type_(), TimePattern.type_()):
+        elif value_type in RANK_1_TYPES:
             rank = 1
         else:
             rank = 0
-        return {"type": value.type_(), **value.to_dict()}, rank
+        return {"type": value.TYPE, **value.to_dict()}, rank
     return value, 0
 
 
-def _map_values_from_database(values_in_db):
+def _map_values_from_database(values_in_db: Iterable[Optional[Union[bool, float, str, dict]]]) -> list[Value]:
     """Converts map's values from their database format."""
     if not values_in_db:
         return []
@@ -692,23 +694,24 @@ def _map_values_from_database(values_in_db):
     return values
 
 
-def _array_from_database(value_dict):
+def _array_from_database(value_dict: dict) -> Array:
     """Converts a value dictionary to Array.
 
     Args:
-          value_dict (dict): array dictionary
+          value_dict: array dictionary
 
     Returns:
-          Array: Array value
+          Array value
     """
     value_type_id = value_dict.get("value_type", FLOAT_VALUE_TYPE)
-    value_type = {
-        FLOAT_VALUE_TYPE: float,
-        STRING_VALUE_TYPE: str,
-        DateTime.type_(): DateTime,
-        Duration.type_(): Duration,
-    }.get(value_type_id, None)
-    if value_type is None:
+    try:
+        value_type = {
+            FLOAT_VALUE_TYPE: float,
+            STRING_VALUE_TYPE: str,
+            DateTime.TYPE: DateTime,
+            Duration.TYPE: Duration,
+        }[value_type_id]
+    except KeyError:
         raise ParameterValueFormatError(f'Unsupported value type for Array: "{value_type_id}".')
     try:
         data = [value_type(x) for x in value_dict["data"]]
@@ -721,57 +724,46 @@ def _array_from_database(value_dict):
 class ParameterValue:
     """Base for all classes representing parameter values."""
 
-    VALUE_TYPE = NotImplemented
+    VALUE_TYPE: str = NotImplemented
+    TYPE: str = NotImplemented
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """Returns a dictionary representation of this parameter value.
 
         :meta private:
 
         Returns:
-            dict: a dictionary including the "type" key.
+            A dictionary including the "type" key.
         """
         raise NotImplementedError()
 
-    @staticmethod
-    def type_():
-        """Returns the type of the parameter value represented by this object.
+    @classmethod
+    def type_(cls) -> str:
+        """Returns the type of the parameter value represented by this object."""
+        return cls.TYPE
 
-        Returns:
-            str
-        """
-        raise NotImplementedError()
-
-    def to_database(self):
+    def to_database(self) -> tuple[bytes, str]:
         """Returns the DB representation of this object. Equivalent to calling :func:`to_database` with it.
 
         Returns:
-            tuple(bytes,str): the `value` and `type` fields that would go in the ``parameter_value`` table.
+            The `value` and `type` fields that would go in the ``parameter_value`` table.
         """
-        return json.dumps(self.to_dict()).encode("UTF8"), self.type_()
+        return json.dumps(self.to_dict()).encode("UTF8"), self.TYPE
 
 
-class ListValueRef:
-    def __init__(self, list_value_id):
-        self._list_value_id = list_value_id
-
-    @staticmethod
-    def type_():
-        return "list_value_ref"
-
-    def to_database(self):
-        return json.dumps(self._list_value_id).encode("UTF8"), self.type_()
+Value = Union[bool, float, str, ParameterValue]
 
 
 class DateTime(ParameterValue):
     """A parameter value of type 'date_time'. A point in time."""
 
     VALUE_TYPE = "single value"
+    TYPE = "date_time"
 
-    def __init__(self, value=None):
+    def __init__(self, value: Optional[Union[str, DateTime, datetime]] = None):
         """
         Args:
-            value (:class:`DateTime` or str or :class:`~datetime.datetime`): the `date_time` value.
+            The `date_time` value.
         """
         if value is None:
             value = datetime(year=2000, month=1, day=1)
@@ -805,31 +797,18 @@ class DateTime(ParameterValue):
     def __str__(self):
         return self._value.isoformat()
 
-    def value_to_database_data(self):
+    def value_to_database_data(self) -> str:
         """Returns the database representation of the datetime.
 
         :meta private:
         """
         return self._value.isoformat()
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {"data": self.value_to_database_data()}
 
-    @staticmethod
-    def type_():
-        """See base class
-
-        :meta private:
-        """
-        return "date_time"
-
     @property
-    def value(self):
-        """The value.
-
-        Returns:
-            :class:`~datetime.datetime`
-        """
+    def value(self) -> datetime:
         return self._value
 
 
@@ -839,11 +818,12 @@ class Duration(ParameterValue):
     """
 
     VALUE_TYPE = "single value"
+    TYPE = "duration"
 
-    def __init__(self, value=None):
+    def __init__(self, value: Optional[Union[str, relativedelta, Duration]] = None):
         """
         Args:
-            value (str or :class:`Duration` or :class:`~dateutil.dateutil.relativedelta`): the `duration` value.
+            value: the `duration` value.
         """
         if value is None:
             value = relativedelta(hours=1)
@@ -868,31 +848,18 @@ class Duration(ParameterValue):
     def __str__(self):
         return str(relativedelta_to_duration(self._value))
 
-    def value_to_database_data(self):
+    def value_to_database_data(self) -> str:
         """Returns the 'data' property of this object's database representation.
 
         :meta private:
         """
         return relativedelta_to_duration(self._value)
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {"data": self.value_to_database_data()}
 
-    @staticmethod
-    def type_():
-        """See base class
-
-        :meta private:
-        """
-        return "duration"
-
     @property
-    def value(self):
-        """The value.
-
-        Returns
-            :class:`~dateutil.dateutil.relativedelta`
-        """
+    def value(self) -> relativedelta:
         return self._value
 
 
@@ -936,16 +903,18 @@ class IndexedValue(ParameterValue):
 
     DEFAULT_INDEX_NAME = NotImplemented
 
-    def __init__(self, values, value_type=None, index_name=""):
+    def __init__(self, values: Sequence[Any], value_type: str = None, index_name: str = ""):
         """
         :meta private:
 
         Args:
-            index_name (str): a label for the index.
+            values: values
+            value_type: type of values
+            index_name: a label for the index.
         """
         self._value_type = value_type
-        self._indexes = None
-        self._values = None
+        self._indexes: Optional[_Indexes] = None
+        self._values: Optional[Sequence[Any]] = None
         self.values = values
         self.index_name = index_name if index_name else self.DEFAULT_INDEX_NAME
 
@@ -956,43 +925,23 @@ class IndexedValue(ParameterValue):
     def __len__(self):
         return len(self.indexes)
 
-    @staticmethod
-    def type_():
-        """See base class
-
-        :meta private:
-        """
-        raise NotImplementedError()
-
     @property
-    def indexes(self):
-        """The indexes.
-
-        Returns:
-            :class:`~numpy.ndarray`
-        """
+    def indexes(self) -> np.ndarray:
+        """The indexes."""
         return self._indexes
 
     @indexes.setter
-    def indexes(self, indexes):
-        """Sets the indexes.
-
-        Args:
-            indexes (:class:`~numpy.ndarray`)
-        """
+    def indexes(self, indexes: np.ndarray) -> None:
+        """Sets the indexes."""
         self._indexes = _Indexes(indexes)
 
     @property
-    def values(self):
-        """The values.
-
-        Returns:
-            :class:`~numpy.ndarray`
-        """
+    def values(self) -> Sequence[Any]:
+        """The values."""
         return self._values
 
     @values.setter
-    def values(self, values):
+    def values(self, values: Sequence[Any]) -> None:
         """Sets the values.
 
         Args:
@@ -1005,39 +954,35 @@ class IndexedValue(ParameterValue):
         self._values = values
 
     @property
-    def value_type(self):
-        """The type of the values.
-
-        Returns:
-            type:
-        """
+    def value_type(self) -> str:
+        """The type of the values."""
         return self._value_type
 
-    def get_nearest(self, index):
+    def get_nearest(self, index: Any) -> Any:
         """Returns the value at the nearest index to the given one.
 
         Args:
-            index (any): The index.
+            index: The index.
 
         Returns:
-            any: The value.
+            The value.
         """
         pos = np.searchsorted(self.indexes, index)
-        return self.values[pos]
+        return self._values[pos]
 
-    def get_value(self, index):
+    def get_value(self, index: Any) -> Any:
         """Returns the value at the given index.
 
         Args:
-            index (any): The index.
+            index: The index.
 
         Returns:
-            any: The value.
+            The value.
         """
-        pos = self.indexes.position_lookup.get(index)
+        pos = self._indexes.position_lookup.get(index)
         if pos is None:
             return None
-        return self.values[pos]
+        return self._values[pos]
 
     def set_value(self, index, value):
         """Sets the value at the given index.
@@ -1046,9 +991,9 @@ class IndexedValue(ParameterValue):
             index (any): The index.
             value (any): The value.
         """
-        pos = self.indexes.position_lookup.get(index)
+        pos = self._indexes.position_lookup.get(index)
         if pos is not None:
-            self.values[pos] = value
+            self._values[pos] = value
 
     def to_dict(self):
         raise NotImplementedError()
@@ -1077,6 +1022,7 @@ class Array(IndexedValue):
     """A parameter value of type 'array'. A one dimensional array with zero based indexing."""
 
     VALUE_TYPE = "array"
+    TYPE = "array"
     DEFAULT_INDEX_NAME = "i"
 
     def __init__(self, values, value_type=None, index_name=""):
@@ -1111,18 +1057,15 @@ class Array(IndexedValue):
         except TypeError:
             return np.array_equal(self._values, other._values) and self.index_name == other.index_name
 
-    @staticmethod
-    def type_():
-        return "array"
-
     def to_dict(self):
-        value_type_id = {
-            float: FLOAT_VALUE_TYPE,
-            str: STRING_VALUE_TYPE,  # String could also mean time_period but we don't have any way to distinguish that, yet.
-            DateTime: DateTime.type_(),
-            Duration: Duration.type_(),
-        }.get(self._value_type)
-        if value_type_id is None:
+        try:
+            value_type_id = {
+                float: FLOAT_VALUE_TYPE,
+                str: STRING_VALUE_TYPE,  # String could also mean time_period but we don't have any way to distinguish that, yet.
+                DateTime: DateTime.TYPE,
+                Duration: Duration.TYPE,
+            }[self._value_type]
+        except KeyError:
             raise ParameterValueFormatError(f"Cannot write unsupported array value type: {self._value_type.__name__}")
         if value_type_id in (FLOAT_VALUE_TYPE, STRING_VALUE_TYPE):
             data = self._values
@@ -1203,6 +1146,7 @@ class TimePattern(IndexedValue):
     """
 
     VALUE_TYPE = "time pattern"
+    TYPE = "time_pattern"
     DEFAULT_INDEX_NAME = "p"
 
     def __init__(self, indexes, values, index_name=""):
@@ -1232,10 +1176,6 @@ class TimePattern(IndexedValue):
     def indexes(self, indexes):
         self._indexes = _TimePatternIndexes(indexes, dtype=np.object_)
 
-    @staticmethod
-    def type_():
-        return "time_pattern"
-
     def to_dict(self):
         value_dict = {"data": dict(zip(self._indexes, self._values))}
         if self.index_name != self.DEFAULT_INDEX_NAME:
@@ -1247,6 +1187,7 @@ class TimeSeries(IndexedValue):
     """Base for all classes representing 'time_series' parameter values."""
 
     VALUE_TYPE = "time series"
+    TYPE = "time_series"
     DEFAULT_INDEX_NAME = "t"
 
     def __init__(self, values, ignore_year, repeat, index_name=""):
@@ -1303,10 +1244,6 @@ class TimeSeries(IndexedValue):
             bool: new value.
         """
         self._repeat = bool(repeat)
-
-    @staticmethod
-    def type_():
-        return "time_series"
 
     def to_dict(self):
         raise NotImplementedError()
@@ -1518,6 +1455,7 @@ class Map(IndexedValue):
     """
 
     VALUE_TYPE = "map"
+    TYPE = "map"
     DEFAULT_INDEX_NAME = "x"
 
     def __init__(self, indexes, values, index_type=None, index_name=""):
@@ -1567,10 +1505,6 @@ class Map(IndexedValue):
             data.append([index_in_db, value_in_db])
         return data, max(nested_ranks)
 
-    @staticmethod
-    def type_():
-        return "map"
-
     def to_dict(self):
         data, nested_rank = self.value_to_database_data()
         value_dict = {
@@ -1581,6 +1515,16 @@ class Map(IndexedValue):
         if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
         return value_dict
+
+
+MapIndex = Union[float, str, DateTime, Duration]
+MapIndexType = Union[Type[float], Type[str], Type[DateTime], Type[Duration]]
+_MAP_INDEX_TYPES = {
+    STRING_VALUE_TYPE: str,
+    DateTime.TYPE: DateTime,
+    Duration.TYPE: Duration,
+    FLOAT_VALUE_TYPE: float,
+}
 
 
 def map_dimensions(map_):
@@ -1754,26 +1698,27 @@ VALUE_TYPES = {
     FLOAT_VALUE_TYPE,
     BOOLEAN_VALUE_TYPE,
     STRING_VALUE_TYPE,
-    Duration.type_(),
-    DateTime.type_(),
-    Array.type_(),
-    TimePattern.type_(),
-    TimeSeries.type_(),
-    Map.type_(),
+    Duration.TYPE,
+    DateTime.TYPE,
+    Array.TYPE,
+    TimePattern.TYPE,
+    TimeSeries.TYPE,
+    Map.TYPE,
 }
 
-RANK_1_TYPES = {Array.type_(), TimePattern.type_(), TimeSeries.type_()}
+RANK_1_TYPES = {Array.TYPE, TimePattern.TYPE, TimeSeries.TYPE}
+NON_ZERO_RANK_TYPES = RANK_1_TYPES | {Map.TYPE}
 
 
 def type_and_rank_to_fancy_type(value_type, rank):
-    if value_type == Map.type_():
+    if value_type == Map.TYPE:
         return f"{rank}d_{value_type}"
     return value_type
 
 
 def fancy_type_to_type_and_rank(fancy_type):
-    if fancy_type.endswith(f"d_{Map.type_()}"):
-        return Map.type_(), int("".join(takewhile(lambda x: x.isdigit(), fancy_type)))
+    if fancy_type.endswith(f"d_{Map.TYPE}"):
+        return Map.TYPE, int("".join(takewhile(lambda x: x.isdigit(), fancy_type)))
     if fancy_type in RANK_1_TYPES:
         return fancy_type, 1
     return fancy_type, 0
@@ -1880,22 +1825,22 @@ def type_for_value(value):
         tuple: type and rank
     """
     if isinstance(value, Map):
-        return Map.type_(), map_dimensions(value)
+        return Map.TYPE, map_dimensions(value)
     if isinstance(value, ParameterValue):
-        if value.type_() in RANK_1_TYPES:
-            return value.type_(), 1
-        return value.type_(), 0
+        if value.TYPE in RANK_1_TYPES:
+            return value.TYPE, 1
+        return value.TYPE, 0
     return type_for_scalar(value), 0
 
 
-def type_for_scalar(parsed_value):
+def type_for_scalar(parsed_value: JSONValue) -> Optional[str]:
     """Declares scalar value's database type.
 
     Args:
-        parsed_value (float or string or bool or dict): parsed scalar
+        parsed_value : parsed scalar
 
     Returns:
-        str: value's type
+        value's type
     """
     if parsed_value is None:
         return None
