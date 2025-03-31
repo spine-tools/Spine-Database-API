@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased]
+
+### Added
+
+### Changed
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## [0.34.1]
 
 ### Fixed
@@ -44,8 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `export_functions` now correctly exports `entity_byname` for compound classes.
   It used to export `element_name_list` which is incompatible with `import_functions`.
-
-### Security
 
 ## [0.33.0]
 
