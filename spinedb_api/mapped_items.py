@@ -189,6 +189,8 @@ class EntityItem(MappedItemBase):
         kwargs["element_id_list"] = tuple(element_id_list)
         self._location_id = _unfetched
         self._init_location = self._pop_location_data(kwargs)
+        if not self._init_location and "commit_id" in kwargs:
+            self._init_location = None
         super().__init__(*args, **kwargs)
 
     @classmethod

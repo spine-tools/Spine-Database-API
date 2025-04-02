@@ -2842,6 +2842,36 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertEqual(value_item["parsed_value"], 2.3)
 
+    def test_existing_entity_items_location_data_in_asdict(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object")
+                db_map.add_entity(entity_class_name="Object", name="nothing")
+                db_map.add_entity(
+                    entity_class_name="Object",
+                    name="anything",
+                    lat=2.3,
+                    lon=3.2,
+                    alt=55.0,
+                    shape_name="blob",
+                    shape_blob="{}",
+                )
+                db_map.commit_session("Add test data")
+            with DatabaseMapping(url) as db_map:
+                entity_dict = db_map.entity(entity_class_name="Object", name="nothing")._asdict()
+                self.assertIsNone(entity_dict["lat"])
+                self.assertIsNone(entity_dict["lon"])
+                self.assertIsNone(entity_dict["alt"])
+                self.assertIsNone(entity_dict["shape_name"])
+                self.assertIsNone(entity_dict["shape_blob"])
+                entity_dict = db_map.entity(entity_class_name="Object", name="anything")._asdict()
+                self.assertEqual(entity_dict["lat"], 2.3)
+                self.assertEqual(entity_dict["lon"], 3.2)
+                self.assertEqual(entity_dict["alt"], 55.0)
+                self.assertEqual(entity_dict["shape_name"], "blob")
+                self.assertEqual(entity_dict["shape_blob"], "{}")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
@@ -5472,6 +5502,11 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         "class_id": 1,
                         "element_name_list": None,
                         "element_id_list": (),
+                        "lat": None,
+                        "lon": None,
+                        "alt": None,
+                        "shape_name": None,
+                        "shape_blob": None,
                         "commit_id": 2,
                     },
                 )
