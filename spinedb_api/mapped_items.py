@@ -17,7 +17,7 @@ from operator import itemgetter
 import re
 from typing import ClassVar, Optional, Union
 from . import arrow_value
-from .db_mapping_base import MappedItemBase, MappedTable
+from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable
 from .exception import SpineDBAPIError
 from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
 from .parameter_value import (
@@ -117,7 +117,8 @@ class EntityClassItem(MappedItemBase):
     def __getitem__(self, key):
         if key == "superclass_id" or key == "superclass_name":
             mapped_table = self.db_map.mapped_table("superclass_subclass")
-            return mapped_table.find_item({"subclass_id": self["id"]}, fetch=True).get(key)
+            superclass_subclass = mapped_table.find_item({"subclass_id": self["id"]}, fetch=True)
+            return superclass_subclass[key] if superclass_subclass is not None else None
         if key == "entity_class_byname":
             entity_class_table = self.db_map.mapped_table("entity_class")
             return tuple(_byname_iter(self, "dimension_id_list", entity_class_table))
@@ -187,7 +188,7 @@ class EntityItem(MappedItemBase):
         elif isinstance(element_id_list, str):
             element_id_list = (int(id_) for id_ in element_id_list.split(","))
         kwargs["element_id_list"] = tuple(element_id_list)
-        self._location_id = _unfetched
+        self._location_id: Optional[Union[TempId, object]] = _unfetched
         self._init_location = self._pop_location_data(kwargs)
         if not self._init_location and "commit_id" in kwargs:
             self._init_location = None
@@ -301,7 +302,7 @@ class EntityItem(MappedItemBase):
         if location_update["shape_blob"] is _unset:
             location_update["shape_blob"] = location_item["shape_blob"]
 
-    def resolve_internal_fields(self, skip_keys=()):
+    def resolve_internal_fields(self, skip_keys: tuple[str, ...] = ()) -> None:
         """Overridden to translate byname into element name list."""
         super().resolve_internal_fields(skip_keys=skip_keys)
         try:
@@ -318,7 +319,7 @@ class EntityItem(MappedItemBase):
         self["element_name_list"] = element_name_list
         self._do_resolve_internal_field("element_id_list")
 
-    def _element_name_list_recursive(self, class_name, entity_byname):
+    def _element_name_list_recursive(self, class_name: str, entity_byname: list[str]) -> tuple[tuple[str, ...], str]:
         """Returns the element name list corresponding to given class and byname.
         If the class is multi-dimensional then recurses for each dimension.
         If the class is a superclass then it tries for each subclass until finding something useful.
@@ -337,19 +338,15 @@ class EntityItem(MappedItemBase):
             if len(entity_byname) < len(dimension_name_list):
                 raise SpineDBAPIError(f"too few elements given for entity ({entity_byname}) in class {class_name}")
             byname_backup = list(entity_byname)
-            element_name_list = tuple(
-                entity_table.find_item_by_unique_key(
-                    dict(
-                        zip(
-                            ("entity_byname", "entity_class_name"),
-                            self._element_name_list_recursive(dim_name, entity_byname),
-                        )
-                    ),
-                ).get("name")
-                for dim_name in dimension_name_list
-            )
+            element_name_list = []
+            for dimension in dimension_name_list:
+                element_name, element_class_name = self._element_name_list_recursive(dimension, entity_byname)
+                entity = entity_table.find_item_by_unique_key(
+                    {"entity_byname": element_name, "entity_class_name": element_class_name}
+                )
+                element_name_list.append(entity["name"] if entity is not None else None)
             if None not in element_name_list:
-                return element_name_list, class_name_
+                return tuple(element_name_list), class_name_
             if class_name_ == class_names[-1]:
                 list_containing_missing_element = (
                     byname_backup if not entity_byname else byname_backup[: -len(entity_byname)]
@@ -809,9 +806,10 @@ class ParameterDefinitionItem(ParameterItemBase):
         if key == "parameter_value_list_id":
             return dict.get(self, key)
         if key == "parameter_value_list_name":
-            return self._get_full_ref("parameter_value_list_id", "parameter_value_list").get("name")
+            value_list = self._get_full_ref("parameter_value_list_id", "parameter_value_list")
+            return value_list["name"] if value_list is not None else None
         if key in ("default_value", "default_type"):
-            list_value_id = self["list_value_id"]
+            list_value_id: TempId = self["list_value_id"]
             if list_value_id is not None:
                 list_value_key = {"default_value": "value", "default_type": "type"}[key]
                 mapped_table = self.db_map.mapped_table("list_value")
@@ -1055,7 +1053,7 @@ class ParameterValueItem(ParameterItemBase):
         if key == "parameter_name":
             return super().__getitem__("parameter_definition_name")
         if key in ("value", "type"):
-            list_value_id = self["list_value_id"]
+            list_value_id: TempId = self["list_value_id"]
             if list_value_id:
                 mapped_table = self.db_map.mapped_table("list_value")
                 return mapped_table.find_item_by_id(list_value_id).get(key)
@@ -1173,7 +1171,8 @@ class ScenarioAlternativeItem(MappedItemBase):
         # Note that alternatives with higher ranks overwrite the values of those with lower ranks.
         if key == "before_alternative_name":
             mapped_table = self.db_map.mapped_table("alternative")
-            return mapped_table.find_item_by_id(self["before_alternative_id"]).get("name")
+            before_alternative = mapped_table.find_item_by_id(self["before_alternative_id"])
+            return before_alternative["name"] if before_alternative is not None else None
         if key == "before_alternative_id":
             mapped_table = self.db_map.mapped_table("scenario")
             scenario = mapped_table.find_item_by_id(self["scenario_id"])
@@ -1353,7 +1352,7 @@ class SuperclassSubclassItem(MappedItemBase):
 
 
 def _is_superclass_recursive(
-    entity_class: EntityClassItem, entity_class_table: MappedTable, db_map: "DatabaseMapping"
+    entity_class: EntityClassItem, entity_class_table: MappedTable, db_map: DatabaseMappingBase
 ) -> bool:
     if db_map.find_superclass_subclasses(superclass_id=entity_class["id"]):
         return True
@@ -1430,4 +1429,6 @@ def _byname_iter(item: Union[EntityClassItem, EntityItem], id_list_name: str, ta
         find_by_id = table.find_item_by_id
         for id_ in id_list:
             element = find_by_id(id_)
+            if element is None:
+                raise KeyError(id_)
             yield from _byname_iter(element, id_list_name, table)
