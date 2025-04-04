@@ -19,6 +19,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from contextlib import suppress
 from typing import Any
+from . import SpineDBAPIError
 from .helpers import _parse_metadata
 from .parameter_value import fancy_type_to_type_and_rank, get_conflict_fixer, to_database
 
@@ -620,6 +621,7 @@ def _get_parameter_definitions_for_import(data, unparse_value):
 def _get_parameter_values_for_import(db_map, data, all_errors, unparse_value, fix_conflict):
     seen = set()
     key = ("entity_class_name", "entity_byname", "parameter_definition_name", "alternative_name", "value", "type")
+    parameter_value_table = db_map.mapped_table("parameter_value")
     for class_name, entity_byname, parameter_name, value, *optionals in data:
         if isinstance(entity_byname, str):
             entity_byname = (entity_byname,)
@@ -636,8 +638,11 @@ def _get_parameter_values_for_import(db_map, data, all_errors, unparse_value, fi
         seen.add(unique_values)
         value, type_ = unparse_value(value)
         item = dict(zip(key, unique_values + (None, None)))
-        pv = db_map.mapped_table("parameter_value").find_item(item)
-        if pv:
+        try:
+            pv = parameter_value_table.find_item(item)
+        except SpineDBAPIError:
+            pass
+        else:
             value, type_ = fix_conflict((value, type_), (pv["value"], pv["type"]))
         item.update({"value": value, "type": type_})
         yield item
@@ -660,9 +665,15 @@ def _get_scenario_alternatives_for_import(db_map, data, all_errors):
     for scen_name, predecessor, *optionals in data:
         successor = optionals[0] if optionals else None
         succ_by_pred_by_scen_name[scen_name][predecessor] = successor
+    scenario_table = db_map.mapped_table("scenario")
     for scen_name, succ_by_pred in succ_by_pred_by_scen_name.items():
-        scen = db_map.mapped_table("scenario").find_item({"name": scen_name})
-        alternative_name_list = alt_name_list_by_scen_name[scen_name] = scen.get("alternative_name_list", [])
+        try:
+            scen = scenario_table.find_item({"name": scen_name})
+        except SpineDBAPIError:
+            alternative_name_list = []
+        else:
+            alternative_name_list = scen.get("alternative_name_list", [])
+        alt_name_list_by_scen_name[scen_name] = alternative_name_list
         alternative_name_list.append(None)  # So alternatives where successor is None find their place at the tail
         while succ_by_pred:
             some_added = False
@@ -693,11 +704,12 @@ def _get_parameter_value_lists_for_import(data):
 
 def _get_list_values_for_import(db_map, data, unparse_value):
     index_by_list_name = {}
+    value_list_table = db_map.mapped_table("parameter_value_list")
     for list_name, value in data:
         value, type_ = unparse_value(value)
         index = index_by_list_name.get(list_name)
         if index is None:
-            current_list = db_map.mapped_table("parameter_value_list").find_item({"name": list_name})
+            current_list = value_list_table.find_item({"name": list_name})
             list_value_idx_by_val_typ = {
                 (x["value"], x["type"]): x["index"]
                 for x in db_map.mapped_table("list_value").valid_values()

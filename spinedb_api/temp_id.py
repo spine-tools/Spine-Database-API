@@ -8,35 +8,37 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
+from __future__ import annotations
+from typing import Any, Optional
 
 
 class TempId:
     _next_id = {}
 
-    def __init__(self, id_, item_type, temp_id_lookup=None):
+    def __init__(self, id_: int, item_type: str, temp_id_lookup: Optional[dict[int, TempId]] = None):
         super().__init__()
         self._id = id_
         self._item_type = item_type
         self._temp_id_lookup = temp_id_lookup if temp_id_lookup is not None else {}
-        self._db_id = None
+        self._db_id: Optional[int] = None
         self._temp_id_lookup[self._id] = self
 
     @staticmethod
-    def new_unique(item_type, temp_id_lookup):
+    def new_unique(item_type: str, temp_id_lookup: dict[int, TempId]) -> TempId:
         id_ = TempId._next_id.get(item_type, -1)
         TempId._next_id[item_type] = id_ - 1
         return TempId(id_, item_type, temp_id_lookup)
 
     @property
-    def item_type(self):
+    def item_type(self) -> str:
         return self._item_type
 
     @property
-    def private_id(self):
+    def private_id(self) -> int:
         return self._id
 
     @property
-    def db_id(self):
+    def db_id(self) -> int:
         return self._db_id
 
     def __repr__(self):
@@ -55,12 +57,12 @@ class TempId:
     def __hash__(self):
         return hash((self._item_type, self._id))
 
-    def resolve(self, db_id):
+    def resolve(self, db_id: int) -> None:
         self.unresolve()
         self._db_id = db_id
         self._temp_id_lookup[db_id] = self
 
-    def unresolve(self):
+    def unresolve(self) -> None:
         if self._db_id is None:
             return
         if self._temp_id_lookup[self._db_id] is self:
@@ -68,7 +70,7 @@ class TempId:
         self._db_id = None
 
 
-def resolve(value):
+def resolve(value: Any) -> Any:
     if isinstance(value, tuple):
         return tuple(resolve(v) for v in value)
     if isinstance(value, dict):

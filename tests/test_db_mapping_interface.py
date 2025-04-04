@@ -22,7 +22,7 @@ class TestItem(unittest.TestCase):
 
     def test_raises_when_find_args_are_wrong(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            with self.assertRaisesRegex(SpineDBAPIError, "no such item"):
+            with self.assertRaisesRegex(SpineDBAPIError, "no alternative matching {'name': 'non-existent'}"):
                 mapped_table = db_map.mapped_table("alternative")
                 db_map.item(mapped_table, name="non-existent")
 
@@ -30,7 +30,7 @@ class TestItem(unittest.TestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             mapped_table = db_map.mapped_table("alternative")
             db_map.item(mapped_table, name="Base").remove()
-            with self.assertRaisesRegex(SpineDBAPIError, "no such item"):
+            with self.assertRaisesRegex(SpineDBAPIError, "no alternative matching {'name': 'Base'}"):
                 db_map.item(mapped_table, name="Base")
 
 
@@ -200,7 +200,7 @@ class TestRemove(unittest.TestCase):
     def test_raises_when_items_doesnt_exist(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             mapped_table = db_map.mapped_table("alternative")
-            with self.assertRaisesRegex(SpineDBAPIError, "no such item"):
+            with self.assertRaisesRegex(SpineDBAPIError, "no alternative matching {'name': 'non-existent'}"):
                 db_map.remove(mapped_table, name="non-existent")
 
 
@@ -238,7 +238,7 @@ class TestRestore(unittest.TestCase):
             item.remove()
             self.assertFalse(item.is_valid())
             mapped_table = db_map.mapped_table("scenario")
-            with self.assertRaisesRegex(SpineDBAPIError, "no such item"):
+            with self.assertRaisesRegex(SpineDBAPIError, "no scenario matching {'name': 'non-existent'}"):
                 db_map.restore(mapped_table, name="non-existent")
 
 

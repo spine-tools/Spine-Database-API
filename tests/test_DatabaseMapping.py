@@ -1415,9 +1415,9 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             )
             self.assertEqual(definition["parameter_type_list"], ("array", "3d_map", "str"))
             parameter_table = db_map.mapped_table("parameter_definition")
-            parameter_table.update_item(
-                {"id": definition["id"], "parameter_type_list": ("time_series", "23d_map", "str")}
-            )
+            target_item = parameter_table.find_item_by_id(definition["id"])
+            merged_item, updated_fields = target_item.merge({"parameter_type_list": ("time_series", "23d_map", "str")})
+            parameter_table.update_item(merged_item, target_item, updated_fields)
             self.assertEqual(definition["parameter_type_list"], ("23d_map", "str", "time_series"))
             types = db_map.get_parameter_type_items()
             self.assertEqual(len(types), 3)
@@ -1894,21 +1894,21 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             item, error = db_map.add_entity_item(
                 entity_byname=("a", "b", "b", "a"), entity_class_name=abba_class["name"]
             )
-            self.assertEqual(error, "non-existent elements in byname ['a', 'b'] for class A__B")
+            self.assertEqual(error, "non-existent elements in byname ('a', 'b') for class A__B")
             self.assertIsNone(item)
             item, error = db_map.add_entity_item(entity_byname=("a", "b"), entity_class_name=a_b_class["name"])
-            self.assertEqual(error, "non-existent elements in byname ['a', 'b'] for class A__B")
+            self.assertEqual(error, "non-existent elements in byname ('a', 'b') for class A__B")
             self.assertIsNone(item)
             self._assert_success(db_map.add_entity_item(name="a", entity_class_name="A"))
             item, error = db_map.add_entity_item(entity_byname=("a", "b"), entity_class_name=a_b_class["name"])
-            self.assertEqual(error, "non-existent elements in byname ['a', 'b'] for class A__B")
+            self.assertEqual(error, "non-existent elements in byname ('a', 'b') for class A__B")
             self.assertIsNone(item)
             self._assert_success(db_map.add_entity_item(name="b", entity_class_name="B"))
             self._assert_success(db_map.add_entity_item(entity_byname=("a", "b"), entity_class_name=a_b_class["name"]))
             item, error = db_map.add_entity_item(
                 entity_byname=("a", "b", "b", "a"), entity_class_name=abba_class["name"]
             )
-            self.assertEqual(error, "non-existent elements in byname ['a', 'b', 'b', 'a'] for class A__B__B__A")
+            self.assertEqual(error, "non-existent elements in byname ('a', 'b', 'b', 'a') for class A__B__B__A")
             self.assertIsNone(item)
             self._assert_success(db_map.add_entity_item(entity_byname=("b", "a"), entity_class_name=b_a_class["name"]))
             self._assert_success(
@@ -2871,6 +2871,23 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(entity_dict["alt"], 55.0)
                 self.assertEqual(entity_dict["shape_name"], "blob")
                 self.assertEqual(entity_dict["shape_blob"], "{}")
+
+    def test_updating_entity_location_does_not_update_its_parameter_values(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_parameter_definition(entity_class_name="Object", name="X")
+            fork = db_map.add_entity(entity_class_name="Object", name="fork")
+            x = db_map.add_parameter_value(
+                entity_class_name="Object",
+                entity_byname=("fork",),
+                parameter_definition_name="X",
+                alternative_name="Base",
+                parsed_value=2.3,
+            )
+            update_callback = mock.MagicMock()
+            x.add_update_callback(update_callback)
+            fork.update(lat=2.3, lon=3.2)
+            update_callback.assert_not_called()
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
