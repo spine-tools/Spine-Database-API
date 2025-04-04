@@ -186,7 +186,8 @@ class DatabaseMappingBase:
         for item_type, to_update in to_update_by_type:
             mapped_table = self._mapped_tables[item_type]
             for item in to_update:
-                mapped_table.update_item(item.backup)
+                merged_item, updated_fields = item.merge(item.backup)
+                mapped_table.update_item(merged_item, item, updated_fields)
         for item_type, to_add in to_add_by_type:
             mapped_table = self._mapped_tables[item_type]
             for item in to_add:
@@ -332,7 +333,7 @@ class MappedTable(dict):
     def valid_values(self) -> Iterator[MappedItemBase]:
         return (x for x in self.values() if x.is_valid())
 
-    def find_item(self, item: dict, skip_keys: tuple[str, ...] = (), fetch: bool = True) -> Optional[MappedItemBase]:
+    def find_item(self, item: dict, skip_keys: tuple[str, ...] = (), fetch: bool = True) -> MappedItemBase:
         """Returns a MappedItemBase that matches the given dictionary-item.
 
         Args:
@@ -341,18 +342,20 @@ class MappedTable(dict):
             fetch: if True, fetch db if item is not found in-memory
 
         Returns:
-            item or None if not found
+            item
         """
         id_ = item.get("id")
         if id_ is not None:
             return self.find_item_by_id(id_, fetch=fetch)
         return self.find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
 
-    def find_item_by_id(self, id_: TempId, fetch: bool = True) -> Optional[MappedItemBase]:
+    def find_item_by_id(self, id_: TempId, fetch: bool = True) -> MappedItemBase:
         current_item = self.get(id_)
         if current_item is None and fetch:
             self._db_map.do_fetch_all(self)
             current_item = self.get(id_)
+        if current_item is None:
+            raise SpineDBAPIError(f"no {self.item_type} with id {id_}")
         return current_item
 
     def _find_fully_qualified_item_by_unique_key(
@@ -368,42 +371,34 @@ class MappedTable(dict):
 
     def find_item_by_unique_key(
         self, item: dict, skip_keys: tuple[str, ...] = (), fetch: bool = True, valid_only: bool = True
-    ) -> Optional[MappedItemBase]:
+    ) -> MappedItemBase:
         current_item = self._find_fully_qualified_item_by_unique_key(item, skip_keys, fetch, valid_only)
-        if current_item:
+        if current_item is not None:
             return current_item
         # Maybe item is missing some key stuff, so try with a resolved MappedItem too...
         mapped_item = self._db_map.make_item(self.item_type, **item)
-        try:
-            mapped_item.resolve_internal_fields(skip_keys=tuple(item.keys()))
-        except SpineDBAPIError:
-            return None
+        mapped_item.resolve_internal_fields(skip_keys=tuple(item.keys()))
         for key, value in mapped_item.unique_values_for_item(mapped_item):
             if key in skip_keys:
                 continue
             current_item = self._unique_key_value_to_item(key, value, fetch=fetch, valid_only=valid_only)
-            if current_item:
+            if current_item is not None:
                 return current_item
-        return None
+        raise SpineDBAPIError(f"no {self.item_type} matching {item}")
 
-    def make_candidate_item(self, item: dict, for_update: bool = False) -> Optional[MappedItemBase]:
-        if for_update:
-            current_item = self.find_item(item)
-            if not current_item:
-                raise SpineDBAPIError(f"no {self.item_type} matching {item} to update")
-            full_item = current_item.merge(item)
-            if full_item is None:
-                return None
-        else:
-            current_item = None
-            full_item = item
-        candidate_item = self._db_map.make_item(self.item_type, **full_item)
-        if current_item is None:
-            self._check_required_keys(candidate_item)
-        self._prepare_item(candidate_item, current_item, item)
-        valid_types = (type(None),) if for_update else ()
-        self.check_fields(candidate_item._asdict(), valid_types=valid_types)
+    def make_candidate_item(self, item: dict) -> Optional[MappedItemBase]:
+        candidate_item = self._db_map.make_item(self.item_type, **item)
+        self._check_required_keys(candidate_item)
+        self._prepare_item(candidate_item, None, item)
+        self.check_fields(candidate_item._asdict(), valid_types=())
         return candidate_item
+
+    def check_merged_item(self, merged_item: dict, current_item: MappedItemBase, original_update: dict) -> dict:
+        candidate_item = self._db_map.make_item(self.item_type, **merged_item)
+        self._prepare_item(candidate_item, current_item, original_update)
+        checked_item = candidate_item._asdict()
+        self.check_fields(checked_item, valid_types=(type(None),))
+        return checked_item
 
     def _check_required_keys(self, item: MappedItemBase) -> None:
         """Checks that required keys are set in given item for addition.
@@ -415,14 +410,10 @@ class MappedTable(dict):
             if not any(key in item for key in required_key_set):
                 raise SpineDBAPIError(f"missing {' or '.join(required_key_set)}")
 
-    def _prepare_item(self, candidate_item: MappedItemBase, current_item: MappedItemBase, original_item: dict) -> None:
-        """Prepares item for insertion or update, returns any errors.
-
-        Args:
-            candidate_item (MappedItem)
-            current_item (MappedItem)
-            original_item (dict)
-        """
+    def _prepare_item(
+        self, candidate_item: MappedItemBase, current_item: Optional[MappedItemBase], original_item: dict
+    ) -> None:
+        """Prepares item for insertion or update, raises SpineDBAPIError on error."""
         candidate_item.resolve_internal_fields(skip_keys=tuple(original_item.keys()))
         candidate_item.check_mutability()
         candidate_item.polish()
@@ -435,12 +426,12 @@ class MappedTable(dict):
                 if empty:
                     raise SpineDBAPIError(f"invalid empty keys {empty} for {self.item_type}")
                 unique_item = self._unique_key_value_to_item(key, value)
-                if unique_item not in (None, current_item) and unique_item.is_valid():
+                if unique_item is not None and unique_item is not current_item and unique_item.is_valid():
                     raise SpineDBAPIError(f"there's already a {self.item_type} with {dict(zip(key, value))}")
         except KeyError as e:
             raise SpineDBAPIError(f"missing {e} for {self.item_type}")
 
-    def item_to_remove(self, id_: TempId) -> Optional[MappedItemBase]:
+    def item_to_remove(self, id_: TempId) -> MappedItemBase:
         if id_ is Asterisk:
             return self.wildcard_item
         return self.find_item_by_id(id_)
@@ -511,14 +502,14 @@ class MappedTable(dict):
         db_item.polish()
         return dict(mapped_item.unique_values_for_item(mapped_item)) == dict(db_item.unique_values_for_item(db_item))
 
-    def check_fields(self, item: dict, valid_types: tuple[Type] = ()):
+    def check_fields(self, item: dict, valid_types: tuple[Type, ...] = ()):
         factory = self._db_map.item_factory(self.item_type)
         field_union = factory.internal_external_private_fields() | {
             "id",
             "commit_id",
         }
 
-        def _error(key: str, value: Any, valid_types: tuple[Type]) -> Optional[str]:
+        def _error(key: str, value: Any, valid_types: tuple[Type, ...]) -> Optional[str]:
             if key in field_union:
                 # The user seems to know what they're doing
                 return
@@ -547,13 +538,12 @@ class MappedTable(dict):
         item.added_to_mapped_table()
         return item
 
-    def update_item(self, item: dict) -> MappedItemBase:
-        current_item = self.find_item(item)
-        current_item.cascade_remove_unique()
-        current_item.update(item)
-        current_item.cascade_add_unique()
-        current_item.cascade_update()
-        return current_item
+    def update_item(self, item: dict, target_item: MappedItemBase, updated_fields: set[str]) -> None:
+        target_item.cascade_remove_unique()
+        target_item.update(item)
+        target_item.cascade_add_unique()
+        update_referrers = not updated_fields.issubset(target_item.fields_not_requiring_cascade_update)
+        target_item.cascade_update(update_referrers)
 
     def remove_item(self, item: Optional[MappedItemBase]) -> Optional[MappedItemBase]:
         if not item:
@@ -566,15 +556,17 @@ class MappedTable(dict):
         item.cascade_remove()
         return item
 
-    def restore_item(self, id_: TempId) -> MappedItemBase:
+    def restore_item(self, id_: TempId) -> Optional[MappedItemBase]:
         if id_ is Asterisk:
             self.purged = False
             for current_item in self.values():
                 current_item.cascade_restore()
             return self.wildcard_item
-        current_item = self.find_item_by_id(id_)
-        if current_item:
-            current_item.cascade_restore()
+        try:
+            current_item = self.find_item_by_id(id_)
+        except SpineDBAPIError:
+            return None
+        current_item.cascade_restore()
         return current_item
 
     def reset(self) -> None:
@@ -601,7 +593,7 @@ class MappedItemBase(dict):
     """A dictionary mapping fields to their default values."""
     unique_keys: ClassVar[tuple[tuple[str, str], ...]] = ()
     """A tuple where each element is itself a tuple of fields corresponding to a unique key."""
-    required_key_combinations: tuple[tuple[str, ...], ...] = ()
+    required_key_combinations: ClassVar[tuple[tuple[str, ...], ...]] = ()
     """Tuple containing tuples of required keys and their possible alternatives."""
     _references: ClassVar[dict[str, str]] = {}
     """A dictionary mapping source fields to reference item type.
@@ -610,7 +602,7 @@ class MappedItemBase(dict):
     _weak_references: ClassVar[dict[str, str]] = {}
     """A dictionary mapping source field, to a tuple of reference item type.
     Used to access external fields that may be None."""
-    _soft_references: set[str] = set()
+    _soft_references: ClassVar[set[str]] = set()
     """A set of reference source fields that are OK to have no external field value."""
     _external_fields: ClassVar[dict[str, tuple[str, str]]] = {}
     """A dictionary mapping fields that are not in the original dictionary, to a tuple of source field
@@ -632,6 +624,7 @@ class MappedItemBase(dict):
     """A set with fields that should be ignored in validations."""
     _internal_external_private_fields: ClassVar[Optional[set[str]]] = None
     """Cache for the union of internal and external private fields."""
+    fields_not_requiring_cascade_update: ClassVar[set[str]] = set()
     is_protected: ClassVar[bool] = False
 
     def __init__(self, db_map: DatabaseMappingBase, **kwargs):
@@ -642,20 +635,20 @@ class MappedItemBase(dict):
         """
         super().__init__(**kwargs)
         self.db_map = db_map
-        self._referrers = {}
-        self._weak_referrers = {}
+        self._referrers: dict[TempId, MappedItemBase] = {}
+        self._weak_referrers: dict[TempId, MappedItemBase] = {}
         self.restore_callbacks: set[Callable[[MappedItemBase], bool]] = set()
         self.update_callbacks: set[Callable[[MappedItemBase], bool]] = set()
         self.remove_callbacks: set[Callable[[MappedItemBase], bool]] = set()
         self._has_valid_id = True
         self._removed = False
-        self._valid = None
+        self._valid: Optional[bool] = None
         self.status = Status.committed
         self._removal_source = None
-        self._status_when_removed = None
-        self._status_when_committed = None
-        self.replaced_item_waiting_for_removal = None
-        self._backup = None
+        self._status_when_removed: Optional[Status] = None
+        self._status_when_committed: Optional[Status] = None
+        self.replaced_item_waiting_for_removal: Optional[MappedItemBase] = None
+        self._backup: Optional[dict] = None
         self._referenced_value_cache = {}
         self.public_item = PublicItem(self)
 
@@ -718,7 +711,7 @@ class MappedItemBase(dict):
     def resolve(self) -> dict:
         return {k: resolve(v) for k, v in self._asdict().items()}
 
-    def merge(self, other: dict) -> Optional[dict]:
+    def merge(self, other: dict) -> tuple[Optional[dict], set[str]]:
         """Merges this item with another and returns the merged item together with any errors.
         Used for updating items.
 
@@ -726,13 +719,13 @@ class MappedItemBase(dict):
             other: the item to merge into this.
 
         Returns:
-            merged item or None if there was nothing to merge
+            merged item or None if there was nothing to merge and set of updated fields
         """
         other = self._strip_equal_fields(other)
         if not other:
-            return None
+            return None, set()
         merged = {**self.extended(), **other}
-        return merged
+        return merged, set(other)
 
     def _strip_equal_fields(self, other: dict) -> dict:
         def _resolved(x):
@@ -790,13 +783,17 @@ class MappedItemBase(dict):
             return None
         find_by_id = self.db_map.mapped_table(ref_type).find_item_by_id
         if isinstance(src_val, tuple):
-            ref = tuple(find_by_id(x) for x in src_val)
-            if all(ref):
-                self[src_key] = tuple(dict.__getitem__(r, "id") for r in ref)
+            try:
+                ref = tuple(find_by_id(x) for x in src_val)
+            except SpineDBAPIError:
+                return None
+            self[src_key] = tuple(dict.__getitem__(r, "id") for r in ref)
             return ref
-        ref = find_by_id(src_val)
-        if ref is not None:
-            self[src_key] = dict.__getitem__(ref, "id")
+        try:
+            ref = find_by_id(src_val)
+        except SpineDBAPIError:
+            return None
+        self[src_key] = dict.__getitem__(ref, "id")
         return ref
 
     @classmethod
@@ -831,14 +828,10 @@ class MappedItemBase(dict):
             refs = []
             for v in zip(*src_val):
                 ref = mapped_table.find_item(dict(zip(ref_key, v)))
-                if not ref:
-                    raise SpineDBAPIError(f"can't find {ref_type} with {dict(zip(ref_key, v))}")
                 refs.append(ref)
             self[key] = tuple(ref[target_key] for ref in refs)
         else:
             ref = mapped_table.find_item(dict(zip(ref_key, src_val)))
-            if not ref:
-                raise SpineDBAPIError(f"can't find {ref_type} with {dict(zip(ref_key, src_val))}")
             self[key] = ref[target_key]
 
     def polish(self) -> None:
@@ -993,17 +986,18 @@ class MappedItemBase(dict):
                 obsolete.add(callback)
         self.remove_callbacks -= obsolete
 
-    def cascade_update(self) -> None:
-        """Updates this item and all its referrers in cascade.
+    def cascade_update(self, update_referrers: bool) -> None:
+        """Updates this item and optionally all its referrers in cascade.
         Also, calls items' update callbacks.
         """
         if self._removed:
             return
         self._referenced_value_cache.clear()
         self.call_update_callbacks()
-        for referrer in self._referrers.values():
-            referrer.cascade_update()
-        self._update_weak_referrers()
+        if update_referrers:
+            for referrer in self._referrers.values():
+                referrer.cascade_update(True)
+            self._update_weak_referrers()
 
     def call_update_callbacks(self) -> None:
         obsolete = set()
@@ -1195,8 +1189,11 @@ class PublicItem:
     def restore(self) -> PublicItem:
         mapped_table = self._mapped_item.db_map.mapped_table(self.item_type)
         if not self._mapped_item.has_valid_id:
-            existing_item = mapped_table.find_item_by_unique_key(self._mapped_item, fetch=False, valid_only=False)
-            if existing_item:
+            try:
+                existing_item = mapped_table.find_item_by_unique_key(self._mapped_item, fetch=False, valid_only=False)
+            except SpineDBAPIError:
+                pass
+            else:
                 if not existing_item.removed:
                     raise SpineDBAPIError("restoring would create a conflict with another item with same unique values")
                 existing_item.invalidate_id()

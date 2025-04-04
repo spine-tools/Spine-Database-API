@@ -102,6 +102,7 @@ class EntityClassItem(MappedItemBase):
     _alt_references = {("dimension_name_list",): ("entity_class", ("name",))}
     _internal_fields = {"dimension_id_list": (("dimension_name_list",), "id")}
     _private_fields = {"dimension_count"}
+    fields_not_requiring_cascade_update = {"description", "display_icon", "display_order" "hidden", "active_by_default"}
 
     def __init__(self, *args, **kwargs):
         dimension_id_list = kwargs.get("dimension_id_list")
@@ -117,8 +118,11 @@ class EntityClassItem(MappedItemBase):
     def __getitem__(self, key):
         if key == "superclass_id" or key == "superclass_name":
             mapped_table = self.db_map.mapped_table("superclass_subclass")
-            superclass_subclass = mapped_table.find_item({"subclass_id": self["id"]}, fetch=True)
-            return superclass_subclass[key] if superclass_subclass is not None else None
+            try:
+                superclass_subclass = mapped_table.find_item({"subclass_id": self["id"]}, fetch=True)
+            except SpineDBAPIError:
+                return None
+            return superclass_subclass[key]
         if key == "entity_class_byname":
             entity_class_table = self.db_map.mapped_table("entity_class")
             return tuple(_byname_iter(self, "dimension_id_list", entity_class_table))
@@ -178,6 +182,7 @@ class EntityItem(MappedItemBase):
         "class_id": (("entity_class_name",), "id"),
         "element_id_list": (("dimension_name_list", "element_name_list"), "id"),
     }
+    fields_not_requiring_cascade_update = {"description", "lat", "lon", "alt", "shape_name", "shape_blob"}
 
     def __init__(self, *args, **kwargs):
         element_id_list = kwargs.get("element_id_list")
@@ -250,12 +255,12 @@ class EntityItem(MappedItemBase):
             "shape_name": other.get("shape_name", _unset),
             "shape_blob": other.get("shape_blob", _unset),
         }
-        merged = super().merge(other)
+        merged, updated_fields = super().merge(other)
         if merged is None:
-            return None
-        self._merge_existing_location(other_location, self)
+            return None, set()
+        updated_fields |= self._merge_existing_location(other_location, self)
         merged.update(other_location)
-        return merged
+        return merged, updated_fields
 
     def update(self, other):
         if any(location_key in other for location_key in _ENTITY_LOCATION_FIELDS):
@@ -290,17 +295,14 @@ class EntityItem(MappedItemBase):
             self._location_id = added_location["id"]
 
     @staticmethod
-    def _merge_existing_location(location_update: dict, location_item: dict) -> None:
-        if location_update["lat"] is _unset:
-            location_update["lat"] = location_item["lat"]
-        if location_update["lon"] is _unset:
-            location_update["lon"] = location_item["lon"]
-        if location_update["alt"] is _unset:
-            location_update["alt"] = location_item["alt"]
-        if location_update["shape_name"] is _unset:
-            location_update["shape_name"] = location_item["shape_name"]
-        if location_update["shape_blob"] is _unset:
-            location_update["shape_blob"] = location_item["shape_blob"]
+    def _merge_existing_location(location_update: dict, location_item: dict) -> set[str]:
+        unequal_fields = set()
+        for field in ("lat", "lon", "alt", "shape_name", "shape_blob"):
+            if location_update[field] is _unset:
+                location_update[field] = location_item[field]
+            elif location_update[field] != location_update[field]:
+                unequal_fields.add(field)
+        return unequal_fields
 
     def resolve_internal_fields(self, skip_keys: tuple[str, ...] = ()) -> None:
         """Overridden to translate byname into element name list."""
@@ -308,6 +310,8 @@ class EntityItem(MappedItemBase):
         try:
             byname = dict.pop(self, "entity_byname")
         except KeyError:
+            return
+        if not byname:
             return
         if not self["dimension_id_list"]:
             self["name"] = byname[0]
@@ -321,18 +325,19 @@ class EntityItem(MappedItemBase):
 
     def _element_name_list_recursive(self, class_name: str, entity_byname: list[str]) -> tuple[tuple[str, ...], str]:
         """Returns the element name list corresponding to given class and byname.
+
         If the class is multi-dimensional then recurses for each dimension.
         If the class is a superclass then it tries for each subclass until finding something useful.
         """
-        class_names = [
-            x["subclass_name"] for x in self.db_map.find_superclass_subclasses(superclass_name=class_name)
-        ] or [class_name]
+        subclasses = [x.mapped_item for x in self.db_map.find_superclass_subclasses(superclass_name=class_name)]
         entity_class_table = self.db_map.mapped_table("entity_class")
+        if subclasses:
+            classes = [entity_class_table.find_item_by_id(subclass["subclass_id"]) for subclass in subclasses]
+        else:
+            classes = [entity_class_table.find_item_by_unique_key({"name": class_name})]
         entity_table = self.db_map.mapped_table("entity")
-        for class_name_ in class_names:
-            dimension_name_list = entity_class_table.find_item_by_unique_key({"name": class_name_}).get(
-                "dimension_name_list"
-            )
+        for entity_class in classes:
+            dimension_name_list = entity_class["dimension_name_list"]
             if not dimension_name_list:
                 continue
             if len(entity_byname) < len(dimension_name_list):
@@ -341,14 +346,18 @@ class EntityItem(MappedItemBase):
             element_name_list = []
             for dimension in dimension_name_list:
                 element_name, element_class_name = self._element_name_list_recursive(dimension, entity_byname)
-                entity = entity_table.find_item_by_unique_key(
-                    {"entity_byname": element_name, "entity_class_name": element_class_name}
-                )
-                element_name_list.append(entity["name"] if entity is not None else None)
+                try:
+                    entity = entity_table.find_item_by_unique_key(
+                        {"entity_byname": element_name, "entity_class_name": element_class_name}
+                    )
+                except SpineDBAPIError:
+                    element_name_list.append(None)
+                else:
+                    element_name_list.append(entity["name"])
             if None not in element_name_list:
-                return tuple(element_name_list), class_name_
-            if class_name_ == class_names[-1]:
-                list_containing_missing_element = (
+                return tuple(element_name_list), entity_class["name"]
+            if entity_class is classes[-1]:
+                list_containing_missing_element = tuple(
                     byname_backup if not entity_byname else byname_backup[: -len(entity_byname)]
                 )
                 raise SpineDBAPIError(
@@ -366,20 +375,29 @@ class EntityItem(MappedItemBase):
             el_name_lst = dict.get(self, "element_name_list")
             if el_name_lst:
                 for dim_name, el_name in zip(dim_name_lst, el_name_lst):
-                    if not entity_table.find_item_by_unique_key(
-                        {"entity_class_name": dim_name, "name": el_name}, fetch=False
-                    ):
+                    try:
+                        entity_table.find_item_by_unique_key(
+                            {"entity_class_name": dim_name, "name": el_name}, fetch=False
+                        )
+                    except SpineDBAPIError:
                         raise SpineDBAPIError(f"element '{el_name}' is not an instance of class '{dim_name}'")
         if "name" in self:
             return
         base_name = name_from_elements(self["element_name_list"])
         name = base_name
         index = 1
-        while any(
-            entity_table.find_item_by_unique_key({"entity_class_name": class_name, "name": name})
-            for k in ("entity_class_name", "superclass_name")
-            if (class_name := self[k]) is not None
-        ):
+        while True:
+            names_found = 2
+            for k in ("entity_class_name", "superclass_name"):
+                if (class_name := self[k]) is not None:
+                    try:
+                        entity_table.find_item_by_unique_key({"entity_class_name": class_name, "name": name})
+                    except SpineDBAPIError:
+                        names_found -= 1
+                else:
+                    names_found -= 1
+            if names_found == 0:
+                break
             name = f"{base_name}_{index}"
             index += 1
         self["name"] = name
@@ -427,8 +445,9 @@ class EntityItem(MappedItemBase):
     def _get_location_id(self) -> TempId:
         if self._location_id is _unfetched:
             location_table = self.db_map.mapped_table("entity_location")
-            location = location_table.find_item_by_unique_key({"entity_id": dict.__getitem__(self, "id")})
-            if not location:
+            try:
+                location = location_table.find_item_by_unique_key({"entity_id": dict.__getitem__(self, "id")})
+            except SpineDBAPIError:
                 self._location_id = None
             else:
                 self._location_id = dict.__getitem__(location, "id")
@@ -438,8 +457,9 @@ class EntityItem(MappedItemBase):
         if self._location_id is None:
             return None
         if self._location_id is _unfetched:
-            location = location_table.find_item_by_unique_key({"entity_id": dict.__getitem__(self, "id")})
-            if not location:
+            try:
+                location = location_table.find_item_by_unique_key({"entity_id": dict.__getitem__(self, "id")})
+            except SpineDBAPIError:
                 self._location_id = None
                 return None
             self._location_id = dict.__getitem__(location, "id")
@@ -658,13 +678,13 @@ class ParsedValueBase(MappedItemBase):
         return super().__getitem__(key)
 
     def merge(self, other):
-        merged = super().merge(other)
+        merged, updated_fields = super().merge(other)
         if not merged:
-            return merged
+            return merged, updated_fields
         if self.value_key in merged:
             self._parsed_value = None
             self._arrow_value = None
-        return merged
+        return merged, updated_fields
 
     def _strip_equal_fields(self, other):
         undefined = object()
@@ -742,10 +762,11 @@ class ParameterItemBase(ParsedValueBase):
         if parsed_value is None:
             return
         mapped_table = self.db_map.mapped_table("list_value")
-        list_value = mapped_table.find_item_by_unique_key(
-            {"parameter_value_list_name": list_name, "value": value, "type": type_}
-        )
-        if not list_value:
+        try:
+            list_value = mapped_table.find_item_by_unique_key(
+                {"parameter_value_list_name": list_name, "value": value, "type": type_}
+            )
+        except SpineDBAPIError:
             raise SpineDBAPIError(self._value_not_in_list_error(parsed_value, list_name))
         self["list_value_id"] = list_value["id"]
         self[self.type_key] = "list_value_ref"
@@ -789,6 +810,12 @@ class ParameterDefinitionItem(ParameterItemBase):
         "entity_class_id": (("entity_class_name",), "id"),
         "parameter_value_list_id": (("parameter_value_list_name",), "id"),
     }
+    fields_not_requiring_cascade_update = {
+        "description",
+        "parameter_type_list",
+        "default_value" "default_type",
+        "parsed_value",
+    }
 
     def __init__(self, db_map, **kwargs):
         super().__init__(db_map, **kwargs)
@@ -813,7 +840,7 @@ class ParameterDefinitionItem(ParameterItemBase):
             if list_value_id is not None:
                 list_value_key = {"default_value": "value", "default_type": "type"}[key]
                 mapped_table = self.db_map.mapped_table("list_value")
-                return mapped_table.find_item_by_id(list_value_id).get(list_value_key)
+                return mapped_table.find_item_by_id(list_value_id)[list_value_key]
             return dict.get(self, key)
         return super().__getitem__(key)
 
@@ -862,8 +889,7 @@ class ParameterDefinitionItem(ParameterItemBase):
             except SpineDBAPIError as type_error:
                 del other["parameter_type_list"]
                 raise type_error
-        merged = super().merge(other)
-        return merged
+        return super().merge(other)
 
     def _make_new_type_items(self, new_type_list):
         new_types = set(new_type_list)
@@ -926,12 +952,12 @@ class ParameterDefinitionItem(ParameterItemBase):
             )
         self._init_type_list = None
 
-    def cascade_update(self):
+    def cascade_update(self, update_referrers):
         updated_type_list = self.pop("_updated_parameter_type_list", None)
         if updated_type_list is not None:
             new_type_items = self._make_new_type_items(updated_type_list)
             self._update_types(updated_type_list, new_type_items)
-        super().cascade_update()
+        super().cascade_update(update_referrers)
 
     def update(self, other):
         other_type_list = other.pop("parameter_type_list", None)
@@ -1056,7 +1082,7 @@ class ParameterValueItem(ParameterItemBase):
             list_value_id: TempId = self["list_value_id"]
             if list_value_id:
                 mapped_table = self.db_map.mapped_table("list_value")
-                return mapped_table.find_item_by_id(list_value_id).get(key)
+                return mapped_table.find_item_by_id(list_value_id)[key]
         return super().__getitem__(key)
 
     def _value_not_in_list_error(self, parsed_value, list_name):
@@ -1122,6 +1148,7 @@ class AlternativeItem(MappedItemBase):
     _defaults = {"description": None}
     unique_keys = (("name",),)
     required_key_combinations = (("name",),)
+    fields_not_requiring_cascade_update = {"description"}
 
 
 class ScenarioItem(MappedItemBase):
@@ -1134,6 +1161,7 @@ class ScenarioItem(MappedItemBase):
     _defaults = {"active": False, "description": None}
     unique_keys = (("name",),)
     required_key_combinations = (("name",),)
+    fields_not_requiring_cascade_update = {"description", "active"}
 
     def __getitem__(self, key):
         if key == "alternative_id_list":
@@ -1171,8 +1199,11 @@ class ScenarioAlternativeItem(MappedItemBase):
         # Note that alternatives with higher ranks overwrite the values of those with lower ranks.
         if key == "before_alternative_name":
             mapped_table = self.db_map.mapped_table("alternative")
-            before_alternative = mapped_table.find_item_by_id(self["before_alternative_id"])
-            return before_alternative["name"] if before_alternative is not None else None
+            try:
+                before_alternative = mapped_table.find_item_by_id(self["before_alternative_id"])
+            except SpineDBAPIError:
+                return None
+            return before_alternative["name"]
         if key == "before_alternative_id":
             mapped_table = self.db_map.mapped_table("scenario")
             scenario = mapped_table.find_item_by_id(self["scenario_id"])
@@ -1428,7 +1459,8 @@ def _byname_iter(item: Union[EntityClassItem, EntityItem], id_list_name: str, ta
     else:
         find_by_id = table.find_item_by_id
         for id_ in id_list:
-            element = find_by_id(id_)
-            if element is None:
+            try:
+                element = find_by_id(id_)
+            except SpineDBAPIError:
                 raise KeyError(id_)
             yield from _byname_iter(element, id_list_name, table)
