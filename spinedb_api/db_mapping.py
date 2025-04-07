@@ -470,7 +470,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         checked_item = mapped_table.make_candidate_item(kwargs)
         try:
-            existing_item = mapped_table.find_item_by_unique_key(checked_item, fetch=False, valid_only=False)
+            existing_item = mapped_table.find_item_by_unique_key(checked_item, fetch=False)
         except SpineDBAPIError:
             checked_item = mapped_table.add_item(checked_item)
         else:
@@ -512,13 +512,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 prince = db_map.get_item(entity_table, entity_class_name="musician", name="Prince")
 
         """
-        try:
-            item = mapped_table.find_item(kwargs)
-        except SpineDBAPIError:
-            self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
-            item = mapped_table.find_item(kwargs)
+        item = mapped_table.find_item(kwargs)
         if not item.is_valid():
-            raise SpineDBAPIError("no such item")
+            if self._get_commit_count() != self._query_commit_count():
+                self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
+                item = mapped_table.find_item(kwargs)
+                mapped_table.reset_purging()
+            else:
+                raise SpineDBAPIError(f"{mapped_table.item_type} matching {kwargs} has been removed")
         return item.public_item
 
     def item_by_type(self, item_type: str, **kwargs) -> PublicItem:
@@ -625,7 +626,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if "id" in kwargs:
             id_ = kwargs["id"]
         else:
-            item = mapped_table.find_item_by_unique_key(kwargs, valid_only=False)
+            item = mapped_table.find_item_by_unique_key(kwargs)
             id_ = item["id"]
         restored_item = mapped_table.restore_item(id_)
         if not restored_item:
@@ -655,18 +656,19 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         mapped_table = self.mapped_table(item_type)
         mapped_table.check_fields(kwargs, valid_types=(type(None),))
         try:
-            item = mapped_table.find_item(kwargs)
+            item = mapped_table.find_item(kwargs, fetch=fetch)
         except SpineDBAPIError:
-            if fetch:
+            return {}
+        if skip_removed and not item.is_valid():
+            if fetch and self._get_commit_count() != self._query_commit_count():
                 self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
                 try:
                     item = mapped_table.find_item(kwargs)
                 except SpineDBAPIError:
                     return {}
+                mapped_table.reset_purging()
             else:
                 return {}
-        if skip_removed and not item.is_valid():
-            return {}
         return item.public_item
 
     def get_items(self, item_type, fetch=True, skip_removed=True, **kwargs):

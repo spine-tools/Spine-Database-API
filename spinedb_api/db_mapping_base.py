@@ -237,7 +237,7 @@ class DatabaseMappingBase:
         Resetting the purge status lets fetched items to be added unmodified.
         """
         for mapped_table in self._mapped_tables.values():
-            mapped_table.wildcard_item.status = Status.committed
+            mapped_table.reset_purging()
 
     def _add_descendants(self, item_types):
         while True:
@@ -317,17 +317,17 @@ class MappedTable(dict):
         return None if not ids else ids[-1]
 
     def _unique_key_value_to_item(
-        self, key: tuple[str, ...], value: Any, fetch: bool = True, valid_only: bool = True
+        self, key: tuple[str, ...], value: Any, fetch: bool = True
     ) -> Optional[MappedItemBase]:
         id_ = self._unique_key_value_to_id(key, value, fetch=fetch)
         if id_ is None:
-            return None
+            erroneous_values = dict(zip(key, value))
+            raise SpineDBAPIError(f"no {self.item_type} matching {erroneous_values}")
         try:
             mapped_item = self[id_]
         except KeyError:
-            return None
-        if valid_only and not mapped_item.is_valid():
-            return None
+            erroneous_values = dict(zip(key, value))
+            raise SpineDBAPIError(f"no {self.item_type} matching {erroneous_values}")
         return mapped_item
 
     def valid_values(self) -> Iterator[MappedItemBase]:
@@ -359,32 +359,34 @@ class MappedTable(dict):
         return current_item
 
     def _find_fully_qualified_item_by_unique_key(
-        self, item: dict, skip_keys: tuple[str, ...], fetch: bool, valid_only: bool
+        self, item: dict, skip_keys: tuple[str, ...], fetch: bool
     ) -> Optional[MappedItemBase]:
         for key, value in self._db_map.item_factory(self.item_type).unique_values_for_item(item):
             if key in skip_keys:
                 continue
-            current_item = self._unique_key_value_to_item(key, value, fetch=fetch, valid_only=valid_only)
-            if current_item is not None:
-                return current_item
-        return None
+            try:
+                return self._unique_key_value_to_item(key, value, fetch=fetch)
+            except SpineDBAPIError:
+                continue
+        raise SpineDBAPIError(f"no {self.item_type} with {item}")
 
     def find_item_by_unique_key(
-        self, item: dict, skip_keys: tuple[str, ...] = (), fetch: bool = True, valid_only: bool = True
+        self, item: dict, skip_keys: tuple[str, ...] = (), fetch: bool = True
     ) -> MappedItemBase:
-        current_item = self._find_fully_qualified_item_by_unique_key(item, skip_keys, fetch, valid_only)
-        if current_item is not None:
-            return current_item
-        # Maybe item is missing some key stuff, so try with a resolved MappedItem too...
-        mapped_item = self._db_map.make_item(self.item_type, **item)
-        mapped_item.resolve_internal_fields(skip_keys=tuple(item.keys()))
-        for key, value in mapped_item.unique_values_for_item(mapped_item):
-            if key in skip_keys:
-                continue
-            current_item = self._unique_key_value_to_item(key, value, fetch=fetch, valid_only=valid_only)
-            if current_item is not None:
-                return current_item
-        raise SpineDBAPIError(f"no {self.item_type} matching {item}")
+        try:
+            return self._find_fully_qualified_item_by_unique_key(item, skip_keys, fetch)
+        except SpineDBAPIError:
+            # Maybe item is missing some key stuff, so try with a resolved MappedItem too...
+            mapped_item = self._db_map.make_item(self.item_type, **item)
+            mapped_item.resolve_internal_fields(skip_keys=tuple(item.keys()))
+            for key, value in mapped_item.unique_values_for_item(mapped_item):
+                if key in skip_keys:
+                    continue
+                try:
+                    return self._unique_key_value_to_item(key, value, fetch=fetch)
+                except SpineDBAPIError:
+                    continue
+            raise SpineDBAPIError(f"no {self.item_type} matching {item}")
 
     def make_candidate_item(self, item: dict) -> Optional[MappedItemBase]:
         candidate_item = self._db_map.make_item(self.item_type, **item)
@@ -425,8 +427,11 @@ class MappedTable(dict):
                 empty = {k for k, v in zip(key, value) if v == ""}
                 if empty:
                     raise SpineDBAPIError(f"invalid empty keys {empty} for {self.item_type}")
-                unique_item = self._unique_key_value_to_item(key, value)
-                if unique_item is not None and unique_item is not current_item and unique_item.is_valid():
+                try:
+                    unique_item = self._unique_key_value_to_item(key, value)
+                except SpineDBAPIError:
+                    continue
+                if unique_item is not current_item and unique_item.is_valid():
                     raise SpineDBAPIError(f"there's already a {self.item_type} with {dict(zip(key, value))}")
         except KeyError as e:
             raise SpineDBAPIError(f"missing {e} for {self.item_type}")
@@ -467,8 +472,20 @@ class MappedTable(dict):
 
     def add_item_from_db(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool]:
         """Adds an item fetched from the DB."""
-        mapped_item = self._find_fully_qualified_item_by_unique_key(item, (), fetch=False, valid_only=False)
-        if mapped_item and (is_db_clean or self._same_item(mapped_item, item)):
+        try:
+            mapped_item = self._find_fully_qualified_item_by_unique_key(item, (), fetch=False)
+        except SpineDBAPIError:
+            mapped_item = self.get(item["id"])
+            if mapped_item:
+                if is_db_clean or self._same_item(mapped_item.db_equivalent(), item):
+                    return mapped_item, False
+                mapped_item.handle_id_steal()
+            mapped_item = self._make_and_add_item(item, ignore_polishing_errors=True)
+            if self.purged:
+                # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
+                mapped_item.cascade_remove()
+            return mapped_item, True
+        if is_db_clean or self._same_item(mapped_item, item):
             mapped_item.force_id(item["id"])
             if mapped_item.status == Status.to_add and (
                 mapped_item.replaced_item_waiting_for_removal is None
@@ -480,16 +497,6 @@ class MappedTable(dict):
                 # so we take a shortcut here and assume that mapped_item always contains modified data.
                 mapped_item.status = Status.to_update
             return mapped_item, False
-        mapped_item = self.get(item["id"])
-        if mapped_item:
-            if is_db_clean or self._same_item(mapped_item.db_equivalent(), item):
-                return mapped_item, False
-            mapped_item.handle_id_steal()
-        mapped_item = self._make_and_add_item(item, ignore_polishing_errors=True)
-        if self.purged:
-            # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
-            mapped_item.cascade_remove()
-        return mapped_item, True
 
     def _same_item(self, mapped_item: MappedItemBase, db_item: dict) -> bool:
         """Whether the two given items have the same unique keys.
@@ -568,6 +575,9 @@ class MappedTable(dict):
             return None
         current_item.cascade_restore()
         return current_item
+
+    def reset_purging(self) -> None:
+        self.wildcard_item.status = Status.committed
 
     def reset(self) -> None:
         self._ids_by_unique_key_value.clear()
@@ -1190,7 +1200,7 @@ class PublicItem:
         mapped_table = self._mapped_item.db_map.mapped_table(self.item_type)
         if not self._mapped_item.has_valid_id:
             try:
-                existing_item = mapped_table.find_item_by_unique_key(self._mapped_item, fetch=False, valid_only=False)
+                existing_item = mapped_table.find_item_by_unique_key(self._mapped_item, fetch=False)
             except SpineDBAPIError:
                 pass
             else:

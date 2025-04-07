@@ -30,7 +30,7 @@ class TestItem(unittest.TestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             mapped_table = db_map.mapped_table("alternative")
             db_map.item(mapped_table, name="Base").remove()
-            with self.assertRaisesRegex(SpineDBAPIError, "no alternative matching {'name': 'Base'}"):
+            with self.assertRaisesRegex(SpineDBAPIError, "alternative matching {'name': 'Base'} has been removed"):
                 db_map.item(mapped_table, name="Base")
 
 
@@ -90,6 +90,13 @@ class TestFind(unittest.TestCase):
             found = db_map.find(mapped_table)
             self.assertEqual(len(found), 2)
             self.assertCountEqual([i["name"] for i in found], ["Base", "new"])
+
+    def test_find_doesnt_find_removed_items(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_scenario(name="Scenario").remove()
+            scenario_table = db_map.mapped_table("scenario")
+            found = db_map.find(scenario_table)
+            self.assertEqual(found, [])
 
     def test_asterisk_works_with_bynames(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:

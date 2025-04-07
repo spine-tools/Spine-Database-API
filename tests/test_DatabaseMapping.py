@@ -93,6 +93,15 @@ class TestDatabaseMappingConstruction(AssertSuccessTestCase):
 
 
 class TestDatabaseMapping(AssertSuccessTestCase):
+    def test_get_item_without_fetching(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_metadata_item(name="Title", value="The four horsemen")
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                self.assertEqual(db_map.get_item("metadata", name="Title", value="The four horsemen", fetch=False), {})
+
     def test_rolling_back_new_item_invalidates_its_id(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             mapped_table = db_map.mapped_table("entity_class")
@@ -1049,7 +1058,25 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertIsNone(error)
             self.assertIsInstance(removed, PublicItem)
 
-    def test_get_items_with_skip_removed(self):
+    def test_double_remove_does_not_invoke_remove_callbacks(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            scenario = db_map.add_scenario(name="Scenario")
+            remove_callback = mock.MagicMock()
+            scenario.add_remove_callback(remove_callback)
+            scenario.remove()
+            remove_callback.assert_called_once()
+            remove_callback.reset_mock()
+            scenario.remove()
+            remove_callback.assert_not_called()
+
+    def test_get_items_returns_nothing_when_item_is_removed(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            entity_class = db_map.add_entity_class(name="Object")
+            entity_class.remove()
+            classes = db_map.get_items("entity_class")
+            self.assertEqual(len(classes), 0)
+
+    def test_get_items_with_skip_removed_set_to_false(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             alternative = db_map.get_alternative_item(name="Base")
             alternative.remove()
@@ -1057,6 +1084,19 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertEqual(len(alternatives), 1)
             self.assertEqual(alternatives[0]["name"], "Base")
             self.assertFalse(alternatives[0].is_valid())
+
+    def test_get_items_with_existing_item_and_skip_removed_set_to_false(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            alternatives = db_map.get_items("alternative", skip_removed=False)
+            self.assertEqual(len(alternatives), 1)
+            self.assertEqual(alternatives[0]["name"], "Base")
+
+    def test_get_items_with_skip_removed_set_to_true(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            alternative = db_map.get_alternative_item(name="Base")
+            alternative.remove()
+            alternatives = db_map.get_items("alternative", skip_removed=True)
+            self.assertEqual(len(alternatives), 0)
 
     def test_get_items_with_skip_removed_after_readding_item(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1069,6 +1109,40 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertFalse(alternatives[0].is_valid())
             self.assertEqual(alternatives[1]["name"], "Base")
             self.assertTrue(alternatives[1].is_valid())
+
+    def test_get_item_returns_nothing_when_item_is_removed(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            entity_class = db_map.add_entity_class(name="Object")
+            entity_class.remove()
+            self.assertEqual(db_map.get_item("entity_class", name="Object"), {})
+
+    def test_get_item_with_skip_removed_set_to_false(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.get_alternative_item(name="Base").remove()
+            alternative = db_map.get_item("alternative", name="Base", skip_removed=False)
+            self.assertEqual(alternative["name"], "Base")
+            self.assertFalse(alternative.is_valid())
+
+    def test_get_item_with_existing_item_and_skip_removed_set_to_false(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.get_alternative_item(name="Base")
+            alternative = db_map.get_item("alternative", name="Base", skip_removed=True)
+            self.assertEqual(alternative["name"], "Base")
+
+    def test_get_item_with_skip_removed_set_to_true(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.get_alternative_item(name="Base").remove()
+            alternative = db_map.get_item("alternative", name="Base", skip_removed=True)
+            self.assertEqual(alternative, {})
+
+    def test_get_item_with_skip_removed_after_readding_item(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            alternative = db_map.get_alternative_item(name="Base")
+            alternative.remove()
+            self._assert_success(db_map.add_alternative_item(name="Base"))
+            alternative = db_map.get_item("alternative", name="Base", skip_removed=False)
+            self.assertEqual(alternative["name"], "Base")
+            self.assertTrue(alternative.is_valid())
 
     def test_entity_item_active_in_scenario(self):
         with TemporaryDirectory() as temp_dir:
@@ -5894,6 +5968,53 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 entity_class_item = db_map.get_entity_class_item(name="my_class")
                 self.assertTrue(entity_class_item)
                 self.assertEqual(entity_class_item["name"], "my_class")
+
+    def test_db_items_prevail_with_get_items_if_mapped_items_are_committed(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                self._assert_success(db_map.add_entity_class_item(name="my_class"))
+                db_map.commit_session("Add some data")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("entity_class")
+                db_map.commit_session("Purge all")
+                with DatabaseMapping(url) as shadow_db_map:
+                    self._assert_success(shadow_db_map.add_entity_class_item(name="my_class"))
+                    shadow_db_map.commit_session("Add same class")
+                entity_class_items = db_map.get_entity_class_items()
+                self.assertEqual(len(entity_class_items), 1)
+                self.assertEqual(entity_class_items[0]["name"], "my_class")
+
+    def test_db_items_prevail_with_item_if_mapped_items_are_committed(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="my_class")
+                db_map.commit_session("Add some data")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("entity_class")
+                db_map.commit_session("Purge all")
+                with DatabaseMapping(url) as shadow_db_map:
+                    shadow_db_map.add_entity_class(name="my_class")
+                    shadow_db_map.commit_session("Add same class")
+                entity_class_item = db_map.entity_class(name="my_class")
+                self.assertEqual(entity_class_item["name"], "my_class")
+
+    def test_db_items_prevail_with_find_if_mapped_items_are_committed(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="my_class")
+                db_map.commit_session("Add some data")
+            with DatabaseMapping(url) as db_map:
+                db_map.purge_items("entity_class")
+                db_map.commit_session("Purge all")
+                with DatabaseMapping(url) as shadow_db_map:
+                    shadow_db_map.add_entity_class(name="my_class")
+                    shadow_db_map.commit_session("Add same class")
+                entity_class_items = db_map.find_entity_classes(name="my_class")
+                self.assertEqual(len(entity_class_items), 1)
+                self.assertEqual(entity_class_items[0]["name"], "my_class")
 
     def test_remove_items_then_refresh_then_readd(self):
         with TemporaryDirectory() as temp_dir:
