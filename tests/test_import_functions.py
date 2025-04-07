@@ -522,14 +522,14 @@ class TestImportEntity(AssertSuccessTestCase):
             self.assertEqual(
                 errors,
                 [
-                    "non-existent elements in byname ['n1', 'u2', 'n2', 'u2'] for class " "unit_flow__unit_flow",
-                    "non-existent elements in byname ['n2', 'u2', 'n1', 'u2'] for class " "unit_flow__unit_flow",
-                    "non-existent elements in byname ['u1', 'n1', 'u2', 'n1'] for class " "unit_flow__unit_flow",
-                    "non-existent elements in byname ['u1', 'n2', 'u1', 'n1'] for class " "unit_flow__unit_flow",
-                    "non-existent elements in byname ['n1', 'u2', 'u1', 'n2'] for class " "unit_flow__unit_flow",
-                    "non-existent elements in byname ['n1', 'u1', 'u1', 'n1'] for class " "unit_flow__unit_flow",
-                    "non-existent elements in byname ['u1', 'n1', 'n2', 'u2'] for class " "unit_flow__unit_flow",
-                    "non-existent elements in byname ['u2', 'n1', 'n2', 'u1'] for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ('n1', 'u2', 'n2', 'u2') for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ('n2', 'u2', 'n1', 'u2') for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ('u1', 'n1', 'u2', 'n1') for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ('u1', 'n2', 'u1', 'n1') for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ('n1', 'u2', 'u1', 'n2') for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ('n1', 'u1', 'u1', 'n1') for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ('u1', 'n1', 'n2', 'u2') for class " "unit_flow__unit_flow",
+                    "non-existent elements in byname ('u2', 'n1', 'n2', 'u1') for class " "unit_flow__unit_flow",
                 ],
             )
             classes = {c["name"]: c["dimension_name_list"] for c in db_map.find_entity_classes()}
@@ -1678,6 +1678,12 @@ class TestImportScenarioAlternative(AssertSuccessTestCase):
             self.assertEqual(count, 1)
             scenario_alternatives = self.scenario_alternatives(db_map)
             self.assertEqual(scenario_alternatives, {"scenario": {"alternative": 1}})
+
+    def test_missing_scenario_gets_created(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            count, errors = import_data(db_map, scenario_alternatives=[["scen", "Base"]])
+            self.assertEqual(errors, ["no scenario matching {'name': 'scen'}"])
+            self.assertEqual(count, 0)
 
     def test_scenario_alternative_import_multiple_without_before_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:

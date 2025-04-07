@@ -469,23 +469,28 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 db_map.add(entity_table, entity_class_name="musician", name="Prince")
         """
         checked_item = mapped_table.make_candidate_item(kwargs)
-        existing_item = mapped_table.find_item_by_unique_key(checked_item, fetch=False, valid_only=False)
-        if existing_item:
+        try:
+            existing_item = mapped_table.find_item_by_unique_key(checked_item, fetch=False)
+        except SpineDBAPIError:
+            checked_item = mapped_table.add_item(checked_item)
+        else:
             if not existing_item.removed:
                 raise RuntimeError("logic error: item exists but no error was issued")
             existing_item.invalidate_id()
             mapped_table.remove_unique(existing_item)
-        checked_item = mapped_table.add_item(checked_item)
-        if (
-            existing_item
-            and existing_item["id"].db_id is not None
-            and existing_item.status != Status.committed
-            and not mapped_table.purged
-            and not any(
-                self._mapped_tables[table].purged for table in existing_item.ref_types() if table in self._mapped_tables
-            )
-        ):
-            checked_item.replaced_item_waiting_for_removal = existing_item
+            checked_item = mapped_table.add_item(checked_item)
+            if (
+                existing_item
+                and existing_item["id"].db_id is not None
+                and existing_item.status != Status.committed
+                and not mapped_table.purged
+                and not any(
+                    self._mapped_tables[table].purged
+                    for table in existing_item.ref_types()
+                    if table in self._mapped_tables
+                )
+            ):
+                checked_item.replaced_item_waiting_for_removal = existing_item
         return checked_item.public_item
 
     def add_by_type(self, item_type: str, **kwargs) -> PublicItem:
@@ -508,11 +513,13 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         """
         item = mapped_table.find_item(kwargs)
-        if not item:
-            self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
-            item = mapped_table.find_item(kwargs)
-        if not item or not item.is_valid():
-            raise SpineDBAPIError("no such item")
+        if not item.is_valid():
+            if self._get_commit_count() != self._query_commit_count():
+                self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
+                item = mapped_table.find_item(kwargs)
+                mapped_table.reset_purging()
+            else:
+                raise SpineDBAPIError(f"{mapped_table.item_type} matching {kwargs} has been removed")
         return item.public_item
 
     def item_by_type(self, item_type: str, **kwargs) -> PublicItem:
@@ -557,10 +564,13 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                     entity_table, id=prince["id"], name="the Artist", description="Formerly known as Prince."
                 )
         """
-        checked_item = mapped_table.make_candidate_item(kwargs, for_update=True)
-        if not checked_item:
+        target_item = mapped_table.find_item(kwargs)
+        merged_item, updated_fields = target_item.merge(kwargs)
+        if merged_item is None:
             return None
-        return mapped_table.update_item(checked_item._asdict())
+        item_update = mapped_table.check_merged_item(merged_item, target_item, kwargs)
+        mapped_table.update_item(item_update, target_item, updated_fields)
+        return target_item.public_item
 
     def update_by_type(self, item_type: str, **kwargs) -> PublicItem:
         return self.update(self._mapped_tables[item_type], **kwargs)
@@ -594,8 +604,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             id_ = kwargs["id"]
         else:
             item = mapped_table.find_item_by_unique_key(kwargs)
-            if not item:
-                raise SpineDBAPIError("no such item")
             id_ = item["id"]
         item = mapped_table.item_to_remove(id_)
         removed_item = mapped_table.remove_item(item)
@@ -618,9 +626,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if "id" in kwargs:
             id_ = kwargs["id"]
         else:
-            item = mapped_table.find_item_by_unique_key(kwargs, valid_only=False)
-            if not item:
-                raise SpineDBAPIError("no such item")
+            item = mapped_table.find_item_by_unique_key(kwargs)
             id_ = item["id"]
         restored_item = mapped_table.restore_item(id_)
         if not restored_item:
@@ -649,12 +655,20 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
         mapped_table.check_fields(kwargs, valid_types=(type(None),))
-        item = mapped_table.find_item(kwargs)
-        if not item and fetch:
-            self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
-            item = mapped_table.find_item(kwargs)
-        if not item or (skip_removed and not item.is_valid()):
+        try:
+            item = mapped_table.find_item(kwargs, fetch=fetch)
+        except SpineDBAPIError:
             return {}
+        if skip_removed and not item.is_valid():
+            if fetch and self._get_commit_count() != self._query_commit_count():
+                self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
+                try:
+                    item = mapped_table.find_item(kwargs)
+                except SpineDBAPIError:
+                    return {}
+                mapped_table.reset_purging()
+            else:
+                return {}
         return item.public_item
 
     def get_items(self, item_type, fetch=True, skip_removed=True, **kwargs):
@@ -776,24 +790,27 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
         Args:
             item_type (str): One of <spine_item_types>.
-            check (bool): Whether to check for data integrity.
+            check (bool): Whether to check for data integrity and legacy item types.
             **kwargs: Fields to update and their new values as specified for the item type in :ref:`db_mapping_schema`.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The updated item and any errors.
         """
-        item_type = self.real_item_type(item_type)
+        if check:
+            item_type = self.real_item_type(item_type)
+            self._convert_legacy(item_type, kwargs)
+            mapped_table = self.mapped_table(item_type)
+            try:
+                return self.update(mapped_table, **kwargs), ""
+            except SpineDBAPIError as error:
+                return None, str(error)
         mapped_table = self.mapped_table(item_type)
-        self._convert_legacy(item_type, kwargs)
-        if not check:
-            return mapped_table.update_item(kwargs), ""
-        try:
-            checked_item = mapped_table.make_candidate_item(kwargs, for_update=True)
-            if checked_item:
-                return mapped_table.update_item(checked_item._asdict()).public_item, ""
+        target_item = mapped_table.find_item(kwargs)
+        merged_item, updated_fields = target_item.merge(kwargs)
+        if merged_item is None:
             return None, ""
-        except SpineDBAPIError as error:
-            return None, str(error)
+        mapped_table.update_item(merged_item, target_item, updated_fields)
+        return target_item.public_item, ""
 
     def update_items(self, item_type, *items, check=True, strict=False):
         """Updates many items in the in-memory mapping.
@@ -1186,9 +1203,15 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return self.add_items("parameter_value_metadata", *items, **kwargs)
 
     def get_metadata_to_add_with_item_metadata_items(self, *items):
-        metadata_items = ({"name": item["metadata_name"], "value": item["metadata_value"]} for item in items)
         metadata_table = self._mapped_tables["metadata"]
-        return [x for x in metadata_items if not metadata_table.find_item(x)]
+        new_metadata = []
+        for item in items:
+            metadata = {"name": item["metadata_name"], "value": item["metadata_value"]}
+            try:
+                metadata_table.find_item(metadata)
+            except SpineDBAPIError:
+                new_metadata.append(metadata)
+        return new_metadata
 
     def _update_ext_item_metadata(self, tablename, *items, **kwargs):
         metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
