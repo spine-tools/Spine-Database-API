@@ -2963,6 +2963,64 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             fork.update(lat=2.3, lon=3.2)
             update_callback.assert_not_called()
 
+    def test_dirty_ids(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_parameter_value_list(name="list in db")
+            renamed_list = db_map.add_parameter_value_list(name="another list")
+            db_map.commit_session("Add value list.")
+            new_list = db_map.add_parameter_value_list(name="new list")
+            renamed_list.update(name="renamed list")
+            self.assertCountEqual(db_map.dirty_ids("parameter_value_list"), [new_list["id"], renamed_list["id"]])
+
+    def test_mapped_table_error_message(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            with self.assertRaisesRegex(SpineDBAPIError, "Invalid item type 'anon' - maybe you meant 'scenario'?"):
+                db_map.mapped_table("anon")
+
+    def test_add_errors(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            with self.assertRaisesRegex(SpineDBAPIError, "missing name"):
+                db_map.add_entity_class()
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "invalid type for 'name' of 'entity_class' - got int, expected str"
+            ):
+                db_map.add_entity_class(name=23)
+            with self.assertRaisesRegex(SpineDBAPIError, "no entity_class matching {'name': 'Subject'}"):
+                db_map.add_entity(entity_class_name="Subject", name="pleb")
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity(entity_class_name="Object", name="spoon")
+            db_map.add_entity_class(dimension_name_list=["Object", "Object"])
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "non-existent elements in byname \\('spoon', 'anon'\\) for class Object__Object"
+            ):
+                db_map.add_entity(entity_class_name="Object__Object", entity_byname=["spoon", "anon"])
+
+    def test_update_errors(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "no alternative matching {'name': 'not base', 'description': 'Does not exist.'}"
+            ):
+                db_map.update_alternative(name="not base", description="Does not exist.")
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "invalid type for 'description' of 'alternative' - got int, expected str"
+            ):
+                db_map.update_alternative(name="Base", description=23)
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity(entity_class_name="Object", name="knife")
+            fork = db_map.add_entity(entity_class_name="Object", name="fork")
+            db_map.add_entity_class(dimension_name_list=["Object", "Object"])
+            relationship = db_map.add_entity(
+                entity_class_name="Object__Object",
+                entity_byname=(
+                    "fork",
+                    "knife",
+                ),
+            )
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "non-existent elements in byname \\('knife', 'anon'\\) for class Object__Object"
+            ):
+                db_map.update_entity(id=relationship["id"], entity_byname=("knife", "anon"))
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

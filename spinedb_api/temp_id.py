@@ -15,11 +15,11 @@ from typing import Any, Optional
 class TempId:
     _next_id = {}
 
-    def __init__(self, id_: int, item_type: str, temp_id_lookup: Optional[dict[int, TempId]] = None):
+    def __init__(self, id_: int, item_type: str, temp_id_lookup: dict[int, TempId]):
         super().__init__()
         self._id = id_
         self._item_type = item_type
-        self._temp_id_lookup = temp_id_lookup if temp_id_lookup is not None else {}
+        self._temp_id_lookup = temp_id_lookup
         self._db_id: Optional[int] = None
         self._temp_id_lookup[self._id] = self
 
@@ -46,7 +46,10 @@ class TempId:
         return f"TempId({self._item_type}){resolved_to}"
 
     def __eq__(self, other):
-        return isinstance(other, TempId) and other._item_type == self._item_type and other._id == self._id
+        try:
+            return other._item_type == self._item_type and other._id == self._id
+        except AttributeError:
+            return NotImplemented
 
     def __gt__(self, other):
         return isinstance(other, TempId) and other._item_type == self._item_type and self._id > other._id
