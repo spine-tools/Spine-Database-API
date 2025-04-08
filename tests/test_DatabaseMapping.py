@@ -3021,6 +3021,19 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             ):
                 db_map.update_entity(id=relationship["id"], entity_byname=("knife", "anon"))
 
+    def test_find_fetched_entity_classes(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="asset")
+                db_map.add_entity_class(name="group")
+                db_map.add_entity_class(dimension_name_list=["asset", "group"])
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                classes = db_map.find_entity_classes(name="asset__group")
+                self.assertEqual(len(classes), 1)
+                self.assertEqual(classes[0]["name"], "asset__group")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

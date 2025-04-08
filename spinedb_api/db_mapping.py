@@ -1032,16 +1032,20 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def _do_fetch_more(
         self, mapped_table: MappedTable, offset: int, limit: Optional[int], real_commit_count: Optional[int], **kwargs
     ) -> list[MappedItemBase]:
+        item_type = mapped_table.item_type
+        ref_types = ITEM_CLASS_BY_TYPE[item_type].ref_types()
+        if real_commit_count is None:
+            real_commit_count = self._query_commit_count()
+        if kwargs and item_type in ref_types:
+            return self.do_fetch_all(self._mapped_tables[item_type], commit_count=real_commit_count)
         chunk = self._get_next_chunk(mapped_table.item_type, offset, limit, **kwargs)
         if not chunk:
             return []
-        if real_commit_count is None:
-            real_commit_count = self._query_commit_count()
         is_db_dirty = self._get_commit_count() != real_commit_count
         if is_db_dirty:
             # We need to fetch the most recent references because their ids might have changed in the DB
             item_type = mapped_table.item_type
-            for ref_type in ITEM_CLASS_BY_TYPE[item_type].ref_types():
+            for ref_type in ref_types:
                 if ref_type != item_type:
                     self.do_fetch_all(self._mapped_tables[ref_type], commit_count=real_commit_count)
         items = []
