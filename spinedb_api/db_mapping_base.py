@@ -307,38 +307,30 @@ class MappedTable(dict):
         id_ = self._temp_id_lookup.get(id_, id_)
         return super().get(id_, default)
 
-    def _unique_key_value_to_id(self, key: tuple[str, ...], value: tuple, fetch=True) -> Optional[TempId]:
-        """Returns the id that has the given value for the given unique key, or None."""
-        value = tuple(tuple(x) if isinstance(x, list) else x for x in value)
-        ids = self._ids_by_unique_key_value.get(key, {}).get(value, [])
-        if not ids and fetch:
-            self._db_map.do_fetch_all(self)
-            ids = self._ids_by_unique_key_value.get(key, {}).get(value, [])
-        return None if not ids else ids[-1]
-
     def _unique_key_value_to_item(
         self, key: tuple[str, ...], value: Any, fetch: bool = True
     ) -> Optional[MappedItemBase]:
-        id_ = self._unique_key_value_to_id(key, value, fetch=fetch)
-        if id_ is None:
-            erroneous_values = dict(zip(key, value))
-            raise SpineDBAPIError(f"no {self.item_type} matching {erroneous_values}")
+        value = tuple(tuple(x) if isinstance(x, list) else x for x in value)
         try:
-            mapped_item = self[id_]
+            ids = self._ids_by_unique_key_value[key][value]
         except KeyError:
+            if fetch:
+                self._db_map.do_fetch_all(self)
+                return self._unique_key_value_to_item(key, value, fetch=False)
+            ids = None
+        if not ids:
             erroneous_values = dict(zip(key, value))
             raise SpineDBAPIError(f"no {self.item_type} matching {erroneous_values}")
-        return mapped_item
+        return self[ids[-1]]
 
     def valid_values(self) -> Iterator[MappedItemBase]:
         return (x for x in self.values() if x.is_valid())
 
-    def find_item(self, item: dict, skip_keys: tuple[str, ...] = (), fetch: bool = True) -> MappedItemBase:
+    def find_item(self, item: dict, fetch: bool = True) -> MappedItemBase:
         """Returns a MappedItemBase that matches the given dictionary-item.
 
         Args:
             item: item's unique keys
-            skip_keys: unique keys to skip
             fetch: if True, fetch db if item is not found in-memory
 
         Returns:
@@ -347,7 +339,7 @@ class MappedTable(dict):
         id_ = item.get("id")
         if id_ is not None:
             return self.find_item_by_id(id_, fetch=fetch)
-        return self.find_item_by_unique_key(item, skip_keys=skip_keys, fetch=fetch)
+        return self.find_item_by_unique_key(item, fetch=fetch)
 
     def find_item_by_id(self, id_: TempId, fetch: bool = True) -> MappedItemBase:
         current_item = self.get(id_)
@@ -358,35 +350,27 @@ class MappedTable(dict):
             raise SpineDBAPIError(f"no {self.item_type} with id {id_}")
         return current_item
 
-    def _find_fully_qualified_item_by_unique_key(
-        self, item: dict, skip_keys: tuple[str, ...], fetch: bool
-    ) -> Optional[MappedItemBase]:
+    def _find_fully_qualified_item_by_unique_key(self, item: dict, fetch: bool) -> Optional[MappedItemBase]:
         for key, value in self._db_map.item_factory(self.item_type).unique_values_for_item(item):
-            if key in skip_keys:
-                continue
             try:
                 return self._unique_key_value_to_item(key, value, fetch=fetch)
             except SpineDBAPIError:
                 continue
-        raise SpineDBAPIError(f"no {self.item_type} with {item}")
+        raise SpineDBAPIError(f"no {self.item_type} matching {item}")
 
-    def find_item_by_unique_key(
-        self, item: dict, skip_keys: tuple[str, ...] = (), fetch: bool = True
-    ) -> MappedItemBase:
+    def find_item_by_unique_key(self, item: dict, fetch: bool = True) -> MappedItemBase:
         try:
-            return self._find_fully_qualified_item_by_unique_key(item, skip_keys, fetch)
-        except SpineDBAPIError:
+            return self._find_fully_qualified_item_by_unique_key(item, fetch=fetch)
+        except SpineDBAPIError as error:
             # Maybe item is missing some key stuff, so try with a resolved MappedItem too...
             mapped_item = self._db_map.make_item(self.item_type, **item)
             mapped_item.resolve_internal_fields(skip_keys=tuple(item.keys()))
             for key, value in mapped_item.unique_values_for_item(mapped_item):
-                if key in skip_keys:
-                    continue
                 try:
                     return self._unique_key_value_to_item(key, value, fetch=fetch)
                 except SpineDBAPIError:
                     continue
-            raise SpineDBAPIError(f"no {self.item_type} matching {item}")
+            raise error
 
     def make_candidate_item(self, item: dict) -> Optional[MappedItemBase]:
         candidate_item = self._db_map.make_item(self.item_type, **item)
@@ -422,19 +406,16 @@ class MappedTable(dict):
         first_invalid_key = candidate_item.first_invalid_key()
         if first_invalid_key:
             raise SpineDBAPIError(f"invalid {first_invalid_key} for {self.item_type}")
-        try:
-            for key, value in candidate_item.unique_values_for_item(candidate_item):
-                empty = {k for k, v in zip(key, value) if v == ""}
-                if empty:
-                    raise SpineDBAPIError(f"invalid empty keys {empty} for {self.item_type}")
-                try:
-                    unique_item = self._unique_key_value_to_item(key, value)
-                except SpineDBAPIError:
-                    continue
-                if unique_item is not current_item and unique_item.is_valid():
-                    raise SpineDBAPIError(f"there's already a {self.item_type} with {dict(zip(key, value))}")
-        except KeyError as e:
-            raise SpineDBAPIError(f"missing {e} for {self.item_type}")
+        for key, value in candidate_item.unique_values_for_item(candidate_item):
+            empty = {k for k, v in zip(key, value) if v == ""}
+            if empty:
+                raise SpineDBAPIError(f"invalid empty keys {empty} for {self.item_type}")
+            try:
+                unique_item = self._unique_key_value_to_item(key, value)
+            except SpineDBAPIError:
+                continue
+            if unique_item is not current_item and unique_item.is_valid():
+                raise SpineDBAPIError(f"there's already a {self.item_type} with {dict(zip(key, value))}")
 
     def item_to_remove(self, id_: TempId) -> MappedItemBase:
         if id_ is Asterisk:
@@ -473,7 +454,7 @@ class MappedTable(dict):
     def add_item_from_db(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool]:
         """Adds an item fetched from the DB."""
         try:
-            mapped_item = self._find_fully_qualified_item_by_unique_key(item, (), fetch=False)
+            mapped_item = self._find_fully_qualified_item_by_unique_key(item, fetch=False)
         except SpineDBAPIError:
             mapped_item = self.get(item["id"])
             if mapped_item:
@@ -530,7 +511,7 @@ class MappedTable(dict):
             if not isinstance(value, valid_types):
                 return (
                     f"invalid type for '{key}' of '{self.item_type}' - "
-                    f"got {type(value).__name__}, expected {f_dict['type'].__name__}."
+                    f"got {type(value).__name__}, expected {f_dict['type'].__name__}"
                 )
 
         errors = list(filter(lambda x: x is not None, (_error(key, value, valid_types) for key, value in item.items())))
@@ -809,9 +790,10 @@ class MappedItemBase(dict):
     @classmethod
     def unique_values_for_item(cls, item: MappedItemBase) -> Iterable[tuple[tuple[str, ...], tuple[str, ...]]]:
         for key_set in cls.unique_keys:
-            value = tuple(item.get(key) for key in key_set)
-            if None not in value:
-                yield key_set, value
+            try:
+                yield key_set, tuple(item[key] for key in key_set)
+            except KeyError:
+                continue
 
     def resolve_internal_fields(self, skip_keys: tuple[str, ...] = ()) -> None:
         """Goes through the ``_internal_fields`` class attribute and updates this item

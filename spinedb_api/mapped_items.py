@@ -200,11 +200,9 @@ class EntityItem(MappedItemBase):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def unique_values_for_item(cls, item, skip_keys=()):
+    def unique_values_for_item(cls, item):
         """Overridden to also yield unique values for the superclass."""
         for key, value in super().unique_values_for_item(item):
-            if key in skip_keys:
-                continue
             yield key, value
             sc_value = tuple(item.get("superclass_name" if k == "entity_class_name" else k) for k in key)
             if None not in sc_value:
@@ -310,8 +308,6 @@ class EntityItem(MappedItemBase):
         try:
             byname = dict.pop(self, "entity_byname")
         except KeyError:
-            return
-        if not byname:
             return
         if not self["dimension_id_list"]:
             self["name"] = byname[0]
