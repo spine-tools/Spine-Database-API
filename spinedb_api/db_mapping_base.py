@@ -265,7 +265,7 @@ class DatabaseMappingBase:
         """Fetches items from the DB and adds them to the mapping."""
         raise NotImplementedError()
 
-    def do_fetch_all(self, mapped_table: MappedTable, commit_count: Optional[int] = None) -> None:
+    def do_fetch_all(self, mapped_table: MappedTable, commit_count: Optional[int] = None) -> list[MappedItemBase]:
         """Fetches all items of given type, but only once for each commit_count.
         In other words, the second time this method is called with the same commit_count, it does nothing.
         If not specified, commit_count defaults to the result of self._get_commit_count().
@@ -274,7 +274,8 @@ class DatabaseMappingBase:
             commit_count = self._get_commit_count()
         if self._fetched.get(mapped_table.item_type, -1) < commit_count:
             self._fetched[mapped_table.item_type] = commit_count
-            self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=commit_count)
+            return self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=commit_count)
+        return []
 
     def item(self, mapped_table: MappedTable, **kwargs) -> PublicItem:
         raise NotImplementedError()
