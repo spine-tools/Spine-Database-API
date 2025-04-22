@@ -93,6 +93,7 @@ from typing import Any, Optional, SupportsFloat, Type, Union
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import numpy as np
+import numpy.typing as nptyping
 from .exception import ParameterValueFormatError
 
 # Defaulting to seconds precision in numpy.
@@ -390,7 +391,7 @@ def get_conflict_fixer(
         )
 
 
-def _break_dictionary(data: dict) -> tuple[list, np.ndarray]:
+def _break_dictionary(data: dict) -> tuple[list, nptyping.NDArray]:
     """Converts {"index": value} style dictionary into (list(indexes), numpy.ndarray(values)) tuple."""
     if not isinstance(data, dict):
         raise ParameterValueFormatError(
@@ -751,9 +752,6 @@ class ParameterValue:
         return json.dumps(self.to_dict()).encode("UTF8"), self.TYPE
 
 
-Value = Union[bool, float, str, ParameterValue]
-
-
 class DateTime(ParameterValue):
     """A parameter value of type 'date_time'. A point in time."""
 
@@ -863,6 +861,9 @@ class Duration(ParameterValue):
         return self._value
 
 
+ScalarValue = Union[bool, float, str, DateTime, Duration]
+
+
 class _Indexes(np.ndarray):
     """
     A subclass of numpy.ndarray that keeps a lookup dictionary from elements to positions.
@@ -903,7 +904,7 @@ class IndexedValue(ParameterValue):
 
     DEFAULT_INDEX_NAME = NotImplemented
 
-    def __init__(self, values: Sequence[Any], value_type: str = None, index_name: str = ""):
+    def __init__(self, values: Sequence[Any], value_type: Optional[Type] = None, index_name: str = ""):
         """
         :meta private:
 
@@ -914,7 +915,7 @@ class IndexedValue(ParameterValue):
         """
         self._value_type = value_type
         self._indexes: Optional[_Indexes] = None
-        self._values: Optional[Sequence[Any]] = None
+        self._values: Optional[nptyping.NDArray[Any]] = None
         self.values = values
         self.index_name = index_name if index_name else self.DEFAULT_INDEX_NAME
 
@@ -926,12 +927,12 @@ class IndexedValue(ParameterValue):
         return len(self.indexes)
 
     @property
-    def indexes(self) -> np.ndarray:
+    def indexes(self) -> nptyping.NDArray:
         """The indexes."""
         return self._indexes
 
     @indexes.setter
-    def indexes(self, indexes: np.ndarray) -> None:
+    def indexes(self, indexes: nptyping.NDArray) -> None:
         """Sets the indexes."""
         self._indexes = _Indexes(indexes)
 
@@ -942,11 +943,7 @@ class IndexedValue(ParameterValue):
 
     @values.setter
     def values(self, values: Sequence[Any]) -> None:
-        """Sets the values.
-
-        Args:
-            values (:class:`~numpy.ndarray`)
-        """
+        """Sets the values."""
         if isinstance(self._value_type, np.dtype) and (
             not isinstance(values, np.ndarray) or not values.dtype == self._value_type
         ):
@@ -954,7 +951,7 @@ class IndexedValue(ParameterValue):
         self._values = values
 
     @property
-    def value_type(self) -> str:
+    def value_type(self) -> Type:
         """The type of the values."""
         return self._value_type
 
@@ -1018,6 +1015,9 @@ class IndexedValue(ParameterValue):
         return self
 
 
+Value = Union[ScalarValue, IndexedValue]
+
+
 class Array(IndexedValue):
     """A parameter value of type 'array'. A one dimensional array with zero based indexing."""
 
@@ -1025,13 +1025,13 @@ class Array(IndexedValue):
     TYPE = "array"
     DEFAULT_INDEX_NAME = "i"
 
-    def __init__(self, values, value_type=None, index_name=""):
+    def __init__(self, values: Sequence[ScalarValue], value_type: Optional[Type] = None, index_name: str = ""):
         """
         Args:
-            values (Sequence): the array values.
-            value_type (type, optional): the type of the values; if not given, it will be deduced from `values`.
+            values: the array values.
+            value_type: the type of the values; if not given, it will be deduced from `values`.
                 Defaults to float if `values` is empty.
-            index_name (str): the name you would give to the array index in your application.
+            index_name: the name you would give to the array index in your application.
         """
         if value_type is None:
             value_type = type(values[0]) if values else float
@@ -1081,12 +1081,12 @@ class _TimePatternIndexes(_Indexes):
     """An array of *checked* time pattern indexes."""
 
     @staticmethod
-    def _check_index(union_str):
+    def _check_index(union_str: str) -> None:
         """
         Checks if a time pattern index has the right format.
 
         Args:
-            union_str (str): The time pattern index to check. Generally assumed to be a union of interval intersections.
+            union_str: The time pattern index to check. Generally assumed to be a union of interval intersections.
 
         Raises:
             ParameterValueFormatError: If the given string doesn't comply with time pattern spec.
@@ -1149,12 +1149,12 @@ class TimePattern(IndexedValue):
     TYPE = "time_pattern"
     DEFAULT_INDEX_NAME = "p"
 
-    def __init__(self, indexes, values, index_name=""):
+    def __init__(self, indexes: list[str], values: Sequence[float], index_name: str = ""):
         """
         Args:
-            indexes (list): the time pattern strings.
-            values (Sequence): the values associated to different patterns.
-            index_name (str): index name
+            indexes: the time pattern strings.
+            values: the values associated to different patterns.
+            index_name: index name
         """
         if len(indexes) != len(values):
             raise ParameterValueFormatError("Length of values does not match length of indexes")
@@ -1190,7 +1190,7 @@ class TimeSeries(IndexedValue):
     TYPE = "time_series"
     DEFAULT_INDEX_NAME = "t"
 
-    def __init__(self, values, ignore_year, repeat, index_name=""):
+    def __init__(self, values: Sequence[float], ignore_year: bool, repeat: bool, index_name: str = ""):
         """
         :meta private:
 
@@ -1260,17 +1260,25 @@ class TimeSeriesFixedResolution(TimeSeries):
     other than having getters for their values.
     """
 
-    _memoized_indexes = {}
+    _memoized_indexes: dict[tuple[np.datetime64, tuple[relativedelta, ...], int], nptyping.NDArray[np.datetime64]] = {}
 
-    def __init__(self, start, resolution, values, ignore_year, repeat, index_name=""):
+    def __init__(
+        self,
+        start: Union[str, datetime, np.datetime64],
+        resolution: Union[str, relativedelta, list[Union[str, relativedelta]]],
+        values: Sequence[float],
+        ignore_year: bool,
+        repeat: bool,
+        index_name: str = "",
+    ):
         """
         Args:
-            start (str or :class:`~datetime.datetime` or :class:`~numpy.datetime64`): the first time stamp
-            resolution (str, :class:`~dateutil.relativedelta.relativedelta`, list): duration(s) between the time stamps.
-            values (Sequence): the values in the time-series.
-            ignore_year (bool): True if the year should be ignored.
-            repeat (bool): True if the series is repeating.
-            index_name (str): index name.
+            start: the first time stamp
+            resolution: duration(s) between the time stamps.
+            values: the values in the time-series.
+            ignore_year: True if the year should be ignored.
+            repeat: True if the series is repeating.
+            index_name: index name.
         """
         super().__init__(values, ignore_year, repeat, index_name)
         self._start = None
@@ -1290,7 +1298,7 @@ class TimeSeriesFixedResolution(TimeSeries):
             and self.index_name == other.index_name
         )
 
-    def _get_memoized_indexes(self):
+    def _get_memoized_indexes(self) -> nptyping.NDArray[np.datetime64]:
         key = (self.start, tuple(self.resolution), len(self))
         memoized_indexes = self._memoized_indexes.get(key)
         if memoized_indexes is not None:
@@ -1314,22 +1322,13 @@ class TimeSeriesFixedResolution(TimeSeries):
         self._indexes = _Indexes(indexes)
 
     @property
-    def start(self):
-        """Returns the start index.
-
-        Returns:
-            :class:`~numpy.datetime64`:
-        """
+    def start(self) -> np.datetime64:
+        """Returns the start index."""
         return self._start
 
     @start.setter
-    def start(self, start):
-        """
-        Sets the start index.
-
-        Args:
-            start (:class:`~datetime.datetime` or :class:`~numpy.datetime64` or str): the start of the series
-        """
+    def start(self, start: Union[str, datetime, np.datetime64]):
+        """Sets the start index."""
         if isinstance(start, str):
             try:
                 self._start = datetime.fromisoformat(start)
@@ -1345,22 +1344,13 @@ class TimeSeriesFixedResolution(TimeSeries):
         self._indexes = None
 
     @property
-    def resolution(self):
-        """Returns the resolution as list of durations.
-
-        Returns:
-            list(:class:`Duration`):
-        """
+    def resolution(self) -> list[relativedelta]:
+        """Returns the resolution as list of durations."""
         return self._resolution
 
     @resolution.setter
-    def resolution(self, resolution):
-        """
-        Sets the resolution.
-
-        Args:
-            resolution (str, :class:`~.dateutil.relativedelta.relativedelta`, list): resolution or a list thereof
-        """
+    def resolution(self, resolution: Union[str, relativedelta, Sequence[Union[str, relativedelta]]]) -> None:
+        """Sets the resolution."""
         if isinstance(resolution, str):
             resolution = [duration_to_relativedelta(resolution)]
         elif not isinstance(resolution, Sequence):
@@ -1398,14 +1388,21 @@ class TimeSeriesVariableResolution(TimeSeries):
     A mapping from time stamps to numerical values with arbitrary time steps.
     """
 
-    def __init__(self, indexes, values, ignore_year, repeat, index_name=""):
+    def __init__(
+        self,
+        indexes: Sequence[Union[str, datetime, np.datetime64, DateTime]],
+        values: Sequence[float],
+        ignore_year: bool,
+        repeat: bool,
+        index_name: str = "",
+    ):
         """
         Args:
-            indexes (Sequence(:class:`~numpy.datetime64`)): the time stamps.
-            values (Sequence): the value for each time stamp.
-            ignore_year (bool): True if the year should be ignored.
-            repeat (bool): True if the series is repeating.
-            index_name (str): index name.
+            indexes: the time stamps.
+            values: the value for each time stamp.
+            ignore_year: True if the year should be ignored.
+            repeat: True if the series is repeating.
+            index_name: index name.
         """
         super().__init__(values, ignore_year, repeat, index_name)
         if len(indexes) != len(values):
@@ -1458,13 +1455,19 @@ class Map(IndexedValue):
     TYPE = "map"
     DEFAULT_INDEX_NAME = "x"
 
-    def __init__(self, indexes, values, index_type=None, index_name=""):
+    def __init__(
+        self,
+        indexes: Sequence[MapIndex],
+        values: Sequence[Value],
+        index_type: Optional[Type] = None,
+        index_name: str = "",
+    ):
         """
         Args:
-            indexes (Sequence): the indexes in the map.
-            values (Sequence): the value for each index.
-            index_type (type or NoneType): index type or None to deduce from ``indexes``.
-            index_name (str): index name.
+            indexes: the indexes in the map.
+            values: the value for each index.
+            index_type: index type or None to deduce from ``indexes``.
+            index_name: index name.
         """
         if not indexes and index_type is None:
             raise ParameterValueFormatError("Cannot deduce index type from empty indexes list.")
@@ -1483,18 +1486,14 @@ class Map(IndexedValue):
         return other._indexes == self._indexes and other._values == self._values and self.index_name == other.index_name
 
     @property
-    def index_type(self):
+    def index_type(self) -> MapIndexType:
         return self._index_type
 
-    def is_nested(self):
-        """Whether any of the values is also a map.
-
-        Returns:
-            bool:
-        """
+    def is_nested(self) -> bool:
+        """Whether any of the values is also a map."""
         return any(isinstance(value, Map) for value in self._values)
 
-    def value_to_database_data(self):
+    def value_to_database_data(self) -> tuple[list[list[Union[float, str]]], int]:
         """Returns map's database representation's 'data' dictionary."""
         data = []
         nested_ranks = [0]
@@ -1527,16 +1526,16 @@ _MAP_INDEX_TYPES = {
 }
 
 
-def map_dimensions(map_):
+def map_dimensions(map_: Map) -> int:
     """Counts the dimensions in a map.
 
     :meta private:
 
     Args:
-        map_ (:class:`Map`): the map to process.
+        map_: the map to process.
 
     Returns:
-        int: number of dimensions
+        number of dimensions
     """
     nested = 0
     for v in map_.values:
@@ -1547,7 +1546,7 @@ def map_dimensions(map_):
     return 1 + nested
 
 
-def convert_leaf_maps_to_specialized_containers(map_):
+def convert_leaf_maps_to_specialized_containers(map_: Map) -> IndexedValue:
     """
     Converts leafs to specialized containers.
 
@@ -1559,10 +1558,10 @@ def convert_leaf_maps_to_specialized_containers(map_):
     :meta private:
 
     Args:
-        map_ (:class:`Map`): a map to process.
+        map_: a map to process.
 
     Returns:
-        :class:`IndexedValue`: a new map with leaves converted.
+        a new map with leaves converted.
     """
     converted_container = _try_convert_to_container(map_)
     if converted_container is not None:
@@ -1577,7 +1576,7 @@ def convert_leaf_maps_to_specialized_containers(map_):
     return Map(map_.indexes, new_values, index_name=map_.index_name)
 
 
-def convert_containers_to_maps(value):
+def convert_containers_to_maps(value: Any) -> Union[Any, Map]:
     """
     Converts indexed values into maps.
 
@@ -1586,10 +1585,10 @@ def convert_containers_to_maps(value):
     :meta private:
 
     Args:
-        value (:class:`IndexedValue`): an indexed value to convert.
+        value: a value to convert.
 
     Returns:
-        :class:`Map`: converted Map
+        converted Map or value as-is if conversion was not possible
     """
     if isinstance(value, Map):
         if not value:
@@ -1616,20 +1615,22 @@ def convert_containers_to_maps(value):
     return value
 
 
-def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
+def convert_map_to_table(
+    map_: Map, make_square: bool = True, row_this_far: Optional[list] = None, empty: Optional[Any] = None
+) -> list[list]:
     """
     Converts :class:`Map` into list of rows recursively.
 
     :meta private:
 
     Args:
-        map_ (:class:`Map`): map to convert.
-        make_square (bool): if True, then pad rows with None so they all have the same length.
-        row_this_far (list, optional): current row; used for recursion.
-        empty (any, optional): object to fill empty cells with.
+        map_: map to convert.
+        make_square: if True, then pad rows with None so they all have the same length.
+        row_this_far: current row; used for recursion.
+        empty: object to fill empty cells with.
 
     Returns:
-        list of list: map's rows
+        map's rows
     """
     if row_this_far is None:
         row_this_far = []
@@ -1651,18 +1652,8 @@ def convert_map_to_table(map_, make_square=True, row_this_far=None, empty=None):
     return rows
 
 
-def convert_map_to_dict(map_):
-    """
-    Converts a :class:`Map` to a nested dictionary.
-
-    :meta private:
-
-    Args:
-        map_ (:class:`Map`): map to convert
-
-    Returns:
-        dict:
-    """
+def convert_map_to_dict(map_: Map) -> dict:
+    """Converts a :class:`Map` to a nested dictionary."""
     d = {}
     for index, x in zip(map_.indexes, map_.values):
         if isinstance(x, Map):
@@ -1671,15 +1662,15 @@ def convert_map_to_dict(map_):
     return d
 
 
-def _try_convert_to_container(map_):
+def _try_convert_to_container(map_: Map) -> Optional[TimeSeriesVariableResolution]:
     """
     Tries to convert a map to corresponding specialized container.
 
     Args:
-        map_ (Map): a map to convert
+        map_: a map to convert
 
     Returns:
-        TimeSeriesVariableResolution or None: converted Map or None if the map couldn't be converted
+        converted Map or None if the map couldn't be converted
     """
     if not map_:
         return None
@@ -1694,7 +1685,7 @@ def _try_convert_to_container(map_):
 
 
 # Value types that are supported by spinedb_api
-VALUE_TYPES = {
+VALUE_TYPES: set[str] = {
     FLOAT_VALUE_TYPE,
     BOOLEAN_VALUE_TYPE,
     STRING_VALUE_TYPE,
@@ -1706,17 +1697,17 @@ VALUE_TYPES = {
     Map.TYPE,
 }
 
-RANK_1_TYPES = {Array.TYPE, TimePattern.TYPE, TimeSeries.TYPE}
-NON_ZERO_RANK_TYPES = RANK_1_TYPES | {Map.TYPE}
+RANK_1_TYPES: set[str] = {Array.TYPE, TimePattern.TYPE, TimeSeries.TYPE}
+NON_ZERO_RANK_TYPES: set[str] = RANK_1_TYPES | {Map.TYPE}
 
 
-def type_and_rank_to_fancy_type(value_type, rank):
+def type_and_rank_to_fancy_type(value_type: str, rank: int) -> str:
     if value_type == Map.TYPE:
         return f"{rank}d_{value_type}"
     return value_type
 
 
-def fancy_type_to_type_and_rank(fancy_type):
+def fancy_type_to_type_and_rank(fancy_type: str) -> tuple[str, int]:
     if fancy_type.endswith(f"d_{Map.TYPE}"):
         return Map.TYPE, int("".join(takewhile(lambda x: x.isdigit(), fancy_type)))
     if fancy_type in RANK_1_TYPES:
@@ -1724,7 +1715,7 @@ def fancy_type_to_type_and_rank(fancy_type):
     return fancy_type, 0
 
 
-def join_value_and_type(db_value, db_type):
+def join_value_and_type(db_value: bytes, db_type: Optional[str]) -> str:
     """Joins database value and type into a string.
     The resulting string is a JSON string.
     In case of complex types (duration, date_time, time_series, time_pattern, array, map),
@@ -1733,11 +1724,11 @@ def join_value_and_type(db_value, db_type):
     :meta private:
 
     Args:
-        db_value (bytes): database value
-        db_type (str, optional): value type
+        db_value: database value
+        db_type: value type
 
     Returns:
-        str: parameter value as JSON with an additional ``type`` field.
+        parameter value as JSON with an additional ``type`` field.
     """
     try:
         parsed = load_db_value(db_value, db_type)
@@ -1746,16 +1737,16 @@ def join_value_and_type(db_value, db_type):
     return json.dumps(parsed)
 
 
-def split_value_and_type(value_and_type):
+def split_value_and_type(value_and_type: str) -> tuple[bytes, str]:
     """Splits the given string into value and type.
 
     :meta private:
 
     Args:
-        value_and_type (str): a string joining value and type, as obtained by calling :func:`join_value_and_type`.
+        value_and_type: a string joining value and type, as obtained by calling :func:`join_value_and_type`.
 
     Returns:
-        tuple(bytes,str): database value and type.
+        database value and type.
     """
     try:
         parsed = json.loads(value_and_type)
@@ -1764,17 +1755,17 @@ def split_value_and_type(value_and_type):
     return dump_db_value(parsed)
 
 
-def deep_copy_value(value):
+def deep_copy_value(value: Optional[Value]) -> Optional[Value]:
     """Copies a value.
     The operation is deep meaning that nested Maps will be copied as well.
 
     :meta private:
 
     Args:
-        value (Any): value to copy
+        value to copy
 
     Returns:
-        Any: deep-copied value
+        deep-copied value
     """
     if isinstance(value, (SupportsFloat, str)) or value is None:
         return value
@@ -1799,30 +1790,30 @@ def deep_copy_value(value):
     raise ValueError("unknown value")
 
 
-def deep_copy_map(value):
+def deep_copy_map(value: Map) -> Map:
     """Deep copies a Map value.
 
     :meta private:
 
     Args:
-        value (Map): Map to copy
+        value: Map to copy
 
     Returns:
-        Map: deep-copied Map
+        deep-copied Map
     """
     xs = value.indexes.copy()
     ys = [deep_copy_value(y) for y in value.values]
     return Map(xs, ys, index_type=value.index_type, index_name=value.index_name)
 
 
-def type_for_value(value):
+def type_for_value(value: Value) -> tuple[str, int]:
     """Declares value's database type and rank.
 
     Args:
-        value (Any): value to inspect
+        value: value to inspect
 
     Returns:
-        tuple: type and rank
+        type and rank
     """
     if isinstance(value, Map):
         return Map.TYPE, map_dimensions(value)
@@ -1855,4 +1846,4 @@ def type_for_scalar(parsed_value: JSONValue) -> Optional[str]:
     raise ParameterValueFormatError(f"Values of type {type(parsed_value).__name__} not supported.")
 
 
-UNPARSED_NULL_VALUE = to_database(None)[0]
+UNPARSED_NULL_VALUE: bytes = to_database(None)[0]
