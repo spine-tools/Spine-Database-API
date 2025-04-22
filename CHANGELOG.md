@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `DatabaseMapping.fetch_all()` now returns the fetched items as instances of `PublicItem`.
+
 ### Removed
 
 ### Fixed

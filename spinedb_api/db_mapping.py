@@ -1085,7 +1085,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             for x in self._do_fetch_more(mapped_table, offset=offset, limit=limit, real_commit_count=None, **kwargs)
         ]
 
-    def fetch_all(self, *item_types):
+    def fetch_all(self, *item_types) -> list[PublicItem]:
         """Fetches items from the DB into the in-memory mapping.
         Unlike :meth:`fetch_more`, this method fetches entire tables.
 
@@ -1094,10 +1094,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_types = set(self.item_types()) if not item_types else set(item_types) & set(self.item_types())
         commit_count = self._query_commit_count()
+        items = []
         for item_type in item_types:
             item_type = self.real_item_type(item_type)
             mapped_table = self.mapped_table(item_type)
-            self.do_fetch_all(mapped_table, commit_count)
+            items += [item.public_item for item in self.do_fetch_all(mapped_table, commit_count)]
+        return items
 
     def query(self, *entities, **kwargs):
         """Returns a :class:`~spinedb_api.query.Query` object to execute against the mapped DB.
