@@ -3034,6 +3034,23 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(len(classes), 1)
                 self.assertEqual(classes[0]["name"], "asset__group")
 
+    def test_fetch_all_returns_public_items(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object")
+                db_map.add_scenario(name="my scenario")
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                classes_and_scenarios = db_map.fetch_all("entity_class", "scenario")
+                self.assertEqual(len(classes_and_scenarios), 2)
+                classes = [item["name"] for item in classes_and_scenarios if item.item_type == "entity_class"]
+                self.assertEqual(len(classes), 1)
+                self.assertEqual(classes[0], "Object")
+                scenarios = [item["name"] for item in classes_and_scenarios if item.item_type == "scenario"]
+                self.assertEqual(len(scenarios), 1)
+                self.assertEqual(scenarios[0], "my scenario")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

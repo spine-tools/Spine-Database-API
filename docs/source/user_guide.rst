@@ -469,11 +469,20 @@ which also fetches multiple items at once::
         for entity in db_map.find_entities(entity_class_name="cutlery"):
             ...
 
-The SQLAlchemy_ queries that are used to fetch the data can be used directly
-if reading the data is all that is needed.
-This is the fastest interface to the database.
-It also lacks the convenience of :class:`.DatabaseMapping`,
-including any kind of documentation.
+:meth:`.DatabaseMapping.find` works nicely if the items need to be restricted somehow
+as was the case above (find entities with specific entity class).
+If all items of certain type need to be processed,
+:meth:`DatabaseMapping.fetch_all` is more performant::
+
+    with api.DatabaseMapping(url) as db_map:
+        for entity in db_map.fetch_all("entity"):
+            ...
+
+Even faster access would be achieved by using the SQLAlchemy_ queries
+that are used to fetch the data directly.
+The queried data is, however, unstructured
+meaning that resolving all references has to be done manually.
+Also, the query interface is currently largely undocumented.
 
 Parameter types
 ---------------
