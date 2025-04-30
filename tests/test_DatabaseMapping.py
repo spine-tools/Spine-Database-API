@@ -3051,6 +3051,32 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(len(scenarios), 1)
                 self.assertEqual(scenarios[0], "my scenario")
 
+    def test_set_parameter_definitions_list_value_to_none(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_parameter_value_list(name="Choices")
+            db_map.add_list_value(parameter_value_list_name="Choices", parsed_value="yes", index=0)
+            db_map.add_entity_class(name="Object")
+            definition = db_map.add_parameter_definition(
+                entity_class_name="Object", name="y", parameter_value_list_name="Choices", parsed_value="yes"
+            )
+            db_map.update_parameter_definition(id=definition["id"], default_type=None, default_value=None)
+            self.assertIsNone(definition["default_type"])
+            self.assertIsNone(definition["default_value"])
+
+    def test_set_parameter_definitions_list_value_to_none_unchecked(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_parameter_value_list(name="Choices")
+            db_map.add_list_value(parameter_value_list_name="Choices", parsed_value="yes", index=0)
+            db_map.add_entity_class(name="Object")
+            definition = db_map.add_parameter_definition(
+                entity_class_name="Object", name="y", parameter_value_list_name="Choices", parsed_value="yes"
+            )
+            db_map.update_parameter_definition_item(
+                id=definition["id"], default_type=None, default_value=None, check=False
+            )
+            self.assertIsNone(definition["default_type"])
+            self.assertIsNone(definition["default_value"])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
