@@ -809,7 +809,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         merged_item, updated_fields = target_item.merge(kwargs)
         if merged_item is None:
             return None, ""
-        mapped_table.update_item(merged_item, target_item, updated_fields)
+        candidate_item = self.make_item(item_type, **merged_item)
+        candidate_item.polish()
+        mapped_table.update_item(candidate_item, target_item, updated_fields)
         return target_item.public_item, ""
 
     def update_items(self, item_type, *items, check=True, strict=False):
