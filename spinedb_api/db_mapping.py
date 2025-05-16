@@ -192,7 +192,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self._session = None
         self._context_open_count = 0
-        if self._filter_configs is not None:
+        if self._filter_configs:
             stack = load_filters(self._filter_configs)
             apply_filter_stack(self, stack)
 
@@ -208,7 +208,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._context_open_count -= 1
         if self._context_open_count == 0:
             self._session.close()
-            self._session = None
         return False
 
     def session(self):
