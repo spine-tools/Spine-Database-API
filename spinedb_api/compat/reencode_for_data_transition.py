@@ -1,13 +1,3 @@
-#!/usr/bin/env python
-# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#   "pandas[performance]>=2",
-#   "pyarrow>=17",
-#   "pydantic>=2",
-# ]
-# ///
-
 """Reencode old map type JSON to new table/tables type JSON"""
 
 from datetime import datetime, timedelta
