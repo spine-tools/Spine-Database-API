@@ -364,9 +364,8 @@ def to_tables(df: pd.DataFrame) -> Table:
     return [series_to_col(col) for _, col in df.items()]
 
 
-def transition_data(old_json_bytes: str) -> str:
+def transition_data(old_json_bytes: str) -> bytes:
     df = to_df(json.loads(old_json_bytes))
     tbls = to_tables(df)
     new_json_bytes = RootModel[Table](tbls).model_dump_json().encode()
-
     return new_json_bytes
