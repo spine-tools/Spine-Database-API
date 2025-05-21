@@ -10,22 +10,15 @@
 
 """Reencode old map type JSON to new table/tables type JSON"""
 
-from argparse import ArgumentParser
 from datetime import datetime, timedelta
 import json
-from pathlib import Path
 import re
 from typing import Any, Callable, Iterable, TypeAlias
 from warnings import warn
 import numpy as np
 import pandas as pd
 from pydantic import RootModel
-from rich.pretty import pprint  # noqa: F401, keep for debugging
 from spinedb_api.models import Array, ArrayIndex, DictEncodedArray, DictEncodedIndex, Table
-
-
-def json_loads_ts(json_str: str | bytes):
-    return pd.Series(json.loads(json_str)["data"])
 
 
 # Regex pattern to indentify numerical sequences encoded as string
@@ -328,18 +321,6 @@ def make_records(
     return res
 
 
-def json_loads_multi_dim_ts(json_str: str | bytes):
-    recs = make_records(json.loads(json_str), {}, [])
-    ts = pd.DataFrame((r.values() for r in recs), columns=recs[0].keys())
-    # ts["time"] = ts["time"].str.strip("t").astype(int)
-    # ts["period"] = ts["period"].str.strip("p").astype(int)
-
-    # assuming last column as value column
-    *idx_cols, value_col = ts.columns.to_list()
-    ts = ts.astype({col: "category" for col, _ in ts.dtypes.items() if col != value_col}).set_index(idx_cols)[value_col]
-    return ts
-
-
 def to_df(json_doc: dict):
     data = make_records(json_doc, {}, [])
     # NOTE: don't use pyarrow, difficult to support mixed types
@@ -347,13 +328,6 @@ def to_df(json_doc: dict):
     # df = tbl.to_pandas(types_mapper=pd.ArrowDtype)
     df = pd.DataFrame.from_records(data)
     return df
-
-
-class _sentinel:
-    pass
-
-
-SENTINEL = _sentinel()
 
 
 def series_to_col(
@@ -396,19 +370,3 @@ def transition_data(old_json_bytes: str) -> str:
     new_json_bytes = RootModel[Table](tbls).model_dump_json().encode()
 
     return new_json_bytes
-
-
-if __name__ == "__main__":
-    from argparse import ArgumentParser
-
-    parser = ArgumentParser(__doc__)
-    parser.add_argument("old_json")
-    parser.add_argument("new_json")
-    opts = parser.parse_args()
-
-    df = to_df(json.loads(Path(opts.old_json).read_text()))
-    tbls = to_tables(df)
-    # NOTE: using pydantic is optional here, we can also write our own
-    # JSON serialisation if we want, probably all we need is `asdict(...)`.
-    json_blob = RootModel[Table](tbls).model_dump_json(indent=2)
-    Path(opts.new_json).write_text(json_blob)
