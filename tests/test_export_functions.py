@@ -35,7 +35,7 @@ from spinedb_api import (
     import_scenario_alternatives,
     import_scenarios,
 )
-from spinedb_api.export_functions import export_parameter_types
+from spinedb_api.export_functions import export_parameter_types, export_parameter_values
 from spinedb_api.helpers import DisplayStatus
 from tests.mock_helpers import AssertSuccessTestCase
 
@@ -212,6 +212,35 @@ class TestExportFunctions(AssertSuccessTestCase):
             self._assert_imports(import_data(db_map, **data))
             self.assertEqual(
                 db_map.list_value(parameter_value_list_name="possibilities", index=0)["parsed_value"], "infinite"
+            )
+
+    def test_export_parameter_values_sorts_zero_and_multidimensional_entities(self):
+        with DatabaseMapping("sqlite:///", create=True) as db_map:
+            db_map.add_entity_class(name="First")
+            db_map.add_parameter_definition(entity_class_name="First", name="mass")
+            db_map.add_entity(entity_class_name="First", name="dim1")
+            db_map.add_parameter_value(
+                entity_class_name="First",
+                entity_byname=("dim1",),
+                parameter_definition_name="mass",
+                alternative_name="Base",
+                parsed_value=23.0,
+            )
+            db_map.add_entity_class(name="Second")
+            db_map.add_entity(entity_class_name="Second", name="dim2")
+            db_map.add_entity_class(dimension_name_list=["First", "Second"])
+            db_map.add_parameter_definition(entity_class_name="First__Second", name="x")
+            db_map.add_entity(entity_class_name="First__Second", element_name_list=["dim1", "dim2"])
+            db_map.add_parameter_value(
+                entity_class_name="First__Second",
+                entity_byname=("dim1", "dim2"),
+                parameter_definition_name="x",
+                alternative_name="Base",
+                parsed_value=2.3,
+            )
+            data = export_parameter_values(db_map)
+            self.assertEqual(
+                data, [("First", "dim1", "mass", 23.0, "Base"), ("First__Second", ("dim1", "dim2"), "x", 2.3, "Base")]
             )
 
     def test_export_data(self):
