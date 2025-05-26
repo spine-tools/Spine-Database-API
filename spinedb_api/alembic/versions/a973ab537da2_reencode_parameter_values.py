@@ -36,11 +36,22 @@ def upgrade():
     # Read current data
     results = conn.execute(sa.select(my_table.c.id, my_table.c.value, my_table.c.type)).fetchall()
 
+    # NOTE: maybe this should be derived from `models.ValueTypeNames`,
+    # but we don't want non-JSON values like integer, number, boolean;
+    # also some names differ by `-` <-> `_`
+    convertible = ("date_time", "duration", "time_pattern", "time_series", "array", "map")
+
     # Apply transformation
     for row in results:
+        if row.type not in convertible:
+            continue
         old_value = row.value
         new_value = transition_data(old_value)
 
+        # FIXME:
+        # - `type` also needs translation; from the `convertible`
+        #   list, ("time_series", "array", "map") -> "table"
+        # - can the insertions be queued?
         # Update the row
         conn.execute(my_table.update().where(my_table.c.id == row.id).values(value=new_value))
 
