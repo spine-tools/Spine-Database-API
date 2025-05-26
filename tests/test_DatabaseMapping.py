@@ -3077,6 +3077,60 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertIsNone(definition["default_type"])
             self.assertIsNone(definition["default_value"])
 
+    def test_deleting_multidimensional_entities_deletes_their_parameter_values_too(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object")
+                db_map.add_entity(entity_class_name="Object", name="gadget")
+                db_map.add_entity_class(name="Subject")
+                db_map.add_entity(entity_class_name="Subject", name="widget")
+                db_map.add_entity_class(dimension_name_list=("Subject", "Object"))
+                db_map.add_parameter_definition(entity_class_name="Subject__Object", name="bonkiness")
+                db_map.add_entity(entity_class_name="Subject__Object", entity_byname=("widget", "gadget"))
+                db_map.add_parameter_value(
+                    entity_class_name="Subject__Object",
+                    entity_byname=("widget", "gadget"),
+                    parameter_definition_name="bonkiness",
+                    alternative_name="Base",
+                    parsed_value=2.3,
+                )
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                entity_item = db_map.entity(entity_class_name="Subject__Object", entity_byname=("widget", "gadget"))
+                entity_item.remove()
+                db_map.commit_session("Remove the entity.")
+            with DatabaseMapping(url) as db_map:
+                values = db_map.find_parameter_values()
+                self.assertEqual(values, [])
+
+    def test_deleting_element_from_multidimensional_entity_deletes_all_parameter_values_too(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object")
+                db_map.add_entity(entity_class_name="Object", name="gadget")
+                db_map.add_entity_class(name="Subject")
+                db_map.add_entity(entity_class_name="Subject", name="widget")
+                db_map.add_entity_class(dimension_name_list=("Subject", "Object"))
+                db_map.add_parameter_definition(entity_class_name="Subject__Object", name="bonkiness")
+                db_map.add_entity(entity_class_name="Subject__Object", entity_byname=("widget", "gadget"))
+                db_map.add_parameter_value(
+                    entity_class_name="Subject__Object",
+                    entity_byname=("widget", "gadget"),
+                    parameter_definition_name="bonkiness",
+                    alternative_name="Base",
+                    parsed_value=2.3,
+                )
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                entity_item = db_map.entity(entity_class_name="Object", name="gadget")
+                entity_item.remove()
+                db_map.commit_session("Remove the entity.")
+            with DatabaseMapping(url) as db_map:
+                values = db_map.find_parameter_values()
+                self.assertEqual(values, [])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
