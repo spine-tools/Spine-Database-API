@@ -54,7 +54,7 @@ jobs:
         python -m pip list
     - name: Run tests
       run:
-        coverage run -m unittest discover --verbose
+        pytest tests/ --cov --verbose
     - name: Upload coverage report to Codecov
       uses: codecov/codecov-action@v4
       env:

@@ -28,7 +28,7 @@ class TestDatapackageReader(unittest.TestCase):
 
     def test_header_on(self):
         data = [["a", "b"], ["1.1", "2.2"]]
-        with test_datapackage(data) as package_path:
+        with check_datapackage(data) as package_path:
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             data_iterator, header = reader.get_data_iterator("test_data", {"has_header": True})
@@ -37,7 +37,7 @@ class TestDatapackageReader(unittest.TestCase):
 
     def test_header_off(self):
         data = [["a", "b"], ["1.1", "2.2"]]
-        with test_datapackage(data) as package_path:
+        with check_datapackage(data) as package_path:
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             data_iterator, header = reader.get_data_iterator("test_data", {"has_header": False})
@@ -46,7 +46,7 @@ class TestDatapackageReader(unittest.TestCase):
 
     def test_header_off_does_not_append_numbers_to_duplicate_cells(self):
         data = [["a", "a"]]
-        with test_datapackage(data) as package_path:
+        with check_datapackage(data) as package_path:
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             data_iterator, header = reader.get_data_iterator("test_data", {"has_header": False})
@@ -74,7 +74,7 @@ class TestDatapackageReader(unittest.TestCase):
 
     def test_get_table_cell(self):
         data = [["11", "12", "13"], ["21", "22", "23"]]
-        with test_datapackage(data) as package_path:
+        with check_datapackage(data) as package_path:
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             cell_data = reader.get_table_cell("test_data", 1, 2, {"has_header": False})
@@ -82,7 +82,7 @@ class TestDatapackageReader(unittest.TestCase):
 
     def test_get_table_cell_with_header(self):
         data = [["header 1", "header 2", "header 3"], ["11", "12", "13"], ["21", "22", "23"]]
-        with test_datapackage(data) as package_path:
+        with check_datapackage(data) as package_path:
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             cell_data = reader.get_table_cell("test_data", 1, 2, {"has_header": True})
@@ -90,7 +90,7 @@ class TestDatapackageReader(unittest.TestCase):
 
     def test_get_table_cell_with_row_out_of_bound(self):
         data = [["11", "12", "13"], ["21", "22", "23"]]
-        with test_datapackage(data) as package_path:
+        with check_datapackage(data) as package_path:
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             with self.assertRaisesRegex(ReaderError, "test_data doesn't have row 3"):
@@ -98,7 +98,7 @@ class TestDatapackageReader(unittest.TestCase):
 
     def test_get_table_cell_with_column_out_of_bound(self):
         data = [["11", "12", "13"], ["21", "22", "23"]]
-        with test_datapackage(data) as package_path:
+        with check_datapackage(data) as package_path:
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             with self.assertRaisesRegex(ReaderError, "test_data doesn't have column 4"):
@@ -106,7 +106,7 @@ class TestDatapackageReader(unittest.TestCase):
 
     def test_get_table_cell_raises_when_table_doesnt_exist(self):
         data = [["11", "12", "13"], ["21", "22", "23"]]
-        with test_datapackage(data) as package_path:
+        with check_datapackage(data) as package_path:
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             with self.assertRaisesRegex(ReaderError, "no such table 'non-table'"):
@@ -115,7 +115,7 @@ class TestDatapackageReader(unittest.TestCase):
     def test_get_large_data_does_not_raise_operation_on_closed_file(self):
         header = ["header 1 ", "header 2", "header 3"]
         data = [header] + 1000 * [["21", "22", "23"]]
-        with test_datapackage(data) as package_path:
+        with check_datapackage(data) as package_path:
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             data, header = reader.get_data("test_data", {})
@@ -124,7 +124,7 @@ class TestDatapackageReader(unittest.TestCase):
 
 
 @contextmanager
-def test_datapackage(rows):
+def check_datapackage(rows):
     with TemporaryDirectory() as temp_dir:
         csv_file_path = Path(temp_dir, "test_data.csv")
         with open(csv_file_path, "w", newline="") as csv_file:
