@@ -23,7 +23,6 @@ Floats: TypeAlias = list[float]
 Integers: TypeAlias = list[int]
 Strings: TypeAlias = list[str]
 Booleans: TypeAlias = list[bool]
-BytesList: TypeAlias = list[bytes]  # array of bytes to support mixed types
 
 Datetimes: TypeAlias = list[datetime]
 Timedeltas: TypeAlias = list[timedelta]
@@ -37,20 +36,18 @@ NullableIntegers: TypeAlias = list[int | None]
 NullableFloats: TypeAlias = list[float | None]
 NullableStrings: TypeAlias = list[str | None]
 NullableBooleans: TypeAlias = list[bool | None]
-NullableBytesList: TypeAlias = list[bytes | None]
 NullableDatetimes: TypeAlias = list[datetime | None]
 NullableTimedeltas: TypeAlias = list[timedelta | None]
 NullableTimePatterns: TypeAlias = list[TimePattern | None]
 
 # sets of types used to define array schemas below
 IndexTypes: TypeAlias = Integers | Strings | Datetimes | Timedeltas | TimePatterns
-ValueTypes: TypeAlias = Integers | Strings | Floats | Booleans | Datetimes | Timedeltas | TimePatterns | BytesList
+ValueTypes: TypeAlias = Integers | Strings | Floats | Booleans | Datetimes | Timedeltas | TimePatterns
 NullableValueTypes: TypeAlias = (
     NullableIntegers
     | NullableStrings
     | NullableFloats
     | NullableBooleans
-    | NullableBytesList
     | NullableDatetimes
     | NullableTimedeltas
     | NullableTimePatterns
