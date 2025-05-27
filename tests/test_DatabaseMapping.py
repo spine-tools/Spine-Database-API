@@ -3131,6 +3131,20 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 values = db_map.find_parameter_values()
                 self.assertEqual(values, [])
 
+    def test_add_metadata(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="Title", value="Catalogue of things that should be")
+            metadata_record = db_map.metadata(name="Title", value="Catalogue of things that should be")
+            self.assertEqual(metadata_record["name"], "Title")
+            self.assertEqual(metadata_record["value"], "Catalogue of things that should be")
+
+    def test_add_metadata_items(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata_items([{"name": "Title", "value": "Catalogue of things that should be"}])
+            metadata_record = db_map.metadata(name="Title", value="Catalogue of things that should be")
+            self.assertEqual(metadata_record["name"], "Title")
+            self.assertEqual(metadata_record["value"], "Catalogue of things that should be")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

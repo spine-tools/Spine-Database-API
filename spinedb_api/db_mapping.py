@@ -1266,9 +1266,9 @@ def _pluralize(item_type: str) -> str:
     plural = {
         "entity": "entities",
         "entity_class": "entity_classes",
-        "entity_metadata": "entity_metadata",
-        "metadata": "metadata",
-        "parameter_value_metadata": "parameter_value_metadata",
+        "entity_metadata": "entity_metadata_items",
+        "metadata": "metadata_items",
+        "parameter_value_metadata": "parameter_value_metadata_items",
         "superclass_subclass": "superclass_subclasses",
     }.get(item_type)
     if plural:
