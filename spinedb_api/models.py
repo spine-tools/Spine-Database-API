@@ -87,7 +87,6 @@ type_map: dict[type, ValueTypeNames] = {
     relativedelta: "duration",
     pd.DateOffset: "duration",
     TimePattern: "time-pattern",
-    bytes: "string",
 }
 
 
