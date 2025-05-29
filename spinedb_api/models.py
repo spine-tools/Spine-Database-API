@@ -54,6 +54,9 @@ NullableDatetimes: TypeAlias = list[datetime | None]
 NullableTimedeltas: TypeAlias = list[timedelta | None]
 NullableTimePatterns: TypeAlias = list[TimePattern | None]
 
+AnyType: TypeAlias = str | int | float | bool
+NullableAnyTypes: TypeAlias = list[AnyType | None]
+
 # sets of types used to define array schemas below
 IndexTypes: TypeAlias = Integers | Strings | Datetimes | Timedeltas | TimePatterns
 ValueTypes: TypeAlias = Integers | Strings | Floats | Booleans | Datetimes | Timedeltas | TimePatterns
@@ -65,6 +68,7 @@ NullableValueTypes: TypeAlias = (
     | NullableDatetimes
     | NullableTimedeltas
     | NullableTimePatterns
+    | NullableAnyTypes
 )
 
 # names of types used in the schema
@@ -207,10 +211,20 @@ class Array(_TypeInferMixin):
     type: Literal["array"] = "array"
 
 
+@dataclass(frozen=True)
+class AnyArray(_TypeInferMixin):
+    """Array with mixed types"""
+
+    name: str
+    values: NullableAnyTypes
+    value_type: Literal["any"] = field(init=False)
+    type: Literal["any_array"] = "any_array"
+
+
 # NOTE: To add run-length encoding to the schema, add it to the
 # following type union following which, we need to implement a
 # converter to a compatible pyarrow array type
-Table: TypeAlias = list[RunEndIndex | DictEncodedIndex | ArrayIndex | RunEndArray | DictEncodedArray | Array]
+Table: TypeAlias = list[RunEndIndex | DictEncodedIndex | ArrayIndex | RunEndArray | DictEncodedArray | Array | AnyArray]
 
 
 if __name__ == "__main__":
