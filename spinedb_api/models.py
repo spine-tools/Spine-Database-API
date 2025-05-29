@@ -77,7 +77,6 @@ ValueTypeNames: TypeAlias = Literal[
     "integer",
     "number",
     "boolean",
-    "bytes",
     "date-time",
     "duration",
     "time-pattern",
