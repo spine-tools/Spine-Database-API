@@ -11,7 +11,9 @@
 """Write JSON schema for JSON blob in SpineDB"""
 
 from datetime import datetime, timedelta
+from types import NoneType
 from typing import Annotated, Literal, TypeAlias
+
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
@@ -109,9 +111,11 @@ type_map: dict[type, ValueTypeNames] = {
 
 class _TypeInferMixin:
     def __post_init__(self):
-        value_type, *_ = set(map(type, getattr(self, "values"))) - {type(None)}
-        # NOTE: have to do it like this since inherited dataclasses are frozen
-        super().__setattr__("value_type", type_map[value_type])
+        if getattr(self, "value_type") != "any":
+            value_type, *_ = set(map(type, getattr(self, "values"))) - {NoneType}
+            # NOTE: have to do it like this since inherited dataclasses are frozen
+            typename = type_map[value_type]
+            super().__setattr__("value_type", typename)
 
 
 @dataclass(frozen=True)
@@ -216,7 +220,7 @@ class AnyArray(_TypeInferMixin):
 
     name: str
     values: NullableAnyTypes
-    value_type: Literal["any"] = field(init=False)
+    value_type: Literal["any"] = "any"
     type: Literal["any_array"] = "any_array"
 
 
