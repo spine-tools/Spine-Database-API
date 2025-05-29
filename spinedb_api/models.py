@@ -15,9 +15,13 @@ from typing import Annotated, Literal, TypeAlias
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
-from pydantic.dataclasses import Field as field
-from pydantic.dataclasses import dataclass
-from pydantic.types import StringConstraints
+
+if __name__ == "__main__":
+    from pydantic.dataclasses import dataclass
+    from pydantic.dataclasses import Field as field
+else:
+    from dataclasses import dataclass
+    from dataclasses import field
 
 Floats: TypeAlias = list[float]
 Integers: TypeAlias = list[int]
@@ -27,8 +31,18 @@ Booleans: TypeAlias = list[bool]
 Datetimes: TypeAlias = list[datetime]
 Timedeltas: TypeAlias = list[timedelta]
 
-time_pat_re = r"(Y|M|D|WD|h|m|s)[0-9]+-[0-9]+"
-TimePattern: TypeAlias = Annotated[str, StringConstraints(pattern=time_pat_re)]
+if __name__ == "__main__":
+    from pydantic.types import StringConstraints
+
+    time_pat_re = r"(Y|M|D|WD|h|m|s)[0-9]+-[0-9]+"
+    TimePattern = Annotated[str, StringConstraints(pattern=time_pat_re)]
+else:
+
+    @dataclass(frozen=True)
+    class TimePattern:
+        pattern: str
+
+
 TimePatterns: TypeAlias = list[TimePattern]
 
 # nullable variant of arrays
@@ -209,5 +223,5 @@ if __name__ == "__main__":
     parser.add_argument("json_file", help="Path of JSON schema file to write")
     opts = parser.parse_args()
 
-    schema = RootModel[Table].model_json_schema()
+    schema = RootModel[Table].model_json_schema(mode="serialization")
     Path(opts.json_file).write_text(json.dumps(schema, indent=2))
