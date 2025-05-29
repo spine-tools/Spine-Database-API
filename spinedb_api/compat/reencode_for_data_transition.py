@@ -8,7 +8,7 @@ from warnings import warn
 import numpy as np
 import pandas as pd
 from pydantic import RootModel
-from spinedb_api.models import Array, ArrayIndex, DictEncodedArray, DictEncodedIndex, Table
+from spinedb_api.models import Array, ArrayIndex, DictEncodedArray, DictEncodedIndex, Table, TimePattern
 
 
 # Regex pattern to indentify numerical sequences encoded as string
