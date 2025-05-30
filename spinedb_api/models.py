@@ -52,26 +52,13 @@ NullableIntegers: TypeAlias = list[int | None]
 NullableFloats: TypeAlias = list[float | None]
 NullableStrings: TypeAlias = list[str | None]
 NullableBooleans: TypeAlias = list[bool | None]
-NullableDatetimes: TypeAlias = list[datetime | None]
-NullableTimedeltas: TypeAlias = list[timedelta | None]
-NullableTimePatterns: TypeAlias = list[TimePattern | None]
 
 AnyType: TypeAlias = str | int | float | bool
 NullableAnyTypes: TypeAlias = list[AnyType | None]
 
 # sets of types used to define array schemas below
 IndexTypes: TypeAlias = Integers | Strings | Datetimes | Timedeltas | TimePatterns
-ValueTypes: TypeAlias = Integers | Strings | Floats | Booleans | Datetimes | Timedeltas | TimePatterns
-NullableValueTypes: TypeAlias = (
-    NullableIntegers
-    | NullableStrings
-    | NullableFloats
-    | NullableBooleans
-    | NullableDatetimes
-    | NullableTimedeltas
-    | NullableTimePatterns
-    | NullableAnyTypes
-)
+NullableValueTypes: TypeAlias = NullableIntegers | NullableFloats | NullableStrings | NullableBooleans
 
 # names of types used in the schema
 ValueTypeNames: TypeAlias = Literal[
