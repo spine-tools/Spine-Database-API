@@ -17,13 +17,8 @@ from typing import Annotated, Literal, TypeAlias
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
-
-if __name__ == "__main__":
-    from pydantic.dataclasses import dataclass
-    from pydantic.dataclasses import Field as field
-else:
-    from dataclasses import dataclass
-    from dataclasses import field
+from pydantic.dataclasses import dataclass
+from pydantic.dataclasses import Field as field
 
 Floats: TypeAlias = list[float]
 Integers: TypeAlias = list[int]
