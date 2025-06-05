@@ -1,4 +1,4 @@
-"""Reencode old map type JSON to new table/tables type JSON"""
+"""Reencode old map type JSON to record arrays or dictionary columns"""
 
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -6,10 +6,12 @@ import json
 import re
 from typing import Any, Callable, Iterable, TypeAlias
 from warnings import warn
+
 import numpy as np
 import pandas as pd
 from pydantic import RootModel
-from spinedb_api.models import Array, ArrayIndex, DictEncodedArray, DictEncodedIndex, Table, TimePattern
+
+from spinedb_api.models import Table, TimePattern
 
 
 # Regex pattern to indentify numerical sequences encoded as string
@@ -463,40 +465,6 @@ def to_df(json_doc: dict):
     # df = tbl.to_pandas(types_mapper=pd.ArrowDtype)
     df = pd.DataFrame.from_records(data)
     return df
-
-
-def series_to_col(
-    col: pd.Series,
-) -> ArrayIndex | DictEncodedIndex | Array | DictEncodedArray:
-    match col.name, col.dtype.type:
-        case "value", t if issubclass(t, str) or t in (object, np.object_):
-            col = col.astype("category")
-            return DictEncodedArray(
-                name=col.name,
-                values=col.cat.categories,
-                indices=col.cat.codes,
-            )
-        case "value", t if issubclass(t, int):
-            return Array(name=col.name, values=col.to_list())
-        case _, t if issubclass(t, (bool, float, bytes)):
-            return Array(name=col.name, values=col.to_list())
-        case _, t if issubclass(t, str) or t in (object, np.object_):
-            col = col.astype("category")
-            return DictEncodedIndex(
-                name=col.name,
-                values=col.cat.categories.to_list(),
-                indices=col.cat.codes.to_list(),
-            )
-        case _, t if issubclass(t, (int, datetime, timedelta)) or t is object:
-            return ArrayIndex(name=col.name, values=col.to_list())
-        case n, t:
-            raise NotImplementedError(f"{n}: unknown type {t}")
-
-
-def to_tables(df: pd.DataFrame) -> Table:
-    if df.empty:
-        return []
-    return [series_to_col(col) for _, col in df.items()]
 
 
 def transition_data(old_json_bytes: bytes) -> bytes:
