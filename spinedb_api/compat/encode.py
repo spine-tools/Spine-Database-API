@@ -76,7 +76,7 @@ def column_to_array(name: str, col: list):
     match name, col, has_none:
         case (
             "value",
-            [int() | float() | str() | bool() | pd.Timestamp() | pd.DateOffset() | TimePattern() | None, *_],
+            [int() | float() | str() | bool() | pd.Timestamp() | relativedelta() | TimePattern() | None, *_],
             True,
         ):
             return Array(name=name, values=values)
