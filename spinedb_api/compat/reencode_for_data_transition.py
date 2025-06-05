@@ -192,6 +192,14 @@ def make_columns(
 ) -> defaultdict[str, list]:
     """Parse parameter value into a dictionary of columns.
 
+    WARNING: this implementation is here to illustrate the concept.
+    We cannot use it, as it cannot handle missing values, e.g. if a
+    block of rows have a column missing, the generated column will be
+    incorrectly shifted by the block length as the missing values are
+    not accounted for.  This is difficult to mitigate because it is
+    not possible to know all possible columns without going through
+    the whole dataset once.
+
     Spine db stores parameter_value as JSON.  After the JSON blob has
     been decoded to a Python dict, this function can transform it into
     a dict of columns (list) like a table.  These records can then be
@@ -208,13 +216,6 @@ def make_columns(
     name can be provided by setting a default `lvlname_base`.  The
     level name is derived by concatenating the base name with depth
     level.
-
-    WARNING: this implementation cannot handle missing values, e.g. if
-    a block of rows have a column missing, the generated column will
-    be incorrectly shifted by the block length as the missing values
-    are not accounted for.  This is difficult to mitigate because it
-    is not possible to know all possible columns without going through
-    the whole dataset once.
 
     """
     lvlname = lvlname_base + f"{len(idx_lvls)}"
