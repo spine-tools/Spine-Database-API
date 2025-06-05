@@ -16,7 +16,6 @@ from spinedb_api.models import (
     RunEndIndex,
     DictEncodedArray,
     DictEncodedIndex,
-    Table,
     TimePattern,
 )
 
@@ -85,38 +84,4 @@ def column_to_array(name: str, col: list):
         case _, [str(), *_], False:
             return de_encode(name, col, DictEncodedIndex)
         case _, _, _:
-
-
-def series_to_array(
-    col: pd.Series,
-) -> ArrayIndex | DictEncodedIndex | Array | DictEncodedArray:
-    match col.name, col.dtype.type:
-        case "value", t if issubclass(t, str) or t in (object, np.object_):
-            col = col.astype("category")
-            return DictEncodedArray(
-                name=col.name,
-                values=col.cat.categories,
-                indices=col.cat.codes,
-            )
-        case "value", t if issubclass(t, int):
-            return Array(name=col.name, values=col.to_list())
-        case _, t if issubclass(t, (bool, float, bytes)):
-            return Array(name=col.name, values=col.to_list())
-        case _, t if issubclass(t, str) or t in (object, np.object_):
-            col = col.astype("category")
-            return DictEncodedIndex(
-                name=col.name,
-                values=col.cat.categories.to_list(),
-                indices=col.cat.codes.to_list(),
-            )
-        case _, t if issubclass(t, (int, datetime, timedelta)) or t is object:
-            return ArrayIndex(name=col.name, values=col.to_list())
-        case n, t:
-            raise NotImplementedError(f"{n}: unknown type {t}")
-
-
-def to_tables(df: pd.DataFrame) -> Table:
-    if df.empty:
-        return []
-    return [series_to_array(col) for _, col in df.items()]
             raise NotImplementedError(f"{name}: unknown column type {type(col[0])} ({has_none=})")
