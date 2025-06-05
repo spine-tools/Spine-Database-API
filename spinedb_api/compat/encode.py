@@ -71,27 +71,20 @@ def column_to_array(name: str, col: list):
         return AnyArray(name=name, values=col)
 
     match name, col, has_none:
-        case (
-            "value",
-            [int() | float() | str() | bool() | pd.Timestamp() | relativedelta() | TimePattern() | None, *_],
-            True,
-        ):
+        case "value", list(), _:
             return Array(name=name, values=values)
         # TODO: separate str, ts, dt offset, and tp
         case _, [float() | bool(), *_], _:
             return Array(name=name, values=values)
         case _, [int(), *_], True:
             return Array(name=name, values=values)
-        case _, [int(), *_], False:
+        case _, [int() | pd.Timestamp() | relativedelta() | TimePattern(), *_], False:
             return ArrayIndex(name=name, values=values)
         case _, [str(), *_], True:
             return de_encode(name, col, DictEncodedArray)
         case _, [str(), *_], False:
             return de_encode(name, col, DictEncodedIndex)
-        case _, [pd.Timestamp() | pd.DateOffset() | TimePattern(), *_], False:
-            print("b\n", col)
         case _, _, _:
-            raise NotImplementedError(f"{name}: unknown type {type(col[0])} ({has_none=})")
 
 
 def series_to_array(
@@ -126,3 +119,4 @@ def to_tables(df: pd.DataFrame) -> Table:
     if df.empty:
         return []
     return [series_to_array(col) for _, col in df.items()]
+            raise NotImplementedError(f"{name}: unknown column type {type(col[0])} ({has_none=})")
