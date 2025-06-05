@@ -8,7 +8,7 @@ Create Date: 2025-05-21 12:49:16.861670
 
 from alembic import op
 import sqlalchemy as sa
-from spinedb_api.compat.reencode_for_data_transition import transition_data
+from spinedb_api.compat.data_transition import transition_data
 
 # # Override transition_data for testing. All to-be-transitioned fields
 # # are prepended by b"transitioned".
