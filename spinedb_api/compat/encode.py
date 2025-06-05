@@ -1,5 +1,6 @@
 """Encode Python sequences into Array types supported by JSON blobs"""
 
+import enum
 from itertools import chain
 from types import NoneType
 from typing import Any, Sequence, TypeVar
@@ -29,12 +30,8 @@ def convert_records_to_columns(recs: list[dict[str, Any]]) -> dict[str, list]:
     return columns
 
 
-class _sentinel:
-    pass
-
-
-SENTINEL = _sentinel()
-
+_sentinel = enum.Enum("_sentinel", "value")
+SENTINEL = _sentinel.value
 
 re_t = TypeVar("re_t", RunEndArray, RunEndIndex)
 
