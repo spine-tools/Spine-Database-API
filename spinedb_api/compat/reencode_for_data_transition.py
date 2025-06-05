@@ -7,6 +7,7 @@ import re
 from typing import Any, Callable, Iterable, TypeAlias
 from warnings import warn
 
+from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
 from pydantic import RootModel
@@ -96,26 +97,26 @@ def _low_res_datetime(start: str, freq: str, periods: int) -> pd.DatetimeIndex:
     return date_array_with_frequency
 
 
-def _to_dateoffset(val: str) -> pd.DateOffset:
+def _to_relativedelta(val: str) -> relativedelta:
     if (m := DUR_PAT.match(val)) is None:
         raise ValueError(f"{val}: bad duration value")
     num_str, freq = m.groups()
     num = int(num_str)
     match freq:
         case "Y":
-            return pd.DateOffset(years=num)
+            return relativedelta(years=num)
         case "M":
-            return pd.DateOffset(months=num)
+            return relativedelta(months=num)
         case "W":
-            return pd.DateOffset(weeks=num)
+            return relativedelta(weeks=num)
         case "D":
-            return pd.DateOffset(days=num)
+            return relativedelta(days=num)
         case "h":
-            return pd.DateOffset(hours=num)
+            return relativedelta(hours=num)
         case "min":
-            return pd.DateOffset(minutes=num)
+            return relativedelta(minutes=num)
         case "s":
-            return pd.DateOffset(seconds=num)
+            return relativedelta(seconds=num)
         case _:
             # should not get here
             raise ValueError(f"{val}: unknown duration")
@@ -151,7 +152,7 @@ def _formatter(index_type: str) -> _FmtIdx:
 
     - "date_time" :: converts value to `datetime`
 
-    - "duration" :: converts string to `pandas.DateOffset`; this
+    - "duration" :: converts string to `relativedelta`; this
       allows for ambiguous units like month or year.
 
     - "str" :: convert the value to integer if it matches `t0001` or
@@ -167,7 +168,7 @@ def _formatter(index_type: str) -> _FmtIdx:
         case "date_time" | "datetime":
             return lambda name, key: {name: pd.Timestamp(key)}
         case "duration":
-            return lambda name, key: {name: _to_dateoffset(_normalise_freq(key))}
+            return lambda name, key: {name: _to_relativedelta(_normalise_freq(key))}
         case "str":
             # don't use lambda, can't add type hints
             def _atoi_dict(name: str, val: str) -> dict[str, int | str]:
