@@ -22,6 +22,8 @@ from pydantic import PlainSerializer, PlainValidator, WithJsonSchema
 from pydantic.dataclasses import dataclass
 from pydantic.dataclasses import Field as field
 
+from .compat.converters import parse_duration, to_duration
+
 Floats: TypeAlias = list[float]
 Integers: TypeAlias = list[int]
 Strings: TypeAlias = list[str]
@@ -34,58 +36,6 @@ if __name__ == "__main__":
     time_pat_re = r"(Y|M|D|WD|h|m|s)[0-9]+-[0-9]+"
     TimePattern = Annotated[str, StringConstraints(pattern=time_pat_re)]
 else:
-# Regex pattern to identify a number encoded as a string
-freq = r"([0-9]+)"
-# Regex patterns that matches partial duration strings
-DATE_PAT = re.compile(r"".join(rf"({freq}{unit})?" for unit in "YMD"))
-TIME_PAT = re.compile(r"".join(rf"({freq}{unit})?" for unit in "HMS"))
-WEEK_PAT = re.compile(rf"{freq}W")
-
-
-def parse_duration(value: str) -> relativedelta:
-    """Parse a ISO 8601 duration format string to a `relativedelta`."""
-    value = value.lstrip("P")
-    if m0 := WEEK_PAT.match(value):
-        weeks = m0.groups()[0]
-        return relativedelta(weeks=int(weeks))
-
-    date, *_time = value.split("T")
-    time = _time[0] if _time else ""
-    delta = relativedelta()
-
-    def parse_num(token: str) -> int:
-        return int(token) if token else 0
-
-    if m1 := DATE_PAT.match(date):
-        years = parse_num(m1.groups()[1])
-        months = parse_num(m1.groups()[3])
-        days = parse_num(m1.groups()[5])
-        delta += relativedelta(years=years, months=months, days=days)
-
-    if m2 := TIME_PAT.match(time):
-        hours = parse_num(m2.groups()[1])
-        minutes = parse_num(m2.groups()[3])
-        seconds = parse_num(m2.groups()[5])
-        delta += relativedelta(hours=hours, minutes=minutes, seconds=seconds)
-
-    return delta
-
-
-_abbrevs = {"years": "Y", "months": "M", "days": "D", "sentinel": "T", "hours": "H", "minutes": "M", "seconds": "S"}
-
-
-def to_duration(delta: relativedelta) -> str:
-    kwargs = {k: v for k, v in vars(delta).items() if not k.startswith("_") and k.endswith("s") and v}
-    duration = "P"
-    for unit, abbrev in _abbrevs.items():
-        match unit, kwargs.get(unit):
-            case "sentinel", _:
-                duration += abbrev
-            case _, None:
-                pass
-            case _, num:
-                duration += f"{num}{abbrev}"
-    return duration.rstrip("T")
 
 
 Datetimes: TypeAlias = list[datetime]
