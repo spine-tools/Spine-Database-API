@@ -24,19 +24,15 @@ from pydantic.dataclasses import dataclass
 
 from .compat.converters import parse_duration, to_duration
 
+
+class TimePattern_(str):
+    pass
+
+
 Floats: TypeAlias = list[float]
 Integers: TypeAlias = list[int]
 Strings: TypeAlias = list[str]
 Booleans: TypeAlias = list[bool]
-
-
-if __name__ == "__main__":
-    from pydantic.types import StringConstraints
-
-    time_pat_re = r"(Y|M|D|WD|h|m|s)[0-9]+-[0-9]+"
-    TimePattern = Annotated[str, StringConstraints(pattern=time_pat_re)]
-else:
-
 
 Datetimes: TypeAlias = list[datetime]
 RelativeDelta: TypeAlias = Annotated[
@@ -47,12 +43,13 @@ RelativeDelta: TypeAlias = Annotated[
 ]
 Timedeltas: TypeAlias = list[RelativeDelta]
 
-
-    @dataclass(frozen=True)
-    class TimePattern:
-        pattern: str
-
-
+time_pat_re = r"(Y|M|D|WD|h|m|s)[0-9]+-[0-9]+"
+TimePattern: TypeAlias = Annotated[
+    TimePattern_,
+    PlainValidator(TimePattern_),
+    PlainSerializer(str),
+    WithJsonSchema({"type": "string", "pattern": time_pat_re}, mode="serialization"),
+]
 TimePatterns: TypeAlias = list[TimePattern]
 
 # nullable variant of arrays
@@ -100,7 +97,7 @@ type_map: dict[type, ValueTypeNames] = {
     pd.Timedelta: "duration",
     relativedelta: "duration",
     pd.DateOffset: "duration",
-    TimePattern: "time-pattern",
+    TimePattern_: "time-pattern",
 }
 
 

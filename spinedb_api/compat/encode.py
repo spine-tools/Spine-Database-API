@@ -16,7 +16,7 @@ from spinedb_api.models import (
     RunEndIndex,
     DictEncodedArray,
     DictEncodedIndex,
-    TimePattern,
+    TimePattern_,
 )
 
 
@@ -77,7 +77,7 @@ def column_to_array(name: str, col: list):
             return Array(name=name, values=values)
         case _, [int(), *_], True:
             return Array(name=name, values=values)
-        case _, [int() | pd.Timestamp() | relativedelta() | TimePattern(), *_], False:
+        case _, [int() | pd.Timestamp() | relativedelta() | TimePattern_(), *_], False:
             return ArrayIndex(name=name, values=values)
         case _, [str(), *_], True:
             return de_encode(name, col, DictEncodedArray)

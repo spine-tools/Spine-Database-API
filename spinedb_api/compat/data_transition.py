@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from pydantic import RootModel
 
-from spinedb_api.models import Table, TimePattern
+from spinedb_api.models import Table, TimePattern_
 
 
 # Regex pattern to indentify numerical sequences encoded as string
@@ -176,7 +176,7 @@ def _formatter(index_type: str) -> _FmtIdx:
 
             return _atoi_dict
         case "time_pattern" | "timepattern":
-            return lambda name, key: {name: TimePattern(key)}
+            return lambda name, key: {name: TimePattern_(key)}
         case "float" | "noop":
             return lambda name, key: {name: key}
         case _:  # fallback to noop w/ a warning
