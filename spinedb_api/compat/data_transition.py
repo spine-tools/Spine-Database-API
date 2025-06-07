@@ -1,7 +1,6 @@
 """Reencode old map type JSON to record arrays or dictionary columns"""
 
 from collections import defaultdict
-from datetime import datetime, timedelta
 import json
 import re
 from typing import Any, Callable, Iterable, TypeAlias
@@ -12,7 +11,8 @@ import numpy as np
 import pandas as pd
 from pydantic import RootModel
 
-from spinedb_api.models import Table, TimePattern_
+from ..models import Table
+from ..models import TimePattern_
 from .encode import convert_records_to_columns
 from .encode import to_table
 

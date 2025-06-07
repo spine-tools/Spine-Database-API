@@ -8,17 +8,15 @@ from typing import Any, Sequence, TypeVar
 from dateutil.relativedelta import relativedelta
 import pandas as pd
 
-from spinedb_api.models import (
-    AnyArray,
-    Array,
-    ArrayIndex,
-    RunEndArray,
-    RunEndIndex,
-    DictEncodedArray,
-    DictEncodedIndex,
-    Table,
-    TimePattern_,
-)
+from ..models import AnyArray
+from ..models import Array
+from ..models import ArrayIndex
+from ..models import DictEncodedArray
+from ..models import DictEncodedIndex
+from ..models import RunEndArray
+from ..models import RunEndIndex
+from ..models import Table
+from ..models import TimePattern_
 
 
 def convert_records_to_columns(recs: list[dict[str, Any]]) -> dict[str, list]:
