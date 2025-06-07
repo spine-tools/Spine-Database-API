@@ -18,9 +18,9 @@ from typing import Annotated, Literal, TypeAlias
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
+from pydantic import Field as field
 from pydantic import PlainSerializer, PlainValidator, WithJsonSchema
 from pydantic.dataclasses import dataclass
-from pydantic.dataclasses import Field as field
 
 from .compat.converters import parse_duration, to_duration
 
