@@ -13,6 +13,8 @@ import pandas as pd
 from pydantic import RootModel
 
 from spinedb_api.models import Table, TimePattern_
+from .encode import convert_records_to_columns
+from .encode import to_table
 
 
 # Regex pattern to indentify numerical sequences encoded as string
@@ -460,17 +462,8 @@ def make_records(
     return res
 
 
-def to_df(json_doc: dict):
-    data = make_records(json_doc, {}, [])
-    # NOTE: don't use pyarrow, difficult to support mixed types
-    # tbl = pa.Table.from_pylist(data)
-    # df = tbl.to_pandas(types_mapper=pd.ArrowDtype)
-    df = pd.DataFrame.from_records(data)
-    return df
-
-
 def transition_data(old_json_bytes: bytes) -> bytes:
-    df = to_df(json.loads(old_json_bytes))
-    tbls = to_tables(df)
-    new_json_bytes = RootModel[Table](tbls).model_dump_json().encode()
-    return new_json_bytes
+    records = make_records(json.loads(old_json_bytes), {}, [])
+    columns = convert_records_to_columns(records)
+    table = to_table(columns)
+    return RootModel[Table](table).model_dump_json().encode()

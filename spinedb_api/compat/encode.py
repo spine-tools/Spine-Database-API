@@ -16,6 +16,7 @@ from spinedb_api.models import (
     RunEndIndex,
     DictEncodedArray,
     DictEncodedIndex,
+    Table,
     TimePattern_,
 )
 
@@ -64,7 +65,7 @@ def is_any_w_none(arr: Sequence) -> tuple[bool, bool]:
     return len(all_types - {NoneType}) > 1, has_none
 
 
-def column_to_array(name: str, col: list):
+def to_array(name: str, col: list):
     any_type, has_none = is_any_w_none(col)
     if any_type:
         return AnyArray(name=name, values=col)
@@ -85,3 +86,7 @@ def column_to_array(name: str, col: list):
             return de_encode(name, col, DictEncodedIndex)
         case _, _, _:
             raise NotImplementedError(f"{name}: unknown column type {type(col[0])} ({has_none=})")
+
+
+def to_table(columns: dict[str, list]) -> Table:
+    return [to_array(name, col) for name, col in columns.items()]
