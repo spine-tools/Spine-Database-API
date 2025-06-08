@@ -1,6 +1,7 @@
 import re
 
 from dateutil.relativedelta import relativedelta
+import pandas as pd
 
 # Regex pattern to identify a number encoded as a string
 freq = r"([0-9]+)"
@@ -17,6 +18,7 @@ def parse_duration(value: str) -> relativedelta:
         weeks = m0.groups()[0]
         return relativedelta(weeks=int(weeks))
 
+    # unpack to variable number of args to handle absence of timestamp
     date, *_time = value.split("T")
     time = _time[0] if _time else ""
     delta = relativedelta()
@@ -39,6 +41,10 @@ def parse_duration(value: str) -> relativedelta:
     return delta
 
 
+def _delta_as_dict(delta: relativedelta | pd.DateOffset) -> dict:
+    return {k: v for k, v in vars(delta).items() if not k.startswith("_") and k.endswith("s") and v}
+
+
 _duration_abbrevs = {
     "years": "Y",
     "months": "M",
@@ -50,8 +56,8 @@ _duration_abbrevs = {
 }
 
 
-def to_duration(delta: relativedelta) -> str:
-    kwargs = {k: v for k, v in vars(delta).items() if not k.startswith("_") and k.endswith("s") and v}
+def to_duration(delta: relativedelta | pd.DateOffset) -> str:
+    kwargs = _delta_as_dict(delta)
     duration = "P"
     for unit, abbrev in _duration_abbrevs.items():
         match unit, kwargs.get(unit):
@@ -62,3 +68,11 @@ def to_duration(delta: relativedelta) -> str:
             case _, num:
                 duration += f"{num}{abbrev}"
     return duration.rstrip("T")
+
+
+def from_dateoffset(offset: pd.DateOffset) -> relativedelta:
+    return relativedelta(**_delta_as_dict(offset))
+
+
+def to_dateoffset(delta: relativedelta) -> pd.DateOffset:
+    return pd.DateOffset(**_delta_as_dict(delta))
