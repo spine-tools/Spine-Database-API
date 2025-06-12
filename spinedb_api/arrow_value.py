@@ -19,12 +19,14 @@ Apache Arrow - Spine interoperability layer.
 
 """
 from collections import defaultdict
-from collections.abc import Callable, Iterable
 import datetime
-from typing import Any, Optional, SupportsFloat, Union
+from itertools import chain, tee
+from typing import Any, Callable, Optional, SupportsFloat, Union, Iterable, TypeVar
 from dateutil import relativedelta
 import numpy
 import pyarrow
+
+from .models import dict_to_array, AllArrays, ArrayAsDict
 from .parameter_value import (
     NUMPY_DATETIME_DTYPE,
     TIME_SERIES_DEFAULT_RESOLUTION,
@@ -54,11 +56,68 @@ def from_database(db_value: bytes, value_type: str) -> Any:
     if db_value is None:
         return None
     loaded = load_db_value(db_value, value_type)
+    if isinstance(loaded, list) and len(loaded) > 0 and isinstance(loaded[0], dict):
+        return to_record_batch(loaded)
     if isinstance(loaded, dict):
         return from_dict(loaded, value_type)
     if isinstance(loaded, SupportsFloat) and not isinstance(loaded, bool):
         return float(loaded)
     return loaded
+
+
+def to_record_batch(loaded_value: list[ArrayAsDict]) -> pyarrow.RecordBatch:
+    metadata = {}
+    cols = {col.name: to_arrow(col, metadata) for col in map(dict_to_array, loaded_value)}
+    return pyarrow.record_batch(cols, metadata=metadata)
+
+
+def to_arrow(col: AllArrays, metadata: dict) -> pyarrow.Array:
+    metadata.update({col.name: col.value_type})
+    match col.type:
+        case "array" | "array_index":
+            return pyarrow.array(col.values)
+        case "dict_encoded_array" | "dict_encoded_index":
+            return pyarrow.DictionaryArray.from_arrays(col.indices, col.values)
+        case "run_end_array" | "run_end_index":
+            return pyarrow.RunEndEncodedArray.from_arrays(col.run_end, col.values)
+        case _:
+            raise NotImplementedError(f"{col.type}: column type")
+
+
+def merge_schemas(schemas: Iterable[pyarrow.Schema]) -> pyarrow.Schema:
+    # overwrites earlier keys
+    s1, s2 = tee(schemas)
+    fields = list(dict.fromkeys(chain.from_iterable(s1)))
+    metadata = {k: v for k, v in chain.from_iterable(sc.metadata.items() for sc in s2)}
+    return pyarrow.schema(fields, metadata)
+
+
+RecBatchTable_t = TypeVar("RecBatchTable_t", pyarrow.RecordBatch, pyarrow.Table)
+
+
+def replace_schema(batch: RecBatchTable_t, schema) -> RecBatchTable_t:
+    rows = batch.shape[0]
+    data = [batch[field.name] if field in batch.schema else pyarrow.nulls(rows).cast(field.type) for field in schema]
+    match batch:
+        case pyarrow.RecordBatch():
+            return pyarrow.record_batch(data, schema=schema)
+        case pyarrow.Table():
+            return pyarrow.table(data, schema=schema)
+        case _:
+            raise ValueError(f"{type(batch)}: unknown type")
+
+
+def concat_w_missing(data: Iterable[RecBatchTable_t]) -> RecBatchTable_t:
+    d1, d2, d3 = tee(data, 3)
+    item = next(d1)
+    schema = merge_schemas(batch.schema for batch in d2)
+    match item:
+        case pyarrow.RecordBatch():
+            return pyarrow.concat_batches(replace_schema(batch, schema) for batch in d3)
+        case pyarrow.Table():
+            return pyarrow.concat_tables(replace_schema(batch, schema) for batch in d3)
+        case _:
+            raise ValueError(f"{type(item)}: unknown type")
 
 
 def from_dict(loaded_value: dict, value_type: str) -> pyarrow.RecordBatch:
