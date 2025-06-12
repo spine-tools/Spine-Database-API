@@ -13,7 +13,7 @@
 from datetime import datetime, timedelta
 import re
 from types import NoneType
-from typing import Annotated, Literal, TypeAlias
+from typing import Annotated, Literal, NotRequired, TypeAlias, TypedDict
 
 from dateutil.relativedelta import relativedelta
 import numpy as np
@@ -219,7 +219,36 @@ class AnyArray(_TypeInferMixin):
 # NOTE: To add run-length encoding to the schema, add it to the
 # following type union following which, we need to implement a
 # converter to a compatible pyarrow array type
-Table: TypeAlias = list[RunEndIndex | DictEncodedIndex | ArrayIndex | RunEndArray | DictEncodedArray | Array | AnyArray]
+AllArrays: TypeAlias = RunEndIndex | DictEncodedIndex | ArrayIndex | RunEndArray | DictEncodedArray | Array | AnyArray
+Table: TypeAlias = list[AllArrays]
+
+
+class ArrayAsDict(TypedDict):
+    name: str
+    values: list
+    value_type: str
+    type: str
+    indices: NotRequired[list]
+    run_end: NotRequired[Integers]
+    run_len: NotRequired[Integers]
+
+
+def dict_to_array(data: ArrayAsDict) -> AllArrays:
+    match data["type"]:
+        case "array":
+            return Array(name=data["name"], values=data["values"])
+        case "array_index":
+            return ArrayIndex(name=data["name"], values=data["values"])
+        case "dict_encoded_array":
+            return DictEncodedArray(name=data["name"], indices=data.get("indices", []), values=data["values"])
+        case "dict_encoded_index":
+            return DictEncodedIndex(name=data["name"], indices=data.get("indices", []), values=data["values"])
+        case "run_end_array":
+            return RunEndArray(name=data["name"], run_end=data.get("run_end", []), values=data["values"])
+        case "run_end_index":
+            return RunEndIndex(name=data["name"], run_end=data.get("run_end", []), values=data["values"])
+        case _:
+            raise ValueError(f"{data['type']}: unknown array type")
 
 
 if __name__ == "__main__":
