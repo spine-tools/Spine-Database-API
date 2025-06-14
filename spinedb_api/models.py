@@ -247,6 +247,8 @@ def dict_to_array(data: ArrayAsDict) -> AllArrays:
             return RunEndArray(name=data["name"], run_end=data.get("run_end", []), values=data["values"])
         case "run_end_index":
             return RunEndIndex(name=data["name"], run_end=data.get("run_end", []), values=data["values"])
+        case "any_array":
+            return AnyArray(name=data["name"], values=data["values"])
         case _:
             raise ValueError(f"{data['type']}: unknown array type")
 

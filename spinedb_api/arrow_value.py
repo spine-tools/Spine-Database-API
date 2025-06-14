@@ -21,12 +21,13 @@ Apache Arrow - Spine interoperability layer.
 from collections import defaultdict
 import datetime
 from itertools import chain, tee
-from typing import Any, Callable, Optional, SupportsFloat, Union, Iterable, TypeVar
+from types import NoneType
+from typing import Any, Callable, Optional, Sequence, SupportsFloat, Union, Iterable, TypeVar
 from dateutil import relativedelta
 import numpy
 import pyarrow
 
-from .models import dict_to_array, AllArrays, ArrayAsDict
+from .models import AnyType, dict_to_array, AllArrays, ArrayAsDict
 from .parameter_value import (
     NUMPY_DATETIME_DTYPE,
     TIME_SERIES_DEFAULT_RESOLUTION,
@@ -71,6 +72,24 @@ def to_record_batch(loaded_value: list[ArrayAsDict]) -> pyarrow.RecordBatch:
     return pyarrow.record_batch(cols, metadata=metadata)
 
 
+def to_union_array(arr: Sequence[AnyType | None]):
+    type_map = defaultdict(list)
+    offsets = []
+    for item in arr:
+        item_t = type(item)
+        offsets.append(len(type_map[item_t]))
+        type_map[item_t].append(item)
+
+    _types = list(type_map)
+    types = pyarrow.array((_types.index(type(i)) for i in arr), type=pyarrow.int8())
+    uarr = pyarrow.UnionArray.from_dense(
+        types,
+        pyarrow.array(offsets, type=pyarrow.int32()),
+        list(map(pyarrow.array, type_map.values())),
+    )
+    return uarr
+
+
 def to_arrow(col: AllArrays, metadata: dict) -> pyarrow.Array:
     metadata.update({col.name: col.value_type})
     match col.type:
@@ -80,6 +99,8 @@ def to_arrow(col: AllArrays, metadata: dict) -> pyarrow.Array:
             return pyarrow.DictionaryArray.from_arrays(col.indices, col.values)
         case "run_end_array" | "run_end_index":
             return pyarrow.RunEndEncodedArray.from_arrays(col.run_end, col.values)
+        case "any_array":
+            return to_union_array(col.values)
         case _:
             raise NotImplementedError(f"{col.type}: column type")
 
