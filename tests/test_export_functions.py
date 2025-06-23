@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for export_functions."""
-
+import pathlib
+from tempfile import TemporaryDirectory
 import unittest
 from spinedb_api import (
     DatabaseMapping,
@@ -61,6 +62,16 @@ class TestExportFunctions(AssertSuccessTestCase):
             self._assert_imports(import_scenario_alternatives(db_map, (("scenario", "alternative"),)))
             exported = export_scenario_alternatives(db_map)
             self.assertEqual(exported, [("scenario", "alternative", None)])
+
+    def test_export_scenario_alternatives_from_existing_database(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + str(pathlib.Path(temp_dir, "db.sqlite"))
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_scenario(name="My Scenario")
+                db_map.add_scenario_alternative(scenario_name="My Scenario", alternative_name="Base", rank=0)
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                self.assertEqual(export_scenario_alternatives(db_map), [("My Scenario", "Base", None)])
 
     def test_export_multiple_scenario_alternatives(self):
         with DatabaseMapping("sqlite://", username="UnitTest", create=True) as db_map:

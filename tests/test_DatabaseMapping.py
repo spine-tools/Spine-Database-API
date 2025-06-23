@@ -3145,6 +3145,70 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertEqual(metadata_record["name"], "Title")
             self.assertEqual(metadata_record["value"], "Catalogue of things that should be")
 
+    def test_before_alternative(self):
+        with DatabaseMapping("sqlite:///", create=True) as db_map:
+            db_map.add_scenario(name="scenario 1")
+            base_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="Base", rank=99
+            )
+            self.assertIsNone(base_scenario_alternative["before_alternative_name"])
+            db_map.add_alternative(name="alt 1")
+            alt1_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="alt 1", rank=50
+            )
+            self.assertEqual(alt1_scenario_alternative["before_alternative_name"], "Base")
+            self.assertIsNone(base_scenario_alternative["before_alternative_name"])
+            db_map.add_alternative(name="alt 2")
+            alt2_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="alt 2", rank=150
+            )
+            self.assertIsNone(alt2_scenario_alternative["before_alternative_name"])
+            self.assertEqual(alt1_scenario_alternative["before_alternative_name"], "Base")
+            self.assertEqual(base_scenario_alternative["before_alternative_name"], "alt 2")
+        with DatabaseMapping("sqlite:///", create=True) as db_map:
+            db_map.add_scenario(name="scenario 1")
+            db_map.add_scenario(name="uninteresting scenario")
+            db_map.add_alternative(name="alt 1")
+            base_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="Base", rank=99
+            )
+            alt1_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="alt 1", rank=50
+            )
+            db_map.add_alternative(name="uninteresting alternative")
+            db_map.add_scenario_alternative(
+                scenario_name="uninteresting scenario", alternative_name="uninteresting alternative", rank=75
+            )
+            self.assertEqual(alt1_scenario_alternative["before_alternative_name"], "Base")
+            self.assertIsNone(base_scenario_alternative["before_alternative_name"])
+        with DatabaseMapping("sqlite:///", create=True) as db_map:
+            db_map.add_scenario(name="scenario 1")
+            db_map.add_alternative(name="alt 1")
+            alternative2 = db_map.add_alternative(name="alt 2")
+            base_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="Base", rank=99
+            )
+            alt1_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="alt 1", rank=50
+            )
+            db_map.add_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="alt 2", rank=150
+            )
+            alternative2.remove()
+            self.assertEqual(alt1_scenario_alternative["before_alternative_name"], "Base")
+            self.assertIsNone(base_scenario_alternative["before_alternative_name"])
+
+    def test_before_alternative_id(self):
+        with DatabaseMapping("sqlite:///", create=True) as db_map:
+            db_map.add_scenario(name="scenario 1")
+            base_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="Base", rank=1
+            )
+            self.assertIsNone(base_scenario_alternative["before_alternative_id"])
+            another_alternative = db_map.add_alternative(name="alt 1")
+            db_map.add_scenario_alternative(scenario_name="scenario 1", alternative_name="alt 1", rank=2)
+            self.assertEqual(base_scenario_alternative["before_alternative_id"], another_alternative["id"])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
