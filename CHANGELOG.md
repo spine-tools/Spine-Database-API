@@ -11,16 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.34.3]
+
+### Changed
+
 - ``DatabaseMapping.add_metadata()``, ``DatabaseMapping.add_entity_metadata()``, ``DatabaseMapping.add_parameter_value_metadata()``
   as well as the corresponding ``remove_*``, ``update_*`` and ``add_or_update_*`` methods now work as the other "singular"
   methods like ``DatabaseMapping.add_entity()``.
   Previously, the methods would work on multiple items at once like ``DatabaseMapping.add_entities()``.
   The new "plural" versions have ``_items`` at the end of the method name:
   ``DatabaseMapping.add_metadata_items()``, ``DatabaseMapping.update_metadata_items()`` etc.
-
-### Fixed
-
-### Security
 
 ## [0.34.2]
 
