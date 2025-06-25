@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
         include:
           - os: macos-latest
             python-version: "3.13"
@@ -64,7 +64,7 @@ jobs:
     uses: spine-tools/Spine-Toolbox/.github/workflows/unit_tests.yml@master
     with:
       host-os: ubuntu-latest
-      python-version: 3.9
+      python-version: "3.10"
       repository: spine-tools/Spine-Toolbox
       coverage: false
       post-installation-command: python -m pip install git+${{ github.server_url }}/${{ github.repository }}.git@${{ github.ref_name }}
@@ -74,7 +74,7 @@ jobs:
     uses: spine-tools/Spine-Toolbox/.github/workflows/execution_tests.yml@master
     with:
       host-os: ubuntu-latest
-      python-version: 3.9
+      python-version: "3.10"
       repository: spine-tools/Spine-Toolbox
       post-installation-command: python -m pip install git+${{ github.server_url }}/${{ github.repository }}.git@${{ github.ref_name }}
     secrets: inherit
