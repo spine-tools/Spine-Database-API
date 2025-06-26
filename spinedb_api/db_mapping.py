@@ -33,7 +33,7 @@ from sqlalchemy.event import listen
 from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool, StaticPool
-from .compatibility import compatibility_transformations
+from .compatibility import CompatibilityTransformations, compatibility_transformations
 from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, PublicItem
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
@@ -1145,15 +1145,15 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         except AttributeError:
             raise SpineDBAPIError("session is None; did you forget to use the DB map inside a 'with' block?")
 
-    def commit_session(self, comment, apply_compatibility_transforms=True):
+    def commit_session(self, comment: str, apply_compatibility_transforms: bool = True) -> CompatibilityTransformations:
         """Commits the changes from the in-memory mapping to the database.
 
         Args:
-            comment (str): commit message
-            apply_compatibility_transforms (bool): if True, apply compatibility transforms
+            comment: commit message
+            apply_compatibility_transforms: if True, apply compatibility transforms
 
         Returns:
-            tuple(list, list): compatibility transformations
+            compatibility transformations
         """
         if not comment:
             raise SpineDBAPIError("Commit message cannot be empty.")
@@ -1169,13 +1169,19 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 commit_id = connection.execute(commit.insert(), commit_item).inserted_primary_key[0]
             except DBAPIError as e:
                 raise SpineDBAPIError(f"Fail to commit: {e.orig.args}") from e
-            for tablename, (to_add, to_update, to_remove) in dirty_items:
-                for item in to_add + to_update + to_remove:
-                    item.commit(commit_id)
-                # Remove before add, to help with keeping integrity constraints
-                self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
-                self._do_update_items(connection, tablename, *to_update)
-                self._do_add_items(connection, tablename, *to_add)
+            try:
+                for tablename, (to_add, to_update, to_remove) in dirty_items:
+                    for item in to_add + to_update + to_remove:
+                        item.commit(commit_id)
+                    # Remove before add, to help with keeping integrity constraints
+                    if to_remove:
+                        self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
+                    if to_update:
+                        self._do_update_items(connection, tablename, *to_update)
+                    if to_add:
+                        self._do_add_items(connection, tablename, *to_add)
+            except Exception as error:
+                raise error
             self._session.commit()
             if self._memory:
                 self._memory_dirty = True
@@ -1183,7 +1189,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 self._session.connection(), apply=apply_compatibility_transforms
             )
             self._commit_count = self._query_commit_count()
-            return transformation_info
+        return transformation_info
 
     def rollback_session(self):
         """Discards all the changes from the in-memory mapping."""

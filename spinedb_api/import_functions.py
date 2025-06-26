@@ -16,15 +16,20 @@ This functionality is equivalent to the one provided by :meth:`.DatabaseMapping.
 but the syntax is a little more compact.
 """
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import suppress
-from typing import Any
-from . import SpineDBAPIError
+from typing import Any, Optional
+from . import DatabaseMapping, SpineDBAPIError
 from .helpers import _parse_metadata
-from .parameter_value import fancy_type_to_type_and_rank, get_conflict_fixer, to_database
+from .parameter_value import Value, fancy_type_to_type_and_rank, get_conflict_fixer, to_database
 
 
-def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs):
+def import_data(
+    db_map: DatabaseMapping,
+    unparse_value: Callable[[Value], tuple[bytes, Optional[str]]] = to_database,
+    on_conflict: str = "merge",
+    **kwargs,
+) -> tuple[int, list[str]]:
     """Imports data into a Spine database using a standard format.
 
     Example::
@@ -73,15 +78,15 @@ def import_data(db_map, unparse_value=to_database, on_conflict="merge", **kwargs
             )
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        unparse_value (Callable): function to call to parse parameter values
-        on_conflict (str): Conflict resolution strategy for :func:`parameter_value.fix_conflict`
+        db_map: database mapping
+        unparse_value: function to call to parse parameter values
+        on_conflict: Conflict resolution strategy for :func:`parameter_value.fix_conflict`
         **kwargs: data to import
 
     Returns:
-        tuple: number of items imported and list of errors
+        number of items imported and list of errors
     """
-    all_errors = []
+    all_errors: list[str] = []
     num_imports = 0
     conflict_fixer = get_conflict_fixer(on_conflict)
     for item_type, items in get_data_for_import(
@@ -445,16 +450,20 @@ def import_scenario_alternatives(db_map, data):
     return import_data(db_map, scenario_alternatives=data)
 
 
-def import_parameter_value_lists(db_map, data, unparse_value=to_database):
+def import_parameter_value_lists(
+    db_map: DatabaseMapping,
+    data: Iterable[tuple[str, Value]],
+    unparse_value: Callable[[Value], tuple[bytes, Optional[str]]] = to_database,
+) -> tuple[int, list[str]]:
     """Imports parameter value lists into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of (list name [str], value)
-        unparse_value (Callable): function to parse parameter values
+        db_map: database mapping
+        data: tuples of (list name [str], value)
+        unparse_value: function to parse parameter values
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, parameter_value_lists=data, unparse_value=unparse_value)
 
@@ -704,16 +713,18 @@ def _get_parameter_value_lists_for_import(data):
 
 def _get_list_values_for_import(db_map, data, unparse_value):
     index_by_list_name = {}
+    db_map.fetch_all("list_value")
     value_list_table = db_map.mapped_table("parameter_value_list")
     for list_name, value in data:
         value, type_ = unparse_value(value)
         index = index_by_list_name.get(list_name)
         if index is None:
             current_list = value_list_table.find_item({"name": list_name})
+            current_list_id = current_list["id"]
             list_value_idx_by_val_typ = {
                 (x["value"], x["type"]): x["index"]
                 for x in db_map.mapped_table("list_value").valid_values()
-                if x["parameter_value_list_id"] == current_list["id"]
+                if x["parameter_value_list_id"] == current_list_id
             }
             if (value, type_) in list_value_idx_by_val_typ:
                 continue
