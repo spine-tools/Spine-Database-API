@@ -34,33 +34,22 @@ class DatabaseMappingCommitMixin:
 
     def _do_add_items(self, connection, tablename, *items_to_add):
         """Add items to DB without checking integrity."""
-        if not items_to_add:
-            return
         try:
-            table = self._metadata.tables[self.real_item_type(tablename)]
-            id_items, temp_id_items = [], []
-            for item in items_to_add:
-                if isinstance(item["id"], TempId):
-                    temp_id_items.append(item)
-                else:
-                    id_items.append(item)
-            if id_items:
-                connection.execute(table.insert(), [x.resolve() for x in id_items])
-            if temp_id_items:
-                current_ids = {x.id for x in connection.execute(table.select())}
-                next_id = max(current_ids, default=0) + 1
-                available_ids = set(range(1, next_id)) - current_ids
-                required_id_count = len(temp_id_items) - len(available_ids)
-                new_ids = set(range(next_id, next_id + required_id_count))
-                ids = sorted(available_ids | new_ids)
-                for id_, item in zip(ids, temp_id_items):
-                    temp_id = item["id"]
-                    temp_id.resolve(id_)
-                connection.execute(table.insert(), [x.resolve() for x in temp_id_items])
+            table = self._metadata.tables[tablename]
+            current_ids = {x.id for x in connection.execute(table.select())}
+            next_id = max(current_ids, default=0) + 1
+            available_ids = set(range(1, next_id)) - current_ids
+            required_id_count = len(items_to_add) - len(available_ids)
+            new_ids = set(range(next_id, next_id + required_id_count))
+            ids = sorted(available_ids | new_ids)
+            for id_, item in zip(ids, items_to_add):
+                temp_id = item["id"]
+                temp_id.resolve(id_)
+            connection.execute(table.insert(), [x.resolve() for x in items_to_add])
             for tablename_, items_to_add_ in self._extra_items_to_add_per_table(tablename, items_to_add):
                 if not items_to_add_:
                     continue
-                table = self._metadata.tables[self.real_item_type(tablename_)]
+                table = self._metadata.tables[tablename_]
                 connection.execute(table.insert(), [resolve(x) for x in items_to_add_])
         except DBAPIError as e:
             msg = f"DBAPIError while inserting {tablename} items: {e.orig.args}"
@@ -106,7 +95,7 @@ class DatabaseMappingCommitMixin:
         return pk
 
     def _make_update_stmt(self, tablename, keys):
-        table = self._metadata.tables[self.real_item_type(tablename)]
+        table = self._metadata.tables[tablename]
         upd = table.update()
         for k in self._get_primary_key(tablename):
             upd = upd.where(getattr(table.c, k) == bindparam(k))
@@ -134,7 +123,6 @@ class DatabaseMappingCommitMixin:
         Args:
             *ids: ids to remove
         """
-        tablename = self.real_item_type(tablename)
         ids = {resolve(id_) for id_ in ids}
         if tablename == "alternative":
             # Do not remove the Base alternative

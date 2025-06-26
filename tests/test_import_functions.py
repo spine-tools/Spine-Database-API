@@ -11,7 +11,9 @@
 ######################################################################################################################
 """ Unit tests for import_functions.py. """
 import unittest
+import pytest
 from spinedb_api.db_mapping import DatabaseMapping
+from spinedb_api.exception import NothingToCommit
 from spinedb_api.helpers import DisplayStatus
 from spinedb_api.import_functions import (
     import_alternatives,
@@ -50,6 +52,12 @@ from spinedb_api.parameter_value import (
 )
 from spinedb_api.spine_db_server import _unparse_value
 from tests.mock_helpers import AssertSuccessTestCase
+
+
+def assert_imports(result: tuple[int, list[str]]) -> int:
+    count, errors = result
+    assert not errors
+    return count
 
 
 def assert_import_equivalent(test, obs, exp, strict=True):
@@ -1602,6 +1610,20 @@ class TestImportParameterValueList(AssertSuccessTestCase):
             expected[len(expected)] = 23.0
             for row in list_values:
                 self.assertEqual(from_database(row.value, row.type), expected[row.index])
+
+
+class TestImportListValue:
+    def test_reimporting_existing_list_values_should_not_cause_updates(self, tmp_path):
+        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        with DatabaseMapping(url, create=True) as db_map:
+            db_map.add_parameter_value_list(name="enumeration")
+            db_map.add_list_value(parameter_value_list_name="enumeration", parsed_value="yes", index=1)
+            db_map.add_list_value(parameter_value_list_name="enumeration", parsed_value="no", index=2)
+            db_map.commit_session("Add a value list and list values")
+        with DatabaseMapping(url) as db_map:
+            assert_imports(import_parameter_value_lists(db_map, (("enumeration", "yes"), ("enumeration", "no"))))
+            with pytest.raises(NothingToCommit):
+                db_map.commit_session("Do nothing.")
 
 
 class TestImportAlternative(AssertSuccessTestCase):
