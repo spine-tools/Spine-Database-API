@@ -13,6 +13,9 @@
 """Dirty hacks needed to maintain compatibility in cases where migration alone doesn't do it."""
 
 import sqlalchemy as sa
+from sqlalchemy.engine import Connection
+from spinedb_api.db_mapping_base import PublicItem
+from spinedb_api.temp_id import TempId
 
 
 def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_feature_method, apply):
@@ -190,7 +193,12 @@ def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_fe
     return ea_items_to_add, ea_items_to_update, set(pval_ids_to_remove)
 
 
-def compatibility_transformations(connection, apply=True):
+CompatibilityTransformations = tuple[
+    list[tuple[str, tuple[list[PublicItem], list[PublicItem], list[TempId]]]], list[str]
+]
+
+
+def compatibility_transformations(connection: Connection, apply: bool = True) -> CompatibilityTransformations:
     """Refits any data having an old format and returns changes made.
 
     Args:

@@ -3077,6 +3077,138 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertIsNone(definition["default_type"])
             self.assertIsNone(definition["default_value"])
 
+    def test_deleting_multidimensional_entities_deletes_their_parameter_values_too(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object")
+                db_map.add_entity(entity_class_name="Object", name="gadget")
+                db_map.add_entity_class(name="Subject")
+                db_map.add_entity(entity_class_name="Subject", name="widget")
+                db_map.add_entity_class(dimension_name_list=("Subject", "Object"))
+                db_map.add_parameter_definition(entity_class_name="Subject__Object", name="bonkiness")
+                db_map.add_entity(entity_class_name="Subject__Object", entity_byname=("widget", "gadget"))
+                db_map.add_parameter_value(
+                    entity_class_name="Subject__Object",
+                    entity_byname=("widget", "gadget"),
+                    parameter_definition_name="bonkiness",
+                    alternative_name="Base",
+                    parsed_value=2.3,
+                )
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                entity_item = db_map.entity(entity_class_name="Subject__Object", entity_byname=("widget", "gadget"))
+                entity_item.remove()
+                db_map.commit_session("Remove the entity.")
+            with DatabaseMapping(url) as db_map:
+                values = db_map.find_parameter_values()
+                self.assertEqual(values, [])
+
+    def test_deleting_element_from_multidimensional_entity_deletes_all_parameter_values_too(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object")
+                db_map.add_entity(entity_class_name="Object", name="gadget")
+                db_map.add_entity_class(name="Subject")
+                db_map.add_entity(entity_class_name="Subject", name="widget")
+                db_map.add_entity_class(dimension_name_list=("Subject", "Object"))
+                db_map.add_parameter_definition(entity_class_name="Subject__Object", name="bonkiness")
+                db_map.add_entity(entity_class_name="Subject__Object", entity_byname=("widget", "gadget"))
+                db_map.add_parameter_value(
+                    entity_class_name="Subject__Object",
+                    entity_byname=("widget", "gadget"),
+                    parameter_definition_name="bonkiness",
+                    alternative_name="Base",
+                    parsed_value=2.3,
+                )
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                entity_item = db_map.entity(entity_class_name="Object", name="gadget")
+                entity_item.remove()
+                db_map.commit_session("Remove the entity.")
+            with DatabaseMapping(url) as db_map:
+                values = db_map.find_parameter_values()
+                self.assertEqual(values, [])
+
+    def test_add_metadata(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="Title", value="Catalogue of things that should be")
+            metadata_record = db_map.metadata(name="Title", value="Catalogue of things that should be")
+            self.assertEqual(metadata_record["name"], "Title")
+            self.assertEqual(metadata_record["value"], "Catalogue of things that should be")
+
+    def test_add_metadata_items(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata_items([{"name": "Title", "value": "Catalogue of things that should be"}])
+            metadata_record = db_map.metadata(name="Title", value="Catalogue of things that should be")
+            self.assertEqual(metadata_record["name"], "Title")
+            self.assertEqual(metadata_record["value"], "Catalogue of things that should be")
+
+    def test_before_alternative(self):
+        with DatabaseMapping("sqlite:///", create=True) as db_map:
+            db_map.add_scenario(name="scenario 1")
+            base_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="Base", rank=99
+            )
+            self.assertIsNone(base_scenario_alternative["before_alternative_name"])
+            db_map.add_alternative(name="alt 1")
+            alt1_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="alt 1", rank=50
+            )
+            self.assertEqual(alt1_scenario_alternative["before_alternative_name"], "Base")
+            self.assertIsNone(base_scenario_alternative["before_alternative_name"])
+            db_map.add_alternative(name="alt 2")
+            alt2_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="alt 2", rank=150
+            )
+            self.assertIsNone(alt2_scenario_alternative["before_alternative_name"])
+            self.assertEqual(alt1_scenario_alternative["before_alternative_name"], "Base")
+            self.assertEqual(base_scenario_alternative["before_alternative_name"], "alt 2")
+        with DatabaseMapping("sqlite:///", create=True) as db_map:
+            db_map.add_scenario(name="scenario 1")
+            db_map.add_scenario(name="uninteresting scenario")
+            db_map.add_alternative(name="alt 1")
+            base_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="Base", rank=99
+            )
+            alt1_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="alt 1", rank=50
+            )
+            db_map.add_alternative(name="uninteresting alternative")
+            db_map.add_scenario_alternative(
+                scenario_name="uninteresting scenario", alternative_name="uninteresting alternative", rank=75
+            )
+            self.assertEqual(alt1_scenario_alternative["before_alternative_name"], "Base")
+            self.assertIsNone(base_scenario_alternative["before_alternative_name"])
+        with DatabaseMapping("sqlite:///", create=True) as db_map:
+            db_map.add_scenario(name="scenario 1")
+            db_map.add_alternative(name="alt 1")
+            alternative2 = db_map.add_alternative(name="alt 2")
+            base_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="Base", rank=99
+            )
+            alt1_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="alt 1", rank=50
+            )
+            db_map.add_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="alt 2", rank=150
+            )
+            alternative2.remove()
+            self.assertEqual(alt1_scenario_alternative["before_alternative_name"], "Base")
+            self.assertIsNone(base_scenario_alternative["before_alternative_name"])
+
+    def test_before_alternative_id(self):
+        with DatabaseMapping("sqlite:///", create=True) as db_map:
+            db_map.add_scenario(name="scenario 1")
+            base_scenario_alternative = db_map.add_scenario_alternative(
+                scenario_name="scenario 1", alternative_name="Base", rank=1
+            )
+            self.assertIsNone(base_scenario_alternative["before_alternative_id"])
+            another_alternative = db_map.add_alternative(name="alt 1")
+            db_map.add_scenario_alternative(scenario_name="scenario 1", alternative_name="alt 1", rank=2)
+            self.assertEqual(base_scenario_alternative["before_alternative_id"], another_alternative["id"])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

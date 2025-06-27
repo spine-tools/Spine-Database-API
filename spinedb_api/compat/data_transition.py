@@ -1,3 +1,14 @@
+######################################################################################################################
+# Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
+# This file is part of Spine Database API.
+# Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
+# General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+# without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
+# Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
+# this program. If not, see <http://www.gnu.org/licenses/>.
+######################################################################################################################
 """Reencode old map type JSON to record arrays or dictionary columns"""
 
 from collections import defaultdict
@@ -5,17 +16,12 @@ import json
 import re
 from typing import Any, Callable, Iterable, TypeAlias
 from warnings import warn
-
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
 from pydantic import RootModel
-
-from ..models import Table
-from ..models import TimePattern_
-from .encode import convert_records_to_columns
-from .encode import to_table
-
+from ..models import Table, TimePattern_
+from .encode import convert_records_to_columns, to_table
 
 # Regex pattern to indentify numerical sequences encoded as string
 SEQ_PAT = re.compile(r"^(t|p)([0-9]+)$")

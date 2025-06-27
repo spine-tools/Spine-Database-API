@@ -10,55 +10,61 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Functions for exporting data from a Spine database in a standard format."""
-from collections import namedtuple
-from collections.abc import Iterator
+from collections.abc import Callable, Iterable, Iterator
 from operator import itemgetter
-from .helpers import Asterisk
+from typing import Any, Optional, Union
+from . import DatabaseMapping
+from .db_mapping_base import MappedItemBase
+from .helpers import Asterisk, AsteriskType, DisplayStatus
 from .parameter_value import from_database
+from .temp_id import TempId
+
+Ids = Union[Iterable[TempId], AsteriskType]
 
 
 def export_data(
-    db_map,
-    entity_class_ids=Asterisk,
-    superclass_subclass_ids=Asterisk,
-    display_mode_ids=Asterisk,
-    entity_class_display_mode_ids=Asterisk,
-    entity_ids=Asterisk,
-    entity_group_ids=Asterisk,
-    parameter_value_list_ids=Asterisk,
-    parameter_definition_ids=Asterisk,
-    parameter_type_ids=Asterisk,
-    parameter_value_ids=Asterisk,
-    alternative_ids=Asterisk,
-    scenario_ids=Asterisk,
-    scenario_alternative_ids=Asterisk,
-    entity_alternative_ids=Asterisk,
-    parse_value=from_database,
-):
+    db_map: DatabaseMapping,
+    entity_class_ids: Ids = Asterisk,
+    superclass_subclass_ids: Ids = Asterisk,
+    display_mode_ids: Ids = Asterisk,
+    entity_class_display_mode_ids: Ids = Asterisk,
+    entity_ids: Ids = Asterisk,
+    entity_group_ids: Ids = Asterisk,
+    parameter_value_list_ids: Ids = Asterisk,
+    parameter_definition_ids: Ids = Asterisk,
+    parameter_type_ids: Ids = Asterisk,
+    parameter_value_ids: Ids = Asterisk,
+    alternative_ids: Ids = Asterisk,
+    scenario_ids: Ids = Asterisk,
+    scenario_alternative_ids: Ids = Asterisk,
+    entity_alternative_ids: Ids = Asterisk,
+    parse_value: Callable[[bytes, Optional[str]], Any] = from_database,
+) -> dict:
     """
     Exports data from a Spine DB into a standard dictionary format.
     The result can be splatted into keyword arguments for :func:`spinedb_api.import_functions.import_data`,
     to copy data from one DB to another.
 
     Args:
-        db_map (DatabaseMapping): The db to pull data from.
-        entity_class_ids (Iterable, optional): If given, only exports classes with these ids
-        superclass_subclass_ids (Iterable, optional): If given, only exports superclass subclasse with these ids
-        display_mode_ids (Iterable, optional): If given, only exports display modes with these ids
-        entity_class_display_mode_ids (Iterable, optional): If given, only exports entity class specific display modes with these ids
-        entity_ids (Iterable, optional): If given, only exports entities with these ids
-        entity_group_ids (Iterable, optional): If given, only exports groups with these ids
-        parameter_value_list_ids (Iterable, optional): If given, only exports lists with these ids
-        parameter_definition_ids (Iterable, optional): If given, only exports parameter definitions with these ids
-        parameter_type_ids (Iterable or Asterisk): If given, only exports parameter types with these ids
-        parameter_value_ids (Iterable, optional): If given, only exports parameter values with these ids
-        alternative_ids (Iterable, optional): If given, only exports alternatives with these ids
-        scenario_ids (Iterable, optional): If given, only exports scenarios with these ids
-        scenario_alternative_ids (Iterable, optional): If given, only exports scenario alternatives with these ids
-        entity_alternative_ids (Iterable, optional): If given, only exports entity alternatives with these ids
+        db_map: The db to pull data from.
+        entity_class_ids: If given, only exports classes with these ids
+        superclass_subclass_ids: If given, only exports superclass subclasse with these ids
+        display_mode_ids: If given, only exports display modes with these ids
+        entity_class_display_mode_ids: If given, only exports entity class specific display modes with these ids
+        entity_ids: If given, only exports entities with these ids
+        entity_group_ids: If given, only exports groups with these ids
+        parameter_value_list_ids: If given, only exports lists with these ids
+        parameter_definition_ids: If given, only exports parameter definitions with these ids
+        parameter_type_ids: If given, only exports parameter types with these ids
+        parameter_value_ids: If given, only exports parameter values with these ids
+        alternative_ids: If given, only exports alternatives with these ids
+        scenario_ids: If given, only exports scenarios with these ids
+        scenario_alternative_ids: If given, only exports scenario alternatives with these ids
+        entity_alternative_ids: If given, only exports entity alternatives with these ids
+        parse_value: Callable to parse value blobs from database
 
     Returns:
-        dict: exported data
+        exported data
     """
     data = {
         "entity_classes": export_entity_classes(db_map, entity_class_ids),
@@ -83,15 +89,19 @@ def export_data(
     return {key: value for key, value in data.items() if value}
 
 
-def _get_items(db_map, tablename, ids) -> Iterator[dict]:
+def _get_items(db_map: DatabaseMapping, tablename: str, ids: Ids) -> Iterator[dict]:
     if not ids:
-        return ()
-    _process_item = _make_item_processor(db_map, tablename)
-    for item in _get_items_from_db_map(db_map, tablename, ids):
-        yield from _process_item(item)
+        return
+    if tablename == "parameter_value_list":
+        db_map.fetch_all("list_value")
+        process_item = _ParameterValueListProcessor(db_map.mapped_table("list_value").valid_values())
+        for item in _get_items_from_db_map(db_map, tablename, ids):
+            yield from process_item(item)
+    else:
+        yield from _get_items_from_db_map(db_map, tablename, ids)
 
 
-def _get_items_from_db_map(db_map, tablename, ids):
+def _get_items_from_db_map(db_map: DatabaseMapping, tablename: str, ids: Ids) -> Iterator[MappedItemBase]:
     if ids is Asterisk:
         db_map.fetch_all(tablename)
         yield from db_map.mapped_table(tablename).valid_values()
@@ -103,32 +113,29 @@ def _get_items_from_db_map(db_map, tablename, ids):
             yield item
 
 
-def _make_item_processor(db_map, tablename):
-    if tablename == "parameter_value_list":
-        db_map.fetch_all("list_value")
-        return _ParameterValueListProcessor(db_map.mapped_table("list_value").valid_values())
-    return lambda item: (item,)
-
-
 class _ParameterValueListProcessor:
-    def __init__(self, value_items):
+    def __init__(self, value_items: Iterable[MappedItemBase]):
         self._value_items_by_list_id = {}
         for x in value_items:
             self._value_items_by_list_id.setdefault(x["parameter_value_list_id"], []).append(x)
 
-    def __call__(self, item):
+    def __call__(self, item: MappedItemBase) -> Iterator[dict]:
         for list_value_item in sorted(self._value_items_by_list_id.get(item["id"], ()), key=itemgetter("index")):
             yield {"name": item["name"], "value": list_value_item["value"], "type": list_value_item["type"]}
 
 
-def export_parameter_value_lists(db_map, ids=Asterisk, parse_value=from_database):
+def export_parameter_value_lists(
+    db_map: DatabaseMapping, ids: Ids = Asterisk, parse_value: Callable[[bytes, Optional[str]], Any] = from_database
+) -> list[tuple[str, Any]]:
     return sorted(
         ((x["name"], parse_value(x["value"], x["type"])) for x in _get_items(db_map, "parameter_value_list", ids)),
         key=itemgetter(0),
     )
 
 
-def export_entity_classes(db_map, ids=Asterisk):
+def export_entity_classes(
+    db_map: DatabaseMapping, ids: Ids = Asterisk
+) -> list[tuple[str, tuple[str, ...], str, int, bool]]:
     return sorted(
         (
             (x["name"], x["dimension_name_list"], x["description"], x["display_icon"], x["active_by_default"])
@@ -138,15 +145,17 @@ def export_entity_classes(db_map, ids=Asterisk):
     )
 
 
-def export_superclass_subclasses(db_map, ids=Asterisk):
+def export_superclass_subclasses(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[tuple[str, str]]:
     return sorted(((x["superclass_name"], x["subclass_name"]) for x in _get_items(db_map, "superclass_subclass", ids)))
 
 
-def export_display_modes(db_map, ids=Asterisk):
+def export_display_modes(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[tuple[str, str]]:
     return sorted(((x["name"], x["description"]) for x in _get_items(db_map, "display_mode", ids)))
 
 
-def export_entity_class_display_modes(db_map, ids=Asterisk):
+def export_entity_class_display_modes(
+    db_map: DatabaseMapping, ids: Ids = Asterisk
+) -> list[tuple[str, str, int, DisplayStatus, str, str]]:
     return sorted(
         (
             x["display_mode_name"],
@@ -160,7 +169,17 @@ def export_entity_class_display_modes(db_map, ids=Asterisk):
     )
 
 
-def export_entities(db_map, ids=Asterisk):
+def export_entities(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[
+    Union[
+        tuple[str, Union[tuple[str, ...], str], str],
+        tuple[
+            str,
+            Union[
+                tuple[str, ...], str, Optional[float], Optional[float], Optional[float], Optional[str], Optional[str]
+            ],
+        ],
+    ]
+]:
     data = []
     if ids is Asterisk:
         db_map.fetch_all("entity_location")
@@ -181,20 +200,24 @@ def export_entities(db_map, ids=Asterisk):
     )
 
 
-def export_entity_groups(db_map, ids=Asterisk):
+def export_entity_groups(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[tuple[str, str, str]]:
     return sorted(
         (x["entity_class_name"], x["group_name"], x["member_name"]) for x in _get_items(db_map, "entity_group", ids)
     )
 
 
-def export_entity_alternatives(db_map, ids=Asterisk):
+def export_entity_alternatives(
+    db_map: DatabaseMapping, ids: Ids = Asterisk
+) -> list[tuple[str, tuple[str, ...], str, bool]]:
     return sorted(
         (x["entity_class_name"], x["entity_byname"], x["alternative_name"], x["active"])
         for x in _get_items(db_map, "entity_alternative", ids)
     )
 
 
-def export_parameter_definitions(db_map, ids=Asterisk, parse_value=from_database):
+def export_parameter_definitions(
+    db_map: DatabaseMapping, ids: Ids = Asterisk, parse_value=from_database
+) -> list[tuple[str, str, Any, str, str]]:
     return sorted(
         (
             x["entity_class_name"],
@@ -207,14 +230,16 @@ def export_parameter_definitions(db_map, ids=Asterisk, parse_value=from_database
     )
 
 
-def export_parameter_types(db_map, ids=Asterisk):
+def export_parameter_types(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[tuple[str, str, str, int]]:
     return sorted(
         (x["entity_class_name"], x["parameter_definition_name"], x["type"], x["rank"])
         for x in _get_items(db_map, "parameter_type", ids)
     )
 
 
-def export_parameter_values(db_map, ids=Asterisk, parse_value=from_database):
+def export_parameter_values(
+    db_map: DatabaseMapping, ids: Ids = Asterisk, parse_value=from_database
+) -> list[tuple[str, Union[tuple[str, ...], str], str, Any, str]]:
     return sorted(
         (
             (
@@ -230,15 +255,15 @@ def export_parameter_values(db_map, ids=Asterisk, parse_value=from_database):
     )
 
 
-def export_alternatives(db_map, ids=Asterisk):
+def export_alternatives(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[tuple[str, str]]:
     return sorted((x["name"], x["description"]) for x in _get_items(db_map, "alternative", ids))
 
 
-def export_scenarios(db_map, ids=Asterisk):
+def export_scenarios(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[tuple[str, bool, str]]:
     return sorted((x["name"], x["active"], x["description"]) for x in _get_items(db_map, "scenario", ids))
 
 
-def export_scenario_alternatives(db_map, ids=Asterisk):
+def export_scenario_alternatives(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[tuple[str, str, str]]:
     return sorted(
         (
             (x["scenario_name"], x["alternative_name"], x["before_alternative_name"])

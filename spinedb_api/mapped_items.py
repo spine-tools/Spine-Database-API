@@ -1195,19 +1195,34 @@ class ScenarioAlternativeItem(MappedItemBase):
         # Note that alternatives with higher ranks overwrite the values of those with lower ranks.
         if key == "before_alternative_name":
             mapped_table = self.db_map.mapped_table("alternative")
-            try:
-                before_alternative = mapped_table.find_item_by_id(self["before_alternative_id"])
-            except SpineDBAPIError:
+            before_alternative_id = self._before_alternative_id()
+            if before_alternative_id is None:
                 return None
+            before_alternative = mapped_table.find_item_by_id(before_alternative_id)
             return before_alternative["name"]
         if key == "before_alternative_id":
-            mapped_table = self.db_map.mapped_table("scenario")
-            scenario = mapped_table.find_item_by_id(self["scenario_id"])
-            try:
-                return scenario["alternative_id_list"][self["rank"]]
-            except IndexError:
-                return None
+            return self._before_alternative_id()
         return super().__getitem__(key)
+
+    def _before_alternative_id(self) -> Optional[TempId]:
+        mapped_table = self.db_map.mapped_table("scenario_alternative")
+        self.db_map.do_fetch_all(mapped_table)
+        min_rank = super().__getitem__("rank")
+        scenario_id = super().__getitem__("scenario_id")
+        before_alternative_id = None
+        before_alternative_rank = None
+        for scenario_alternative in mapped_table.values():
+            rank = scenario_alternative["rank"]
+            if (
+                not scenario_alternative.is_valid()
+                or scenario_alternative["scenario_id"] != scenario_id
+                or rank <= min_rank
+            ):
+                continue
+            if before_alternative_id is None or rank < before_alternative_rank:
+                before_alternative_id = scenario_alternative["alternative_id"]
+                before_alternative_rank = rank
+        return before_alternative_id
 
 
 class MetadataItem(MappedItemBase):
