@@ -82,7 +82,7 @@ class TestRemoveCredentialsFromUrl(unittest.TestCase):
 class TestGetHeadAlembicVersion(unittest.TestCase):
     def test_returns_latest_version(self):
         # This test must be updated each time new migration script is added.
-        self.assertEqual(get_head_alembic_version(), "91f1f55aa972")
+        self.assertEqual(get_head_alembic_version(), "a973ab537da2")
 
 
 class TestStringToBool(unittest.TestCase):
