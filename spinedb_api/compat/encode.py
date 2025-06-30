@@ -27,7 +27,7 @@ from ..models import (
     RunEndArray,
     RunEndIndex,
     Table,
-    TimePattern_,
+    type_map,
 )
 
 
@@ -62,11 +62,11 @@ def re_encode(name: str, vals: list, array_t: type[re_t]) -> re_t:
 de_t = TypeVar("de_t", DictEncodedArray, DictEncodedIndex)
 
 
-def de_encode(name: str, vals: list, array_t: type[de_t]) -> de_t:
+def de_encode(name: str, value_type: str, vals: list, array_t: type[de_t]) -> de_t:
     # not using list(set(...)) to preserve order
     values = list(dict.fromkeys(vals))
     indices = list(map(values.index, vals))
-    return array_t(name=name, values=values, indices=indices)
+    return array_t(name=name, value_type=value_type, values=values, indices=indices)
 
 
 def is_any_w_none(arr: Sequence) -> tuple[bool, bool]:
@@ -82,18 +82,23 @@ def to_array(name: str, col: list):
 
     match name, col, has_none:
         case "value", list(), _:
-            return Array(name=name, values=col)
-        # TODO: separate str, ts, dt offset, and tp
-        case _, [float() | bool(), *_], _:
-            return Array(name=name, values=col)
+            return Array(name=name, value_type=type_map[type(col[0])], values=col)
+        case _, [float(), *_], _:
+            return Array(name=name, value_type="float", values=col)
+        case _, [bool(), *_], _:
+            return Array(name=name, value_type="bool", values=col)
         case _, [int(), *_], True:
-            return Array(name=name, values=col)
-        case _, [int() | pd.Timestamp() | datetime() | relativedelta() | TimePattern_(), *_], False:
-            return ArrayIndex(name=name, values=col)
+            return Array(name=name, value_type="int", values=col)
+        case _, [int(), *_], False:
+            return ArrayIndex(name=name, value_type="int", values=col)
+        case _, [pd.Timestamp() | datetime(), *_], False:
+            return ArrayIndex(name=name, value_type="date_time", values=col)
+        case _, [relativedelta(), *_], False:
+            return ArrayIndex(name=name, value_type="duration", values=col)
         case _, [str(), *_], True:
-            return de_encode(name, col, DictEncodedArray)
+            return de_encode(name, "str", col, DictEncodedArray)
         case _, [str(), *_], False:
-            return de_encode(name, col, DictEncodedIndex)
+            return de_encode(name, "str", col, DictEncodedIndex)
         case _, _, _:
             raise NotImplementedError(f"{name}: unknown column type {type(col[0])} ({has_none=})")
 

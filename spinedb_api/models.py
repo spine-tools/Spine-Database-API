@@ -22,28 +22,24 @@
 """Write JSON schema for JSON blob in SpineDB"""
 
 from datetime import datetime, timedelta
-from types import NoneType
-from typing import Annotated, Literal, TypeAlias
+from typing import Annotated, ClassVar, Literal, Optional, TypeAlias
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
-from pydantic import Field as field
-from pydantic import BeforeValidator, PlainSerializer, PlainValidator, WithJsonSchema
+from pydantic import BeforeValidator, PlainSerializer, PlainValidator, WithJsonSchema, model_validator
 from pydantic.dataclasses import dataclass
-from typing_extensions import NotRequired, TypedDict
+from typing_extensions import NotRequired, Self, TypedDict
 from .compat.converters import parse_duration, to_duration
 
 
-def from_timestamp(ts: pd.Timestamp | datetime) -> datetime:
+def from_timestamp(ts: str | pd.Timestamp | datetime) -> datetime:
     match ts:
+        case str():
+            return datetime.fromisoformat(ts)
         case pd.Timestamp():
             return ts.to_pydatetime()
         case _:
             return ts
-
-
-class TimePattern_(str):
-    pass
 
 
 Floats: TypeAlias = list[float]
@@ -57,18 +53,8 @@ RelativeDelta: TypeAlias = Annotated[
     relativedelta,
     PlainValidator(parse_duration),
     PlainSerializer(to_duration),
-    WithJsonSchema({"type": "string", "format": "duration"}, mode="serialization"),
 ]
 Timedeltas: TypeAlias = list[RelativeDelta]
-
-time_pat_re = r"(Y|M|D|WD|h|m|s)[0-9]+-[0-9]+"
-TimePattern: TypeAlias = Annotated[
-    TimePattern_,
-    PlainValidator(TimePattern_),
-    PlainSerializer(str),
-    WithJsonSchema({"type": "string", "pattern": time_pat_re}, mode="serialization"),
-]
-TimePatterns: TypeAlias = list[TimePattern]
 
 # nullable variant of arrays
 NullableIntegers: TypeAlias = list[int | None]
@@ -80,56 +66,58 @@ AnyType: TypeAlias = str | int | float | bool
 NullableAnyTypes: TypeAlias = list[AnyType | None]
 
 # sets of types used to define array schemas below
-IndexTypes: TypeAlias = Integers | Strings | Datetimes | Timedeltas | TimePatterns
+IndexTypes: TypeAlias = Integers | Floats | Strings | Datetimes | Timedeltas
 NullableValueTypes: TypeAlias = NullableIntegers | NullableFloats | NullableStrings | NullableBooleans
 
 # names of types used in the schema
 ValueTypeNames: TypeAlias = Literal[
-    "string",
-    "integer",
-    "number",
-    "boolean",
-    "date-time",
+    "str",
+    "int",
+    "float",
+    "bool",
+    "date_time",
     "duration",
-    "time-pattern",
+    "time_period",
 ]
-IndexValueTypeNames: TypeAlias = Literal["string", "integer", "date-time", "duration", "time-pattern"]
+IndexValueTypeNames: TypeAlias = Literal["str", "int", "float", "date_time", "duration", "time_period"]
 
 type_map: dict[type, ValueTypeNames] = {
-    str: "string",
-    int: "integer",
-    np.int8: "integer",
-    np.int16: "integer",
-    np.int32: "integer",
-    np.int64: "integer",
-    float: "number",
-    np.float16: "number",
-    np.float32: "number",
-    np.float64: "number",
-    # np.float128: "number",  # not available on macos
-    bool: "boolean",
-    np.bool: "boolean",
-    datetime: "date-time",
-    pd.Timestamp: "date-time",
+    str: "str",
+    int: "int",
+    np.int8: "int",
+    np.int16: "int",
+    np.int32: "int",
+    np.int64: "int",
+    float: "float",
+    np.float16: "float",
+    np.float32: "float",
+    np.float64: "float",
+    # np.float128: "float",  # not available on macos
+    bool: "bool",
+    np.bool: "bool",
+    datetime: "date_time",
+    pd.Timestamp: "date_time",
     timedelta: "duration",
     pd.Timedelta: "duration",
     relativedelta: "duration",
     pd.DateOffset: "duration",
-    TimePattern_: "time-pattern",
 }
 
 
-class _TypeInferMixin:
-    def __post_init__(self):
-        if getattr(self, "value_type") != "any":
-            value_type, *_ = set(map(type, getattr(self, "values"))) - {NoneType}
-            # NOTE: have to do it like this since inherited dataclasses are frozen
-            typename = type_map[value_type]
-            super().__setattr__("value_type", typename)
+class _ConvertsByValueType:
+
+    @model_validator(mode="after")
+    def convert_to_final_type(self) -> Self:
+        match getattr(self, "value_type"):
+            case "date_time":
+                super().__setattr__("values", list(map(datetime.fromisoformat, getattr(self, "values"))))
+            case "duration":
+                super().__setattr__("values", list(map(parse_duration, getattr(self, "values"))))
+        return self
 
 
 @dataclass(frozen=True)
-class RunLengthIndex(_TypeInferMixin):
+class RunLengthIndex(_ConvertsByValueType):
     """Run length encoded array
 
     NOTE: this is not supported by PyArrow, if we use it, we will have
@@ -140,44 +128,48 @@ class RunLengthIndex(_TypeInferMixin):
     name: str
     run_len: Integers
     values: IndexTypes
-    value_type: IndexValueTypeNames = field(init=False)
+    value_type: IndexValueTypeNames
+    metadata: Optional[str] = None
     type: Literal["run_length_index"] = "run_length_index"
 
 
 @dataclass(frozen=True)
-class RunEndIndex(_TypeInferMixin):
+class RunEndIndex(_ConvertsByValueType):
     """Run end encoded array"""
 
     name: str
     run_end: Integers
     values: IndexTypes
-    value_type: IndexValueTypeNames = field(init=False)
+    value_type: IndexValueTypeNames
+    metadata: Optional[str] = None
     type: Literal["run_end_index"] = "run_end_index"
 
 
 @dataclass(frozen=True)
-class DictEncodedIndex(_TypeInferMixin):
+class DictEncodedIndex(_ConvertsByValueType):
     """Dictionary encoded array"""
 
     name: str
     indices: Integers
     values: IndexTypes
-    value_type: IndexValueTypeNames = field(init=False)
+    value_type: IndexValueTypeNames
+    metadata: Optional[str] = None
     type: Literal["dict_encoded_index"] = "dict_encoded_index"
 
 
 @dataclass(frozen=True)
-class ArrayIndex(_TypeInferMixin):
+class ArrayIndex(_ConvertsByValueType):
     """Any array that is an index, e.g. a sequence, timestamps, labels"""
 
     name: str
     values: IndexTypes
-    value_type: IndexValueTypeNames = field(init=False)
+    value_type: IndexValueTypeNames
+    metadata: Optional[str] = None
     type: Literal["array_index"] = "array_index"
 
 
 @dataclass(frozen=True)
-class RunLengthArray(_TypeInferMixin):
+class RunLengthArray:
     """Run length encoded array
 
     NOTE: this is not supported by PyArrow, if we use it, we will have
@@ -188,49 +180,54 @@ class RunLengthArray(_TypeInferMixin):
     name: str
     run_len: Integers
     values: NullableValueTypes
-    value_type: ValueTypeNames = field(init=False)
+    value_type: ValueTypeNames
+    metadata: Optional[str] = None
     type: Literal["run_length_array"] = "run_length_array"
 
 
 @dataclass(frozen=True)
-class RunEndArray(_TypeInferMixin):
+class RunEndArray:
     """Run end encoded array"""
 
     name: str
     run_end: Integers
     values: NullableValueTypes
-    value_type: ValueTypeNames = field(init=False)
+    value_type: ValueTypeNames
+    metadata: Optional[str] = None
     type: Literal["run_end_array"] = "run_end_array"
 
 
 @dataclass(frozen=True)
-class DictEncodedArray(_TypeInferMixin):
+class DictEncodedArray:
     """Dictionary encoded array"""
 
     name: str
     indices: NullableIntegers
     values: NullableValueTypes
-    value_type: ValueTypeNames = field(init=False)
+    value_type: ValueTypeNames
+    metadata: Optional[str] = None
     type: Literal["dict_encoded_array"] = "dict_encoded_array"
 
 
 @dataclass(frozen=True)
-class Array(_TypeInferMixin):
+class Array:
     """Array"""
 
     name: str
     values: NullableValueTypes
-    value_type: ValueTypeNames = field(init=False)
+    value_type: ValueTypeNames
+    metadata: Optional[str] = None
     type: Literal["array"] = "array"
 
 
 @dataclass(frozen=True)
-class AnyArray(_TypeInferMixin):
+class AnyArray:
     """Array with mixed types"""
 
     name: str
     values: NullableAnyTypes
     value_type: Literal["any"] = "any"
+    metadata: Optional[str] = None
     type: Literal["any_array"] = "any_array"
 
 
@@ -246,6 +243,7 @@ class ArrayAsDict(TypedDict):
     values: list
     value_type: str
     type: str
+    metadata: NotRequired[Optional[str]]
     indices: NotRequired[list]
     run_end: NotRequired[Integers]
     run_len: NotRequired[Integers]
@@ -254,19 +252,47 @@ class ArrayAsDict(TypedDict):
 def dict_to_array(data: ArrayAsDict) -> AllArrays:
     match data["type"]:
         case "array":
-            return Array(name=data["name"], values=data["values"])
+            return Array(
+                name=data["name"], value_type=data["value_type"], values=data["values"], metadata=data.get("metadata")
+            )
         case "array_index":
-            return ArrayIndex(name=data["name"], values=data["values"])
+            return ArrayIndex(
+                name=data["name"], value_type=data["value_type"], values=data["values"], metadata=data.get("metadata")
+            )
         case "dict_encoded_array":
-            return DictEncodedArray(name=data["name"], indices=data.get("indices", []), values=data["values"])
+            return DictEncodedArray(
+                name=data["name"],
+                value_type=data["value_type"],
+                indices=data.get("indices", []),
+                values=data["values"],
+                metadata=data.get("metadata"),
+            )
         case "dict_encoded_index":
-            return DictEncodedIndex(name=data["name"], indices=data.get("indices", []), values=data["values"])
+            return DictEncodedIndex(
+                name=data["name"],
+                value_type=data["value_type"],
+                indices=data.get("indices", []),
+                values=data["values"],
+                metadata=data.get("metadata"),
+            )
         case "run_end_array":
-            return RunEndArray(name=data["name"], run_end=data.get("run_end", []), values=data["values"])
+            return RunEndArray(
+                name=data["name"],
+                value_type=data["value_type"],
+                run_end=data.get("run_end", []),
+                values=data["values"],
+                metadata=data.get("metadata"),
+            )
         case "run_end_index":
-            return RunEndIndex(name=data["name"], run_end=data.get("run_end", []), values=data["values"])
+            return RunEndIndex(
+                name=data["name"],
+                value_type=data["value_type"],
+                run_end=data.get("run_end", []),
+                values=data["values"],
+                metadata=data.get("metadata"),
+            )
         case "any_array":
-            return AnyArray(name=data["name"], values=data["values"])
+            return AnyArray(name=data["name"], values=data["values"], metadata=data.get("metadata"))
         case _:
             raise ValueError(f"{data['type']}: unknown array type")
 

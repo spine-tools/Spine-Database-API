@@ -1094,35 +1094,7 @@ class _TimePatternIndexes(_Indexes):
         if not union_str:
             # We accept empty strings so we can add empty rows in the parameter value editor UI
             return
-        union_dlm = ","
-        intersection_dlm = ";"
-        range_dlm = "-"
-        regexp = r"(Y|M|D|WD|h|m|s)"
-        for intersection_str in union_str.split(union_dlm):
-            for interval_str in intersection_str.split(intersection_dlm):
-                m = re.match(regexp, interval_str)
-                if m is None:
-                    raise ParameterValueFormatError(
-                        f"Invalid interval {interval_str}, it should start with either Y, M, D, WD, h, m, or s."
-                    )
-                key = m.group(0)
-                lower_upper_str = interval_str[len(key) :]
-                lower_upper = lower_upper_str.split(range_dlm)
-                if len(lower_upper) != 2:
-                    raise ParameterValueFormatError(
-                        f"Invalid interval bounds {lower_upper_str}, it should be two integers separated by dash (-)."
-                    )
-                lower_str, upper_str = lower_upper
-                try:
-                    lower = int(lower_str)
-                except Exception as error:
-                    raise ParameterValueFormatError(f"Invalid lower bound {lower_str}, must be an integer.") from error
-                try:
-                    upper = int(upper_str)
-                except Exception as error:
-                    raise ParameterValueFormatError(f"Invalid upper bound {upper_str}, must be an integer.") from error
-                if lower > upper:
-                    raise ParameterValueFormatError(f"Lower bound {lower} can't be higher than upper bound {upper}.")
+        validate_time_period(union_str)
 
     def __array_finalize__(self, obj):
         """Checks indexes when building the array."""
@@ -1138,6 +1110,49 @@ class _TimePatternIndexes(_Indexes):
         """Checks indexes when setting and item."""
         self._check_index(index)
         super().__setitem__(position, index)
+
+
+_INTERVAL_REGEXP = re.compile(r"(Y|M|D|WD|h|m|s)")
+
+
+def validate_time_period(time_period: str) -> None:
+    """
+    Checks if a time period has the right format.
+
+    Args:
+        time_period: The time period to check. Generally assumed to be a union of interval intersections.
+
+    Raises:
+        ParameterValueFormatError: If the given string doesn't comply with time period spec.
+    """
+    union_dlm = ","
+    intersection_dlm = ";"
+    range_dlm = "-"
+    for intersection_str in time_period.split(union_dlm):
+        for interval_str in intersection_str.split(intersection_dlm):
+            m = _INTERVAL_REGEXP.match(interval_str)
+            if m is None:
+                raise ParameterValueFormatError(
+                    f"Invalid interval {interval_str}, it should start with either Y, M, D, WD, h, m, or s."
+                )
+            key = m.group(0)
+            lower_upper_str = interval_str[len(key) :]
+            lower_upper = lower_upper_str.split(range_dlm)
+            if len(lower_upper) != 2:
+                raise ParameterValueFormatError(
+                    f"Invalid interval bounds {lower_upper_str}, it should be two integers separated by dash (-)."
+                )
+            lower_str, upper_str = lower_upper
+            try:
+                lower = int(lower_str)
+            except Exception as error:
+                raise ParameterValueFormatError(f"Invalid lower bound {lower_str}, must be an integer.") from error
+            try:
+                upper = int(upper_str)
+            except Exception as error:
+                raise ParameterValueFormatError(f"Invalid upper bound {upper_str}, must be an integer.") from error
+            if lower > upper:
+                raise ParameterValueFormatError(f"Lower bound {lower} can't be higher than upper bound {upper}.")
 
 
 class TimePattern(IndexedValue):

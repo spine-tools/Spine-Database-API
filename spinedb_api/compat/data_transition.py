@@ -20,7 +20,7 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
 from pydantic import RootModel
-from ..models import Table, TimePattern_
+from ..models import Table
 from .encode import convert_records_to_columns, to_table
 
 # Regex pattern to indentify numerical sequences encoded as string
@@ -167,8 +167,6 @@ def _formatter(index_type: str) -> _FmtIdx:
       `p2002`, and the name to "time" and "period" respectively;
       without a match it is a noop.
 
-    - "time_pattern" :: convert to `TimePattern_` from models.
-
     - "float" | "noop" :: noop
 
     - fallback :: noop with a warning
@@ -185,8 +183,6 @@ def _formatter(index_type: str) -> _FmtIdx:
                 return {name: _atoi(val)}
 
             return _atoi_dict
-        case "time_pattern" | "timepattern":
-            return lambda name, key: {name: TimePattern_(key)}
         case "float" | "noop":
             return lambda name, key: {name: key}
         case _:  # fallback to noop w/ a warning
@@ -311,9 +307,6 @@ def make_columns(
             warn(msg, DeprecationWarning)
             updated = {**json_doc, "index": {"ignore_year": True, "repeat": True}}
             make_columns(updated, idx_lvls, res, lvlname_base=lvlname_base)
-        # time_pattern
-        case {"type": "time_pattern", "data": dict() as data}:
-            _from_pairs(data.items(), _formatter("time_pattern"))
         # arrays
         case {
             "type": "array",
@@ -344,7 +337,7 @@ def make_records(
     idx_lvls: dict,
     res: list[dict],
     *,
-    lvlname_base: str = "default",
+    lvlname_base: str = "col_",
 ) -> list[dict]:
     """Parse parameter value into a list of records
 
@@ -365,7 +358,7 @@ def make_records(
     level.
 
     """
-    lvlname = lvlname_base + f"{len(idx_lvls)}"
+    lvlname = lvlname_base + str(len(idx_lvls))
 
     # NOTE: The private functions below are closures, defined early in
     # the function such that they have the original arguments to

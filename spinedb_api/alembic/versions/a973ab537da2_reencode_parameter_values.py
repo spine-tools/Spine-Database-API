@@ -8,6 +8,7 @@ Create Date: 2025-05-21 12:49:16.861670
 
 from alembic import op
 import sqlalchemy as sa
+from spinedb_api.arrow_value import TABLE_TYPE
 from spinedb_api.compat.data_transition import transition_data
 
 # # Override transition_data for testing. All to-be-transitioned fields
@@ -56,7 +57,7 @@ def upgrade():
         if row.type in TARGET_TYPES:
             new_value = transition_data(old_value)
             if row.type in TYPES_TO_TABLE:
-                new_type = "table"
+                new_type = TABLE_TYPE
         else:
             new_value = old_value
         batch_data.append({"batch_id": row.id, "new_value": new_value, "new_type": new_type})
