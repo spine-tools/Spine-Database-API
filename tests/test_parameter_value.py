@@ -1096,6 +1096,67 @@ class TestParameterValue(unittest.TestCase):
         self.assertIsNot(x.get_value("T1"), copy_of_x.get_value("T1"))
 
 
+class TestTimeSeriesVariableResolution:
+    def test_get_value(self):
+        time_series = TimeSeriesVariableResolution(
+            ["2025-07-01T15:45", "2025-07-01T16:45"], [2.3, 3.2], ignore_year=False, repeat=False, index_name="y"
+        )
+        assert time_series.get_value(np.datetime64("2025-07-01T15:45")) == 2.3
+        assert time_series.get_value(np.datetime64("2025-07-01T16:45")) == 3.2
+        assert time_series.get_value(np.datetime64("2025-07-01T16:00")) is None
+
+    def test_set_value(self):
+        time_series = TimeSeriesVariableResolution(
+            ["2025-07-01T15:45", "2025-07-01T16:45"], [2.3, 3.2], ignore_year=False, repeat=False, index_name="y"
+        )
+        time_series.set_value(np.datetime64("2025-07-01T15:45"), -2.3)
+        assert time_series.get_value(np.datetime64("2025-07-01T15:45")) == -2.3
+        time_series.set_value(np.datetime64("2025-07-01T16:45"), -3.2)
+        assert time_series.get_value(np.datetime64("2025-07-01T16:45")) == -3.2
+
+
+class TestTimeSeriesFixedResolution:
+    def test_get_value(self):
+        time_series = TimeSeriesFixedResolution(
+            "2025-07-01T15:45", "1h", [2.3, 3.2], ignore_year=False, repeat=False, index_name="y"
+        )
+        assert time_series.get_value(np.datetime64("2025-07-01T15:45")) == 2.3
+        assert time_series.get_value(np.datetime64("2025-07-01T16:45")) == 3.2
+        assert time_series.get_value(np.datetime64("2025-07-01T16:00")) is None
+
+    def test_get_value_with_multiresolution(self):
+        time_series = TimeSeriesFixedResolution(
+            "2025-07-01T15:45", ["1h", "15m"], [2.3, 3.2, -2.3, -3.2], ignore_year=False, repeat=False, index_name="y"
+        )
+        assert time_series.get_value(np.datetime64("2025-07-01T15:45")) == 2.3
+        assert time_series.get_value(np.datetime64("2025-07-01T16:45")) == 3.2
+        assert time_series.get_value(np.datetime64("2025-07-01T17:00")) == -2.3
+        assert time_series.get_value(np.datetime64("2025-07-01T18:00")) == -3.2
+        assert time_series.get_value(np.datetime64("2025-07-01T16:00")) is None
+
+    def test_set_value(self):
+        time_series = TimeSeriesFixedResolution(
+            "2025-07-01T15:45", "1h", [2.3, 3.2], ignore_year=False, repeat=False, index_name="y"
+        )
+        time_series.set_value(np.datetime64("2025-07-01T15:45"), -2.3)
+        assert time_series.get_value(np.datetime64("2025-07-01T15:45")) == -2.3
+        time_series.set_value(np.datetime64("2025-07-01T16:45"), -3.2)
+        assert time_series.get_value(np.datetime64("2025-07-01T16:45")) == -3.2
+
+    def test_set_value_with_multiresolution(self):
+        time_series = TimeSeriesFixedResolution(
+            "2025-07-01T15:45", ["1h", "15m"], [2.3, 3.2, -2.3, -3.2], ignore_year=False, repeat=False, index_name="y"
+        )
+        time_series.set_value(np.datetime64("2025-07-01T15:45"), -1.1)
+        assert time_series.get_value(np.datetime64("2025-07-01T15:45")) == -1.1
+        time_series.set_value(np.datetime64("2025-07-01T16:45"), -2.2)
+        assert time_series.get_value(np.datetime64("2025-07-01T16:45")) == -2.2
+        time_series.set_value(np.datetime64("2025-07-01T17:00"), -3.3)
+        assert time_series.get_value(np.datetime64("2025-07-01T17:00")) == -3.3
+        time_series.set_value(np.datetime64("2025-07-01T18:00"), -4.4)
+        assert time_series.get_value(np.datetime64("2025-07-01T18:00")) == -4.4
+
+
 class TestPickling(unittest.TestCase):
     def test_array_is_picklable(self):
         x = Array([2.3])
