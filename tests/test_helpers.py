@@ -17,6 +17,7 @@ import unittest
 from sqlalchemy import text
 from spinedb_api import DatabaseMapping
 from spinedb_api.helpers import (
+    COLOR_RE,
     compare_schemas,
     copy_database,
     create_new_spine_database,
@@ -82,7 +83,7 @@ class TestRemoveCredentialsFromUrl(unittest.TestCase):
 class TestGetHeadAlembicVersion(unittest.TestCase):
     def test_returns_latest_version(self):
         # This test must be updated each time new migration script is added.
-        self.assertEqual(get_head_alembic_version(), "e9f2c2330cf8")
+        self.assertEqual(get_head_alembic_version(), "6260fa2e3248")
 
 
 class TestStringToBool(unittest.TestCase):
@@ -162,5 +163,17 @@ class TestGroupConsecutive(unittest.TestCase):
         self.assertEqual(list(group_consecutive((1, 2, 6, 3, 7, 10))), [(1, 3), (6, 7), (10, 10)])
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestColorRegex:
+    def test_matches_all_suitable_characters(self):
+        assert COLOR_RE.match("012345") is not None
+        assert COLOR_RE.match("6789ab") is not None
+        assert COLOR_RE.match("cdefAB") is not None
+        assert COLOR_RE.match("CDEF01") is not None
+
+    def test_rejects_unsuitable_characters(self):
+        assert COLOR_RE.match("ghijkl") is None
+        assert COLOR_RE.match("GHIJKL") is None
+
+    def test_rejects_wrong_string_length(self):
+        assert COLOR_RE.match("00000") is None
+        assert COLOR_RE.match("0000000") is None

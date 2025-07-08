@@ -9,8 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for import_functions.py. """
-import unittest
+"""Unit tests for import_functions.py."""
 import pytest
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.exception import NothingToCommit
@@ -55,13 +54,7 @@ from spinedb_api.parameter_value import (
     to_database,
 )
 from spinedb_api.spine_db_server import _unparse_value
-from tests.mock_helpers import AssertSuccessTestCase
-
-
-def assert_imports(result: tuple[int, list[str]]) -> int:
-    count, errors = result
-    assert not errors
-    return count
+from tests.mock_helpers import AssertSuccessTestCase, assert_imports
 
 
 def assert_import_equivalent(test, obs, exp, strict=True):

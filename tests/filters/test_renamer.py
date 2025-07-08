@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for ``renamer`` module. """
+"""Unit tests for ``renamer`` module."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -204,6 +204,7 @@ class TestParameterRenamer(AssertSuccessTestCase):
                     "list_value_id",
                     "commit_id",
                     "parameter_value_list_id",
+                    "parameter_group_id",
                 )
                 self.assertEqual(len(parameter_row._fields), len(expected_keys))
                 for expected_key in expected_keys:
@@ -261,6 +262,7 @@ class TestParameterRenamer(AssertSuccessTestCase):
                     "list_value_id",
                     "commit_id",
                     "parameter_value_list_id",
+                    "parameter_group_id",
                 )
                 self.assertEqual(len(parameter_row._fields), len(expected_keys))
                 for expected_key in expected_keys:

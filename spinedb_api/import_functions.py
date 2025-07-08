@@ -27,6 +27,7 @@ UnparseCallable: TypeAlias = Callable[[Value], tuple[bytes, Optional[str]]]
 ParameterValue: TypeAlias = (
     tuple[str, str | tuple[str, ...], str, Any] | tuple[str, str | tuple[str, ...], str, Any, str]
 )
+ParameterGroup: TypeAlias = tuple[str, str, int]
 
 
 def import_data(
@@ -116,6 +117,7 @@ def get_data_for_import(
     parameter_types=(),
     parameter_values=(),
     parameter_value_lists=(),
+    parameter_groups: Iterable[ParameterGroup] = (),
     alternatives=(),
     scenarios=(),
     scenario_alternatives=(),
@@ -155,6 +157,7 @@ def get_data_for_import(
         entity_classes (Iterable of Sequence): entity class tuples
         parameter_definitions (Iterable of Sequence): tuples of parameter definitions
         parameter_types (Iterable of Sequence): tuples of parameter types
+        parameter_groups: tuples of parameter groups
         entities (Iterable of Sequence): tuples of entities
         entity_alternatives (Iterable of Sequence): tuples of entity alternatives
         entity_groups (Iterable of Sequence): tuples of entity groups
@@ -207,6 +210,8 @@ def get_data_for_import(
     if parameter_value_lists:
         yield ("parameter_value_list", _get_parameter_value_lists_for_import(parameter_value_lists))
         yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, unparse_value))
+    if parameter_groups:
+        yield ("parameter_group", _get_parameter_groups_for_import(parameter_groups))
     if parameter_definitions:
         yield (
             "parameter_definition",
@@ -476,6 +481,19 @@ def import_parameter_value_lists(
         tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, parameter_value_lists=data, unparse_value=unparse_value)
+
+
+def import_parameter_groups(db_map: DatabaseMapping, data: Iterable[ParameterGroup]) -> tuple[int, list[str]]:
+    """Imports parameter groups into a Spine database using a standard format.
+
+    Args:
+        db_map: database mapping
+        data: tuples of (group name, color as 6-digit HEX value)
+
+    Returns:
+        tuple of (number of groups imported, list of errors)
+    """
+    return import_data(db_map, parameter_groups=data)
 
 
 def import_metadata(db_map, data):
@@ -765,6 +783,11 @@ def _get_parameter_types_for_import(data, all_errors):
             "type": parameter_type,
             "rank": rank,
         }
+
+
+def _get_parameter_groups_for_import(data: Iterable[ParameterGroup]) -> Iterator[dict]:
+    for parameter_group in data:
+        yield {"name": parameter_group[0], "color": parameter_group[1], "priority": parameter_group[2]}
 
 
 def _get_metadata_for_import(data):

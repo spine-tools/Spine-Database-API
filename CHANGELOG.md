@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `parameter_group` table. A parameter group has a name, a color (6-digit HEX color code) and priority.
+  Any parameter definition can belong to a single group.
+  Parameter groups are meant to gather connected parameters together.
+  As such, they are meant for visual cue only and do not have any other semantic meaning.
+
 ### Changed
 
 ### Deprecated

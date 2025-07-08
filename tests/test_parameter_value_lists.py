@@ -9,22 +9,19 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-import unittest
+from spinedb_api import DatabaseMapping
 
 
-class AssertSuccessTestCase(unittest.TestCase):
-    def _assert_success(self, result):
-        item, error = result
-        self.assertIsNone(error)
-        return item
-
-    def _assert_imports(self, result):
-        count, errors = result
-        self.assertEqual(errors, [])
-        return count
-
-
-def assert_imports(result: tuple[int, list[str]]) -> int:
-    count, errors = result
-    assert not errors
-    return count
+def test_fetch_parameter_definition_with_value_list(tmp_path):
+    url = "sqlite:///" + str(tmp_path / "test.db")
+    with DatabaseMapping(url, create=True) as db_map:
+        db_map.add_parameter_value_list(name="Enumeration")
+        db_map.add_entity_class(name="Widget")
+        db_map.add_parameter_definition(
+            entity_class_name="Widget", name="Widget", parameter_value_list_name="Enumeration"
+        )
+        db_map.commit_session("Add test data.")
+    with DatabaseMapping(url) as db_map:
+        definitions = db_map.find_parameter_definitions()
+        assert len(definitions) == 1
+        assert definitions[0]["parameter_value_list_name"] == "Enumeration"

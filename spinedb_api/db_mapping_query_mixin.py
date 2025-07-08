@@ -40,6 +40,7 @@ class DatabaseMappingQueryMixin:
         self._entity_group_sq = None
         self._parameter_definition_sq = None
         self._parameter_type_sq = None
+        self._parameter_group_sq = None
         self._parameter_value_sq = None
         self._parameter_value_list_sq = None
         self._list_value_sq = None
@@ -567,6 +568,18 @@ class DatabaseMappingQueryMixin:
         if self._parameter_type_sq is None:
             self._parameter_type_sq = self._subquery("parameter_type")
         return self._parameter_type_sq
+
+    @property
+    def parameter_group_sq(self) -> Subquery:
+        """A subquery of the form:
+
+        .. code-block:: sql
+
+            SELECT * FROM parameter_group
+        """
+        if self._parameter_group_sq is None:
+            self._parameter_group_sq = self._subquery("parameter_group")
+        return self._parameter_group_sq
 
     @property
     def parameter_value_sq(self):
@@ -1352,6 +1365,7 @@ class DatabaseMappingQueryMixin:
                 par_def_sq.c.id.label("id"),
                 par_def_sq.c.name.label("name"),
                 par_def_sq.c.description.label("description"),
+                par_def_sq.c.parameter_group_id,
                 par_def_sq.c.entity_class_id,
                 label("default_value", default_value),
                 label("default_type", default_type),

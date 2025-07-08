@@ -15,7 +15,8 @@ from operator import itemgetter
 from typing import Any, Optional, Union
 from . import DatabaseMapping
 from .db_mapping_base import MappedItemBase
-from .helpers import Asterisk, AsteriskType, DisplayStatus
+from .helpers import Asterisk, AsteriskType, DisplayStatus, ItemType
+from .import_functions import ParameterGroup
 from .parameter_value import from_database
 from .temp_id import TempId
 
@@ -34,12 +35,13 @@ def export_data(
     parameter_definition_ids: Ids = Asterisk,
     parameter_type_ids: Ids = Asterisk,
     parameter_value_ids: Ids = Asterisk,
+    parameter_group_ids: Ids = Asterisk,
     alternative_ids: Ids = Asterisk,
     scenario_ids: Ids = Asterisk,
     scenario_alternative_ids: Ids = Asterisk,
     entity_alternative_ids: Ids = Asterisk,
     parse_value: Callable[[bytes, Optional[str]], Any] = from_database,
-) -> dict:
+) -> dict[str, list]:
     """
     Exports data from a Spine DB into a standard dictionary format.
     The result can be splatted into keyword arguments for :func:`spinedb_api.import_functions.import_data`,
@@ -57,6 +59,7 @@ def export_data(
         parameter_definition_ids: If given, only exports parameter definitions with these ids
         parameter_type_ids: If given, only exports parameter types with these ids
         parameter_value_ids: If given, only exports parameter values with these ids
+        parameter_group_ids: If given, only exports parameter groups with these ids
         alternative_ids: If given, only exports alternatives with these ids
         scenario_ids: If given, only exports scenarios with these ids
         scenario_alternative_ids: If given, only exports scenario alternatives with these ids
@@ -77,6 +80,7 @@ def export_data(
         "parameter_value_lists": export_parameter_value_lists(
             db_map, parameter_value_list_ids, parse_value=parse_value
         ),
+        "parameter_groups": export_parameter_groups(db_map, parameter_group_ids),
         "parameter_definitions": export_parameter_definitions(
             db_map, parameter_definition_ids, parse_value=parse_value
         ),
@@ -89,7 +93,7 @@ def export_data(
     return {key: value for key, value in data.items() if value}
 
 
-def _get_items(db_map: DatabaseMapping, tablename: str, ids: Ids) -> Iterator[dict]:
+def _get_items(db_map: DatabaseMapping, tablename: ItemType, ids: Ids) -> Iterator[dict]:
     if not ids:
         return
     if tablename == "parameter_value_list":
@@ -101,7 +105,7 @@ def _get_items(db_map: DatabaseMapping, tablename: str, ids: Ids) -> Iterator[di
         yield from _get_items_from_db_map(db_map, tablename, ids)
 
 
-def _get_items_from_db_map(db_map: DatabaseMapping, tablename: str, ids: Ids) -> Iterator[MappedItemBase]:
+def _get_items_from_db_map(db_map: DatabaseMapping, tablename: ItemType, ids: Ids) -> Iterator[MappedItemBase]:
     if ids is Asterisk:
         db_map.fetch_all(tablename)
         yield from db_map.mapped_table(tablename).valid_values()
@@ -130,6 +134,12 @@ def export_parameter_value_lists(
     return sorted(
         ((x["name"], parse_value(x["value"], x["type"])) for x in _get_items(db_map, "parameter_value_list", ids)),
         key=itemgetter(0),
+    )
+
+
+def export_parameter_groups(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[ParameterGroup]:
+    return sorted(
+        ((x["name"], x["color"], x["priority"]) for x in _get_items(db_map, "parameter_group", ids)), key=itemgetter(0)
     )
 
 
