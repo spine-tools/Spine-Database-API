@@ -10,13 +10,13 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ General helper functions. """
-
 from collections.abc import Callable, Iterable, Iterator, Sequence
 import enum
 from itertools import groupby
 import json
 from operator import itemgetter
 import os
+import re
 from typing import Any
 import warnings
 from alembic.config import Config
@@ -58,30 +58,32 @@ from sqlalchemy.sql.expression import FunctionElement, bindparam, cast
 from sqlalchemy.sql.selectable import SelectBase
 from .exception import SpineDBAPIError, SpineDBVersionError
 
-SUPPORTED_DIALECTS = {
+SUPPORTED_DIALECTS: dict[str, str] = {
     "mysql": "pymysql",
     "sqlite": "sqlite3",
 }
 """Currently supported dialects and recommended dbapi."""
 
 
-UNSUPPORTED_DIALECTS = {
+UNSUPPORTED_DIALECTS: dict[str, str] = {
     "mssql": "pyodbc",
     "postgresql": "psycopg2",
 }
 """Dialects and recommended dbapi that are not supported by DatabaseMapping but are supported by SqlAlchemy."""
 
 
-naming_convention = {
+naming_convention: dict[str, str] = {
     "pk": "pk_%(table_name)s",
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "uq": "uq_%(table_name)s_%(column_0N_name)s",
     "ck": "ck_%(table_name)s_%(constraint_name)s",
 }
 
-model_meta = MetaData(naming_convention=naming_convention)
+model_meta: MetaData = MetaData(naming_convention=naming_convention)
 
-LONGTEXT_LENGTH = 2**32 - 1
+LONGTEXT_LENGTH: int = 2**32 - 1
+
+COLOR_RE: re.Pattern = re.compile("^[a-fA-F0-9]{6}$")
 
 
 def name_from_elements(elements: Sequence[str]) -> str:
@@ -507,6 +509,7 @@ def create_spine_metadata() -> MetaData:
         Column("default_value", LargeBinary(LONGTEXT_LENGTH), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         Column("parameter_value_list_id", Integer),
+        Column("parameter_group_id", Integer, ForeignKey("parameter_group.id")),
         UniqueConstraint("id", "entity_class_id"),
         UniqueConstraint("entity_class_id", "name"),
         UniqueConstraint("id", "parameter_value_list_id"),
@@ -546,6 +549,14 @@ def create_spine_metadata() -> MetaData:
         Column("parameter_tag_id", Integer, ForeignKey("parameter_tag.id"), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("parameter_definition_id", "parameter_tag_id", name="uq_parameter_definition_tag"),
+    )
+    Table(
+        "parameter_group",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(155), nullable=False),
+        Column("background_color", String(6), nullable=False),
+        UniqueConstraint("name"),
     )
     Table(
         "parameter_value",

@@ -404,9 +404,7 @@ class MappedTable(dict):
         candidate_item.resolve_internal_fields(skip_keys=tuple(original_item.keys()))
         candidate_item.check_mutability()
         candidate_item.polish()
-        first_invalid_key = candidate_item.first_invalid_key()
-        if first_invalid_key:
-            raise SpineDBAPIError(f"invalid {first_invalid_key} for {self.item_type}")
+        candidate_item.validate_keys()
         for key, value in candidate_item.unique_values_for_item(candidate_item):
             empty = {k for k, v in zip(key, value) if v == ""}
             if empty:
@@ -740,14 +738,13 @@ class MappedItemBase(dict):
             return db_item
         return self
 
-    def first_invalid_key(self) -> str:
-        """Goes through the ``_references`` class attribute and returns the key of the first reference
+    def validate_keys(self) -> None:
+        """Goes through the ``_references`` class attribute and raises at the key of the first reference
         that cannot be resolved.
-
-        Returns:
-            str or None: unresolved reference's key if any.
         """
-        return next((src_key for src_key, ref in self._resolve_refs() if not ref), None)
+        invalid_key = next((src_key for src_key, ref in self._resolve_refs() if not ref), None)
+        if invalid_key is not None:
+            raise SpineDBAPIError(f"invalid {invalid_key} for {self.item_type}")
 
     def _resolve_refs(self) -> Iterator[tuple[str, Optional[MappedItemBase]]]:
         """Goes through the ``_references`` class attribute and tries to resolve them.

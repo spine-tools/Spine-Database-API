@@ -1534,6 +1534,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     "parameter_type_list": (),
                     "default_type": None,
                     "default_value": None,
+                    "parameter_group_id": None,
                     "list_value_id": None,
                     "parameter_value_list_id": None,
                 },

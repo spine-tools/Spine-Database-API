@@ -21,7 +21,7 @@ from functools import partialmethod
 import logging
 import os
 from types import MethodType
-from typing import Optional
+from typing import ClassVar, Optional
 from alembic.config import Config
 from alembic.environment import EnvironmentContext
 from alembic.migration import MigrationContext
@@ -111,7 +111,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     """
 
-    _sq_name_by_item_type = {
+    _sq_name_by_item_type: ClassVar[dict[str, str]] = {
         "alternative": "alternative_sq",
         "scenario": "scenario_sq",
         "scenario_alternative": "scenario_alternative_sq",
@@ -126,6 +126,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         "list_value": "list_value_sq",
         "parameter_definition": "parameter_definition_sq",
         "parameter_type": "parameter_type_sq",
+        "parameter_group": "parameter_group_sq",
         "parameter_value": "parameter_value_sq",
         "metadata": "metadata_sq",
         "entity_metadata": "entity_metadata_sq",
