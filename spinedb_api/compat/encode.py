@@ -81,14 +81,14 @@ def to_array(name: str, col: list):
 
     match name, col, has_none:
         case "value", list(), _:
-            return Array(name=name, values=values)
+            return Array(name=name, values=col)
         # TODO: separate str, ts, dt offset, and tp
         case _, [float() | bool(), *_], _:
-            return Array(name=name, values=values)
+            return Array(name=name, values=col)
         case _, [int(), *_], True:
-            return Array(name=name, values=values)
+            return Array(name=name, values=col)
         case _, [int() | pd.Timestamp() | relativedelta() | TimePattern_(), *_], False:
-            return ArrayIndex(name=name, values=values)
+            return ArrayIndex(name=name, values=col)
         case _, [str(), *_], True:
             return de_encode(name, col, DictEncodedArray)
         case _, [str(), *_], False:
