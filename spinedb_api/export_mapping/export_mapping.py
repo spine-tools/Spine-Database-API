@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Contains export mappings for database items such as entities, entity classes and parameter values."""
-
+from contextlib import suppress
 from dataclasses import dataclass
 from itertools import cycle, dropwhile, islice
 from typing import ClassVar, Optional
@@ -1003,14 +1003,9 @@ class ParameterValueTypeMapping(ParameterValueMapping):
         return {"type_and_dimensions": (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type))}
 
     def filter_query_by_title(self, query, title_state):
-        pv = title_state.pop("type_and_dimensions", None)
-        if pv is None:
-            return query
-        if all(d["name"] != "value" for d in query.column_descriptions):
-            return query
-        return _FilteredQuery(
-            query, lambda db_row: (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type) == pv)
-        )
+        with suppress(KeyError):
+            del title_state["type_and_dimensions"]
+        return query
 
 
 class IndexNameMapping(_MappingWithLeafMixin, ParameterValueMapping):
