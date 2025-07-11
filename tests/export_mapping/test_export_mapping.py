@@ -70,14 +70,14 @@ class TestExportMapping(AssertSuccessTestCase):
     def test_export_empty_table(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             object_class_mapping = EntityClassMapping(0)
-            self.assertEqual(list(rows(object_class_mapping, db_map)), [])
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), [])
 
     def test_export_single_object_class(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_object_classes(db_map, ("object_class",))
             db_map.commit_session("Add test data.")
             object_class_mapping = EntityClassMapping(0)
-            self.assertEqual(list(rows(object_class_mapping, db_map)), [["object_class"]])
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), [["object_class"]])
 
     def test_export_objects(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -89,7 +89,7 @@ class TestExportMapping(AssertSuccessTestCase):
             object_class_mapping = EntityClassMapping(0)
             object_class_mapping.child = EntityMapping(1)
             self.assertEqual(
-                list(rows(object_class_mapping, db_map)),
+                list(rows(object_class_mapping, db_map, {})),
                 [["oc1", "o11"], ["oc1", "o12"], ["oc2", "o21"], ["oc3", "o31"], ["oc3", "o32"], ["oc3", "o33"]],
             )
 
@@ -100,7 +100,7 @@ class TestExportMapping(AssertSuccessTestCase):
             db_map.commit_session("Add test data.")
             object_class_mapping = EntityClassMapping(0)
             object_class_mapping.child = EntityMapping(Position.hidden)
-            self.assertEqual(list(rows(object_class_mapping, db_map)), [["oc1"], ["oc1"]])
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), [["oc1"], ["oc1"]])
 
     def test_pivot_without_values(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -109,7 +109,7 @@ class TestExportMapping(AssertSuccessTestCase):
             db_map.commit_session("Add test data.")
             object_class_mapping = EntityClassMapping(-1)
             object_class_mapping.child = EntityMapping(Position.hidden)
-            self.assertEqual(list(rows(object_class_mapping, db_map)), [])
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), [])
 
     def test_hidden_tail_pivoted(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -128,7 +128,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ]
             )
             expected = [[None, None, "p1", "p2"], ["oc", "o1", "Base", "Base"]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_hidden_leaf_item_in_regular_table_valid(self):
         object_class_mapping = EntityClassMapping(0)
@@ -148,7 +148,7 @@ class TestExportMapping(AssertSuccessTestCase):
             db_map.commit_session("Add test data.")
             flattened = [EntityClassMapping(0), EntityGroupMapping(1)]
             mapping = unflatten(flattened)
-            self.assertEqual(list(rows(mapping, db_map)), [["oc", "g1"], ["oc", "g2"]])
+            self.assertEqual(list(rows(mapping, db_map, {})), [["oc", "g1"], ["oc", "g2"]])
 
     def test_object_groups_with_objects(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -158,7 +158,9 @@ class TestExportMapping(AssertSuccessTestCase):
             db_map.commit_session("Add test data.")
             flattened = [EntityClassMapping(0), EntityGroupMapping(1), EntityGroupEntityMapping(2)]
             mapping = unflatten(flattened)
-            self.assertEqual(list(rows(mapping, db_map)), [["oc", "g1", "o1"], ["oc", "g1", "o2"], ["oc", "g2", "o3"]])
+            self.assertEqual(
+                list(rows(mapping, db_map, {})), [["oc", "g1", "o1"], ["oc", "g1", "o2"], ["oc", "g2", "o3"]]
+            )
 
     def test_object_groups_with_parameter_values(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -180,7 +182,7 @@ class TestExportMapping(AssertSuccessTestCase):
             ]
             mapping = unflatten(flattened)
             self.assertEqual(
-                list(rows(mapping, db_map)),
+                list(rows(mapping, db_map, {})),
                 [["oc", "g1", "o1", -11.0], ["oc", "g1", "o2", -12.0], ["oc", "g2", "o3", -13.0]],
             )
 
@@ -201,7 +203,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc1", "p12", "o12"],
                 ["oc2", "p21", "o21"],
             ]
-            self.assertEqual(list(rows(object_class_mapping, db_map)), expected)
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), expected)
 
     def test_export_single_parameter_value_when_there_are_multiple_objects(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -219,7 +221,7 @@ class TestExportMapping(AssertSuccessTestCase):
             value_mapping = ParameterValueMapping(3)
             object_mapping.child = value_mapping
             object_class_mapping.child = parameter_definition_mapping
-            self.assertEqual(list(rows(object_class_mapping, db_map)), [["oc1", "p12", "o11", -11.0]])
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), [["oc1", "p12", "o11", -11.0]])
 
     def test_export_single_parameter_value_pivoted_by_object_name(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -246,7 +248,7 @@ class TestExportMapping(AssertSuccessTestCase):
             object_mapping.child = value_mapping
             object_class_mapping.child = parameter_definition_mapping
             expected = [[None, None, "o11", "o12"], ["oc1", "p11", -11.0, -21.0], ["oc1", "p12", -12.0, -22.0]]
-            self.assertEqual(list(rows(object_class_mapping, db_map)), expected)
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), expected)
 
     def test_minimum_pivot_index_need_not_be_minus_one(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -270,7 +272,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["o", "oc", "p", "A", -1.1, -5.5],
                 ["o", "oc", "p", "B", -2.2, -6.6],
             ]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_pivot_row_order(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -305,7 +307,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 [None, "o11", "o12", "o11", "o12"],
                 ["oc1", -11.0, -21.0, -12.0, -22.0],
             ]
-            self.assertEqual(list(rows(root, db_map)), expected)
+            self.assertEqual(list(rows(root, db_map, {})), expected)
             parameter_definition_mapping.position = -2
             object_mapping.position = -1
             expected = [
@@ -313,7 +315,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 [None, "p11", "p12", "p11", "p12"],
                 ["oc1", -11.0, -12.0, -21.0, -22.0],
             ]
-            self.assertEqual(list(rows(root, db_map)), expected)
+            self.assertEqual(list(rows(root, db_map, {})), expected)
 
     def test_export_parameter_indexes(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -349,7 +351,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc", "o2", "p2", "g"],
                 ["oc", "o2", "p2", "h"],
             ]
-            self.assertEqual(list(rows(object_class_mapping, db_map)), expected)
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), expected)
 
     def test_export_nested_parameter_indexes(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -383,7 +385,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc", "o2", "p", "C", "d"],
                 ["oc", "o2", "p", "D", None],
             ]
-            self.assertEqual(list(rows(object_class_mapping, db_map)), expected)
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), expected)
 
     def test_export_nested_map_values_only(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -412,7 +414,7 @@ class TestExportMapping(AssertSuccessTestCase):
             alternative_mapping.child = index_mapping_1
             object_class_mapping.child = parameter_definition_mapping
             expected = [[23.0], [-1.1], [-2.2], [-3.3], [-4.4], [2.3]]
-            self.assertEqual(list(rows(object_class_mapping, db_map)), expected)
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), expected)
 
     def test_full_pivot_table(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -447,7 +449,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc", "p", "B", "a", -3.3, -7.7],
                 ["oc", "p", "B", "b", -4.4, -8.8],
             ]
-            self.assertEqual(list(rows(object_class_mapping, db_map)), expected)
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), expected)
 
     def test_full_pivot_table_with_hidden_columns(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -467,7 +469,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc", None, "p", "Base", "A", -1.1, -5.5],
                 ["oc", None, "p", "Base", "B", -2.2, -6.6],
             ]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_objects_as_pivot_header_for_indexed_values_with_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -495,7 +497,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc", None, "p", "alt", "A", -3.3, -7.7],
                 ["oc", None, "p", "alt", "B", -4.4, -8.8],
             ]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_objects_and_indexes_as_pivot_header(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -515,7 +517,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 [None, None, None, None, "A", "B", "A", "B"],
                 ["oc", None, "p", "Base", -1.1, -2.2, -3.3, -4.4],
             ]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_objects_and_indexes_as_pivot_header_with_multiple_alternatives_and_parameters(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -548,7 +550,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc", "p1", -1.1, -2.2, -3.3, -4.4, -9.9, -10.1, -11.1, -12.2],
                 ["oc", "p2", -5.5, -6.6, -7.7, -8.8, -13.3, -14.4, -15.5, -16.6],
             ]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_empty_column_while_pivoted_handled_gracefully(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -564,7 +566,7 @@ class TestExportMapping(AssertSuccessTestCase):
             value_list.child = object_
             definition.child = value_list
             mapping.child = definition
-            self.assertEqual(list(rows(mapping, db_map)), [])
+            self.assertEqual(list(rows(mapping, db_map, {})), [])
 
     def test_object_classes_as_header_row_and_objects_in_columns(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -576,7 +578,7 @@ class TestExportMapping(AssertSuccessTestCase):
             object_class_mapping = EntityClassMapping(-1)
             object_class_mapping.child = EntityMapping(0)
             self.assertEqual(
-                list(rows(object_class_mapping, db_map)),
+                list(rows(object_class_mapping, db_map, {})),
                 [["oc1", "oc2", "oc3"], ["o11", "o21", "o31"], ["o12", None, "o32"], [None, None, "o33"]],
             )
 
@@ -591,7 +593,7 @@ class TestExportMapping(AssertSuccessTestCase):
             object_class_mapping.child = EntityMapping(0)
             tables = {}
             for title, title_key in titles(object_class_mapping, db_map):
-                tables[title] = list(rows(object_class_mapping, db_map, title_key))
+                tables[title] = list(rows(object_class_mapping, db_map, {}, title_key))
             self.assertEqual(tables, {"oc1": [["o11"], ["o12"]], "oc2": [["o21"]], "oc3": [["o31"], ["o32"], ["o33"]]})
 
     def test_object_class_and_parameter_definition_as_table_name(self):
@@ -607,7 +609,7 @@ class TestExportMapping(AssertSuccessTestCase):
             definition_mapping.child = object_mapping
             tables = {}
             for title, title_key in titles(object_class_mapping, db_map):
-                tables[title] = list(rows(object_class_mapping, db_map, title_key))
+                tables[title] = list(rows(object_class_mapping, db_map, {}, title_key))
             self.assertEqual(
                 tables, {"oc1,p11": [["o11"], ["o12"]], "oc2,p21": [["o21"]], "oc2,p22": [["o21"]], "oc3": [["o31"]]}
             )
@@ -622,7 +624,7 @@ class TestExportMapping(AssertSuccessTestCase):
             mappings = entity_export(0, Position.table_name, [1, 2], [Position.table_name, 3])
             tables = {}
             for title, title_key in titles(mappings, db_map):
-                tables[title] = list(rows(mappings, db_map, title_key))
+                tables[title] = list(rows(mappings, db_map, {}, title_key))
             self.assertEqual(tables, {"o1__O,o1": [["rc", "oc1", "oc2", "O"]], "o2__O,o2": [["rc", "oc1", "oc2", "O"]]})
 
     def test_parameter_definitions_with_value_lists(self):
@@ -638,7 +640,7 @@ class TestExportMapping(AssertSuccessTestCase):
             class_mapping.child = definition_mapping
             tables = {}
             for title, title_key in titles(class_mapping, db_map):
-                tables[title] = list(rows(class_mapping, db_map, title_key))
+                tables[title] = list(rows(class_mapping, db_map, {}, title_key))
             self.assertEqual(tables, {None: [["oc", "p1", "vl1"]]})
 
     def test_parameter_definitions_and_values_and_value_lists(self):
@@ -660,7 +662,7 @@ class TestExportMapping(AssertSuccessTestCase):
             mapping = unflatten(flattened)
             tables = {}
             for title, title_key in titles(mapping, db_map):
-                tables[title] = list(rows(mapping, db_map, title_key))
+                tables[title] = list(rows(mapping, db_map, {}, title_key))
             self.assertEqual(tables, {None: [["oc", "p1", "vl", "o", -1.0]]})
 
     def test_parameter_definitions_and_values_and_ignorable_value_lists(self):
@@ -684,7 +686,7 @@ class TestExportMapping(AssertSuccessTestCase):
             mapping = unflatten(flattened)
             tables = {}
             for title, title_key in titles(mapping, db_map):
-                tables[title] = list(rows(mapping, db_map, title_key))
+                tables[title] = list(rows(mapping, db_map, {}, title_key))
             self.assertEqual(tables, {None: [["oc", "p1", "vl", "o", -1.0], ["oc", "p2", None, "o", 5.0]]})
 
     def test_parameter_value_lists(self):
@@ -694,7 +696,7 @@ class TestExportMapping(AssertSuccessTestCase):
             value_list_mapping = ParameterValueListMapping(0)
             tables = {}
             for title, title_key in titles(value_list_mapping, db_map):
-                tables[title] = list(rows(value_list_mapping, db_map, title_key))
+                tables[title] = list(rows(value_list_mapping, db_map, {}, title_key))
             self.assertEqual(tables, {None: [["vl1"], ["vl2"]]})
 
     def test_parameter_value_list_values(self):
@@ -706,7 +708,7 @@ class TestExportMapping(AssertSuccessTestCase):
             value_list_mapping.child = value_mapping
             tables = {}
             for title, title_key in titles(value_list_mapping, db_map):
-                tables[title] = list(rows(value_list_mapping, db_map, title_key))
+                tables[title] = list(rows(value_list_mapping, db_map, {}, title_key))
             self.assertEqual(tables, {"vl1": [[-1.0]], "vl2": [[-2.0]]})
 
     def test_no_item_declared_as_title_gives_full_table(self):
@@ -722,7 +724,7 @@ class TestExportMapping(AssertSuccessTestCase):
             definition_mapping.child = object_mapping
             tables = {}
             for title, title_key in titles(object_class_mapping, db_map):
-                tables[title] = list(rows(object_class_mapping, db_map, title_key))
+                tables[title] = list(rows(object_class_mapping, db_map, {}, title_key))
             self.assertEqual(tables, {None: [["o11"], ["o12"], ["o21"], ["o21"]]})
 
     def test_missing_values_for_alternatives(self):
@@ -756,7 +758,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc", "o1", "p2", "alt1", -2.2],
                 ["oc", "o2", "p2", "alt2", -5.5],
             ]
-            self.assertEqual(list(rows(object_class_mapping, db_map)), expected)
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), expected)
 
     def test_export_relationship_classes(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -769,7 +771,7 @@ class TestExportMapping(AssertSuccessTestCase):
             dimension_mapping = relationship_class_mapping.child = DimensionMapping(1)
             dimension_mapping.child = DimensionMapping(2)
             self.assertEqual(
-                list(rows(relationship_class_mapping, db_map)),
+                list(rows(relationship_class_mapping, db_map, {})),
                 [["rc1", "oc1", ""], ["rc2", "oc3", "oc2"], ["rc3", "oc2", "oc3"]],
             )
 
@@ -791,7 +793,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["rc2", "oc2", "oc1", "o21__o11", "o21", "o11"],
                 ["rc2", "oc2", "oc1", "o21__o12", "o21", "o12"],
             ]
-            self.assertEqual(list(rows(relationship_class_mapping, db_map)), expected)
+            self.assertEqual(list(rows(relationship_class_mapping, db_map, {})), expected)
 
     def test_relationships_with_different_dimensions(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -822,7 +824,7 @@ class TestExportMapping(AssertSuccessTestCase):
             relationship_class_mapping.child = object_class_mapping1
             tables = {}
             for title, title_key in titles(relationship_class_mapping, db_map):
-                tables[title] = list(rows(relationship_class_mapping, db_map, title_key))
+                tables[title] = list(rows(relationship_class_mapping, db_map, {}, title_key))
             expected = [
                 ["rc1D", "oc1", "", "o11", ""],
                 ["rc1D", "oc1", "", "o12", ""],
@@ -843,7 +845,7 @@ class TestExportMapping(AssertSuccessTestCase):
             default_value_mapping = ParameterDefaultValueMapping(2)
             definition_mapping.child = default_value_mapping
             object_class_mapping.child = definition_mapping
-            table = list(rows(object_class_mapping, db_map))
+            table = list(rows(object_class_mapping, db_map, {}))
             self.assertEqual(table, [["oc1", "p11", 3.14], ["oc2", "p21", 14.3], ["oc2", "p22", -1.0]])
 
     def test_indexed_default_parameter_values(self):
@@ -865,7 +867,7 @@ class TestExportMapping(AssertSuccessTestCase):
             index_mapping.child = value_mapping
             definition_mapping.child = index_mapping
             object_class_mapping.child = definition_mapping
-            table = list(rows(object_class_mapping, db_map))
+            table = list(rows(object_class_mapping, db_map, {}))
             expected = [
                 ["oc1", "p11", "a", -6.28],
                 ["oc1", "p11", "b", -3.14],
@@ -903,7 +905,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc", "o2", "p1", "c", 2.0],
                 ["oc", "o2", "p1", "d", -2.0],
             ]
-            self.assertEqual(list(rows(object_class_mapping, db_map)), expected)
+            self.assertEqual(list(rows(object_class_mapping, db_map, {})), expected)
 
     def test_constant_mapping_as_title(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -914,7 +916,7 @@ class TestExportMapping(AssertSuccessTestCase):
             constant_mapping.child = object_class_mapping
             tables = {}
             for title, title_key in titles(constant_mapping, db_map):
-                tables[title] = list(rows(constant_mapping, db_map, title_key))
+                tables[title] = list(rows(constant_mapping, db_map, {}, title_key))
             self.assertEqual(tables, {"title_text": [["oc1"], ["oc2"], ["oc3"]]})
 
     def test_scenario_mapping(self):
@@ -924,7 +926,7 @@ class TestExportMapping(AssertSuccessTestCase):
             scenario_mapping = ScenarioMapping(0)
             tables = {}
             for title, title_key in titles(scenario_mapping, db_map):
-                tables[title] = list(rows(scenario_mapping, db_map, title_key))
+                tables[title] = list(rows(scenario_mapping, db_map, {}, title_key))
             self.assertEqual(tables, {None: [["s1"], ["s2"]]})
 
     def test_scenario_alternative_mapping(self):
@@ -938,7 +940,7 @@ class TestExportMapping(AssertSuccessTestCase):
             scenario_mapping.child = scenario_alternative_mapping
             tables = {}
             for title, title_key in titles(scenario_mapping, db_map):
-                tables[title] = list(rows(scenario_mapping, db_map, title_key))
+                tables[title] = list(rows(scenario_mapping, db_map, {}, title_key))
             self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a2"], ["s2", "a3"], ["s2", "a2"]]})
 
     def test_scenario_alternative_mapping_exports_alternatives_in_correct_order(self):
@@ -952,7 +954,7 @@ class TestExportMapping(AssertSuccessTestCase):
             scenario_mapping.child = scenario_alternative_mapping
             tables = {}
             for title, title_key in titles(scenario_mapping, db_map):
-                tables[title] = list(rows(scenario_mapping, db_map, title_key))
+                tables[title] = list(rows(scenario_mapping, db_map, {}, title_key))
             self.assertEqual(tables, {None: [["s1", "a1"], ["s1", "a3"], ["s1", "a2"]]})
 
     def test_legacy_scenario_alternative_mapping_with_before_alternatives(self):
@@ -967,7 +969,7 @@ class TestExportMapping(AssertSuccessTestCase):
             scenario_alternative_mapping.child = ScenarioBeforeAlternativeMapping(2)
             tables = {}
             for title, title_key in titles(scenario_mapping, db_map):
-                tables[title] = list(rows(scenario_mapping, db_map, title_key))
+                tables[title] = list(rows(scenario_mapping, db_map, {}, title_key))
             self.assertEqual(tables, {None: [["s1", "a1", "a3"], ["s1", "a3", "a2"]]})
 
     def test_header(self):
@@ -977,19 +979,19 @@ class TestExportMapping(AssertSuccessTestCase):
             db_map.commit_session("Add test data.")
             root = unflatten([EntityClassMapping(0, header="class"), EntityMapping(1, header="entity")])
             expected = [["class", "entity"], ["oc", "o1"]]
-            self.assertEqual(list(rows(root, db_map)), expected)
+            self.assertEqual(list(rows(root, db_map, {})), expected)
 
     def test_header_without_data_still_creates_header(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             root = unflatten([EntityClassMapping(0, header="class"), EntityMapping(1, header="object")])
             expected = [["class", "object"]]
-            self.assertEqual(list(rows(root, db_map)), expected)
+            self.assertEqual(list(rows(root, db_map, {})), expected)
 
     def test_header_in_half_pivot_table_without_data_still_creates_header(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             root = unflatten([EntityClassMapping(-1, header="class"), EntityMapping(9, header="object")])
             expected = [["class"]]
-            self.assertEqual(list(rows(root, db_map)), expected)
+            self.assertEqual(list(rows(root, db_map, {})), expected)
 
     def test_header_in_pivot_table_without_data_still_creates_header(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1003,19 +1005,19 @@ class TestExportMapping(AssertSuccessTestCase):
                 ]
             )
             expected = [[None, "class"], ["parameter", "alternative"]]
-            self.assertEqual(list(rows(root, db_map)), expected)
+            self.assertEqual(list(rows(root, db_map, {})), expected)
 
     def test_disabled_empty_data_header(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             root = unflatten([EntityClassMapping(0, header="class"), EntityMapping(1, header="object")])
             expected = []
-            self.assertEqual(list(rows(root, db_map, empty_data_header=False)), expected)
+            self.assertEqual(list(rows(root, db_map, {}, empty_data_header=False)), expected)
 
     def test_disabled_empty_data_header_in_pivot_table(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             root = unflatten([EntityClassMapping(-1, header="class"), EntityMapping(0)])
             expected = []
-            self.assertEqual(list(rows(root, db_map, empty_data_header=False)), expected)
+            self.assertEqual(list(rows(root, db_map, {}, empty_data_header=False)), expected)
 
     def test_header_position(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1024,7 +1026,7 @@ class TestExportMapping(AssertSuccessTestCase):
             db_map.commit_session("Add test data.")
             root = unflatten([EntityClassMapping(Position.header), EntityMapping(0)])
             expected = [["oc"], ["o1"]]
-            self.assertEqual(list(rows(root, db_map)), expected)
+            self.assertEqual(list(rows(root, db_map, {})), expected)
 
     def test_header_position_with_relationships(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1044,7 +1046,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ]
             )
             expected = [["", "", "oc1", "oc2"], ["rc", "o11__o21", "o11", "o21"]]
-            self.assertEqual(list(rows(root, db_map)), expected)
+            self.assertEqual(list(rows(root, db_map, {})), expected)
 
     def test_header_position_with_relationships_but_no_data(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1062,7 +1064,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ]
             )
             expected = [["", "", "oc1", "oc2"]]
-            self.assertEqual(list(rows(root, db_map)), expected)
+            self.assertEqual(list(rows(root, db_map, {})), expected)
 
     def test_header_and_pivot(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1102,7 +1104,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc", "p1", -1.1, -2.2, -3.3, -4.4, -9.9, -10.1, -11.1, -12.2],
                 ["oc", "p2", -5.5, -6.6, -7.7, -8.8, -13.3, -14.4, -15.5, -16.6],
             ]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_pivot_without_left_hand_side_has_padding_column_for_headers(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1142,7 +1144,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 [None, -1.1, -2.2, -3.3, -4.4, -9.9, -10.1, -11.1, -12.2],
                 [None, -5.5, -6.6, -7.7, -8.8, -13.3, -14.4, -15.5, -16.6],
             ]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_count_mappings(self):
         object_class_mapping = EntityClassMapping(2)
@@ -1237,7 +1239,7 @@ class TestExportMapping(AssertSuccessTestCase):
             object_mapping.set_ignorable(True)
             self.assertTrue(object_mapping.is_ignorable())
             expected = [["oc", None]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_unsetting_ignorable_flag(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1251,7 +1253,7 @@ class TestExportMapping(AssertSuccessTestCase):
             object_mapping.set_ignorable(False)
             self.assertFalse(object_mapping.is_ignorable())
             expected = [["oc", "o1"]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_filter(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1262,7 +1264,7 @@ class TestExportMapping(AssertSuccessTestCase):
             object_mapping.filter_re = "o1"
             root_mapping = unflatten([EntityClassMapping(0), object_mapping])
             expected = [["oc", "o1"]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_hidden_tail_filter(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1273,7 +1275,7 @@ class TestExportMapping(AssertSuccessTestCase):
             object_mapping.filter_re = "o1"
             root_mapping = unflatten([EntityClassMapping(0), object_mapping])
             expected = [["oc1"]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_index_names(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1286,7 +1288,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 0, 2, Position.hidden, 1, None, None, 3, Position.hidden, 5, [Position.header], [4]
             )
             expected = [["", "", "", "", "index", ""], ["oc", "o", "p", "Base", "a", 5.0]]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_default_value_index_names_with_nested_map(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1299,7 +1301,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 0, 1, Position.hidden, 4, [Position.header, Position.header], [2, 3]
             )
             expected = [["", "", "idx1", "idx2", ""], ["oc", "p", "A", "b", 2.3]]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_multiple_index_names_with_empty_database(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1307,7 +1309,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 0, 4, Position.hidden, 1, [2], [3], 5, Position.hidden, 8, [Position.header, Position.header], [6, 7]
             )
             expected = [9 * [""]]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_parameter_default_value_type(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1320,7 +1322,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["oc2", "p21", "float", 14.3],
                 ["oc2", "p22", "float", -1.0],
             ]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_map_with_more_dimensions_than_index_mappings(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1333,7 +1335,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 0, 1, Position.hidden, 2, None, None, Position.hidden, Position.hidden, 4, [Position.hidden], [3]
             )
             expected = [["oc", "p", "o", "A", "map"]]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_default_map_value_with_more_dimensions_than_index_mappings(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1342,7 +1344,7 @@ class TestExportMapping(AssertSuccessTestCase):
             db_map.commit_session("Add test data.")
             mapping = entity_parameter_default_value_export(0, 1, Position.hidden, 3, [Position.hidden], [2])
             expected = [["oc", "p", "A", "map"]]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_map_with_single_value_mapping(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1355,7 +1357,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 0, 1, Position.hidden, 2, None, None, Position.hidden, Position.hidden, 3, None, None
             )
             expected = [["oc", "p", "o", "map"]]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_default_map_value_with_single_value_mapping(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1364,7 +1366,7 @@ class TestExportMapping(AssertSuccessTestCase):
             db_map.commit_session("Add test data.")
             mapping = entity_parameter_default_value_export(0, 1, Position.hidden, 2, None, None)
             expected = [["oc", "p", "map"]]
-            self.assertEqual(list(rows(mapping, db_map)), expected)
+            self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
     def test_table_gets_exported_even_without_parameter_values(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1394,7 +1396,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ]
             )
             expected = [["rc", "oc", "p"]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_relationship_class_object_classes_parameters_multiple_dimensions(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1411,7 +1413,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ]
             )
             expected = [["rc", "oc1", "p11", "oc2"], ["rc", "oc1", "p12", "oc2"]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_highlight_relationship_objects(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1436,7 +1438,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["rc", "oc1", "oc2", "o11__o21", "o11", "o21"],
                 ["rc", "oc1", "oc2", "o12__o22", "o12", "o22"],
             ]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_export_object_parameters_while_exporting_relationships(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1459,7 +1461,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ]
             )
             expected = [["rc", "oc", "o__", "o", "p", "Base", 23.0]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_export_default_values_of_object_parameters_while_exporting_relationships(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1478,7 +1480,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 ]
             )
             expected = [["rc", "oc", "p", 23.0]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_export_object_parameters_while_exporting_relationships_with_multiple_parameters_and_classes2(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1516,14 +1518,14 @@ class TestExportMapping(AssertSuccessTestCase):
                 ["rc12", "oc1", "oc2", "o12__o21", "o12", "o21", "p21", "Base", 5.5],
                 ["rc23", "oc2", "oc3", "o21__o31", "o21", "o31", "p31", "Base", 7.7],
             ]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_alternative_mapping_with_header_and_description(self):
         root_mapping = AlternativeMapping(0, header="alternative")
         root_mapping.child = AlternativeDescriptionMapping(1, header="description")
         with DatabaseMapping("sqlite://", create=True) as db_map:
             expected = [["alternative", "description"], ["Base", "Base alternative"]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_fixed_value_and_alternative_mappings_with_header_and_description(self):
         root_mapping = FixedValueMapping(Position.table_name, value="Alternative")
@@ -1531,7 +1533,7 @@ class TestExportMapping(AssertSuccessTestCase):
         alternative_mapping.child = AlternativeDescriptionMapping(1, header="description")
         with DatabaseMapping("sqlite://", create=True) as db_map:
             expected = [["alternative", "description"], ["Base", "Base alternative"]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_fixed_value_and_scenario_mappings_with_header_and_description(self):
         root_mapping = FixedValueMapping(Position.table_name, value="Scenario")
@@ -1541,7 +1543,7 @@ class TestExportMapping(AssertSuccessTestCase):
             import_scenarios(db_map, (("scenario1", False, "Scenario with Base alternative"),))
             db_map.commit_session("Add test data.")
             expected = [["scenario", "description"], ["scenario1", "Scenario with Base alternative"]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
     def test_rows_from_scenario_mappings_after_rows_from_alternative_mappings(self):
         root_mapping1 = FixedValueMapping(Position.table_name, value="Alternative")
@@ -1554,9 +1556,9 @@ class TestExportMapping(AssertSuccessTestCase):
             import_scenarios(db_map, (("scenario1", False, "Scenario with Base alternative"),))
             db_map.commit_session("Add test data.")
             expected1 = [["alternative", "description"], ["Base", "Base alternative"]]
-            self.assertEqual(list(rows(root_mapping1, db_map)), expected1)
+            self.assertEqual(list(rows(root_mapping1, db_map, {})), expected1)
             expected2 = [["scenario", "description"], ["scenario1", "Scenario with Base alternative"]]
-            self.assertEqual(list(rows(root_mapping2, db_map)), expected2)
+            self.assertEqual(list(rows(root_mapping2, db_map, {})), expected2)
 
     def test_scalar_value_export(self):
         value_list_mapping = ParameterValueListMapping(Position.hidden)
@@ -1588,7 +1590,7 @@ class TestExportMapping(AssertSuccessTestCase):
                 )
             )
             db_map.commit_session("Add test data.")
-            self.assertEqual(list(rows(root_mapping, db_map)), [["Gadget", "y", "spoon", "Base", "float", 2.3]])
+            self.assertEqual(list(rows(root_mapping, db_map, {})), [["Gadget", "y", "spoon", "Base", "float", 2.3]])
 
     def test_parameter_value_indexes_do_not_get_sorted(self):
         value_list_mapping = ParameterValueListMapping(Position.hidden)
@@ -1620,7 +1622,7 @@ class TestExportMapping(AssertSuccessTestCase):
             )
             db_map.commit_session("Add test data.")
             self.assertEqual(
-                list(rows(root_mapping, db_map)),
+                list(rows(root_mapping, db_map, {})),
                 [
                     ["Gadget", "y", "spoon", "Base", "1d_map", "b", 1.1],
                     ["Gadget", "y", "spoon", "Base", "1d_map", "a", 1.2],
@@ -1657,7 +1659,7 @@ class TestExportMapping(AssertSuccessTestCase):
             )
             db_map.commit_session("Add test data.")
             self.assertEqual(
-                list(rows(root_mapping, db_map)),
+                list(rows(root_mapping, db_map, {})),
                 [
                     [None, None, None, None, None, "y"],
                     ["Gadget", "spoon", "Base", "1d_map", "b", 1.1],

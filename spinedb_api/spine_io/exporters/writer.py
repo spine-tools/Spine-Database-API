@@ -38,6 +38,7 @@ def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, ma
     if isinstance(group_fns, str):
         group_fns = len(mappings) * [group_fns]
     with _new_write(writer), db_map:
+        row_cache = {}
         for mapping, header_for_empty_data, group_fn in zip(mappings, empty_data_header, group_fns):
             mapping = drop_non_positioned_tail(copy(mapping))
             for title, title_key in titles(mapping, db_map, limit=max_tables):
@@ -46,13 +47,17 @@ def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, ma
                         break
                     try:
                         if max_rows is None:
-                            for row in rows(mapping, db_map, title_key, header_for_empty_data, group_fn=group_fn):
+                            for row in rows(
+                                mapping, db_map, row_cache, title_key, header_for_empty_data, group_fn=group_fn
+                            ):
                                 write_more = writer.write_row(row)
                                 if not write_more:
                                     break
                         else:
+                            # Don't use row cache here because we would cache limited number of rows
+                            # and some data could be left unexported.
                             for n, row in enumerate(
-                                rows(mapping, db_map, title_key, header_for_empty_data, group_fn=group_fn)
+                                rows(mapping, db_map, {}, title_key, header_for_empty_data, group_fn=group_fn)
                             ):
                                 write_more = writer.write_row(row)
                                 if not write_more or n + 1 == max_rows:

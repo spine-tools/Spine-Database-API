@@ -96,7 +96,7 @@ class TestEntityParameterExport(AssertSuccessTestCase):
                 [numpy.datetime64("2022-06-22T11:00:00"), -1.1, -3.3],
                 [numpy.datetime64("2022-06-22T12:00:00"), -2.2, -4.4],
             ]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
 
 class TestEntityClassDimensionParameterDefaultValueExport(AssertSuccessTestCase):
@@ -122,7 +122,7 @@ class TestEntityClassDimensionParameterDefaultValueExport(AssertSuccessTestCase)
                 highlight_position=0,
             )
             expected = [["rc", "p11", "oc1", "oc2", 2.3, "float"], ["rc", "p12", "oc1", "oc2", 5.0, "float"]]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
 
 class TestEntityElementParameterExport(AssertSuccessTestCase):
@@ -167,7 +167,7 @@ class TestEntityElementParameterExport(AssertSuccessTestCase):
                 ["rc", "p11", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "float", -2.3],
                 ["rc", "p12", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "float", -5.0],
             ]
-            self.assertEqual(list(rows(root_mapping, db_map)), expected)
+            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
 
 class TestSetEntityDimensions(unittest.TestCase):
