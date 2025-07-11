@@ -198,21 +198,17 @@ class ExportMapping(Mapping):
             Query
         """
         mappings = self.flatten()
-        # Start with empty query
-        # Add columns
         columns = []
         for m in mappings:
             m.build_query_columns(db_map, columns)
         if not columns:
             return None
         qry = db_map.query(*columns)
-        # Apply filters
         for m in mappings:
             qry = m.filter_query(db_map, qry)
         # Apply special title filters (first, so we clean up the state)
         for m in mappings:
             qry = m.filter_query_by_title(qry, title_state)
-        # Apply standard title filters
         if not title_state:
             return qry
         # Use a _FilteredQuery, since building a subquery to query it again leads to parser stack overflow
@@ -339,7 +335,7 @@ class ExportMapping(Mapping):
             return
         data = self._data(db_row)
         if data is None and not self._ignorable:
-            return ()
+            return
         data_iterator = self._get_data_iterator(data)
         for data in data_iterator:
             yield {self.position: data}
@@ -358,9 +354,7 @@ class ExportMapping(Mapping):
             return
         for row in self._get_rows(db_row):
             for child_row in self.child.get_rows_recursive(db_row):
-                row = row.copy()
-                row.update(child_row)
-                yield row
+                yield {**row, **child_row}
 
     def rows(self, db_map, title_state):
         """Yields rows issued by this mapping and its children combined.
