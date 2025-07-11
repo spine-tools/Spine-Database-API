@@ -167,7 +167,9 @@ def _formatter(index_type: str) -> _FmtIdx:
       `p2002`, and the name to "time" and "period" respectively;
       without a match it is a noop.
 
-    - "float" | "time_pattern" | "noop" :: noop
+    - "time_pattern" :: convert to `TimePattern_` from models.
+
+    - "float" | "noop" :: noop
 
     - fallback :: noop with a warning
 
