@@ -28,10 +28,18 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
 from pydantic import Field as field
-from pydantic import PlainSerializer, PlainValidator, WithJsonSchema
+from pydantic import BeforeValidator, PlainSerializer, PlainValidator, WithJsonSchema
 from pydantic.dataclasses import dataclass
 from typing_extensions import NotRequired, TypedDict
 from .compat.converters import parse_duration, to_duration
+
+
+def from_timestamp(ts: pd.Timestamp | datetime) -> datetime:
+    match ts:
+        case pd.Timestamp():
+            return ts.to_pydatetime()
+        case _:
+            return ts
 
 
 class TimePattern_(str):
@@ -43,7 +51,8 @@ Integers: TypeAlias = list[int]
 Strings: TypeAlias = list[str]
 Booleans: TypeAlias = list[bool]
 
-Datetimes: TypeAlias = list[datetime]
+Datetime: TypeAlias = Annotated[datetime, BeforeValidator(from_timestamp)]
+Datetimes: TypeAlias = list[Datetime]
 RelativeDelta: TypeAlias = Annotated[
     relativedelta,
     PlainValidator(parse_duration),

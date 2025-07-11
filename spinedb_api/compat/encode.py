@@ -11,6 +11,7 @@
 ######################################################################################################################
 """Encode Python sequences into Array types supported by JSON blobs"""
 
+from datetime import datetime
 import enum
 from itertools import chain
 from types import NoneType
@@ -87,7 +88,7 @@ def to_array(name: str, col: list):
             return Array(name=name, values=col)
         case _, [int(), *_], True:
             return Array(name=name, values=col)
-        case _, [int() | pd.Timestamp() | relativedelta() | TimePattern_(), *_], False:
+        case _, [int() | pd.Timestamp() | datetime() | relativedelta() | TimePattern_(), *_], False:
             return ArrayIndex(name=name, values=col)
         case _, [str(), *_], True:
             return de_encode(name, col, DictEncodedArray)
