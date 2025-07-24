@@ -265,9 +265,33 @@ class TestFromDatabaseForTimeSeries(unittest.TestCase):
 
 
 class TestToDatabaseForRecordBatches:
-    def test_run_end_encoding(self):
+    def test_strings_as_run_end_encoded(self):
         index_array = pyarrow.RunEndEncodedArray.from_arrays([3, 5], ["A", "B"])
-        value_array = pyarrow.RunEndEncodedArray.from_arrays([2, 5], [2.3, 3.2])
+        value_array = pyarrow.RunEndEncodedArray.from_arrays([2, 5], ["a", "b"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_date_times_as_run_end_encoded_index(self):
+        index_array = pyarrow.RunEndEncodedArray.from_arrays(
+            [3, 5],
+            [
+                datetime.datetime(year=2025, month=7, day=24, hour=11, minute=41),
+                datetime.datetime(year=2025, month=7, day=24, hour=18, minute=41),
+            ],
+        )
+        value_array = pyarrow.RunEndEncodedArray.from_arrays([2, 5], ["a", "b"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_duration_as_run_end_encoded(self):
+        index_array = pyarrow.RunEndEncodedArray.from_arrays([3, 5], [parse_duration("PT30M"), parse_duration("PT45M")])
+        value_array = pyarrow.RunEndEncodedArray.from_arrays([2, 5], [parse_duration("P3Y"), parse_duration("P2Y")])
         record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
         blob, value_type = arrow_value.to_database(record_batch)
         deserialized = arrow_value.from_database(blob, value_type)
@@ -283,8 +307,32 @@ class TestToDatabaseForRecordBatches:
         assert deserialized == record_batch
         assert deserialized.schema.metadata == record_batch.schema.metadata
 
+    def test_date_times_in_dictionary(self):
+        index_array = pyarrow.DictionaryArray.from_arrays(
+            [0, 1, 0],
+            [
+                datetime.datetime(year=2025, month=7, day=24, hour=13, minute=20),
+                datetime.datetime(year=2025, month=7, day=24, hour=13, minute=20),
+            ],
+        )
+        value_array = pyarrow.DictionaryArray.from_arrays([1, 0, 1], [True, False])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_durations_in_dictionary(self):
+        index_array = pyarrow.DictionaryArray.from_arrays([0, 1, 0], [parse_duration("P23D"), parse_duration("P5M")])
+        value_array = pyarrow.DictionaryArray.from_arrays([2, 1, 0], ["a", "b", "c"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
     def test_union(self):
-        index_array = pyarrow.array(["integer", "float1", "float2", "string", "boolean", "duration"])
+        index_array = pyarrow.array(["integer", "float_generic", "float_int_like", "string", "boolean", "duration"])
         int_array = pyarrow.array([23])
         float_array = pyarrow.array([2.3, 5.0])
         str_array = pyarrow.array(["A"])
