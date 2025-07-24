@@ -284,14 +284,16 @@ class TestToDatabaseForRecordBatches:
         assert deserialized.schema.metadata == record_batch.schema.metadata
 
     def test_union(self):
-        index_array = pyarrow.array(["integer", "float", "string"])
+        index_array = pyarrow.array(["integer", "float1", "float2", "string", "boolean", "duration"])
         int_array = pyarrow.array([23])
-        float_array = pyarrow.array([2.3])
+        float_array = pyarrow.array([2.3, 5.0])
         str_array = pyarrow.array(["A"])
-        value_type_array = pyarrow.array([0, 1, 2], type=pyarrow.int8())
-        value_index_array = pyarrow.array([0, 0, 0], type=pyarrow.int32())
+        boolean_array = pyarrow.array([True])
+        duration_array = pyarrow.array([parse_duration("PT5H")])
+        value_type_array = pyarrow.array([0, 1, 1, 2, 3, 4], type=pyarrow.int8())
+        value_index_array = pyarrow.array([0, 0, 1, 0, 0, 0], type=pyarrow.int32())
         value_array = pyarrow.UnionArray.from_dense(
-            value_type_array, value_index_array, [int_array, float_array, str_array]
+            value_type_array, value_index_array, [int_array, float_array, str_array, boolean_array, duration_array]
         )
         record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
         blob, value_type = arrow_value.to_database(record_batch)
@@ -346,7 +348,7 @@ class TestToDatabaseForRecordBatches:
 
     def test_duration(self):
         index_array = pyarrow.array([parse_duration("P3D")])
-        value_array = pyarrow.array([5.0])
+        value_array = pyarrow.array([parse_duration("PT5H")])
         record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
         blob, value_type = arrow_value.to_database(record_batch)
         deserialized = arrow_value.from_database(blob, value_type)

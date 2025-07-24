@@ -29,7 +29,7 @@ import pyarrow
 from . import parameter_value as legacy_value
 from .compat.data_transition import transition_data
 from .exception import SpineDBAPIError
-from .models import AllArrays, AnyType, ArrayAsDict, ValueTypeNames, dict_to_array
+from .models import AllArrays, AnyType, ArrayAsDict, SpecialTypeNames, ValueTypeNames, dict_to_array
 from .parameter_value import (
     NUMPY_DATETIME_DTYPE,
     TIME_SERIES_DEFAULT_RESOLUTION,
@@ -456,12 +456,14 @@ def to_list(loaded_value: pyarrow.RecordBatch) -> list[dict]:
             case pyarrow.UnionArray():
                 if not is_value_column:
                     raise SpineDBAPIError("union array cannot be index")
+                value_list, special_types = _union_array_values_to_list(column)
                 arrays.append(
                     {
                         **base_data,
                         "type": "any_array",
-                        "values": column.to_pylist(),
+                        "values": value_list,
                         "value_type": "any",
+                        "special_types": special_types,
                     }
                 )
             case pyarrow.TimestampArray():
@@ -492,6 +494,19 @@ def to_list(loaded_value: pyarrow.RecordBatch) -> list[dict]:
                     }
                 )
     return arrays
+
+
+def _union_array_values_to_list(column: pyarrow.UnionArray) -> tuple[list, dict[int, SpecialTypeNames]]:
+    values = []
+    special_types = {}
+    for i, x in enumerate(column):
+        match x.value:
+            case pyarrow.MonthDayNanoIntervalScalar():
+                special_types[i] = "duration"
+                values.append(_month_day_nano_interval_to_duration(x))
+            case _:
+                values.append(x.as_py())
+    return values, special_types
 
 
 def _array_value_type(column: pyarrow.Array, is_value_column: bool) -> str:

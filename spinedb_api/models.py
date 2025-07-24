@@ -61,13 +61,16 @@ NullableIntegers: TypeAlias = list[int | None]
 NullableFloats: TypeAlias = list[float | None]
 NullableStrings: TypeAlias = list[str | None]
 NullableBooleans: TypeAlias = list[bool | None]
+NullableDurations: TypeAlias = list[RelativeDelta | None]
 
-AnyType: TypeAlias = str | int | float | bool
+AnyType: TypeAlias = str | int | float | bool | RelativeDelta
 NullableAnyTypes: TypeAlias = list[AnyType | None]
 
 # sets of types used to define array schemas below
 IndexTypes: TypeAlias = Integers | Floats | Strings | Datetimes | Timedeltas
-NullableValueTypes: TypeAlias = NullableIntegers | NullableFloats | NullableStrings | NullableBooleans
+NullableValueTypes: TypeAlias = (
+    NullableIntegers | NullableFloats | NullableStrings | NullableBooleans | NullableDurations
+)
 
 # names of types used in the schema
 ValueTypeNames: TypeAlias = Literal[
@@ -80,6 +83,7 @@ ValueTypeNames: TypeAlias = Literal[
     "time_period",
 ]
 IndexValueTypeNames: TypeAlias = Literal["str", "int", "float", "date_time", "duration", "time_period"]
+SpecialTypeNames: TypeAlias = Literal["duration"]
 
 type_map: dict[type, ValueTypeNames] = {
     str: "str",
@@ -104,7 +108,7 @@ type_map: dict[type, ValueTypeNames] = {
 }
 
 
-class _ConvertsByValueType:
+class _ConvertsIndexByValueType:
 
     @model_validator(mode="after")
     def convert_to_final_type(self) -> Self:
@@ -116,8 +120,17 @@ class _ConvertsByValueType:
         return self
 
 
+class _ConvertsByValueType:
+
+    @model_validator(mode="after")
+    def convert_to_final_type(self) -> Self:
+        if getattr(self, "value_type") == "duration":
+            super().__setattr__("values", list(map(parse_duration, getattr(self, "values"))))
+        return self
+
+
 @dataclass(frozen=True)
-class RunLengthIndex(_ConvertsByValueType):
+class RunLengthIndex(_ConvertsIndexByValueType):
     """Run length encoded array
 
     NOTE: this is not supported by PyArrow, if we use it, we will have
@@ -134,7 +147,7 @@ class RunLengthIndex(_ConvertsByValueType):
 
 
 @dataclass(frozen=True)
-class RunEndIndex(_ConvertsByValueType):
+class RunEndIndex(_ConvertsIndexByValueType):
     """Run end encoded array"""
 
     name: str
@@ -146,7 +159,7 @@ class RunEndIndex(_ConvertsByValueType):
 
 
 @dataclass(frozen=True)
-class DictEncodedIndex(_ConvertsByValueType):
+class DictEncodedIndex(_ConvertsIndexByValueType):
     """Dictionary encoded array"""
 
     name: str
@@ -158,7 +171,7 @@ class DictEncodedIndex(_ConvertsByValueType):
 
 
 @dataclass(frozen=True)
-class ArrayIndex(_ConvertsByValueType):
+class ArrayIndex(_ConvertsIndexByValueType):
     """Any array that is an index, e.g. a sequence, timestamps, labels"""
 
     name: str
@@ -169,7 +182,7 @@ class ArrayIndex(_ConvertsByValueType):
 
 
 @dataclass(frozen=True)
-class RunLengthArray:
+class RunLengthArray(_ConvertsByValueType):
     """Run length encoded array
 
     NOTE: this is not supported by PyArrow, if we use it, we will have
@@ -186,7 +199,7 @@ class RunLengthArray:
 
 
 @dataclass(frozen=True)
-class RunEndArray:
+class RunEndArray(_ConvertsByValueType):
     """Run end encoded array"""
 
     name: str
@@ -198,7 +211,7 @@ class RunEndArray:
 
 
 @dataclass(frozen=True)
-class DictEncodedArray:
+class DictEncodedArray(_ConvertsByValueType):
     """Dictionary encoded array"""
 
     name: str
@@ -210,7 +223,7 @@ class DictEncodedArray:
 
 
 @dataclass(frozen=True)
-class Array:
+class Array(_ConvertsByValueType):
     """Array"""
 
     name: str
@@ -226,9 +239,22 @@ class AnyArray:
 
     name: str
     values: NullableAnyTypes
+    special_types: dict[int, SpecialTypeNames]
     value_type: Literal["any"] = "any"
     metadata: Optional[str] = None
     type: Literal["any_array"] = "any_array"
+
+    @model_validator(mode="after")
+    def convert_to_final_type(self) -> Self:
+        special_types = getattr(self, "special_types")
+        values = getattr(self, "values")
+        for row, value_type in special_types.items():
+            match value_type:
+                case "duration":
+                    values[row] = parse_duration(values[row])
+                case _:
+                    raise ValueError(f"unknown special type {value_type}")
+        return self
 
 
 # NOTE: To add run-length encoding to the schema, add it to the
@@ -247,6 +273,7 @@ class ArrayAsDict(TypedDict):
     indices: NotRequired[list]
     run_end: NotRequired[Integers]
     run_len: NotRequired[Integers]
+    special_types: NotRequired[dict[int, SpecialTypeNames]]
 
 
 def dict_to_array(data: ArrayAsDict) -> AllArrays:
@@ -292,7 +319,12 @@ def dict_to_array(data: ArrayAsDict) -> AllArrays:
                 metadata=data.get("metadata"),
             )
         case "any_array":
-            return AnyArray(name=data["name"], values=data["values"], metadata=data.get("metadata"))
+            return AnyArray(
+                name=data["name"],
+                values=data["values"],
+                special_types=data["special_types"],
+                metadata=data.get("metadata"),
+            )
         case _:
             raise ValueError(f"{data['type']}: unknown array type")
 
