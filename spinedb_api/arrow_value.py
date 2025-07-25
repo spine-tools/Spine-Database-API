@@ -22,13 +22,14 @@ from collections import defaultdict
 import datetime
 from itertools import chain, tee
 import json
-from typing import Any, Callable, Iterable, Literal, Optional, Sequence, SupportsFloat, TypeAlias, TypeVar, Union
+from typing import Any, Callable, Iterable, Literal, Optional, Sequence, SupportsFloat, TypeAlias, TypeVar
 from dateutil import relativedelta
 import numpy
 import pyarrow
 from . import parameter_value as legacy_value
 from .compat.data_transition import transition_data
 from .exception import SpineDBAPIError
+from .helpers import time_period_format_specification, time_series_metadata
 from .models import AllArrays, AnyType, ArrayAsDict, SpecialTypeNames, dict_to_array
 from .parameter_value import (
     NUMPY_DATETIME_DTYPE,
@@ -92,7 +93,17 @@ def with_column_as_time_period(record_batch: pyarrow.RecordBatch, column: int | 
     for period in record_batch.column(column):
         validate_time_period(period.as_py())
     column_name = column if isinstance(column, str) else record_batch.column_names[column]
-    metadata = {column_name: json.dumps({"format": "time_period"})}
+    metadata = {column_name: json.dumps(time_period_format_specification())}
+    return record_batch.replace_schema_metadata(metadata)
+
+
+def with_column_as_time_stamps(
+    record_batch: pyarrow.RecordBatch, column: int | str, ignore_year: bool, repeat: bool
+) -> pyarrow.RecordBatch:
+    if not pyarrow.types.is_timestamp(record_batch.column(column).type):
+        raise SpineDBAPIError("column is not time stamp column")
+    column_name = column if isinstance(column, str) else record_batch.column_names[column]
+    metadata = {column_name: json.dumps(time_series_metadata(ignore_year, repeat))}
     return record_batch.replace_schema_metadata(metadata)
 
 
@@ -330,7 +341,7 @@ def crawl_time_series(
     return typed_xs, ys, index_names, metadata, len(root_index) + 1
 
 
-def time_series_resolution(resolution: Union[str, list[str]]) -> list[relativedelta]:
+def time_series_resolution(resolution: str | list[str]) -> list[relativedelta.relativedelta]:
     """Parses time series resolution string."""
     if isinstance(resolution, str):
         resolution = [duration_to_relativedelta(resolution)]

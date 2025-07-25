@@ -930,6 +930,14 @@ def string_to_bool(string: str) -> bool:
     raise ValueError(string)
 
 
+def time_period_format_specification() -> dict:
+    return {"format": "time_period"}
+
+
+def time_series_metadata(ignore_year: bool, repeat: bool) -> dict:
+    return {"ignore_year": ignore_year, "repeat": repeat}
+
+
 @enum.unique
 class DisplayStatus(enum.Enum):
     """Custom enum for entity class display status."""

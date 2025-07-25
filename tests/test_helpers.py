@@ -10,7 +10,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for helpers.py."""
-
 import pathlib
 from tempfile import TemporaryDirectory
 import unittest
@@ -27,6 +26,8 @@ from spinedb_api.helpers import (
     name_from_elements,
     remove_credentials_from_url,
     string_to_bool,
+    time_period_format_specification,
+    time_series_metadata,
     vacuum,
 )
 from tests.mock_helpers import AssertSuccessTestCase
@@ -156,5 +157,13 @@ class TestGroupConsecutive(unittest.TestCase):
         self.assertEqual(list(group_consecutive((1, 2, 6, 3, 7, 10))), [(1, 3), (6, 7), (10, 10)])
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestTimePeriodFormatSpecification:
+    def test_correctness(self):
+        specification = time_period_format_specification()
+        assert specification == {"format": "time_period"}
+
+
+class TestTimeSeriesMetadata:
+    def test_correctness(self):
+        assert time_series_metadata(True, False) == {"ignore_year": True, "repeat": False}
+        assert time_series_metadata(False, True) == {"ignore_year": False, "repeat": True}

@@ -16,7 +16,11 @@ import unittest
 import pyarrow
 import pytest
 from spinedb_api import SpineDBAPIError, arrow_value, parameter_value
-from spinedb_api.arrow_value import _month_day_nano_interval_to_duration, with_column_as_time_period
+from spinedb_api.arrow_value import (
+    _month_day_nano_interval_to_duration,
+    with_column_as_time_period,
+    with_column_as_time_stamps,
+)
 from spinedb_api.compat.converters import parse_duration
 
 
@@ -463,6 +467,34 @@ class TestWithColumnAsTimePeriod:
             SpineDBAPIError, match="^Invalid interval gibberish, it should start with either Y, M, D, WD, h, m, or s.$"
         ):
             with_column_as_time_period(record_batch, 0)
+
+
+class TestWithColumnAsTimeStamps:
+    def test_column_given_by_name(self):
+        column = pyarrow.array([datetime.datetime(year=2025, month=7, day=25, hour=9, minute=48)])
+        record_batch = pyarrow.record_batch({"stamps": column})
+        as_time_stamps_with_year_ignored = with_column_as_time_stamps(record_batch, "stamps", True, False)
+        as_time_stamps_with_repeat = with_column_as_time_stamps(record_batch, "stamps", False, True)
+        assert json.loads(as_time_stamps_with_year_ignored.schema.metadata["stamps".encode()]) == {
+            "ignore_year": True,
+            "repeat": False,
+        }
+        assert json.loads(as_time_stamps_with_repeat.schema.metadata["stamps".encode()]) == {
+            "ignore_year": False,
+            "repeat": True,
+        }
+
+    def test_column_given_by_index(self):
+        column = pyarrow.array([datetime.datetime(year=2025, month=7, day=25, hour=9, minute=48)])
+        record_batch = pyarrow.record_batch({"stamps": column})
+        as_time_stamps = with_column_as_time_stamps(record_batch, 0, True, True)
+        assert json.loads(as_time_stamps.schema.metadata["stamps".encode()]) == {"ignore_year": True, "repeat": True}
+
+    def test_raises_when_column_type_is_wrong(self):
+        column = pyarrow.array(["A"])
+        record_batch = pyarrow.record_batch({"stamps": column})
+        with pytest.raises(SpineDBAPIError, match="^column is not time stamp column$"):
+            with_column_as_time_stamps(record_batch, 0, False, False)
 
 
 class TestMonthDayNanoIntervalToDuration:
