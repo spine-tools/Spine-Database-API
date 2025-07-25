@@ -42,11 +42,17 @@ def _upgrade_table_types(table, value_label, type_label, connection):
         sa.select(table.c.id, value_column).where(type_column.in_(TYPES_TO_REENCODE))
     ):
         new_blob = transition_data(old_blob)
-        batch_data.append({"id": id_, value_label: new_blob})
+        batch_data.append({"id": id_, type_label: TABLE_TYPE, value_label: new_blob})
     if batch_data:
         update_statement = (
             table.update()
             .where(table.c.id == sa.bindparam("id"))
-            .values({"id": sa.bindparam("id"), value_label: sa.bindparam(value_label)})
+            .values(
+                {
+                    "id": sa.bindparam("id"),
+                    type_label: sa.bindparam(value_label),
+                    value_label: sa.bindparam(value_label),
+                }
+            )
         )
         connection.execute(update_statement, batch_data)
