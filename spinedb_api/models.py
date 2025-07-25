@@ -32,14 +32,10 @@ from typing_extensions import NotRequired, Self, TypedDict
 from .compat.converters import parse_duration, to_duration
 
 
-def from_timestamp(ts: str | pd.Timestamp | datetime) -> datetime:
-    match ts:
-        case str():
-            return datetime.fromisoformat(ts)
-        case pd.Timestamp():
-            return ts.to_pydatetime()
-        case _:
-            return ts
+def from_timestamp(ts: str | pd.Timestamp | datetime) -> str | datetime:
+    if isinstance(ts, pd.Timestamp):
+        return ts.to_pydatetime()
+    return ts
 
 
 Floats: TypeAlias = list[float]
@@ -112,11 +108,11 @@ class _ConvertsIndexByValueType:
 
     @model_validator(mode="after")
     def convert_to_final_type(self) -> Self:
-        match getattr(self, "value_type"):
-            case "date_time":
-                super().__setattr__("values", list(map(datetime.fromisoformat, getattr(self, "values"))))
-            case "duration":
-                super().__setattr__("values", list(map(parse_duration, getattr(self, "values"))))
+        match getattr(self, "value_type"), getattr(self, "values"):
+            case "date_time", [str(), *_] as values:
+                super().__setattr__("values", list(map(datetime.fromisoformat, values)))
+            case "duration", _ as values:
+                super().__setattr__("values", list(map(parse_duration, values)))
         return self
 
 

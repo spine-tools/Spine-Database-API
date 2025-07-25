@@ -47,6 +47,7 @@ ArrowTypeNames: TypeAlias = Literal[
     "bool",
     "date_time",
     "duration",
+    "null",
 ]
 
 _DATA_TYPE_TO_ARROW_TYPE: dict[ArrowTypeNames, pyarrow.DataType] = {
@@ -56,6 +57,7 @@ _DATA_TYPE_TO_ARROW_TYPE: dict[ArrowTypeNames, pyarrow.DataType] = {
     "int": pyarrow.int64(),
     "bool": pyarrow.bool_(),
     "str": pyarrow.string(),
+    "null": pyarrow.null(),
 }
 
 _DATA_CONVERTER = {
