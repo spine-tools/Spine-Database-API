@@ -50,7 +50,7 @@ def _upgrade_table_types(table, value_label, type_label, connection):
             .values(
                 {
                     "id": sa.bindparam("id"),
-                    type_label: sa.bindparam(value_label),
+                    type_label: sa.bindparam(type_label),
                     value_label: sa.bindparam(value_label),
                 }
             )
