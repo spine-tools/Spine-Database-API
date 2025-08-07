@@ -14,6 +14,7 @@ import math
 from gams.core import gdx
 from gdx2py import GAMSParameter, GAMSScalar, GAMSSet, GdxFile
 from gdx2py.gdxfile import EPS_VALUE
+from ..gdx_utils import gams_supports_new_api
 from .writer import Writer, WriterException
 
 SPECIAL_CONVERSIONS = {
@@ -34,6 +35,8 @@ class GdxWriter(Writer):
         super().__init__()
         self._file_path = file_path
         self._gams_dir = gams_directory
+        if not gams_supports_new_api(self._gams_dir):
+            raise WriterException("GAMS version 42 or greater is required to write .gdx files")
         self._gdx_file = None
         self._tables = {}
         self._table_dimensions = {}

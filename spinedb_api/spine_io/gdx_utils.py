@@ -10,26 +10,26 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Utility functions for .gdx import/export.
-
-"""
+""" Utility functions for .gdx import/export. """
 
 import os
+import re
+import subprocess
 import sys
+from typing import Optional
 
 if sys.platform == "win32":
     import winreg
 
 
-def _python_interpreter_bitness():
+def _python_interpreter_bitness() -> int:
     """Returns 64 for 64bit Python interpreter or 32 for 32bit interpreter."""
     # As recommended in Python's docs:
     # https://docs.python.org/3/library/platform.html#cross-platform
     return 64 if sys.maxsize > 2**32 else 32
 
 
-def _windows_dlls_exist(gams_path):
+def _windows_dlls_exist(gams_path: str) -> bool:
     """Returns True if requred DLL files exist in given GAMS installation path."""
     bitness = _python_interpreter_bitness()
     # This DLL must exist on Windows installation
@@ -38,7 +38,7 @@ def _windows_dlls_exist(gams_path):
     return os.path.isfile(dll_path)
 
 
-def find_gams_directory():
+def find_gams_directory() -> Optional[str]:
     """
     Returns GAMS installation directory or None if not found.
 
@@ -47,7 +47,7 @@ def find_gams_directory():
     On other systems, only the ``PATH`` environment variable is checked.
 
     Returns:
-        str: a path to GAMS installation directory or None if not found.
+        a path to GAMS installation directory or None if not found.
     """
     if sys.platform == "win32":
         try:
@@ -62,3 +62,15 @@ def find_gams_directory():
         if "gams" in path.casefold():
             return path
     return None
+
+
+def gams_supports_new_api(gams_path: str) -> bool:
+    gams_exec = os.path.join(gams_path, "gams")
+    completed = subprocess.run([gams_exec, "?"], capture_output=True, text=True)
+    if completed.returncode != 0 or completed.stderr:
+        return False
+    version_re = re.compile(r"^\*\*\* GAMS Release +: (?P<major>\d+)")
+    for line in completed.stdout.splitlines():
+        if match := version_re.match(line):
+            return int(match.group("major")) >= 42
+    return False
