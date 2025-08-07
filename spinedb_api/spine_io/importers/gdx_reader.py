@@ -13,7 +13,7 @@
 """ Contains GDXReader class and a help function. """
 from gdx2py import GAMSParameter, GAMSScalar, GAMSSet, GdxFile
 from spinedb_api.exception import ReaderError
-from ..gdx_utils import find_gams_directory
+from ..gdx_utils import find_gams_directory, gams_supports_new_api
 from .reader import Reader, TableProperties
 
 
@@ -43,6 +43,8 @@ class GDXReader(Reader):
             self._gams_dir = gams_directory
         else:
             self._gams_dir = find_gams_directory()
+        if not gams_supports_new_api(self._gams_dir):
+            raise ReaderError("GAMS version 42 or greater is required to read .gdx files")
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.disconnect()
