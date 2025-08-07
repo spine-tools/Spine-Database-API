@@ -15,7 +15,6 @@ This module defines the :class:`.DatabaseMapping` class, the main mean to commun
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
 :ref:`db_mapping_schema`.
 """
-from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import partialmethod
 import logging
@@ -33,7 +32,7 @@ from sqlalchemy.event import listen
 from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool, StaticPool
-from .compatibility import CompatibilityTransformations, compatibility_transformations
+from .compat.compatibility_transformations import CompatibilityTransformations, compatibility_transformations
 from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, PublicItem
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin

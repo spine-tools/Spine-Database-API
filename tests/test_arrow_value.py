@@ -11,16 +11,17 @@
 ######################################################################################################################
 """ Unit tests for the `arrow_value` module. """
 import datetime
+import json
 import unittest
 import pyarrow
-from spinedb_api import arrow_value, parameter_value
-
-
-class DatabaseUsingTest(unittest.TestCase):
-    def _assert_success(self, result):
-        item, error = result
-        self.assertIsNone(error)
-        return item
+import pytest
+from spinedb_api import SpineDBAPIError, arrow_value, parameter_value
+from spinedb_api.arrow_value import (
+    _month_day_nano_interval_to_duration,
+    with_column_as_time_period,
+    with_column_as_time_stamps,
+)
+from spinedb_api.compat.converters import parse_duration
 
 
 class TestFromDatabaseForArrays(unittest.TestCase):
@@ -267,5 +268,250 @@ class TestFromDatabaseForTimeSeries(unittest.TestCase):
         self.assertEqual(fixed_resolution.column("value").to_pylist(), [1.1, 1.2, 1.3])
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestToDatabaseForRecordBatches:
+    def test_strings_as_run_end_encoded(self):
+        index_array = pyarrow.RunEndEncodedArray.from_arrays([3, 5], ["A", "B"])
+        value_array = pyarrow.RunEndEncodedArray.from_arrays([2, 5], ["a", "b"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_date_times_as_run_end_encoded_index(self):
+        index_array = pyarrow.RunEndEncodedArray.from_arrays(
+            [3, 5],
+            [
+                datetime.datetime(year=2025, month=7, day=24, hour=11, minute=41),
+                datetime.datetime(year=2025, month=7, day=24, hour=18, minute=41),
+            ],
+        )
+        value_array = pyarrow.RunEndEncodedArray.from_arrays([2, 5], ["a", "b"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_duration_as_run_end_encoded(self):
+        index_array = pyarrow.RunEndEncodedArray.from_arrays([3, 5], [parse_duration("PT30M"), parse_duration("PT45M")])
+        value_array = pyarrow.RunEndEncodedArray.from_arrays([2, 5], [parse_duration("P3Y"), parse_duration("P2Y")])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_dictionary(self):
+        index_array = pyarrow.DictionaryArray.from_arrays([0, 1, 0], ["A", "B"])
+        value_array = pyarrow.DictionaryArray.from_arrays([1, 0, 2], [2.3, 3.2, -2.3])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_date_times_in_dictionary(self):
+        index_array = pyarrow.DictionaryArray.from_arrays(
+            [0, 1, 0],
+            [
+                datetime.datetime(year=2025, month=7, day=24, hour=13, minute=20),
+                datetime.datetime(year=2025, month=7, day=24, hour=13, minute=20),
+            ],
+        )
+        value_array = pyarrow.DictionaryArray.from_arrays([1, 0, 1], [True, False])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_durations_in_dictionary(self):
+        index_array = pyarrow.DictionaryArray.from_arrays([0, 1, 0], [parse_duration("P23D"), parse_duration("P5M")])
+        value_array = pyarrow.DictionaryArray.from_arrays([2, 1, 0], ["a", "b", "c"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_union(self):
+        index_array = pyarrow.array(["integer", "float_generic", "float_int_like", "string", "boolean", "duration"])
+        int_array = pyarrow.array([23])
+        float_array = pyarrow.array([2.3, 5.0])
+        str_array = pyarrow.array(["A"])
+        boolean_array = pyarrow.array([True])
+        duration_array = pyarrow.array([parse_duration("PT5H")])
+        value_type_array = pyarrow.array([0, 1, 1, 2, 3, 4], type=pyarrow.int8())
+        value_index_array = pyarrow.array([0, 0, 1, 0, 0, 0], type=pyarrow.int32())
+        value_array = pyarrow.UnionArray.from_dense(
+            value_type_array, value_index_array, [int_array, float_array, str_array, boolean_array, duration_array]
+        )
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_union_as_index_raises(self):
+        int_array = pyarrow.array([23])
+        value_type_array = pyarrow.array([0], type=pyarrow.int8())
+        value_index_array = pyarrow.array([0], type=pyarrow.int32())
+        value_array = pyarrow.UnionArray.from_dense(value_type_array, value_index_array, [int_array])
+        record_batch = pyarrow.RecordBatch.from_arrays([value_array, value_array], ["Indexes", "Values"])
+        with pytest.raises(SpineDBAPIError, match="union array cannot be index"):
+            arrow_value.to_database(record_batch)
+
+    def test_float(self):
+        index_array = pyarrow.array([1.1, 2.2])
+        value_array = pyarrow.array([2.3, 3.2])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_str(self):
+        index_array = pyarrow.array(["T01", "T02"])
+        value_array = pyarrow.array(["high", "low"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_int(self):
+        index_array = pyarrow.array([23, 55])
+        value_array = pyarrow.array([-2, -4])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_date_time(self):
+        index_array = pyarrow.array([datetime.datetime(year=2025, month=7, day=21, hour=15, minute=30)])
+        value_array = pyarrow.array([2.3])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_duration(self):
+        index_array = pyarrow.array([parse_duration("P3D")])
+        value_array = pyarrow.array([parse_duration("PT5H")])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_time_pattern(self):
+        index_array = pyarrow.array(["M1-4,M9-12", "M5-8"])
+        value_array = pyarrow.array([3.0, -2.0])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        record_batch = with_column_as_time_period(record_batch, "Indexes")
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_bool(self):
+        index_array = pyarrow.array(["T001", "T002"])
+        value_array = pyarrow.array([False, True])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = arrow_value.to_database(record_batch)
+        deserialized = arrow_value.from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_bool_as_index_raises(self):
+        index_array = pyarrow.array([True, False])
+        value_array = pyarrow.array([False, True])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        with pytest.raises(SpineDBAPIError, match="boolean array cannot be index"):
+            arrow_value.to_database(record_batch)
+
+
+class TestToDatabaseForMaps:
+    def test_basic_map(self):
+        map_value = parameter_value.Map(["A", "B"], [2.3, 3.2])
+        blob, value_type = arrow_value.to_database(map_value)
+        deserialized = arrow_value.from_database(blob, value_type)
+        index_array = pyarrow.array(["A", "B"])
+        value_array = pyarrow.array([2.3, 3.2])
+        expected = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["col_0", "value"])
+        assert deserialized.to_pydict() == expected.to_pydict()
+
+
+class TestWithColumnAsTimePeriod:
+    def test_column_given_by_name(self):
+        column = pyarrow.array(["M1-4,M9-12", "M5-8"])
+        record_batch = pyarrow.record_batch({"data": column})
+        as_time_period = with_column_as_time_period(record_batch, "data")
+        column_metadata = as_time_period.schema.metadata["data".encode()]
+        assert json.loads(column_metadata) == {"format": "time_period"}
+
+    def test_column_given_by_index(self):
+        column = pyarrow.array(["M1-4,M9-12", "M5-8"])
+        record_batch = pyarrow.record_batch({"data": column})
+        as_time_period = with_column_as_time_period(record_batch, 0)
+        column_metadata = as_time_period.schema.metadata["data".encode()]
+        assert json.loads(column_metadata) == {"format": "time_period"}
+
+    def test_raises_when_column_data_is_invalid(self):
+        column = pyarrow.array(["gibberish"])
+        record_batch = pyarrow.record_batch({"data": column})
+        with pytest.raises(
+            SpineDBAPIError, match="^Invalid interval gibberish, it should start with either Y, M, D, WD, h, m, or s.$"
+        ):
+            with_column_as_time_period(record_batch, 0)
+
+
+class TestWithColumnAsTimeStamps:
+    def test_column_given_by_name(self):
+        column = pyarrow.array([datetime.datetime(year=2025, month=7, day=25, hour=9, minute=48)])
+        record_batch = pyarrow.record_batch({"stamps": column})
+        as_time_stamps_with_year_ignored = with_column_as_time_stamps(record_batch, "stamps", True, False)
+        as_time_stamps_with_repeat = with_column_as_time_stamps(record_batch, "stamps", False, True)
+        assert json.loads(as_time_stamps_with_year_ignored.schema.metadata["stamps".encode()]) == {
+            "ignore_year": True,
+            "repeat": False,
+        }
+        assert json.loads(as_time_stamps_with_repeat.schema.metadata["stamps".encode()]) == {
+            "ignore_year": False,
+            "repeat": True,
+        }
+
+    def test_column_given_by_index(self):
+        column = pyarrow.array([datetime.datetime(year=2025, month=7, day=25, hour=9, minute=48)])
+        record_batch = pyarrow.record_batch({"stamps": column})
+        as_time_stamps = with_column_as_time_stamps(record_batch, 0, True, True)
+        assert json.loads(as_time_stamps.schema.metadata["stamps".encode()]) == {"ignore_year": True, "repeat": True}
+
+    def test_raises_when_column_type_is_wrong(self):
+        column = pyarrow.array(["A"])
+        record_batch = pyarrow.record_batch({"stamps": column})
+        with pytest.raises(SpineDBAPIError, match="^column is not time stamp column$"):
+            with_column_as_time_stamps(record_batch, 0, False, False)
+
+
+class TestMonthDayNanoIntervalToDuration:
+    def test_seconds(self):
+        durations = ["PT0S", "PT23S", "PT120S", "PT145S", "PT7200S", "PT7310S", "PT86400S", "PT86460S"]
+        intervals = pyarrow.array([parse_duration(d) for d in durations])
+        converted = [_month_day_nano_interval_to_duration(dt) for dt in intervals]
+        assert converted == ["P0D", "PT23S", "PT2M", "PT2M25S", "PT2H", "PT2H1M50S", "P1D", "P1DT1M"]
+
+    def test_days(self):
+        durations = ["P0D", "P12D", "P1DT4H"]
+        intervals = pyarrow.array([parse_duration(d) for d in durations])
+        converted = [_month_day_nano_interval_to_duration(dt) for dt in intervals]
+        assert converted == ["P0D", "P12D", "P1DT4H"]
+
+    def test_months(self):
+        durations = ["P0M", "P5M", "P12M", "P17M"]
+        intervals = pyarrow.array([parse_duration(d) for d in durations])
+        converted = [_month_day_nano_interval_to_duration(dt) for dt in intervals]
+        assert converted == ["P0D", "P5M", "P1Y", "P1Y5M"]
