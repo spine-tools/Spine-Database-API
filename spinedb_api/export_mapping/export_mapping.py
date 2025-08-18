@@ -19,7 +19,7 @@ from typing import Any, ClassVar, Optional
 from sqlalchemy import and_
 from sqlalchemy.engine import Row
 from sqlalchemy.orm import Query
-from sqlalchemy.sql.traversals import CacheKey
+from sqlalchemy.sql.expression import CacheKey
 from .. import DatabaseMapping
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
 from ..parameter_value import (

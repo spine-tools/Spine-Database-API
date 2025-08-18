@@ -59,6 +59,7 @@ class SQLAlchemyReader(Reader):
         self._session = None
         self._connection.close()
         self._connection_string = None
+        self._engine.dispose()
         self._engine = None
         self._connection = None
 

@@ -30,6 +30,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
             engine = create_engine(url, future=True)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
+            engine.dispose()
             reader = SQLAlchemyReader(None)
             reader.connect_to_source(url)
             data, header = reader.get_data("data_table", {})
@@ -42,6 +43,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
             engine = create_engine(url, future=True)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
+            engine.dispose()
             reader = SQLAlchemyReader(None)
             reader.connect_to_source(url)
             data, header = reader.get_data("data_table", {}, max_rows=1)
@@ -54,6 +56,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
             engine = create_engine(url, future=True)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
+            engine.dispose()
             reader = SQLAlchemyReader(None)
             reader.connect_to_source(url)
             cell_data = reader.get_table_cell("data_table", 1, 2, {})
@@ -65,6 +68,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
             engine = create_engine(url, future=True)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
+            engine.dispose()
             reader = SQLAlchemyReader(None)
             reader.connect_to_source(url)
             with self.assertRaisesRegex(ReaderError, "data_table doesn't have row 2"):
@@ -76,6 +80,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
             engine = create_engine(url, future=True)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
+            engine.dispose()
             reader = SQLAlchemyReader(None)
             reader.connect_to_source(url)
             with self.assertRaisesRegex(ReaderError, "data_table doesn't have column 3"):
@@ -87,6 +92,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
             engine = create_engine(url, future=True)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
+            engine.dispose()
             reader = SQLAlchemyReader(None)
             reader.connect_to_source(url)
             with self.assertRaisesRegex(ReaderError, "no such table: 'non-table'"):

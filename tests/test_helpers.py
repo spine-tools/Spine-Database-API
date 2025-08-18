@@ -110,10 +110,11 @@ class TestVacuum(unittest.TestCase):
     def test_vacuum(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "db.sqlite")
-            create_new_spine_database(url)
+            engine = create_new_spine_database(url)
             freed, units = vacuum(url)
             self.assertEqual(freed, 0)
             self.assertEqual(units, "bytes")
+            engine.dispose()
 
 
 class TestCopyDatabase(AssertSuccessTestCase):
@@ -123,12 +124,15 @@ class TestCopyDatabase(AssertSuccessTestCase):
             with DatabaseMapping(source_url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="ForgottenAtAGasStation"))
                 db_map.commit_session("Add some data.")
+            db_map.engine.dispose()
             target_url = "sqlite:///" + str(pathlib.Path(temp_dir) / "destination.sqlite")
-            create_new_spine_database(target_url)
+            engine = create_new_spine_database(target_url)
+            engine.dispose()
             copy_database(target_url, source_url)
             with DatabaseMapping(target_url) as db_map:
                 entity_class = db_map.get_entity_class_item(name="ForgottenAtAGasStation")
                 self.assertTrue(bool(entity_class))
+            db_map.engine.dispose()
 
 
 class TestFixNameAmbiguity(unittest.TestCase):

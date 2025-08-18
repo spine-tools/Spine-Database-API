@@ -26,6 +26,7 @@ class TestDBServer(unittest.TestCase):
             with DatabaseMapping(db_url, create=True) as db_map:
                 db_map.add_entity_class_item(name="fish")
                 db_map.commit_session("Fishing")
+            db_map.engine.dispose()
             with closing_spine_db_server(db_url) as server_url:
                 client = SpineDBClient.from_server_url(server_url)
                 fish = client.call_method("get_entity_class_item", name="fish")["result"]
@@ -37,6 +38,7 @@ class TestDBServer(unittest.TestCase):
                 self.assertFalse(fish)
                 self.assertTrue(mouse)
                 self.assertEqual(mouse["name"], "mouse")
+            db_map.engine.dispose()
 
     def test_ordering(self):
         def _import_entity_class(server_url, class_name):
@@ -71,11 +73,13 @@ class TestDBServer(unittest.TestCase):
                         t1.start()
                         with DatabaseMapping(db_url) as db_map:
                             assert db_map.get_items("entity_class") == []  # Nothing written yet
+                        db_map.engine.dispose()
                         t2.start()
                         t1.join()
                         t2.join()
             with DatabaseMapping(db_url) as db_map:
                 self.assertEqual([x["name"] for x in db_map.get_items("entity_class")], ["donkey", "monkey"])
+            db_map.engine.dispose()
 
     def test_in_memory_database(self):
         url = "sqlite://"

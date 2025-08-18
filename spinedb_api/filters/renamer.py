@@ -104,7 +104,7 @@ def apply_renaming_to_parameter_definition_sq(db_map, name_map):
     db_map.override_parameter_definition_sq_maker(renaming)
 
 
-def parameter_renamer_config(renames: dict[str, str]) -> dict:
+def parameter_renamer_config(renames: dict[str, dict[str, str]]) -> dict:
     """
     Creates a config dict for parameter definition renamer.
 
