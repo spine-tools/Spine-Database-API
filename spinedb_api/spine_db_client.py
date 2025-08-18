@@ -92,6 +92,9 @@ class SpineDBClient(ReceiveAllMixing):
         """
         return self._send("call_method", args=(method_name, *args), kwargs=kwargs)
 
+    def query(self, query_name: str, *args, **kwargs) -> dict:
+        return self._send("query", args=(query_name, *args), kwargs=kwargs)
+
     def open_db_map(self, db_url, upgrade, memory):
         return self._send("open_db_map", args=(db_url, upgrade, memory))
 
@@ -119,6 +122,7 @@ class SpineDBClient(ReceiveAllMixing):
             if receive:
                 response = self._recvall()
                 return decode(response)
+        return None
 
 
 def get_db_url_from_server(url):

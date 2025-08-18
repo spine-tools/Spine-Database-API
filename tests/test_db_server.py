@@ -30,7 +30,7 @@ class TestDBServer(unittest.TestCase):
             with closing_spine_db_server(db_url) as server_url:
                 client = SpineDBClient.from_server_url(server_url)
                 fish = client.call_method("get_entity_class_item", name="fish")["result"]
-                mouse = client.call_method("update_entity_class_item", id=fish["id"], name="mouse")
+                client.call_method("update_entity_class_item", id=fish["id"], name="mouse")
                 client.call_method("commit_session", "Mousing")
             with DatabaseMapping(db_url) as db_map:
                 fish = db_map.get_entity_class_item(name="fish")
@@ -83,7 +83,7 @@ class TestDBServer(unittest.TestCase):
 
     def test_in_memory_database(self):
         url = "sqlite://"
-        with closing_spine_db_server(url) as server_url:
+        with closing_spine_db_server(url):
             handler = DBHandler(url)
             try:
                 response = handler.call_method("add_entity_class_item", name="Object")
@@ -99,6 +99,33 @@ class TestDBServer(unittest.TestCase):
             finally:
                 handler.close_db_map()
 
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_query_with_data(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            class_id = None
+            with DatabaseMapping(url, create=True) as db_map:
+                entity_class = db_map.add_entity_class(name="Object")
+                db_map.commit_session("Add test data.")
+                class_id = entity_class["id"].db_id
+            db_map.engine.dispose()
+            with closing_spine_db_server(url) as server_url:
+                client = SpineDBClient.from_server_url(server_url)
+                result = client.query("entity_class_sq")
+                self.assertEqual(
+                    result,
+                    {
+                        "result": {
+                            "entity_class_sq": [
+                                {
+                                    "id": class_id,
+                                    "name": "Object",
+                                    "description": None,
+                                    "active_by_default": True,
+                                    "display_icon": None,
+                                    "display_order": 99,
+                                    "hidden": 0,
+                                }
+                            ]
+                        }
+                    },
+                )
