@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `spinedb_api` now required SLQAlchemy 2.0.
+  Things should work as before, except
+  if you are using a SQLite database backed by temporary file/in temporary directory,
+  you may need to call `db_map.engine.dispose()` before the SQLite file gets removed.
+
 ### Deprecated
 
 ### Removed
