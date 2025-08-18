@@ -26,10 +26,11 @@ class TestDBServer(unittest.TestCase):
             with DatabaseMapping(db_url, create=True) as db_map:
                 db_map.add_entity_class_item(name="fish")
                 db_map.commit_session("Fishing")
+            db_map.engine.dispose()
             with closing_spine_db_server(db_url) as server_url:
                 client = SpineDBClient.from_server_url(server_url)
                 fish = client.call_method("get_entity_class_item", name="fish")["result"]
-                mouse = client.call_method("update_entity_class_item", id=fish["id"], name="mouse")
+                client.call_method("update_entity_class_item", id=fish["id"], name="mouse")
                 client.call_method("commit_session", "Mousing")
             with DatabaseMapping(db_url) as db_map:
                 fish = db_map.get_entity_class_item(name="fish")
@@ -37,6 +38,7 @@ class TestDBServer(unittest.TestCase):
                 self.assertFalse(fish)
                 self.assertTrue(mouse)
                 self.assertEqual(mouse["name"], "mouse")
+            db_map.engine.dispose()
 
     def test_ordering(self):
         def _import_entity_class(server_url, class_name):
@@ -71,15 +73,17 @@ class TestDBServer(unittest.TestCase):
                         t1.start()
                         with DatabaseMapping(db_url) as db_map:
                             assert db_map.get_items("entity_class") == []  # Nothing written yet
+                        db_map.engine.dispose()
                         t2.start()
                         t1.join()
                         t2.join()
             with DatabaseMapping(db_url) as db_map:
                 self.assertEqual([x["name"] for x in db_map.get_items("entity_class")], ["donkey", "monkey"])
+            db_map.engine.dispose()
 
     def test_in_memory_database(self):
         url = "sqlite://"
-        with closing_spine_db_server(url) as server_url:
+        with closing_spine_db_server(url):
             handler = DBHandler(url)
             try:
                 response = handler.call_method("add_entity_class_item", name="Object")
@@ -95,6 +99,33 @@ class TestDBServer(unittest.TestCase):
             finally:
                 handler.close_db_map()
 
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_query_with_data(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            class_id = None
+            with DatabaseMapping(url, create=True) as db_map:
+                entity_class = db_map.add_entity_class(name="Object")
+                db_map.commit_session("Add test data.")
+                class_id = entity_class["id"].db_id
+            db_map.engine.dispose()
+            with closing_spine_db_server(url) as server_url:
+                client = SpineDBClient.from_server_url(server_url)
+                result = client.query("entity_class_sq")
+                self.assertEqual(
+                    result,
+                    {
+                        "result": {
+                            "entity_class_sq": [
+                                {
+                                    "id": class_id,
+                                    "name": "Object",
+                                    "description": None,
+                                    "active_by_default": True,
+                                    "display_icon": None,
+                                    "display_order": 99,
+                                    "hidden": 0,
+                                }
+                            ]
+                        }
+                    },
+                )

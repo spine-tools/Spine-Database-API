@@ -41,6 +41,7 @@ def purge_url(url, purge_settings, logger=None):
         return False
     with db_map:
         success = purge(db_map, purge_settings, logger=logger)
+    db_map.engine.dispose()
     return success
 
 

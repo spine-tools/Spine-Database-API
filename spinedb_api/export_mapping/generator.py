@@ -14,7 +14,7 @@ from collections.abc import Iterator
 from copy import deepcopy
 from typing import Any, Optional
 from sqlalchemy.engine import Row
-from sqlalchemy.sql.traversals import CacheKey
+from sqlalchemy.sql.expression import CacheKey
 from .. import DatabaseMapping
 from ..mapping import Position
 from .export_mapping import ExportMapping, pair_header_buddies

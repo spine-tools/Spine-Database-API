@@ -44,6 +44,7 @@ class TestEntityClassRenamer(AssertSuccessTestCase):
                 apply_renaming_to_entity_class_sq(db_map, {"some_name": "another_name"})
                 classes = list(db_map.query(db_map.entity_class_sq).all())
                 self.assertEqual(classes, [])
+            db_map.engine.dispose()
 
     def test_renaming_singe_entity_class(self):
         with TemporaryDirectory() as temp_dir:
@@ -51,6 +52,7 @@ class TestEntityClassRenamer(AssertSuccessTestCase):
             with DatabaseMapping(db_url, create=True) as out_db_map:
                 self._assert_imports(import_object_classes(out_db_map, ("old_name",)))
                 out_db_map.commit_session("Add test data")
+            out_db_map.engine.dispose()
             with DatabaseMapping(db_url) as db_map:
                 apply_renaming_to_entity_class_sq(db_map, {"old_name": "new_name"})
                 classes = list(db_map.query(db_map.entity_class_sq).all())
@@ -69,6 +71,7 @@ class TestEntityClassRenamer(AssertSuccessTestCase):
                 for expected_key in expected_keys:
                     self.assertIn(expected_key, class_row._fields)
                 self.assertEqual(class_row.name, "new_name")
+            db_map.engine.dispose()
 
     def test_renaming_singe_relationship_class(self):
         with TemporaryDirectory() as temp_dir:
@@ -77,11 +80,13 @@ class TestEntityClassRenamer(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(out_db_map, ("object_class",)))
                 self._assert_imports(import_relationship_classes(out_db_map, (("old_name", ("object_class",)),)))
                 out_db_map.commit_session("Add test data")
+            out_db_map.engine.dispose()
             with DatabaseMapping(db_url, create=True) as db_map:
                 apply_renaming_to_entity_class_sq(db_map, {"old_name": "new_name"})
                 classes = list(db_map.query(db_map.relationship_class_sq).all())
                 self.assertEqual(len(classes), 1)
                 self.assertEqual(classes[0].name, "new_name")
+            db_map.engine.dispose()
 
     def test_renaming_multiple_entity_classes(self):
         with TemporaryDirectory() as temp_dir:
@@ -98,6 +103,7 @@ class TestEntityClassRenamer(AssertSuccessTestCase):
                     )
                 )
                 out_db_map.commit_session("Add test data")
+            out_db_map.engine.dispose()
             with DatabaseMapping(db_url, create=True) as db_map:
                 apply_renaming_to_entity_class_sq(
                     db_map, {"object_class1": "new_object_class", "relationship_class1": "new_relationship_class"}
@@ -115,6 +121,7 @@ class TestEntityClassRenamer(AssertSuccessTestCase):
                 object_class_names = [row.object_class_name_list for row in relationship_classes]
                 for expected_names in ["new_object_class,object_class2", "object_class2,new_object_class"]:
                     self.assertIn(expected_names, object_class_names)
+            db_map.engine.dispose()
 
     def test_entity_class_renamer_config(self):
         config = entity_class_renamer_config(class1="renamed1", class2="renamed2")
@@ -128,6 +135,7 @@ class TestEntityClassRenamer(AssertSuccessTestCase):
             with DatabaseMapping(db_url, create=True) as out_db_map:
                 self._assert_imports(import_object_classes(out_db_map, ("old_name",)))
                 out_db_map.commit_session("Add test data")
+            out_db_map.engine.dispose()
             config = entity_class_renamer_config(old_name="new_name")
             with DatabaseMapping(db_url, create=True) as db_map:
                 entity_class_renamer_from_dict(db_map, config)
@@ -147,6 +155,7 @@ class TestEntityClassRenamer(AssertSuccessTestCase):
                 for expected_key in expected_keys:
                     self.assertIn(expected_key, class_row._fields)
                 self.assertEqual(class_row.name, "new_name")
+            db_map.engine.dispose()
 
 
 class TestEntityClassRenamerWithoutDatabase(unittest.TestCase):
@@ -170,6 +179,7 @@ class TestParameterRenamer(AssertSuccessTestCase):
                 apply_renaming_to_parameter_definition_sq(db_map, {"some_name": "another_name"})
                 classes = list(db_map.query(db_map.parameter_definition_sq).all())
                 self.assertEqual(classes, [])
+            db_map.engine.dispose()
 
     def test_renaming_single_parameter(self):
         with TemporaryDirectory() as temp_dir:
@@ -178,6 +188,7 @@ class TestParameterRenamer(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(out_db_map, ("object_class",)))
                 self._assert_imports(import_object_parameters(out_db_map, (("object_class", "old_name"),)))
                 out_db_map.commit_session("Add test data")
+            out_db_map.engine.dispose()
             with DatabaseMapping(db_url) as db_map:
                 apply_renaming_to_parameter_definition_sq(db_map, {"object_class": {"old_name": "new_name"}})
                 parameters = list(db_map.query(db_map.parameter_definition_sq).all())
@@ -198,6 +209,7 @@ class TestParameterRenamer(AssertSuccessTestCase):
                 for expected_key in expected_keys:
                     self.assertIn(expected_key, parameter_row._fields)
                 self.assertEqual(parameter_row.name, "new_name")
+            db_map.engine.dispose()
 
     def test_renaming_applies_to_correct_parameter(self):
         with TemporaryDirectory() as temp_dir:
@@ -206,6 +218,7 @@ class TestParameterRenamer(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(out_db_map, ("oc1", "oc2")))
                 self._assert_imports(import_object_parameters(out_db_map, (("oc1", "param"), ("oc2", "param"))))
                 out_db_map.commit_session("Add test data")
+            out_db_map.engine.dispose()
             with DatabaseMapping(db_url) as db_map:
                 apply_renaming_to_parameter_definition_sq(db_map, {"oc2": {"param": "new_name"}})
                 parameters = list(db_map.query(db_map.entity_parameter_definition_sq).all())
@@ -215,6 +228,7 @@ class TestParameterRenamer(AssertSuccessTestCase):
                         self.assertEqual(parameter_row.parameter_name, "new_name")
                     else:
                         self.assertEqual(parameter_row.parameter_name, "param")
+            db_map.engine.dispose()
 
     def test_parameter_renamer_config(self):
         config = parameter_renamer_config({"class": {"parameter1": "renamed1", "parameter2": "renamed2"}})
@@ -230,6 +244,7 @@ class TestParameterRenamer(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(out_db_map, ("object_class",)))
                 self._assert_imports(import_object_parameters(out_db_map, (("object_class", "old_name"),)))
                 out_db_map.commit_session("Add test data")
+            out_db_map.engine.dispose()
             config = parameter_renamer_config({"object_class": {"old_name": "new_name"}})
             with DatabaseMapping(db_url) as db_map:
                 parameter_renamer_from_dict(db_map, config)
@@ -251,6 +266,7 @@ class TestParameterRenamer(AssertSuccessTestCase):
                 for expected_key in expected_keys:
                     self.assertIn(expected_key, parameter_row._fields)
                 self.assertEqual(parameter_row.name, "new_name")
+            db_map.engine.dispose()
 
 
 class TestParameterRenamerWithoutDatabase(unittest.TestCase):

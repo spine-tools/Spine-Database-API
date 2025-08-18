@@ -15,7 +15,6 @@ This module defines the :class:`.DatabaseMapping` class, the main mean to commun
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
 :ref:`db_mapping_schema`.
 """
-from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import partialmethod
 import logging

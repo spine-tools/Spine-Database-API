@@ -44,10 +44,12 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             url = URL.create("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_without_alternatives(db_map)
+            db_map.engine.dispose()
             with DatabaseMapping(url) as db_map:
                 apply_alternative_filter_to_parameter_value_sq(db_map, [])
                 parameters = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(parameters, [])
+            db_map.engine.dispose()
 
     def test_alternative_filter_without_scenarios_or_alternatives_uncommitted_data(self):
         with TemporaryDirectory() as temp_dir:
@@ -58,17 +60,20 @@ class TestAlternativeFilter(AssertSuccessTestCase):
                 parameters = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(parameters, [])
                 db_map.rollback_session()
+            db_map.engine.dispose()
 
     def test_alternative_filter(self):
         with TemporaryDirectory() as temp_dir:
             url = URL.create("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_alternative(db_map)
+            db_map.engine.dispose()
             with DatabaseMapping(url) as db_map:
                 apply_alternative_filter_to_parameter_value_sq(db_map, ["alternative"])
                 parameters = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(parameters), 1)
                 self.assertEqual(parameters[0].value, to_database(-23.0)[0])
+            db_map.engine.dispose()
 
     def test_alternative_filter_uncommitted_data(self):
         with TemporaryDirectory() as temp_dir:
@@ -80,18 +85,21 @@ class TestAlternativeFilter(AssertSuccessTestCase):
                 parameters = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(parameters), 0)
                 db_map.rollback_session()
+            db_map.engine.dispose()
 
     def test_alternative_filter_from_dict(self):
         with TemporaryDirectory() as temp_dir:
             url = URL.create("sqlite", database=Path(temp_dir, "test_scenario_filter_mapping.sqlite").as_posix())
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_alternative(db_map)
+            db_map.engine.dispose()
             with DatabaseMapping(url) as db_map:
                 config = alternative_filter_config(["alternative"])
                 alternative_filter_from_dict(db_map, config)
                 parameters = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(parameters), 1)
                 self.assertEqual(parameters[0].value, to_database(-23.0)[0])
+            db_map.engine.dispose()
 
     def test_alternative_names_with_colons(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
