@@ -44,6 +44,7 @@ class SqlWriter(Writer):
         """Closes the database connection."""
         self._session.close()
         self._connection.close()
+        self._engine.dispose()
 
     def finish_table(self):
         """Commits current session."""

@@ -76,6 +76,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                     self.assertEqual(column_names, ["table 1.classes", "table 1.objects"])
                     self.assertEqual(len(session.query(table).all()), 0)
                     session.close()
+                engine.dispose()
 
     def test_write_single_object_class_and_object(self):
         with TemporaryDirectory() as temp_dir:
@@ -106,6 +107,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                     for class_ in session.query(table):
                         self.assertEqual(class_, ("oc", "o1"))
                     session.close()
+                engine.dispose()
 
     def test_write_datetime_value(self):
         with TemporaryDirectory() as temp_dir:
@@ -146,6 +148,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                     for class_ in session.query(table):
                         self.assertEqual(class_, ("oc", "o1", "p", dt.value))
                     session.close()
+                engine.dispose()
 
     def test_write_duration_value(self):
         with TemporaryDirectory() as temp_dir:
@@ -183,6 +186,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                     for class_ in session.query(table):
                         self.assertEqual(class_, ("oc", "o1", "p", "3h"))
                     session.close()
+                engine.dispose()
 
     def test_append_to_table(self):
         with TemporaryDirectory() as temp_dir:
@@ -216,6 +220,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                     for row, expected in zip(rows, expected_rows):
                         self.assertEqual(row, expected)
                     session.close()
+                engine.dispose()
 
     def test_appending_to_table_in_existing_database(self):
         with TemporaryDirectory() as temp_dir:
@@ -230,6 +235,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                     object_table = Table("oc", metadata, Column("objects", String))
                     metadata.create_all(out_engine)
                     out_connection.execute(object_table.insert(), {"objects": "initial_object"})
+                out_engine.dispose()
                 root_mapping = entity_export(Position.table_name, 0)
                 root_mapping.child.header = "objects"
                 writer = SqlWriter(str(out_path), overwrite_existing=False)
@@ -250,6 +256,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                     for row, expected in zip(rows, expected_rows):
                         self.assertEqual(row, expected)
                     session.close()
+                engine.dispose()
 
 
 if __name__ == "__main__":

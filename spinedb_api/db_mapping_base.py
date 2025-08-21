@@ -44,9 +44,6 @@ class DatabaseMappingBase:
             else:
                 self._sorted_item_types.append(item_type)
 
-    def __del__(self):
-        self.close()
-
     @property
     def closed(self) -> bool:
         return self._closed

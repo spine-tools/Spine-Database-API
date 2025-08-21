@@ -102,12 +102,14 @@ class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
                     import_object_parameter_values(out_db_map, (("class", "object", "parameter", -2.3),))
                 )
                 out_db_map.commit_session("Add test data.")
+            out_db_map.engine.dispose()
             instructions = {"class": {"parameter": [{"operation": "negate"}]}}
             config = value_transformer_config(instructions)
             url = append_filter_config(str(db_url), config)
             with DatabaseMapping(url) as db_map:
                 values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
                 self.assertEqual(values, [2.3])
+            db_map.engine.dispose()
 
     def test_negate_manipulator_with_nested_map(self):
         with TemporaryDirectory() as temp_dir:
@@ -121,6 +123,7 @@ class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
                     import_object_parameter_values(out_db_map, (("class", "object", "parameter", value),))
                 )
                 out_db_map.commit_session("Add test data.")
+            out_db_map.engine.dispose()
             instructions = {"class": {"parameter": [{"operation": "negate"}]}}
             config = value_transformer_config(instructions)
             url = append_filter_config(str(db_url), config)
@@ -128,6 +131,7 @@ class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
                 values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
                 expected = Map(["A"], [Map(["1"], [-2.3])])
                 self.assertEqual(values, [expected])
+            db_map.engine.dispose()
 
     def test_multiply_manipulator(self):
         with TemporaryDirectory() as temp_dir:
@@ -140,12 +144,14 @@ class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
                     import_object_parameter_values(out_db_map, (("class", "object", "parameter", -2.3),))
                 )
                 out_db_map.commit_session("Add test data.")
+            out_db_map.engine.dispose()
             instructions = {"class": {"parameter": [{"operation": "multiply", "rhs": 10.0}]}}
             config = value_transformer_config(instructions)
             url = append_filter_config(str(db_url), config)
             with DatabaseMapping(url) as db_map:
                 values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
                 self.assertEqual(values, [-23.0])
+            db_map.engine.dispose()
 
     def test_invert_manipulator(self):
         with TemporaryDirectory() as temp_dir:
@@ -158,12 +164,14 @@ class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
                     import_object_parameter_values(out_db_map, (("class", "object", "parameter", -2.3),))
                 )
                 out_db_map.commit_session("Add test data.")
+            out_db_map.engine.dispose()
             instructions = {"class": {"parameter": [{"operation": "invert"}]}}
             config = value_transformer_config(instructions)
             url = append_filter_config(str(db_url), config)
             with DatabaseMapping(url) as db_map:
                 values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
                 self.assertEqual(values, [-1.0 / 2.3])
+            db_map.engine.dispose()
 
     def test_multiple_instructions(self):
         with TemporaryDirectory() as temp_dir:
@@ -176,12 +184,14 @@ class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
                     import_object_parameter_values(out_db_map, (("class", "object", "parameter", -2.3),))
                 )
                 out_db_map.commit_session("Add test data.")
+            out_db_map.engine.dispose()
             instructions = {"class": {"parameter": [{"operation": "invert"}, {"operation": "negate"}]}}
             config = value_transformer_config(instructions)
             url = append_filter_config(str(db_url), config)
             with DatabaseMapping(url) as db_map:
                 values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
                 self.assertEqual(values, [1.0 / 2.3])
+            db_map.engine.dispose()
 
     def test_index_generator_on_time_series(self):
         with TemporaryDirectory() as temp_dir:
@@ -195,6 +205,7 @@ class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
                     import_object_parameter_values(out_db_map, (("class", "object", "parameter", value),))
                 )
                 out_db_map.commit_session("Add test data.")
+            out_db_map.engine.dispose()
             instructions = {"class": {"parameter": [{"operation": "generate_index", "expression": "float(i)"}]}}
             config = value_transformer_config(instructions)
             url = append_filter_config(str(db_url), config)
@@ -202,7 +213,4 @@ class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
                 values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
                 expected = Map([1.0, 2.0], [-5.0, -2.3])
                 self.assertEqual(values, [expected])
-
-
-if __name__ == "__main__":
-    unittest.main()
+            db_map.engine.dispose()

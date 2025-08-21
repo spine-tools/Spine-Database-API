@@ -95,6 +95,7 @@ Only after the second writes, the first one also writes and the program finishes
 """
 
 import atexit
+from collections.abc import Hashable, Iterator
 from contextlib import contextmanager
 import multiprocessing as mp
 from multiprocessing.queues import Queue as MPQueue
@@ -103,6 +104,7 @@ import socketserver
 import threading
 import time
 import traceback
+from typing import ClassVar, Literal, Optional, TypedDict
 from urllib.parse import urlunsplit
 import uuid
 from sqlalchemy.exc import DBAPIError
@@ -120,11 +122,26 @@ from .spine_db_client import SpineDBClient
 _current_server_version = 8
 
 
-def get_current_server_version():
+class OrderingDict(TypedDict):
+    """Required keys:
+
+    - "id": an identifier for the ordering, shared by all the servers in the ordering.
+    - "current": an identifier for this server within the ordering.
+    - "precursors": a set of identifiers of other servers that must have checked out from the DB before this one can check in.
+    - "part_count": the number of times this server needs to check out from the DB before their successors can check in.
+    """
+
+    id: Hashable
+    current: Hashable
+    precursors: set[Hashable]
+    part_count: int
+
+
+def get_current_server_version() -> int:
     """Returns the current client version.
 
     Returns:
-        int: current client version
+        current client version
     """
     return _current_server_version
 
@@ -160,8 +177,8 @@ class _DeepCopyableQueue(MPQueue):
 
 
 class _DBServerManager:
-    _SHUTDOWN = "shutdown"
-    _CHECKOUT_COMPLETE = "checkout_complete"
+    _SHUTDOWN: ClassVar[Literal["shutdown"]] = "shutdown"
+    _CHECKOUT_COMPLETE: ClassVar[Literal["checkout_complete"]] = "checkout_complete"
 
     def __init__(self):
         super().__init__()
@@ -320,7 +337,7 @@ class _ManagerRequestHandler:
 
 
 class _DBWorker:
-    _CLOSE = "close"
+    _CLOSE: ClassVar[Literal["close"]] = "close"
 
     def __init__(self, db_url, upgrade, memory, create=True):
         self._db_url = db_url
@@ -383,7 +400,7 @@ class _DBWorker:
             sq = getattr(self._db_map, sq_name, None)
             if sq is None:
                 continue
-            result[sq_name] = [dict(x) for x in self._db_map.query(sq)]
+            result[sq_name] = [x._asdict() for x in self._db_map.query(sq)]
         return {"result": result}
 
     def _do_filtered_query(self, **kwargs):
@@ -653,7 +670,7 @@ def quick_db_checkout(server_manager_queue, ordering):
     _ManagerRequestHandler(server_manager_queue).quick_db_checkout(ordering)
 
 
-def start_spine_db_server(server_manager_queue, db_url, upgrade=False, memory=False, ordering=None):
+def start_spine_db_server(server_manager_queue, db_url, upgrade: bool = False, memory: bool = False, ordering=None):
     handler = _ManagerRequestHandler(server_manager_queue)
     server_address = handler.start_server(db_url, upgrade, memory, ordering)
     return server_address
@@ -665,12 +682,12 @@ def shutdown_spine_db_server(server_manager_queue, server_address):
 
 
 @contextmanager
-def db_server_manager():
+def db_server_manager() -> Iterator[MPQueue]:
     """Creates a DB server manager that can be used to control the order in which different servers
     write to the same DB.
 
     Yields:
-        :class:`~multiprocessing.queues.Queue`: a queue that can be passed to :func:`.closing_spine_db_server`
+        a queue that can be passed to :func:`.closing_spine_db_server`
         in order to control write order.
     """
     mngr = _DBServerManager()
@@ -681,24 +698,26 @@ def db_server_manager():
 
 
 @contextmanager
-def closing_spine_db_server(db_url, upgrade=False, memory=False, ordering=None, server_manager_queue=None):
+def closing_spine_db_server(
+    db_url: str,
+    upgrade: bool = False,
+    memory: bool = False,
+    ordering=Optional[OrderingDict],
+    server_manager_queue: Optional[MPQueue] = None,
+):
     """Creates a Spine DB server.
 
     Args:
-        db_url (str): the URL of a Spine DB.
-        upgrade (bool): Whether to upgrade the DB to the last revision.
-        memory (bool): Whether to use an in-memory database together with a persistent connection.
-        server_manager_queue (Queue, optional): A queue that can be used to control order of writing.
+        db_url: the URL of a Spine DB.
+        upgrade: Whether to upgrade the DB to the last revision.
+        memory: Whether to use an in-memory database together with a persistent connection.
+        server_manager_queue: A queue that can be used to control order of writing.
             Only needed if you also specify `ordering` below.
-        ordering (dict, optional): A dictionary specifying an ordering to be followed by multiple concurrent servers
-            writing to the same DB. It must have the following keys:
-                - "id": an identifier for the ordering, shared by all the servers in the ordering.
-                - "current": an identifier for this server within the ordering.
-                - "precursors": a set of identifiers of other servers that must have checked out from the DB before this one can check in.
-                - "part_count": the number of times this server needs to check out from the DB before their successors can check in.
+        ordering: A dictionary specifying an ordering to be followed by multiple concurrent servers
+            writing to the same DB.
 
     Yields:
-        str: server url
+        server url
     """
     if server_manager_queue is None:
         mngr = _DBServerManager()

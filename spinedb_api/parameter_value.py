@@ -88,6 +88,7 @@ from datetime import datetime
 from itertools import takewhile
 import json
 from json.decoder import JSONDecodeError
+import math
 import re
 from typing import Any, Optional, SupportsFloat, Type, Union
 import dateutil.parser
@@ -1396,6 +1397,19 @@ class TimeSeriesFixedResolution(TimeSeries):
         if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
         return value_dict
+
+    def get_value(self, index: np.datetime64) -> Optional[np.float64]:
+        """Returns the value at the given time stamp."""
+        pos = self.indexes.position_lookup.get(index)
+        if pos is None:
+            return None
+        return self._values[pos]
+
+    def set_value(self, index: np.datetime64, value: float) -> None:
+        """Sets the value at the given index."""
+        pos = self.indexes.position_lookup.get(index)
+        if pos is not None:
+            self._values[pos] = value
 
 
 class TimeSeriesVariableResolution(TimeSeries):

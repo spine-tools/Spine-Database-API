@@ -62,7 +62,7 @@ class DatapackageReader(Reader):
             **extras: ignored
         """
         if source:
-            self._datapackage = frictionless.Package(source)
+            self._datapackage = frictionless.Package(source, detector=frictionless.Detector(field_type="string"))
             self._filename = source
 
     def disconnect(self):

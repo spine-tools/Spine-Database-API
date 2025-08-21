@@ -82,6 +82,7 @@ class TestMigration(unittest.TestCase):
                 connection.execute(
                     text("INSERT INTO parameter_value (parameter_id, relationship_id, value) VALUES (3, 2, '-1')")
                 )
+            engine.dispose()
             # Upgrade the db and check that our stuff is still there
             with DatabaseMapping(db_url, upgrade=True) as db_map:
                 object_classes = {x.id: x.name for x in db_map.query(db_map.object_class_sq)}
@@ -132,3 +133,4 @@ class TestMigration(unittest.TestCase):
                 self.assertTrue(("breed", "pluto", b'"labrador"') in obj_par_vals)
                 self.assertTrue(("relative_speed", "pluto__nemo", b"100") in rel_par_vals)
                 self.assertTrue(("relative_speed", "scooby__nemo", b"-1") in rel_par_vals)
+            db_map.engine.dispose()

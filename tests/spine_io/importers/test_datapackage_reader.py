@@ -78,7 +78,7 @@ class TestDatapackageReader(unittest.TestCase):
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             cell_data = reader.get_table_cell("test_data", 1, 2, {"has_header": False})
-            self.assertEqual(cell_data, 23)
+            self.assertEqual(cell_data, "23")
 
     def test_get_table_cell_with_header(self):
         data = [["header 1", "header 2", "header 3"], ["11", "12", "13"], ["21", "22", "23"]]
@@ -86,7 +86,7 @@ class TestDatapackageReader(unittest.TestCase):
             reader = DatapackageReader(None)
             reader.connect_to_source(str(package_path))
             cell_data = reader.get_table_cell("test_data", 1, 2, {"has_header": True})
-            self.assertEqual(cell_data, 23)
+            self.assertEqual(cell_data, "23")
 
     def test_get_table_cell_with_row_out_of_bound(self):
         data = [["11", "12", "13"], ["21", "22", "23"]]
@@ -120,7 +120,7 @@ class TestDatapackageReader(unittest.TestCase):
             reader.connect_to_source(str(package_path))
             data, header = reader.get_data("test_data", {})
             self.assertEqual(header, ["header 1", "header 2", "header 3"])
-            self.assertEqual(data, 1000 * [[21, 22, 23]])
+            self.assertEqual(data, 1000 * [["21", "22", "23"]])
 
 
 @contextmanager

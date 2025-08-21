@@ -10,12 +10,17 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Contains export mappings for database items such as entities, entity classes and parameter values."""
-
+from __future__ import annotations
+from collections.abc import Callable, Iterator
+from contextlib import suppress
 from dataclasses import dataclass
 from itertools import cycle, dropwhile, islice
-from typing import ClassVar, Optional
+from typing import Any, ClassVar, Optional
 from sqlalchemy import and_
-from sqlalchemy.sql.expression import literal, null, select
+from sqlalchemy.engine import Row
+from sqlalchemy.orm import Query
+from sqlalchemy.sql.expression import CacheKey
+from .. import DatabaseMapping
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
 from ..parameter_value import (
     IndexedValue,
@@ -187,47 +192,40 @@ class ExportMapping(Mapping):
         """
         return query
 
-    def _build_query(self, db_map, title_state):
-        """Builds and returns the query to run for this mapping hierarchy.
-
-        Args:
-            db_map (DatabaseMapping)
-            title_state (dict)
-
-        Returns:
-            Query
-        """
+    def _build_query(
+        self, db_map: DatabaseMapping, title_state: dict[str, Any], row_cache: dict[CacheKey, list[Row]]
+    ) -> Optional[Query | _FilteredQuery]:
+        """Builds and returns the query to run for this mapping hierarchy."""
         mappings = self.flatten()
-        # Start with empty query
-        # Add columns
         columns = []
         for m in mappings:
             m.build_query_columns(db_map, columns)
         if not columns:
             return None
         qry = db_map.query(*columns)
-        # Apply filters
         for m in mappings:
             qry = m.filter_query(db_map, qry)
         # Apply special title filters (first, so we clean up the state)
         for m in mappings:
             qry = m.filter_query_by_title(qry, title_state)
-        # Apply standard title filters
         if not title_state:
             return qry
         # Use a _FilteredQuery, since building a subquery to query it again leads to parser stack overflow
         return _FilteredQuery(
-            qry, lambda db_row: all(getattr(db_row, key) == value for key, value in title_state.items())
+            db_map,
+            qry,
+            (lambda db_row: all(getattr(db_row, key) == value for key, value in title_state.items())),
+            row_cache,
         )
 
-    def _build_title_query(self, db_map):
+    def _build_title_query(self, db_map: DatabaseMapping) -> Optional[Query]:
         """Builds and returns the query to get titles for this mapping hierarchy.
 
         Args:
-            db_map (DatabaseMapping): database mapping
+            db_map: database mapping
 
         Returns:
-            Alias: title query
+            title query
         """
         mappings = self.flatten()
         for _ in range(len(mappings)):
@@ -245,16 +243,23 @@ class ExportMapping(Mapping):
             qry = m.filter_query(db_map, qry)
         return qry
 
-    def _build_header_query(self, db_map, title_state, buddies):
+    def _build_header_query(
+        self,
+        db_map: DatabaseMapping,
+        title_state: dict[str, Any],
+        buddies: list[tuple[ExportMapping, ExportMapping]],
+        row_cache: dict[CacheKey, list[Row]],
+    ) -> Optional[Query | _FilteredQuery]:
         """Builds the header query for this mapping hierarchy.
 
         Args:
-            db_map (DatabaseMapping): database mapping
-            title_state (dict): title state
-            buddies (list of tuple): pairs of buddy mappings
+            db_map: database mapping
+            title_state: title state
+            buddies: pairs of buddy mappings
+            row_cache: cache for queried database rows
 
         Returns:
-            Alias: header query
+            header query
         """
         mappings = self.flatten()
         flat_buddies = [b for pair in buddies for b in pair]
@@ -278,7 +283,10 @@ class ExportMapping(Mapping):
             return qry
         # Use a _FilteredQuery, since building a subquery to query it again leads to parser stack overflow
         return _FilteredQuery(
-            qry, lambda db_row: all(getattr(db_row, key) == value for key, value in title_state.items())
+            db_map,
+            qry,
+            (lambda db_row: all(getattr(db_row, key) == value for key, value in title_state.items())),
+            row_cache,
         )
 
     def _data(self, row):
@@ -339,45 +347,43 @@ class ExportMapping(Mapping):
             return
         data = self._data(db_row)
         if data is None and not self._ignorable:
-            return ()
+            return
         data_iterator = self._get_data_iterator(data)
         for data in data_iterator:
             yield {self.position: data}
 
-    def get_rows_recursive(self, db_row):
-        """Takes a database row and yields rows issued by this mapping and its children combined.
-
-        Args:
-            db_row (Row)
-
-        Returns:
-            generator(dict)
-        """
+    def get_rows_recursive(self, db_row: Row) -> Iterator[dict[int | Position, Any]]:
+        """Takes a database row and yields rows issued by this mapping and its children combined."""
         if self.child is None:
             yield from self._get_rows(db_row)
             return
         for row in self._get_rows(db_row):
             for child_row in self.child.get_rows_recursive(db_row):
-                row = row.copy()
-                row.update(child_row)
-                yield row
+                yield {**row, **child_row}
 
-    def rows(self, db_map, title_state):
-        """Yields rows issued by this mapping and its children combined.
-
-        Args:
-            db_map (DatabaseMapping)
-            title_state (dict)
-
-        Returns:
-            generator(dict)
-        """
-        qry = self._build_query(db_map, title_state)
+    def rows(
+        self, db_map: DatabaseMapping, title_state: dict[str, Any], row_cache: dict[CacheKey, list[Row]]
+    ) -> Iterator[dict[int | Position, Any]]:
+        """Yields rows issued by this mapping and its children combined."""
+        qry = self._build_query(db_map, title_state, row_cache)
         if qry is None:
             yield {}
             return
-        for db_row in qry:
-            yield from self.get_rows_recursive(db_row)
+        if not isinstance(qry, _FilteredQuery):
+            cache_key = qry.statement._generate_cache_key().key
+            if cache_key in row_cache:
+                cache = row_cache[cache_key]
+                for db_row in cache:
+                    yield from self.get_rows_recursive(db_row)
+            else:
+                row_cache[cache_key] = cache = []
+                for db_row in qry:
+                    cache.append(db_row)
+                    yield from self.get_rows_recursive(db_row)
+
+        else:
+            for db_row in qry:
+                yield from self.get_rows_recursive(db_row)
 
     def has_titles(self):
         """Returns True if this mapping or one of its children generates titles.
@@ -520,18 +526,25 @@ class ExportMapping(Mapping):
             header[self.position] = self.header
         return header
 
-    def make_header(self, db_map, title_state, buddies):
+    def make_header(
+        self,
+        db_map: DatabaseMapping,
+        title_state: dict[str, Any],
+        buddies: list[tuple[ExportMapping, ExportMapping]],
+        row_cache: dict[CacheKey, list[Row]],
+    ) -> dict[int, str]:
         """Returns the header for this mapping.
 
         Args:
-            db_map (DatabaseMapping): database map
-            title_state (dict): title state
-            buddies (list of tuple): buddy mappings
+            db_map: database map
+            title_state: title state
+            buddies: buddy mappings
+            row_cache: cache for fetched database rows
 
         Returns
-            dict: a mapping from column index to string header
+            a mapping from column index to string header
         """
-        query = self._build_header_query(db_map, title_state, buddies)
+        query = self._build_header_query(db_map, title_state, buddies, row_cache)
         if query is not None:
             query = _Rewindable(query)
         return self.make_header_recursive(query, buddies)
@@ -870,18 +883,9 @@ class ParameterDefaultValueTypeMapping(ParameterDefaultValueMapping):
         }
 
     def filter_query_by_title(self, query, title_state):
-        pv = title_state.pop("type_and_dimensions", None)
-        if pv is None:
-            return query
-        if "default_value" not in {c["name"] for c in query.column_descriptions}:
-            return query
-        return _FilteredQuery(
-            query,
-            lambda db_row: (
-                db_row.default_type,
-                from_database_to_dimension_count(db_row.default_value, db_row.default_type) == pv,
-            ),
-        )
+        with suppress(KeyError):
+            del title_state["type_and_dimensions"]
+        return query
 
 
 class DefaultValueIndexNameMapping(_MappingWithLeafMixin, ParameterDefaultValueMapping):
@@ -1009,14 +1013,9 @@ class ParameterValueTypeMapping(ParameterValueMapping):
         return {"type_and_dimensions": (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type))}
 
     def filter_query_by_title(self, query, title_state):
-        pv = title_state.pop("type_and_dimensions", None)
-        if pv is None:
-            return query
-        if all(d["name"] != "value" for d in query.column_descriptions):
-            return query
-        return _FilteredQuery(
-            query, lambda db_row: (db_row.type, from_database_to_dimension_count(db_row.value, db_row.type) == pv)
-        )
+        with suppress(KeyError):
+            del title_state["type_and_dimensions"]
+        return query
 
 
 class IndexNameMapping(_MappingWithLeafMixin, ParameterValueMapping):
@@ -1256,27 +1255,45 @@ class ScenarioDescriptionMapping(_DescriptionMappingBase):
 
 
 class _FilteredQuery:
-    """Helper class to define non-standard query filters.
+    """Helper class to define non-standard query filters."""
 
-    It implements everything we use from the standard sqlalchemy's ``Query``.
-    """
-
-    def __init__(self, query, condition):
+    def __init__(
+        self,
+        db_map: DatabaseMapping,
+        query: Query,
+        condition: Callable[[Any], bool],
+        row_cache: dict[CacheKey, list[Row]],
+    ):
         """
         Args:
-            query (Query): a query to filter
-            condition (function): the filter condition
+            db_map: database mapping instance
+            query: a query to filter
+            condition: the filter condition
+            row_cache: cache for fetched database rows
         """
+        self._db_map = db_map
         self._query = query
         self._condition = condition
+        self._row_cache = row_cache
 
-    def filter(self, *args, **kwargs):
-        return _FilteredQuery(self._query.filter(*args, **kwargs), self._condition)
+    @property
+    def statement(self):
+        return self._query.statement
+
+    def filter(self, *args):
+        return _FilteredQuery(self._db_map, self._query.filter(*args), self._condition, self._row_cache)
 
     def __iter__(self):
-        for db_row in self._query:
-            if self._condition(db_row):
-                yield db_row
+        cache_key = self._query.statement._generate_cache_key().key
+        if cache_key in self._row_cache:
+            cache = self._row_cache[cache_key]
+            yield from (db_row for db_row in cache if self._condition(db_row))
+        else:
+            self._row_cache[cache_key] = cache = []
+            for db_row in self._query:
+                cache.append(db_row)
+                if self._condition(db_row):
+                    yield db_row
 
 
 class _Rewindable:

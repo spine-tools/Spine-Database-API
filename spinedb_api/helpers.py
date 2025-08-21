@@ -220,6 +220,8 @@ def copy_database(
         only_tables=only_tables,
         skip_tables=skip_tables,
     )
+    source_engine.dispose()
+    dest_engine.dispose()
 
 
 def copy_database_bind(
@@ -888,6 +890,7 @@ def vacuum(url: str) -> tuple[int, str]:
     with engine.begin() as connection:
         connection.execute(text("vacuum"))
     freed = size_before - os.path.getsize(engine.url.database)
+    engine.dispose()
     k = 0
     units = ("bytes", "KB", "MB", "GB", "TB")
     while freed > 1e3 and k < len(units):

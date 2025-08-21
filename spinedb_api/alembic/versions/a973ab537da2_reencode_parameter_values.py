@@ -23,7 +23,7 @@ TYPES_TO_REENCODE = {"time_pattern", "time_series", "array", "map"}
 
 def upgrade():
     conn = op.get_bind()
-    metadata = sa.MetaData(bind=conn)
+    metadata = sa.MetaData()
     metadata.reflect(bind=conn)
     _upgrade_table_types(metadata.tables["parameter_definition"], "default_value", "default_type", conn)
     _upgrade_table_types(metadata.tables["parameter_value"], "value", "type", conn)

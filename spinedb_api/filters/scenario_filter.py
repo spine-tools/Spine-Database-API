@@ -389,7 +389,7 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
     filtered_by_entity_activity = (
         db_map.query(ext_parameter_value_sq)
         .filter(ext_parameter_value_sq.c.desc_rank_row_number == 1)
-        .filter(ext_parameter_value_sq.c.entity_id == ext_entity_sq.c.id)
+        .outerjoin(ext_entity_sq, ext_parameter_value_sq.c.entity_id == ext_entity_sq.c.id)
         .filter(
             ext_entity_sq.c.desc_rank_row_number == 1,
             or_(

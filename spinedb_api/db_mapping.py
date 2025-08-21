@@ -1251,6 +1251,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """Returns the config dicts of filters applied to this database mapping."""
         return self._filter_configs
 
+    def close(self):
+        self._original_engine.dispose()
+        self._original_engine = None
+        self.engine = None
+        super().close()
+
 
 def _fields_equal(item: MappedItemBase, required: dict) -> bool:
     for key, required_value in required.items():

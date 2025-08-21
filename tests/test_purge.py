@@ -30,12 +30,14 @@ class TestPurgeUrl(unittest.TestCase):
         with DatabaseMapping(self._url, create=True) as db_map:
             db_map.add_item("entity_class", name="Soup")
             db_map.commit_session("Add test data")
+        db_map.engine.dispose()
         purge_url(self._url, {"alternative": False, "entity_class": True})
         with DatabaseMapping(self._url) as db_map:
             classes = db_map.query(db_map.entity_class_sq).all()
             self.assertEqual(classes, [])
             alternatives = db_map.query(db_map.alternative_sq).all()
             self.assertEqual(len(alternatives), 1)
+        db_map.engine.dispose()
 
     def test_purge_then_add(self):
         with DatabaseMapping(self._url, create=True) as db_map:
@@ -43,8 +45,10 @@ class TestPurgeUrl(unittest.TestCase):
             db_map.add_item("entity_class", name="Soup")
             db_map.commit_session("Yummy")
             self.assertEqual([x["name"] for x in db_map.get_items("entity_class")], ["Soup"])
+        db_map.engine.dispose()
         with DatabaseMapping(self._url, create=True) as db_map:
             self.assertEqual([x["name"] for x in db_map.get_items("entity_class")], ["Soup"])
+        db_map.engine.dispose()
 
     def test_add_then_purge_then_unpurge(self):
         with DatabaseMapping(self._url, create=True) as db_map:
@@ -53,6 +57,7 @@ class TestPurgeUrl(unittest.TestCase):
             self.assertFalse(db_map.get_items("entity_class"))
             db_map.restore_item("entity_class", Asterisk)
             self.assertEqual([x["name"] for x in db_map.get_items("entity_class")], ["Soup"])
+        db_map.engine.dispose()
 
     def test_add_then_purge_then_add(self):
         with DatabaseMapping(self._url, create=True) as db_map:
@@ -61,6 +66,7 @@ class TestPurgeUrl(unittest.TestCase):
             self.assertFalse(db_map.get_items("entity_class"))
             db_map.add_item("entity_class", name="Poison")
             self.assertEqual([x["name"] for x in db_map.get_items("entity_class")], ["Poison"])
+        db_map.engine.dispose()
 
     def test_add_then_purge_then_add_then_purge_again(self):
         with DatabaseMapping(self._url, create=True) as db_map:
@@ -70,6 +76,7 @@ class TestPurgeUrl(unittest.TestCase):
             db_map.add_item("entity_class", name="Poison")
             db_map.remove_item("entity_class", Asterisk)
             self.assertFalse(db_map.get_items("entity_class"))
+        db_map.engine.dispose()
 
     def test_dont_keep_purging_after_commit(self):
         """Tests that if I purge and then commit, then add more stuff then commit again, the stuff I added
@@ -82,13 +89,16 @@ class TestPurgeUrl(unittest.TestCase):
             db_map.add_item("entity_class", name="Poison")
             db_map.commit_session("Deadly")
             self.assertEqual([x["name"] for x in db_map.get_items("entity_class")], ["Poison"])
+        db_map.engine.dispose()
         with DatabaseMapping(self._url, create=True) as db_map:
             self.assertEqual([x["name"] for x in db_map.get_items("entity_class")], ["Poison"])
+        db_map.engine.dispose()
 
     def test_purge_externally(self):
         with DatabaseMapping(self._url, create=True) as db_map:
             db_map.add_item("entity_class", name="Soup")
             db_map.commit_session("Add test data")
+        db_map.engine.dispose()
         with DatabaseMapping(self._url, create=True) as db_map:
             db_map.fetch_all()
             self.assertEqual([x["name"] for x in db_map.get_items("entity_class")], ["Soup"])
@@ -98,8 +108,10 @@ class TestPurgeUrl(unittest.TestCase):
             # It is up to the client to resolve the situation.
             # For example, toolbox does it via SpineDBManager.notify_session_committed
             # which calls DatabaseMapping.reset
+        db_map.engine.dispose()
         with DatabaseMapping(self._url, create=True) as db_map:
             self.assertFalse(db_map.get_items("entity_class"))
+        db_map.engine.dispose()
 
 
 if __name__ == "__main__":

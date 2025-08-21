@@ -10,36 +10,49 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Contains generator functions that convert a Spine database into rows of tabular data. """
+from collections.abc import Iterator
 from copy import deepcopy
+from typing import Any, Optional
+from sqlalchemy.engine import Row
+from sqlalchemy.sql.expression import CacheKey
+from .. import DatabaseMapping
 from ..mapping import Position
-from .export_mapping import pair_header_buddies
+from .export_mapping import ExportMapping, pair_header_buddies
 from .group_functions import NoGroup
 from .pivot import make_pivot, make_regular
 
 
-def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, group_fn=NoGroup.NAME):
+def rows(
+    root_mapping: ExportMapping,
+    db_map: DatabaseMapping,
+    row_cache: dict[CacheKey, list[Row]],
+    fixed_state: Optional[dict] = None,
+    empty_data_header: bool = True,
+    group_fn: str = NoGroup.NAME,
+) -> Iterator[list[Any]]:
     """
     Generates table's rows.
 
     Args:
-        root_mapping (Mapping): root export mapping
-        db_map (DatabaseMapping): a database map
-        fixed_state (dict, optional): mapping state that fixes items
-        empty_data_header (bool): True to yield at least header rows even if there is no data, False to yield nothing
-        group_fn (str): group function name
+        root_mapping: root export mapping
+        db_map: a database map
+        row_cache: cache for queried database rows
+        fixed_state: mapping state that fixes items
+        empty_data_header: True to yield at least header rows even if there is no data, False to yield nothing
+        group_fn: group function name
 
     Yields:
-        list: a list of row's cells
+        a list of row's cells
     """
 
-    def listify_row(row):
+    def listify_row(row: dict[int | Position, Any]) -> list[Any]:
         """Converts row dictionary to Python list representing the actual row.
 
         Args:
-            row (dict): mapping from Position to cell data
+            row: mapping from Position to cell data
 
         Returns:
-            list: row as list
+            row as list
         """
         row.pop(Position.hidden, None)
         row.pop(Position.table_name, None)
@@ -56,10 +69,10 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, group_f
         if root_mapping.has_header():
             header_root = deepcopy(root_mapping)
             buddies = pair_header_buddies(header_root)
-            header = listify_row(header_root.make_header(db_map, fixed_state, buddies))
+            header = listify_row(header_root.make_header(db_map, fixed_state, buddies, row_cache))
         else:
             header = None
-        mapping_rows = root_mapping.rows(db_map, fixed_state)
+        mapping_rows = root_mapping.rows(db_map, fixed_state, row_cache)
         regularized = list(map(listify_row, mapping_rows))
         yield from make_pivot(
             regularized,
@@ -72,7 +85,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, group_f
             empty_data_header,
         )
     else:
-        mapping_rows = root_mapping.rows(db_map, fixed_state)
+        mapping_rows = root_mapping.rows(db_map, fixed_state, row_cache)
         row_iter = iter(map(listify_row, mapping_rows))
         try:
             peeked_row = next(row_iter)
@@ -82,7 +95,7 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, group_f
             peeked_row = None
         if root_mapping.has_header():
             buddies = pair_header_buddies(root_mapping)
-            header = listify_row(root_mapping.make_header(db_map, fixed_state, buddies))
+            header = listify_row(root_mapping.make_header(db_map, fixed_state, buddies, row_cache))
             yield header
         if peeked_row is None:
             return
@@ -90,16 +103,17 @@ def rows(root_mapping, db_map, fixed_state=None, empty_data_header=True, group_f
         yield from row_iter
 
 
-def titles(root_mapping, db_map, limit=None):
+def titles(root_mapping: ExportMapping, db_map: DatabaseMapping, limit: Optional[int] = None) -> Iterator[tuple]:
     """
     Generates titles.
 
     Args:
-        root_mapping (Mapping): root export mapping
-        db_map (DatabaseMapping): a database map
+        root_mapping: root export mapping
+        db_map: a database map
+        limit: yield only this many titles, None to yield all
 
     Yield:
-        tuple: title and title's fixed key
+        title and title's fixed key
     """
     if not root_mapping.has_titles():
         yield None, None

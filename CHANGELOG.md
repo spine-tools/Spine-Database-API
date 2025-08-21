@@ -11,15 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `spinedb_api` now requires SLQAlchemy 2.0.
+  Things should work as before, except
+  if you are using a SQLite database backed by temporary file/in temporary directory,
+  you may need to call `db_map.engine.dispose()` before the SQLite file gets removed.
+
 ### Deprecated
 
 ### Removed
 
-- Removed support for Python 3.9.
-
 ### Fixed
 
 ### Security
+
+## [0.35.1]
+
+### Added
+
+- Added caching to export mappings.
+
+## [0.35.0]
+
+### Removed
+
+- Removed support for Python 3.9.
 
 ## [0.34.3]
 

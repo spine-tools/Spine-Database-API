@@ -70,8 +70,10 @@ class TestExportFunctions(AssertSuccessTestCase):
                 db_map.add_scenario(name="My Scenario")
                 db_map.add_scenario_alternative(scenario_name="My Scenario", alternative_name="Base", rank=0)
                 db_map.commit_session("Add test data.")
+            db_map.engine.dispose()
             with DatabaseMapping(url) as db_map:
                 self.assertEqual(export_scenario_alternatives(db_map), [("My Scenario", "Base", None)])
+            db_map.engine.dispose()
 
     def test_export_multiple_scenario_alternatives(self):
         with DatabaseMapping("sqlite://", username="UnitTest", create=True) as db_map:

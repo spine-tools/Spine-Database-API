@@ -323,6 +323,7 @@ class TestScenarioFilter(DataBuilderTestCase):
             url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_scenario(db_map)
+            db_map.engine.dispose()
             with DatabaseMapping(url) as db_map:
                 apply_scenario_filter_to_subqueries(db_map, "scenario")
                 parameters = db_map.query(db_map.parameter_value_sq).all()
@@ -345,6 +346,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                         }
                     ],
                 )
+            db_map.engine.dispose()
 
     def test_scenario_filter_uncommitted_data(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -427,6 +429,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                 for entity_class in db_map.get_entity_class_items():
                     entity_class.update(active_by_default=True)
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             with DatabaseMapping(url) as db_map:
                 entities = db_map.query(db_map.entity_sq).all()
                 self.assertEqual(len(entities), 5)
@@ -441,12 +444,14 @@ class TestScenarioFilter(DataBuilderTestCase):
                     for name in (x.element_name_list.split(",") if x.element_name_list else (x.name,))
                 }
                 self.assertFalse("obj2" in entity_names)
+            db_map.engine.dispose()
 
     def test_scenario_filter_works_for_object_parameter_value_sq(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_scenario(db_map)
+            db_map.engine.dispose()
             with DatabaseMapping(url) as db_map:
                 apply_scenario_filter_to_subqueries(db_map, "scenario")
                 parameters = db_map.query(db_map.object_parameter_value_sq).all()
@@ -469,6 +474,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                         }
                     ],
                 )
+            db_map.engine.dispose()
 
     def test_scenario_filter_works_for_relationship_parameter_value_sq(self):
         with TemporaryDirectory() as temp_dir:
@@ -509,6 +515,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                     )
                 )
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             with DatabaseMapping(url) as db_map:
                 apply_scenario_filter_to_subqueries(db_map, "scenario")
                 parameters = db_map.query(db_map.relationship_parameter_value_sq).all()
@@ -531,6 +538,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                         }
                     ],
                 )
+            db_map.engine.dispose()
 
     def test_scenario_filter_selects_highest_ranked_alternative(self):
         with TemporaryDirectory() as temp_dir:
@@ -605,6 +613,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                     )
                 )
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             with DatabaseMapping(url, create=True) as db_map:
                 apply_scenario_filter_to_subqueries(db_map, "scenario")
                 parameters = db_map.query(db_map.parameter_value_sq).all()
@@ -634,6 +643,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                         }
                     ],
                 )
+            db_map.engine.dispose()
 
     def test_scenario_filter_selects_highest_ranked_alternative_of_active_scenario(self):
         with TemporaryDirectory() as temp_dir:
@@ -730,6 +740,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                     )
                 )
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             with DatabaseMapping(url, create=True) as db_map:
                 apply_scenario_filter_to_subqueries(db_map, "scenario")
                 parameters = db_map.query(db_map.parameter_value_sq).all()
@@ -759,6 +770,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                         }
                     ],
                 )
+            db_map.engine.dispose()
 
     def test_scenario_filter_for_multiple_objects_and_parameters(self):
         with TemporaryDirectory() as temp_dir:
@@ -871,6 +883,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                 for item in db_map.get_entity_class_items():
                     item.update(active_by_default=True)
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             with DatabaseMapping(url, create=True) as db_map:
                 apply_scenario_filter_to_subqueries(db_map, "scenario")
                 parameters = db_map.query(db_map.parameter_value_sq).all()
@@ -907,6 +920,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                         }
                     ],
                 )
+            db_map.engine.dispose()
 
     def test_filters_scenarios_and_alternatives(self):
         with TemporaryDirectory() as temp_dir:
@@ -938,6 +952,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                     )
                 )
                 db_map.commit_session("Add test data.")
+            db_map.engine.dispose()
             with DatabaseMapping(url, create=True) as db_map:
                 apply_scenario_filter_to_subqueries(db_map, "scenario2")
                 alternatives = [a._asdict() for a in db_map.query(db_map.alternative_sq)]
@@ -963,6 +978,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                         }
                     ],
                 )
+            db_map.engine.dispose()
 
     def test_filters_entity_alternatives(self):
         with TemporaryDirectory() as temp_dir:
@@ -992,10 +1008,12 @@ class TestScenarioFilter(DataBuilderTestCase):
                     db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=1)
                 )
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             filtered_url = append_filter_config(url, scenario_filter_config("Scenario"))
             with DatabaseMapping(filtered_url) as db_map:
                 entity_alternatives = db_map.query(db_map.entity_alternative_sq).all()
                 self.assertEqual(len(entity_alternatives), 1)
+            db_map.engine.dispose()
 
     def test_parameter_values_for_entities_that_have_been_filtered_out(self):
         with TemporaryDirectory() as temp_dir:
@@ -1028,10 +1046,12 @@ class TestScenarioFilter(DataBuilderTestCase):
                     db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=1)
                 )
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             filtered_url = append_filter_config(url, scenario_filter_config("Scenario"))
             with DatabaseMapping(filtered_url) as db_map:
                 values = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(values), 0)
+            db_map.engine.dispose()
 
     def test_parameter_values_for_entities_that_have_been_filtered_out_by_default(self):
         with TemporaryDirectory() as temp_dir:
@@ -1070,6 +1090,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                     db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=1)
                 )
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             filtered_url = append_filter_config(url, scenario_filter_config("Scenario"))
             with DatabaseMapping(filtered_url) as db_map:
                 entities = db_map.query(db_map.entity_sq).all()
@@ -1078,6 +1099,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                 values = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(values), 1)
                 self.assertEqual(from_database(values[0].value, values[0].type), 2.3)
+            db_map.engine.dispose()
 
     def test_parameter_values_for_entities_that_swim_against_active_by_default(self):
         with TemporaryDirectory() as temp_dir:
@@ -1132,6 +1154,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                     db_map.add_scenario_alternative_item(scenario_name="Scenario", alternative_name="Base", rank=1)
                 )
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             filtered_url = append_filter_config(url, scenario_filter_config("Scenario"))
             with DatabaseMapping(filtered_url) as db_map:
                 entities = db_map.query(db_map.entity_sq).all()
@@ -1140,6 +1163,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                 values = db_map.query(db_map.parameter_value_sq).all()
                 self.assertEqual(len(values), 1)
                 self.assertEqual(from_database(values[0].value, values[0].type), -2.3)
+            db_map.engine.dispose()
 
     def test_parameter_values_of_multidimensional_entity_whose_elements_have_entity_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1219,6 +1243,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                     )
                 )
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             with DatabaseMapping(url) as db_map:
                 config = scenario_filter_config("Scenario")
                 scenario_filter_from_dict(db_map, config)
@@ -1228,6 +1253,7 @@ class TestScenarioFilter(DataBuilderTestCase):
                 self.assertEqual(entity_alternatives[0]["entity_byname"], ("cube",))
                 self.assertEqual(entity_alternatives[0]["alternative_name"], "alt")
                 self.assertTrue(entity_alternatives[0]["active"])
+            db_map.engine.dispose()
 
     def test_entity_with_irrelevant_entity_alternative_is_passed(self):
         with TemporaryDirectory() as temp_dir:
@@ -1242,12 +1268,14 @@ class TestScenarioFilter(DataBuilderTestCase):
                     )
                 )
                 db_map.commit_session("Add test data")
+            db_map.engine.dispose()
             with DatabaseMapping(url) as db_map:
                 config = scenario_filter_config("Scenario")
                 scenario_filter_from_dict(db_map, config)
                 entities = db_map.get_entity_items()
                 self.assertEqual(len(entities), 1)
                 self.assertEqual(entities[0]["name"], "cube")
+            db_map.engine.dispose()
 
 
 class TestScenarioFilterUtils(DataBuilderTestCase):
