@@ -22,7 +22,7 @@ from collections import defaultdict
 import datetime
 from itertools import chain, tee
 import json
-from typing import Any, Callable, Iterable, Literal, Optional, Sequence, SupportsFloat, TypeAlias, TypeVar
+from typing import Any, Callable, Iterable, Literal, Optional, SupportsFloat, TypeAlias, TypeVar
 from dateutil import relativedelta
 import numpy
 import pyarrow
@@ -30,7 +30,7 @@ from . import parameter_value as legacy_value
 from .compat.data_transition import transition_data
 from .exception import SpineDBAPIError
 from .helpers import time_period_format_specification, time_series_metadata
-from .models import AllArrays, AnyType, ArrayAsDict, SpecialTypeNames, dict_to_array
+from .models import AllArrays, ArrayAsDict, SpecialTypeNames, dict_to_array
 from .parameter_value import (
     NUMPY_DATETIME_DTYPE,
     TIME_SERIES_DEFAULT_RESOLUTION,
@@ -38,6 +38,7 @@ from .parameter_value import (
     ParameterValueFormatError,
     duration_to_relativedelta,
     load_db_value,
+    to_union_array,
     validate_time_period,
 )
 
@@ -111,24 +112,6 @@ def to_record_batch(loaded_value: list[ArrayAsDict]) -> pyarrow.RecordBatch:
     metadata = {}
     cols = {col.name: to_arrow(col, metadata) for col in map(dict_to_array, loaded_value)}
     return pyarrow.record_batch(cols, metadata=metadata if metadata else None)
-
-
-def to_union_array(arr: Sequence[AnyType | None]):
-    type_map = defaultdict(list)
-    offsets = []
-    for item in arr:
-        item_t = type(item)
-        offsets.append(len(type_map[item_t]))
-        type_map[item_t].append(item)
-
-    _types = list(type_map)
-    types = pyarrow.array((_types.index(type(i)) for i in arr), type=pyarrow.int8())
-    uarr = pyarrow.UnionArray.from_dense(
-        types,
-        pyarrow.array(offsets, type=pyarrow.int32()),
-        list(map(pyarrow.array, type_map.values())),
-    )
-    return uarr
 
 
 def to_arrow(col: AllArrays, metadata: dict) -> pyarrow.Array:

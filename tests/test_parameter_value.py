@@ -19,6 +19,8 @@ import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import numpy.testing
+import pyarrow
+from spinedb_api.helpers import time_period_format_specification, time_series_metadata
 from spinedb_api.parameter_value import (
     Array,
     DateTime,
@@ -1096,23 +1098,60 @@ class TestParameterValue(unittest.TestCase):
         self.assertIsNot(x.get_value("T1"), copy_of_x.get_value("T1"))
 
 
-class TestTimeSeriesVariableResolution:
-    def test_get_value(self):
-        time_series = TimeSeriesVariableResolution(
-            ["2025-07-01T15:45", "2025-07-01T16:45"], [2.3, 3.2], ignore_year=False, repeat=False, index_name="y"
-        )
-        assert time_series.get_value(np.datetime64("2025-07-01T15:45")) == 2.3
-        assert time_series.get_value(np.datetime64("2025-07-01T16:45")) == 3.2
-        assert time_series.get_value(np.datetime64("2025-07-01T16:00")) is None
+class TestDuration:
+    def test_as_arrow(self):
+        duration = Duration("15h")
+        assert duration.as_arrow() == duration_to_relativedelta("15h")
 
-    def test_set_value(self):
-        time_series = TimeSeriesVariableResolution(
-            ["2025-07-01T15:45", "2025-07-01T16:45"], [2.3, 3.2], ignore_year=False, repeat=False, index_name="y"
+
+class TestDateTime:
+    def test_as_arrow(self):
+        date_time = DateTime("2025-08-06T14:37")
+        assert date_time.as_arrow() == datetime.fromisoformat("2025-08-06T14:37")
+
+
+class TestArray:
+    def test_as_arrow_with_float(self):
+        array = Array([2.3, 3.2])
+        record_batch = array.as_arrow()
+        expected = pyarrow.record_batch({"value": pyarrow.array([2.3, 3.2])})
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+    def test_as_arrow_with_string(self):
+        array = Array(["a", "b"])
+        record_batch = array.as_arrow()
+        expected = pyarrow.record_batch({"value": pyarrow.array(["a", "b"])})
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+    def test_as_arrow_with_bool(self):
+        array = Array([False, True])
+        record_batch = array.as_arrow()
+        expected = pyarrow.record_batch({"value": pyarrow.array([False, True])})
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+    def test_as_arrow_with_duration(self):
+        array = Array([Duration("3D"), Duration("7m")])
+        record_batch = array.as_arrow()
+        expected = pyarrow.record_batch(
+            {"value": pyarrow.array([duration_to_relativedelta("3 days"), duration_to_relativedelta("7 minutes")])}
         )
-        time_series.set_value(np.datetime64("2025-07-01T15:45"), -2.3)
-        assert time_series.get_value(np.datetime64("2025-07-01T15:45")) == -2.3
-        time_series.set_value(np.datetime64("2025-07-01T16:45"), -3.2)
-        assert time_series.get_value(np.datetime64("2025-07-01T16:45")) == -3.2
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+
+class TestTimePattern:
+    def test_as_arrow(self):
+        pattern = TimePattern(["WD1-7"], [2.3])
+        record_batch = pattern.as_arrow()
+        index_array = pyarrow.array(["WD1-7"])
+        value_array = pyarrow.array([2.3])
+        metadata = {"p": json.dumps(time_period_format_specification())}
+        expected = pyarrow.record_batch({"p": index_array, "value": value_array}, metadata=metadata)
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
 
 
 class TestTimeSeriesFixedResolution:
@@ -1155,6 +1194,166 @@ class TestTimeSeriesFixedResolution:
         assert time_series.get_value(np.datetime64("2025-07-01T17:00")) == -3.3
         time_series.set_value(np.datetime64("2025-07-01T18:00"), -4.4)
         assert time_series.get_value(np.datetime64("2025-07-01T18:00")) == -4.4
+
+    def test_as_arrow(self):
+        time_series = TimeSeriesFixedResolution("2025-08-18T17:11", "4h", [2.3, 3.2], ignore_year=False, repeat=False)
+        record_batch = time_series.as_arrow()
+        index_array = pyarrow.array(
+            [
+                datetime(year=2025, month=8, day=18, hour=17, minute=11),
+                datetime(year=2025, month=8, day=18, hour=21, minute=11),
+            ],
+            type=pyarrow.timestamp("s"),
+        )
+        value_array = pyarrow.array([2.3, 3.2])
+        metadata = {"t": json.dumps(time_series_metadata(ignore_year=False, repeat=False))}
+        expected = pyarrow.record_batch({"t": index_array, "value": value_array}, metadata=metadata)
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+    def test_as_arrow_with_index_name(self):
+        time_series = TimeSeriesFixedResolution(
+            "2025-08-18T17:11", "4h", [2.3, 3.2], ignore_year=True, repeat=True, index_name="stamps"
+        )
+        record_batch = time_series.as_arrow()
+        index_array = pyarrow.array(
+            [
+                datetime(year=2025, month=8, day=18, hour=17, minute=11),
+                datetime(year=2025, month=8, day=18, hour=21, minute=11),
+            ],
+            type=pyarrow.timestamp("s"),
+        )
+        value_array = pyarrow.array([2.3, 3.2])
+        metadata = {"stamps": json.dumps(time_series_metadata(ignore_year=True, repeat=True))}
+        expected = pyarrow.record_batch({"stamps": index_array, "value": value_array}, metadata=metadata)
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+
+class TestTimeSeriesVariableResolution:
+    def test_get_value(self):
+        time_series = TimeSeriesVariableResolution(
+            ["2025-07-01T15:45", "2025-07-01T16:45"], [2.3, 3.2], ignore_year=False, repeat=False, index_name="y"
+        )
+        assert time_series.get_value(np.datetime64("2025-07-01T15:45")) == 2.3
+        assert time_series.get_value(np.datetime64("2025-07-01T16:45")) == 3.2
+        assert time_series.get_value(np.datetime64("2025-07-01T16:00")) is None
+
+    def test_set_value(self):
+        time_series = TimeSeriesVariableResolution(
+            ["2025-07-01T15:45", "2025-07-01T16:45"], [2.3, 3.2], ignore_year=False, repeat=False, index_name="y"
+        )
+        time_series.set_value(np.datetime64("2025-07-01T15:45"), -2.3)
+        assert time_series.get_value(np.datetime64("2025-07-01T15:45")) == -2.3
+        time_series.set_value(np.datetime64("2025-07-01T16:45"), -3.2)
+        assert time_series.get_value(np.datetime64("2025-07-01T16:45")) == -3.2
+
+    def test_as_arrow(self):
+        time_series = TimeSeriesVariableResolution(
+            ["2025-08-21T09:10", "2025-08-21T09:14"], [2.3, 3.2], ignore_year=False, repeat=False
+        )
+        record_batch = time_series.as_arrow()
+        index_array = pyarrow.array(
+            [
+                datetime(year=2025, month=8, day=21, hour=9, minute=10),
+                datetime(year=2025, month=8, day=21, hour=9, minute=14),
+            ],
+            type=pyarrow.timestamp("s"),
+        )
+        value_array = pyarrow.array([2.3, 3.2])
+        metadata = {"t": json.dumps(time_series_metadata(ignore_year=False, repeat=False))}
+        expected = pyarrow.record_batch({"t": index_array, "value": value_array}, metadata=metadata)
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+    def test_as_arrow_with_index_name(self):
+        time_series = TimeSeriesVariableResolution(
+            ["2025-08-21T09:10", "2025-08-21T09:14"], [2.3, 3.2], ignore_year=True, repeat=True, index_name="stamp"
+        )
+        record_batch = time_series.as_arrow()
+        index_array = pyarrow.array(
+            [
+                datetime(year=2025, month=8, day=21, hour=9, minute=10),
+                datetime(year=2025, month=8, day=21, hour=9, minute=14),
+            ],
+            type=pyarrow.timestamp("s"),
+        )
+        value_array = pyarrow.array([2.3, 3.2])
+        metadata = {"stamp": json.dumps(time_series_metadata(ignore_year=True, repeat=True))}
+        expected = pyarrow.record_batch({"stamp": index_array, "value": value_array}, metadata=metadata)
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+
+class TestMap:
+    def test_as_arrow(self):
+        map_value = Map(["a", "b"], [2.3, 3.2])
+        record_batch = map_value.as_arrow()
+        expected = pyarrow.record_batch({"col_1": pyarrow.array(["a", "b"]), "value": pyarrow.array([2.3, 3.2])})
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+    def test_as_arrow_with_index_name(self):
+        map_value = Map(
+            [DateTime("2025-08-05T15:30"), DateTime("2025-08-05T15:45")], [2.3, 3.2], index_name="my indexes"
+        )
+        record_batch = map_value.as_arrow()
+        expected = pyarrow.record_batch(
+            {
+                "my indexes": pyarrow.array(
+                    [
+                        datetime(year=2025, month=8, day=5, hour=15, minute=30),
+                        datetime(year=2025, month=8, day=5, hour=15, minute=45),
+                    ]
+                ),
+                "value": pyarrow.array([2.3, 3.2]),
+            }
+        )
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+    def test_as_arrow_with_nested_map(self):
+        map_value = Map(["a", "b", "c"], ["yes", Map([Duration("1h"), Duration("1h")], [True, False]), "no"])
+        record_batch = map_value.as_arrow()
+        indexes_1 = pyarrow.RunEndEncodedArray.from_arrays([1, 3, 4], ["a", "b", "c"])
+        indexes_2 = pyarrow.array([None, duration_to_relativedelta("1h"), duration_to_relativedelta("1h"), None])
+        str_values = pyarrow.array(["yes", "no"])
+        bool_values = pyarrow.array([True, False])
+        values = pyarrow.UnionArray.from_dense(
+            pyarrow.array([0, 1, 1, 0], type=pyarrow.int8()),
+            pyarrow.array([0, 0, 1, 1], type=pyarrow.int32()),
+            [str_values, bool_values],
+        )
+        expected = pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "value": values})
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+    def test_as_arrow_with_time_series(self):
+        map_value = Map(
+            [-1.0, -2.0],
+            [
+                TimeSeriesFixedResolution("2025-08-05T17:00", "15m", [2.3, 3.2], ignore_year=True, repeat=True),
+                TimeSeriesVariableResolution(
+                    ["2025-08-05T17:32", "2025-08-05T17:41"], [-2.3, -3.2], ignore_year=True, repeat=True
+                ),
+            ],
+        )
+        record_batch = map_value.as_arrow()
+        indexes_1 = pyarrow.RunEndEncodedArray.from_arrays([2, 4], [-1.0, -2.0])
+        indexes_2 = pyarrow.array(
+            [
+                datetime(year=2025, month=8, day=5, hour=17),
+                datetime(year=2025, month=8, day=5, hour=17, minute=15),
+                datetime(year=2025, month=8, day=5, hour=17, minute=32),
+                datetime(year=2025, month=8, day=5, hour=17, minute=41),
+            ],
+            type=pyarrow.timestamp("s"),
+        )
+        values = pyarrow.array([2.3, 3.2, -2.3, -3.2])
+        metadata = {"t": json.dumps(time_series_metadata(True, True))}
+        expected = pyarrow.record_batch({"col_1": indexes_1, "t": indexes_2, "value": values}, metadata=metadata)
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
 
 
 class TestPickling(unittest.TestCase):
@@ -1213,7 +1412,3 @@ class TestTypeForValue(unittest.TestCase):
             ("time_series", 1),
         )
         self.assertEqual(type_for_value(Map(["a", "b"], [Map(["i"], [2.3]), 23.0])), ("map", 2))
-
-
-if __name__ == "__main__":
-    unittest.main()
