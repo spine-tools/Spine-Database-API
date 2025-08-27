@@ -3307,6 +3307,19 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.add_scenario_alternative(scenario_name="scenario 1", alternative_name="alt 1", rank=2)
             self.assertEqual(base_scenario_alternative["before_alternative_id"], another_alternative["id"])
 
+    def test_add_relationship_after_purge(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_entity(name="thing", entity_class_name="Object")
+            db_map.add_entity_class(dimension_name_list=["Object", "Object"])
+            relationship = db_map.add_entity(entity_byname=("thing", "thing"), entity_class_name="Object__Object")
+            self.assertEqual(relationship["name"], "thing__thing")
+            db_map.purge_items("entity")
+            db_map.commit_session("Add test data")
+            db_map.add_entity(name="thing", entity_class_name="Object")
+            relationship = db_map.add_entity(entity_byname=("thing", "thing"), entity_class_name="Object__Object")
+            self.assertEqual(relationship["name"], "thing__thing")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
