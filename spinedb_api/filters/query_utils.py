@@ -43,10 +43,7 @@ def filter_by_active_elements(db_map, query, ext_entity_sq):
         .subquery()
     )
     return (
-        query.outerjoin(
-            ext_entity_element_count_sq,
-            ext_entity_element_count_sq.c.entity_id == ext_entity_sq.c.id,
-        )
+        query.outerjoin(ext_entity_element_count_sq, ext_entity_element_count_sq.c.entity_id == ext_entity_sq.c.id)
         .outerjoin(
             ext_entity_class_dimension_count_sq,
             ext_entity_class_dimension_count_sq.c.entity_class_id == ext_entity_sq.c.class_id,

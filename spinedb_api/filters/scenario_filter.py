@@ -185,7 +185,7 @@ class _ScenarioFilterState:
 
 
 def _ext_entity_sq(db_map, state):
-    return (
+    entity_sq = (
         db_map.query(
             state.original_entity_sq,
             func.row_number()
@@ -212,17 +212,23 @@ def _ext_entity_sq(db_map, state):
             or_(
                 state.original_scenario_alternative_sq.c.scenario_id == None,
                 state.original_scenario_alternative_sq.c.scenario_id == state.scenario_id,
-            )
-        )
-        .filter(
+            ),
             or_(
                 state.original_entity_alternative_sq.c.alternative_id == None,
                 state.original_entity_alternative_sq.c.alternative_id
                 == state.original_scenario_alternative_sq.c.alternative_id,
                 db_map.entity_class_sq.c.active_by_default == True,
-            )
+            ),
         )
     ).subquery()
+    return (
+        db_map.query(entity_sq)
+        .filter(
+            entity_sq.c.desc_rank_row_number == 1,
+            or_(entity_sq.c.active == True, and_(entity_sq.c.active == None, entity_sq.c.active_by_default == True)),
+        )
+        .subquery()
+    )
 
 
 def _make_scenario_filtered_entity_element_sq(db_map, state):
@@ -242,15 +248,9 @@ def _make_scenario_filtered_entity_element_sq(db_map, state):
     element_sq = ext_entity_sq.alias()
     return (
         db_map.query(state.original_entity_element_sq)
-        .filter(state.original_entity_element_sq.c.entity_id == entity_sq.c.id)
-        .filter(state.original_entity_element_sq.c.element_id == element_sq.c.id)
         .filter(
-            entity_sq.c.desc_rank_row_number == 1,
-            or_(entity_sq.c.active == True, entity_sq.c.active == None),
-        )
-        .filter(
-            element_sq.c.desc_rank_row_number == 1,
-            or_(element_sq.c.active == True, and_(element_sq.c.active == None, element_sq.c.active_by_default == True)),
+            state.original_entity_element_sq.c.entity_id == entity_sq.c.id,
+            state.original_entity_element_sq.c.element_id == element_sq.c.id,
         )
         .subquery()
     )
@@ -275,12 +275,6 @@ def _make_scenario_filtered_entity_sq(db_map, state):
         ext_entity_sq.c.name,
         ext_entity_sq.c.description,
         ext_entity_sq.c.commit_id,
-    ).filter(
-        ext_entity_sq.c.desc_rank_row_number == 1,
-        or_(
-            ext_entity_sq.c.active == True,
-            and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
-        ),
     )
     return filter_by_active_elements(db_map, filtered_by_activity, ext_entity_sq).subquery()
 
@@ -301,11 +295,9 @@ def _make_scenario_filtered_entity_alternative_sq(db_map, state):
     ext_entity_sq = _ext_entity_sq(db_map, state)
     return (
         db_map.query(state.original_entity_alternative_sq)
-        .filter(state.original_entity_alternative_sq.c.alternative_id.in_(state.alternative_ids))
-        .filter(state.original_entity_alternative_sq.c.entity_id == ext_entity_sq.c.id)
         .filter(
-            ext_entity_sq.c.desc_rank_row_number == 1,
-            or_(ext_entity_sq.c.active == True, ext_entity_sq.c.active == None),
+            state.original_entity_alternative_sq.c.alternative_id.in_(state.alternative_ids),
+            state.original_entity_alternative_sq.c.entity_id == ext_entity_sq.c.id,
         )
         .subquery()
     )
@@ -329,28 +321,8 @@ def _make_scenario_filtered_entity_group_sq(db_map, state):
     return (
         db_map.query(state.original_entity_group_sq)
         .filter(
-            and_(
-                state.original_entity_group_sq.c.entity_id == ext_entity_sq1.c.id,
-                and_(
-                    ext_entity_sq1.c.desc_rank_row_number == 1,
-                    or_(
-                        ext_entity_sq1.c.active == True,
-                        and_(ext_entity_sq1.c.active == None, ext_entity_sq1.c.active_by_default == True),
-                    ),
-                ),
-            )
-        )
-        .filter(
-            and_(
-                state.original_entity_group_sq.c.member_id == ext_entity_sq2.c.id,
-                and_(
-                    ext_entity_sq2.c.desc_rank_row_number == 1,
-                    or_(
-                        ext_entity_sq2.c.active == True,
-                        and_(ext_entity_sq2.c.active == None, ext_entity_sq2.c.active_by_default == True),
-                    ),
-                ),
-            )
+            state.original_entity_group_sq.c.entity_id == ext_entity_sq1.c.id,
+            state.original_entity_group_sq.c.member_id == ext_entity_sq2.c.id,
         )
         .subquery()
     )
@@ -382,21 +354,16 @@ def _make_scenario_filtered_parameter_value_sq(db_map, state):
                 order_by=desc(db_map.scenario_alternative_sq.c.rank),
             )  # the one with the highest rank will have row_number equal to 1, so it will 'win' in the filter below
             .label("desc_rank_row_number"),
+        ).filter(
+            state.original_parameter_value_sq.c.entity_id == ext_entity_sq.c.id,
+            state.original_parameter_value_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id,
+            db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id,
         )
-        .filter(state.original_parameter_value_sq.c.alternative_id == db_map.scenario_alternative_sq.c.alternative_id)
-        .filter(db_map.scenario_alternative_sq.c.scenario_id == state.scenario_id)
     ).subquery()
     filtered_by_entity_activity = (
         db_map.query(ext_parameter_value_sq)
         .filter(ext_parameter_value_sq.c.desc_rank_row_number == 1)
         .outerjoin(ext_entity_sq, ext_parameter_value_sq.c.entity_id == ext_entity_sq.c.id)
-        .filter(
-            ext_entity_sq.c.desc_rank_row_number == 1,
-            or_(
-                ext_entity_sq.c.active == True,
-                and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
-            ),
-        )
     )
     return filter_by_active_elements(db_map, filtered_by_entity_activity, ext_entity_sq).subquery()
 
