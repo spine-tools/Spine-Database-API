@@ -387,9 +387,12 @@ class EntityItem(MappedItemBase):
             for k in ("entity_class_name", "superclass_name"):
                 if (class_name := self[k]) is not None:
                     try:
-                        entity_table.find_item_by_unique_key({"entity_class_name": class_name, "name": name})
+                        existing = entity_table.find_item_by_unique_key({"entity_class_name": class_name, "name": name})
                     except SpineDBAPIError:
                         names_found -= 1
+                    else:
+                        if not existing.is_valid():
+                            names_found -= 1
                 else:
                     names_found -= 1
             if names_found == 0:
