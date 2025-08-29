@@ -1267,7 +1267,7 @@ class TestImportParameterValue(AssertSuccessTestCase):
                 alternative_name="Base",
             )
             self.assertTrue(value_item)
-            merged_value = Map(["T1", "T2", "T3", "T4"], [1.1, 1.2, 1.3, 1.4])
+            merged_value = Map(["T1", "T2", "T3", "T4"], [1.1, 1.2, 1.3, 1.4], index_name="col_1")
             self.assertEqual(value_item["parsed_value"], merged_value)
 
     def test_import_duplicate_object_parameter_value(self):

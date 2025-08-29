@@ -1,6 +1,7 @@
 # Compiled python modules.
 *.pyc
 /.idea/
+/.spyproject/
 /docs/build/
 /docs/source/autoapi/
 /docs/source/db_mapping_schema.rst

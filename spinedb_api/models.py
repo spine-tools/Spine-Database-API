@@ -22,13 +22,14 @@
 """Write JSON schema for JSON blob in SpineDB"""
 
 from datetime import datetime, timedelta
-from typing import Annotated, ClassVar, Literal, Optional, TypeAlias
+from typing import Annotated, Literal, Optional, TypeAlias
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
-from pydantic import BeforeValidator, PlainSerializer, PlainValidator, WithJsonSchema, model_validator
+from pydantic import BeforeValidator, PlainSerializer, PlainValidator, model_validator
 from pydantic.dataclasses import dataclass
 from typing_extensions import NotRequired, Self, TypedDict
+from spinedb_api.helpers import FormatMetadata, TimeSeriesMetadata
 from .compat.converters import parse_duration, to_duration
 
 
@@ -38,19 +39,14 @@ def from_timestamp(ts: str | pd.Timestamp | datetime) -> str | datetime:
     return ts
 
 
-Floats: TypeAlias = list[float]
 Integers: TypeAlias = list[int]
-Strings: TypeAlias = list[str]
-Booleans: TypeAlias = list[bool]
 
 Datetime: TypeAlias = Annotated[datetime, BeforeValidator(from_timestamp)]
-Datetimes: TypeAlias = list[Datetime]
 RelativeDelta: TypeAlias = Annotated[
     relativedelta,
     PlainValidator(parse_duration),
     PlainSerializer(to_duration),
 ]
-Timedeltas: TypeAlias = list[RelativeDelta]
 
 # nullable variant of arrays
 NullableIntegers: TypeAlias = list[int | None]
@@ -58,12 +54,13 @@ NullableFloats: TypeAlias = list[float | None]
 NullableStrings: TypeAlias = list[str | None]
 NullableBooleans: TypeAlias = list[bool | None]
 NullableDurations: TypeAlias = list[RelativeDelta | None]
+NullableDatetimes: TypeAlias = list[Datetime | None]
 
 AnyType: TypeAlias = str | int | float | bool | RelativeDelta
 NullableAnyTypes: TypeAlias = list[AnyType | None]
 
 # sets of types used to define array schemas below
-IndexTypes: TypeAlias = Integers | Floats | Strings | Datetimes | Timedeltas
+IndexTypes: TypeAlias = NullableIntegers | NullableFloats | NullableStrings | NullableDatetimes | NullableDurations
 NullableValueTypes: TypeAlias = (
     NullableIntegers | NullableFloats | NullableStrings | NullableBooleans | NullableDurations
 )
@@ -80,6 +77,7 @@ ValueTypeNames: TypeAlias = Literal[
 ]
 IndexValueTypeNames: TypeAlias = Literal["str", "int", "float", "date_time", "duration", "time_period"]
 SpecialTypeNames: TypeAlias = Literal["duration"]
+Metadata = FormatMetadata | TimeSeriesMetadata
 
 type_map: dict[type, ValueTypeNames] = {
     str: "str",
@@ -108,11 +106,15 @@ class _ConvertsIndexByValueType:
 
     @model_validator(mode="after")
     def convert_to_final_type(self) -> Self:
-        match getattr(self, "value_type"), getattr(self, "values"):
-            case "date_time", [str(), *_] as values:
-                super().__setattr__("values", list(map(datetime.fromisoformat, values)))
-            case "duration", _ as values:
-                super().__setattr__("values", list(map(parse_duration, values)))
+        match getattr(self, "value_type"):
+            case "date_time":
+                super().__setattr__(
+                    "values", [datetime.fromisoformat(x) if x is not None else x for x in getattr(self, "values")]
+                )
+            case "duration":
+                super().__setattr__(
+                    "values", [parse_duration(x) if x is not None else x for x in getattr(self, "values")]
+                )
         return self
 
 
@@ -121,7 +123,7 @@ class _ConvertsByValueType:
     @model_validator(mode="after")
     def convert_to_final_type(self) -> Self:
         if getattr(self, "value_type") == "duration":
-            super().__setattr__("values", list(map(parse_duration, getattr(self, "values"))))
+            super().__setattr__("values", [parse_duration(x) if x is not None else x for x in getattr(self, "values")])
         return self
 
 
@@ -138,7 +140,7 @@ class RunLengthIndex(_ConvertsIndexByValueType):
     run_len: Integers
     values: IndexTypes
     value_type: IndexValueTypeNames
-    metadata: Optional[str] = None
+    metadata: Optional[Metadata] = None
     type: Literal["run_length_index"] = "run_length_index"
 
 
@@ -150,7 +152,7 @@ class RunEndIndex(_ConvertsIndexByValueType):
     run_end: Integers
     values: IndexTypes
     value_type: IndexValueTypeNames
-    metadata: Optional[str] = None
+    metadata: Optional[Metadata] = None
     type: Literal["run_end_index"] = "run_end_index"
 
 
@@ -162,7 +164,7 @@ class DictEncodedIndex(_ConvertsIndexByValueType):
     indices: Integers
     values: IndexTypes
     value_type: IndexValueTypeNames
-    metadata: Optional[str] = None
+    metadata: Optional[Metadata] = None
     type: Literal["dict_encoded_index"] = "dict_encoded_index"
 
 
@@ -173,7 +175,7 @@ class ArrayIndex(_ConvertsIndexByValueType):
     name: str
     values: IndexTypes
     value_type: IndexValueTypeNames
-    metadata: Optional[str] = None
+    metadata: Optional[Metadata] = None
     type: Literal["array_index"] = "array_index"
 
 
@@ -190,7 +192,7 @@ class RunLengthArray(_ConvertsByValueType):
     run_len: Integers
     values: NullableValueTypes
     value_type: ValueTypeNames
-    metadata: Optional[str] = None
+    metadata: Optional[Metadata] = None
     type: Literal["run_length_array"] = "run_length_array"
 
 
@@ -202,7 +204,7 @@ class RunEndArray(_ConvertsByValueType):
     run_end: Integers
     values: NullableValueTypes
     value_type: ValueTypeNames
-    metadata: Optional[str] = None
+    metadata: Optional[Metadata] = None
     type: Literal["run_end_array"] = "run_end_array"
 
 
@@ -214,7 +216,7 @@ class DictEncodedArray(_ConvertsByValueType):
     indices: NullableIntegers
     values: NullableValueTypes
     value_type: ValueTypeNames
-    metadata: Optional[str] = None
+    metadata: Optional[Metadata] = None
     type: Literal["dict_encoded_array"] = "dict_encoded_array"
 
 
@@ -225,7 +227,7 @@ class Array(_ConvertsByValueType):
     name: str
     values: NullableValueTypes
     value_type: ValueTypeNames
-    metadata: Optional[str] = None
+    metadata: Optional[Metadata] = None
     type: Literal["array"] = "array"
 
 
@@ -237,7 +239,7 @@ class AnyArray:
     values: NullableAnyTypes
     special_types: dict[int, SpecialTypeNames]
     value_type: Literal["any"] = "any"
-    metadata: Optional[str] = None
+    metadata: Optional[Metadata] = None
     type: Literal["any_array"] = "any_array"
 
     @model_validator(mode="after")
