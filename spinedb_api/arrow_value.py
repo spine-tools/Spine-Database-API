@@ -23,6 +23,7 @@ import json
 from typing import Any, SupportsFloat, TypeAlias
 from dateutil import relativedelta
 import pyarrow
+from .compat.converters import parse_duration
 from .exception import SpineDBAPIError
 from .helpers import time_period_format_specification, time_series_metadata
 from .models import AllArrays, ArrayAsDict, Metadata, dict_to_array
@@ -38,6 +39,10 @@ def from_database(db_value: bytes, value_type: str) -> Value:
     loaded = load_db_value(db_value)
     if isinstance(loaded, list) and len(loaded) > 0 and isinstance(loaded[0], dict):
         return to_record_batch(loaded)
+    if value_type == "duration":
+        return parse_duration(loaded)
+    if value_type == "date_time":
+        return datetime.datetime.fromisoformat(loaded)
     if isinstance(loaded, SupportsFloat) and not isinstance(loaded, bool):
         return float(loaded)
     return loaded

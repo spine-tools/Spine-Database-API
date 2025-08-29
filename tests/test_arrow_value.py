@@ -11,10 +11,47 @@
 ######################################################################################################################
 """ Unit tests for the `arrow_value` module. """
 import datetime
+from dateutil.relativedelta import relativedelta
 import pyarrow
 import pytest
-from spinedb_api import SpineDBAPIError
-from spinedb_api.arrow_value import load_field_metadata, with_column_as_time_period, with_column_as_time_stamps
+from spinedb_api import SpineDBAPIError, to_database
+from spinedb_api.arrow_value import (
+    from_database,
+    load_field_metadata,
+    with_column_as_time_period,
+    with_column_as_time_stamps,
+)
+
+
+class TestFromDatabase:
+    def test_string(self):
+        value = "this is a string"
+        assert from_database(*to_database(value)) == value
+
+    def test_boolean(self):
+        value = False
+        assert from_database(*to_database(value)) == value
+
+    def test_float(self):
+        value = 2.3
+        assert from_database(*to_database(value)) == value
+
+    def test_date_time(self):
+        value = datetime.datetime(year=2025, month=8, day=29, hour=16, minute=40)
+        assert from_database(*to_database(value)) == value
+
+    def test_relativedelta(self):
+        value = relativedelta(minutes=23)
+        assert from_database(*to_database(value)) == value
+
+    def test_record_batch(self):
+        value = pyarrow.record_batch(
+            {
+                "index": pyarrow.array(["a", "b"]),
+                "value": pyarrow.array([2.3, 3.2]),
+            }
+        )
+        assert from_database(*to_database(value)) == value
 
 
 class TestWithColumnAsTimePeriod:
