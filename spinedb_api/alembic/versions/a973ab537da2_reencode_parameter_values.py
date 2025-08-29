@@ -39,25 +39,27 @@ def downgrade():
 def _upgrade_table_types(table, value_label, type_label, connection):
     value_column = getattr(table.c, value_label)
     type_column = getattr(table.c, type_label)
+    update_statement = (
+        table.update()
+        .where(table.c.id == sa.bindparam("id"))
+        .values(
+            {
+                "id": sa.bindparam("id"),
+                value_label: sa.bindparam(value_label),
+            }
+        )
+    )
     batch_data = []
     for id_, type_, old_blob in connection.execute(
         sa.select(table.c.id, type_column, value_column).where(type_column.in_(TYPES_TO_REENCODE))
     ):
         legacy_value = _from_database_legacy(old_blob, type_)
-        new_blob = to_database(legacy_value)
+        new_blob, _ = to_database(legacy_value)
         batch_data.append({"id": id_, value_label: new_blob})
+        if len(batch_data) == 100:
+            connection.execute(update_statement, batch_data)
+            batch_data.clear()
     if batch_data:
-        update_statement = (
-            table.update()
-            .where(table.c.id == sa.bindparam("id"))
-            .values(
-                {
-                    "id": sa.bindparam("id"),
-                    type_label: sa.bindparam(type_label),
-                    value_label: sa.bindparam(value_label),
-                }
-            )
-        )
         connection.execute(update_statement, batch_data)
 
 
