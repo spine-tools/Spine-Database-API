@@ -1,12 +1,3 @@
-#!/usr/bin/env python
-# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#   "python-dateutil",
-#   "pandas>=2",
-#   "pydantic>=2",
-# ]
-# ///
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
 # Copyright Spine Database API contributors
