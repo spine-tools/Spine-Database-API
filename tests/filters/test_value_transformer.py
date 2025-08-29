@@ -129,7 +129,7 @@ class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
             url = append_filter_config(str(db_url), config)
             with DatabaseMapping(url) as db_map:
                 values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
-                expected = Map(["A"], [Map(["1"], [-2.3])])
+                expected = Map(["A"], [Map(["1"], [-2.3], index_name="col_2")], index_name="col_1")
                 self.assertEqual(values, [expected])
             db_map.engine.dispose()
 
@@ -211,6 +211,6 @@ class TestValueTransformerUsingDatabase(AssertSuccessTestCase):
             url = append_filter_config(str(db_url), config)
             with DatabaseMapping(url) as db_map:
                 values = [from_database(row.value, row.type) for row in db_map.query(db_map.parameter_value_sq)]
-                expected = Map([1.0, 2.0], [-5.0, -2.3])
+                expected = Map([1.0, 2.0], [-5.0, -2.3], index_name="col_1")
                 self.assertEqual(values, [expected])
             db_map.engine.dispose()

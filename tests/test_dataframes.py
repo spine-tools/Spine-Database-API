@@ -128,7 +128,7 @@ class TestToDataframe(AssertSuccessTestCase):
                     "Object": pd.Series(["fork", "fork"], dtype="string"),
                     "parameter_definition_name": pd.Series(["y", "y"], dtype="category"),
                     "alternative_name": pd.Series(["Base", "Base"], dtype="category"),
-                    "t": np.array(["2025-02-05T12:30", "2025-02-05T12:45"], dtype="datetime64[s]"),
+                    "t": np.array(["2025-02-05T12:30", "2025-02-05T12:45"], dtype="datetime64[us]"),
                     "value": [1.1, 1.2],
                 }
             )
@@ -169,7 +169,7 @@ class TestToDataframe(AssertSuccessTestCase):
                     "Subject": pd.Series(2 * ["spoon"], dtype="string"),
                     "parameter_definition_name": pd.Series(["y", "y"], dtype="category"),
                     "alternative_name": pd.Series(["Base", "Base"], dtype="category"),
-                    "t": np.array(["2025-02-05T12:30", "2025-02-05T12:45"], dtype="datetime64[s]"),
+                    "t": np.array(["2025-02-05T12:30", "2025-02-05T12:45"], dtype="datetime64[us]"),
                     "value": [1.1, 1.2],
                 }
             )

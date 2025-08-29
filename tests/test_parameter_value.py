@@ -20,6 +20,10 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 import numpy.testing
 import pyarrow
+import pytest
+from spinedb_api import SpineDBAPIError
+from spinedb_api.arrow_value import load_field_metadata, with_column_as_time_period, with_column_as_time_stamps
+from spinedb_api.compat.converters import parse_duration
 from spinedb_api.helpers import time_period_format_specification, time_series_metadata
 from spinedb_api.parameter_value import (
     Array,
@@ -30,6 +34,7 @@ from spinedb_api.parameter_value import (
     TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
+    _month_day_nano_interval_to_iso_duration,
     convert_containers_to_maps,
     convert_leaf_maps_to_specialized_containers,
     convert_map_to_table,
@@ -37,6 +42,7 @@ from spinedb_api.parameter_value import (
     duration_to_relativedelta,
     fancy_type_to_type_and_rank,
     from_database,
+    from_database_to_dimension_count,
     relativedelta_to_duration,
     to_database,
     type_and_rank_to_fancy_type,
@@ -147,40 +153,19 @@ class TestParameterValue(unittest.TestCase):
     def test_from_database_plain_number(self):
         database_value = b"23.0"
         value = from_database(database_value, type_="float")
-        self.assertTrue(isinstance(value, float))
+        self.assertIsInstance(value, float)
         self.assertEqual(value, 23.0)
 
     def test_from_database_boolean(self):
         database_value = b"true"
         value = from_database(database_value, type_="boolean")
-        self.assertTrue(isinstance(value, bool))
-        self.assertEqual(value, True)
-
-    def test_to_database_plain_number(self):
-        value = 23.0
-        database_value, value_type = to_database(value)
-        value_as_float = json.loads(database_value)
-        self.assertEqual(value_as_float, value)
-        self.assertEqual(value_type, "float")
-
-    def test_to_database_DateTime(self):
-        value = DateTime(datetime(year=2019, month=6, day=26, hour=12, minute=50, second=13))
-        database_value, value_type = to_database(value)
-        value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"data": "2019-06-26T12:50:13"})
-        self.assertEqual(value_type, "date_time")
+        self.assertIsInstance(value, bool)
+        self.assertTrue(value)
 
     def test_from_database_DateTime(self):
         database_value = b'{"data": "2019-06-01T22:15:00+01:00"}'
         value = from_database(database_value, type_="date_time")
         self.assertEqual(value.value, dateutil.parser.parse("2019-06-01T22:15:00+01:00"))
-
-    def test_DateTime_to_database(self):
-        value = DateTime(datetime(year=2019, month=6, day=26, hour=10, minute=50, second=34))
-        database_value, value_type = value.to_database()
-        value_dict = json.loads(database_value)
-        self.assertEqual(value_dict, {"data": "2019-06-26T10:50:34"})
-        self.assertEqual(value_type, "date_time")
 
     def test_from_database_Duration(self):
         database_value = b'{"data": "4 seconds"}'
@@ -197,13 +182,6 @@ class TestParameterValue(unittest.TestCase):
         value = from_database(database_value, type_="duration")
         expected = Array([Duration("1h"), Duration("1h"), Duration("1h"), Duration("2h")])
         self.assertEqual(value, expected)
-
-    def test_Duration_to_database(self):
-        value = Duration(duration_to_relativedelta("8 years"))
-        database_value, value_type = value.to_database()
-        value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"data": "8Y"})
-        self.assertEqual(value_type, "duration")
 
     def test_from_database_TimePattern(self):
         database_value = b"""
@@ -234,28 +212,6 @@ class TestParameterValue(unittest.TestCase):
         numpy.testing.assert_equal(value.values, numpy.array([300.0]))
         self.assertEqual(value.index_name, "index")
 
-    def test_TimePattern_to_database(self):
-        value = TimePattern(["M1-4,M9-12", "M5-8"], numpy.array([300.0, 221.5]))
-        database_value, value_type = value.to_database()
-        value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"data": {"M1-4,M9-12": 300.0, "M5-8": 221.5}})
-        self.assertEqual(value_type, "time_pattern")
-
-    def test_TimePattern_to_database_with_integer_values(self):
-        value = TimePattern(["M1-4,M9-12", "M5-8"], [300, 221])
-        database_value, value_type = value.to_database()
-        value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"data": {"M1-4,M9-12": 300.0, "M5-8": 221.0}})
-        self.assertEqual(value_type, "time_pattern")
-
-    def test_TimePattern_to_database_with_index_name(self):
-        value = TimePattern(["M1-12"], [300.0])
-        value.index_name = "index"
-        database_value, value_type = value.to_database()
-        value_as_dict = json.loads(database_value)
-        self.assertEqual(value_as_dict, {"index_name": "index", "data": {"M1-12": 300.0}})
-        self.assertEqual(value_type, "time_pattern")
-
     def test_TimePattern_index_length_is_not_limited(self):
         value = TimePattern(["M1-4", "M5-12"], [300, 221])
         value.indexes[0] = "M1-2,M3-4,M5-6,M7-8,M9-10,M11-12"
@@ -279,7 +235,7 @@ class TestParameterValue(unittest.TestCase):
             ),
         )
         self.assertEqual(len(time_series), 3)
-        self.assertTrue(isinstance(time_series.values, numpy.ndarray))
+        self.assertIsInstance(time_series.values, numpy.ndarray)
         numpy.testing.assert_equal(time_series.values, numpy.array([4, 5, 6]))
         self.assertEqual(time_series.index_name, "t")
 
@@ -338,39 +294,6 @@ class TestParameterValue(unittest.TestCase):
         self.assertTrue(time_series.ignore_year)
         self.assertFalse(time_series.repeat)
 
-    def test_TimeSeriesVariableResolution_to_database(self):
-        dates = numpy.array(["1999-05-19", "2002-05-16", "2005-05-19"], dtype="datetime64[D]")
-        episodes = numpy.array([1, 2, 3], dtype=float)
-        value = TimeSeriesVariableResolution(dates, episodes, False, False)
-        db_value, value_type = value.to_database()
-        releases = json.loads(db_value)
-        self.assertEqual(releases, {"data": {"1999-05-19": 1, "2002-05-16": 2, "2005-05-19": 3}})
-        self.assertEqual(value_type, "time_series")
-
-    def test_TimeSeriesVariableResolution_to_database_with_index_name(self):
-        dates = numpy.array(["2002-05-16", "2005-05-19"], dtype="datetime64[D]")
-        episodes = numpy.array([1, 2], dtype=float)
-        value = TimeSeriesVariableResolution(dates, episodes, False, False, "index")
-        db_value, value_type = value.to_database()
-        releases = json.loads(db_value)
-        self.assertEqual(releases, {"index_name": "index", "data": {"2002-05-16": 1, "2005-05-19": 2}})
-        self.assertEqual(value_type, "time_series")
-
-    def test_TimeSeriesVariableResolution_to_database_with_ignore_year_and_repeat(self):
-        dates = numpy.array(["1999-05-19", "2002-05-16", "2005-05-19"], dtype="datetime64[D]")
-        episodes = numpy.array([1, 2, 3], dtype=float)
-        value = TimeSeriesVariableResolution(dates, episodes, True, True)
-        db_value, value_type = value.to_database()
-        releases = json.loads(db_value)
-        self.assertEqual(
-            releases,
-            {
-                "data": {"1999-05-19": 1, "2002-05-16": 2, "2005-05-19": 3},
-                "index": {"ignore_year": True, "repeat": True},
-            },
-        )
-        self.assertEqual(value_type, "time_series")
-
     def test_from_database_TimeSeriesFixedResolution(self):
         days_of_our_lives = b"""{
                                    "index": {
@@ -390,7 +313,7 @@ class TestParameterValue(unittest.TestCase):
                 dtype="datetime64[s]",
             ),
         )
-        self.assertTrue(isinstance(time_series.values, numpy.ndarray))
+        self.assertIsInstance(time_series.values, numpy.ndarray)
         numpy.testing.assert_equal(time_series.values, numpy.array([7.0, 5.0, 8.1]))
         self.assertEqual(time_series.start, dateutil.parser.parse("2019-03-23"))
         self.assertEqual(len(time_series.resolution), 1)
@@ -529,79 +452,24 @@ class TestParameterValue(unittest.TestCase):
         time_series = from_database(database_value, type_="time_series")
         self.assertTrue(time_series.ignore_year)
 
-    def test_TimeSeriesFixedResolution_to_database(self):
-        values = numpy.array([3, 2, 4], dtype=float)
-        resolution = [duration_to_relativedelta("1 months")]
-        start = datetime(year=2007, month=6, day=1)
-        value = TimeSeriesFixedResolution(start, resolution, values, True, True)
-        db_value, value_type = value.to_database()
-        releases = json.loads(db_value)
-        self.assertEqual(
-            releases,
-            {
-                "index": {"start": "2007-06-01 00:00:00", "resolution": "1M", "ignore_year": True, "repeat": True},
-                "data": [3, 2, 4],
-            },
-        )
-        self.assertEqual(value_type, "time_series")
-
-    def test_TimeSeriesFixedResolution_to_database_with_index_type(self):
-        values = numpy.array([3, 2, 4], dtype=float)
-        resolution = [duration_to_relativedelta("1 months")]
-        start = datetime(year=2007, month=6, day=1)
-        value = TimeSeriesFixedResolution(start, resolution, values, True, True, "index")
-        db_value, value_type = value.to_database()
-        releases = json.loads(db_value)
-        self.assertEqual(
-            releases,
-            {
-                "index_name": "index",
-                "index": {"start": "2007-06-01 00:00:00", "resolution": "1M", "ignore_year": True, "repeat": True},
-                "data": [3, 2, 4],
-            },
-        )
-        self.assertEqual(value_type, "time_series")
-
-    def test_TimeSeriesFixedResolution_resolution_list_to_database(self):
-        start = datetime(year=2007, month=1, day=1)
-        resolutions = ["1 month", "1 year"]
-        resolutions = [duration_to_relativedelta(r) for r in resolutions]
-        values = numpy.array([3.0, 2.0, 4.0])
-        value = TimeSeriesFixedResolution(start, resolutions, values, True, True)
-        db_value, value_type = value.to_database()
-        releases = json.loads(db_value)
-        self.assertEqual(
-            releases,
-            {
-                "index": {
-                    "start": "2007-01-01 00:00:00",
-                    "resolution": ["1M", "1Y"],
-                    "ignore_year": True,
-                    "repeat": True,
-                },
-                "data": [3.0, 2.0, 4.0],
-            },
-        )
-        self.assertEqual(value_type, "time_series")
-
     def test_TimeSeriesFixedResolution_init_conversions(self):
         series = TimeSeriesFixedResolution("2019-01-03T00:30:33", "1D", [3.0, 2.0, 1.0], False, False)
-        self.assertTrue(isinstance(series.start, datetime))
-        self.assertTrue(isinstance(series.resolution, list))
+        self.assertIsInstance(series.start, datetime)
+        self.assertIsInstance(series.resolution, list)
         for element in series.resolution:
-            self.assertTrue(isinstance(element, relativedelta))
-        self.assertTrue(isinstance(series.values, numpy.ndarray))
+            self.assertIsInstance(element, relativedelta)
+        self.assertIsInstance(series.values, numpy.ndarray)
         series = TimeSeriesFixedResolution("2019-01-03T00:30:33", ["2h", "4h"], [3.0, 2.0, 1.0], False, False)
-        self.assertTrue(isinstance(series.resolution, list))
+        self.assertIsInstance(series.resolution, list)
         for element in series.resolution:
-            self.assertTrue(isinstance(element, relativedelta))
+            self.assertIsInstance(element, relativedelta)
 
     def test_TimeSeriesVariableResolution_init_conversion(self):
         series = TimeSeriesVariableResolution(["2008-07-08T03:00", "2008-08-08T13:30"], [3.3, 4.4], True, True)
-        self.assertTrue(isinstance(series.indexes, np.ndarray))
+        self.assertIsInstance(series.indexes, np.ndarray)
         for index in series.indexes:
-            self.assertTrue(isinstance(index, np.datetime64))
-        self.assertTrue(isinstance(series.values, np.ndarray))
+            self.assertIsInstance(index, np.datetime64)
+        self.assertIsInstance(series.values, np.ndarray)
 
     def test_from_database_Map_with_index_name(self):
         database_value = b'{"index_type":"str", "index_name": "index", "data":[["a", 1.1]]}'
@@ -677,114 +545,6 @@ class TestParameterValue(unittest.TestCase):
         value = from_database(database_value, type_="map")
         self.assertEqual(value.indexes, [2.3])
         self.assertEqual(value.values, [TimePattern(["M1-2", "M3-12"], [-9.3, -3.9])])
-
-    def test_Map_to_database(self):
-        map_value = Map(["a", "b"], [1.1, 2.2])
-        db_value, value_type = to_database(map_value)
-        raw = json.loads(db_value)
-        self.assertEqual(raw, {"index_type": "str", "rank": 1, "data": [["a", 1.1], ["b", 2.2]]})
-        self.assertEqual(value_type, "map")
-
-    def test_Map_to_database_with_index_names(self):
-        nested_map = Map(["a"], [0.3])
-        nested_map.index_name = "nested index"
-        map_value = Map(["A"], [nested_map])
-        map_value.index_name = "index"
-        db_value, value_type = to_database(map_value)
-        raw = json.loads(db_value)
-        self.assertEqual(
-            raw,
-            {
-                "index_type": "str",
-                "index_name": "index",
-                "rank": 2,
-                "data": [
-                    [
-                        "A",
-                        {
-                            "type": "map",
-                            "index_type": "str",
-                            "index_name": "nested index",
-                            "rank": 1,
-                            "data": [["a", 0.3]],
-                        },
-                    ]
-                ],
-            },
-        )
-        self.assertEqual(value_type, "map")
-
-    def test_Map_to_database_with_TimeSeries_values(self):
-        time_series1 = TimeSeriesVariableResolution(["2020-01-01T12:00", "2020-01-02T12:00"], [2.3, 4.5], False, False)
-        time_series2 = TimeSeriesVariableResolution(
-            ["2020-01-01T12:00", "2020-01-02T12:00"], [-4.5, -2.3], False, False
-        )
-        map_value = Map(["a", "b"], [time_series1, time_series2])
-        db_value, value_type = to_database(map_value)
-        raw = json.loads(db_value)
-        expected = {
-            "index_type": "str",
-            "rank": 2,
-            "data": [
-                ["a", {"type": "time_series", "data": {"2020-01-01T12:00:00": 2.3, "2020-01-02T12:00:00": 4.5}}],
-                ["b", {"type": "time_series", "data": {"2020-01-01T12:00:00": -4.5, "2020-01-02T12:00:00": -2.3}}],
-            ],
-        }
-        self.assertEqual(raw, expected)
-        self.assertEqual(value_type, "map")
-
-    def test_Map_to_database_nested_maps(self):
-        nested_map = Map([Duration("2 months")], [Duration("5 days")])
-        map_value = Map([DateTime("2020-01-01T13:00")], [nested_map])
-        db_value, value_type = to_database(map_value)
-        raw = json.loads(db_value)
-        self.assertEqual(
-            raw,
-            {
-                "index_type": "date_time",
-                "rank": 2,
-                "data": [
-                    [
-                        "2020-01-01T13:00:00",
-                        {
-                            "type": "map",
-                            "index_type": "duration",
-                            "rank": 1,
-                            "data": [["2M", {"type": "duration", "data": "5D"}]],
-                        },
-                    ]
-                ],
-            },
-        )
-        self.assertEqual(value_type, "map")
-
-    def test_Array_of_floats_to_database(self):
-        array = Array([-1.1, -2.2, -3.3])
-        db_value, value_type = to_database(array)
-        raw = json.loads(db_value)
-        self.assertEqual(raw, {"value_type": "float", "data": [-1.1, -2.2, -3.3]})
-        self.assertEqual(value_type, "array")
-
-    def test_Array_of_strings_to_database(self):
-        array = Array(["a", "b"])
-        db_value, value_type = to_database(array)
-        raw = json.loads(db_value)
-        self.assertEqual(raw, {"value_type": "str", "data": ["a", "b"]})
-        self.assertEqual(value_type, "array")
-
-    def test_Array_of_DateTimes_to_database(self):
-        array = Array([DateTime("2020-01-01T13:00")])
-        db_value, value_type = to_database(array)
-        raw = json.loads(db_value)
-        self.assertEqual(raw, {"value_type": "date_time", "data": ["2020-01-01T13:00:00"]})
-        self.assertEqual(value_type, "array")
-
-    def test_Array_of_Durations_to_database(self):
-        array = Array([Duration("4 months")])
-        db_value, value_type = to_database(array)
-        raw = json.loads(db_value)
-        self.assertEqual(raw, {"value_type": "duration", "data": ["4M"]})
-        self.assertEqual(value_type, "array")
 
     def test_Array_of_floats_from_database(self):
         database_value = b"""{
@@ -1103,32 +863,38 @@ class TestDuration:
         duration = Duration("15h")
         assert duration.as_arrow() == duration_to_relativedelta("15h")
 
+    def test_from_arrow(self):
+        assert Duration.from_arrow(duration_to_relativedelta("15h")) == Duration("15h")
+
 
 class TestDateTime:
     def test_as_arrow(self):
         date_time = DateTime("2025-08-06T14:37")
         assert date_time.as_arrow() == datetime.fromisoformat("2025-08-06T14:37")
 
+    def test_from_arrow(self):
+        assert DateTime.from_arrow(datetime.fromisoformat("2025-08-21T11:11")) == DateTime("2025-08-21T11:11")
+
 
 class TestArray:
     def test_as_arrow_with_float(self):
         array = Array([2.3, 3.2])
         record_batch = array.as_arrow()
-        expected = pyarrow.record_batch({"value": pyarrow.array([2.3, 3.2])})
+        expected = pyarrow.record_batch({"i": pyarrow.array([1, 2]), "value": pyarrow.array([2.3, 3.2])})
         assert record_batch == expected
         assert record_batch.schema.metadata == expected.schema.metadata
 
     def test_as_arrow_with_string(self):
         array = Array(["a", "b"])
         record_batch = array.as_arrow()
-        expected = pyarrow.record_batch({"value": pyarrow.array(["a", "b"])})
+        expected = pyarrow.record_batch({"i": pyarrow.array([1, 2]), "value": pyarrow.array(["a", "b"])})
         assert record_batch == expected
         assert record_batch.schema.metadata == expected.schema.metadata
 
     def test_as_arrow_with_bool(self):
         array = Array([False, True])
         record_batch = array.as_arrow()
-        expected = pyarrow.record_batch({"value": pyarrow.array([False, True])})
+        expected = pyarrow.record_batch({"i": pyarrow.array([1, 2]), "value": pyarrow.array([False, True])})
         assert record_batch == expected
         assert record_batch.schema.metadata == expected.schema.metadata
 
@@ -1136,10 +902,87 @@ class TestArray:
         array = Array([Duration("3D"), Duration("7m")])
         record_batch = array.as_arrow()
         expected = pyarrow.record_batch(
-            {"value": pyarrow.array([duration_to_relativedelta("3 days"), duration_to_relativedelta("7 minutes")])}
+            {
+                "i": pyarrow.array([1, 2]),
+                "value": pyarrow.array([duration_to_relativedelta("3 days"), duration_to_relativedelta("7 minutes")]),
+            }
         )
         assert record_batch == expected
         assert record_batch.schema.metadata == expected.schema.metadata
+
+    def test_from_database_with_empty_array(self):
+        value, value_type = to_database(Array([]))
+        array = from_database(value, value_type)
+        assert array == Array([])
+
+    def test_from_database_with_floats_and_index_name(self):
+        value, value_type = to_database(Array([2.3], index_name="my index"))
+        array = from_database(value, value_type)
+        assert array == Array([2.3], index_name="my index")
+
+    def test_from_database_with_duration(self):
+        value, value_type = to_database(Array([Duration("4 months")]))
+        array = from_database(value, value_type)
+        assert array == Array([Duration("4 months")])
+
+    def test_from_arrow_with_float(self):
+        record_batch = pyarrow.record_batch({"i": pyarrow.array([1, 2]), "value": pyarrow.array([2.3, 3.2])})
+        array = Array.from_arrow(record_batch)
+        assert array == Array([2.3, 3.2])
+
+    def test_from_arrow_with_float_and_index_name(self):
+        record_batch = pyarrow.record_batch({"my index": pyarrow.array([1, 2]), "value": pyarrow.array([2.3, 3.2])})
+        array = Array.from_arrow(record_batch)
+        assert array == Array([2.3, 3.2], index_name="my index")
+
+    def test_from_arrow_with_string(self):
+        record_batch = pyarrow.record_batch({"i": pyarrow.array([1, 2]), "value": pyarrow.array(["P", "Q"])})
+        array = Array.from_arrow(record_batch)
+        assert array == Array(["P", "Q"])
+
+    def test_from_arrow_with_bool(self):
+        record_batch = pyarrow.record_batch({"i": pyarrow.array([1, 2]), "value": pyarrow.array([True, False])})
+        array = Array.from_arrow(record_batch)
+        assert array == Array([True, False])
+
+    def test_from_arrow_with_duration(self):
+        record_batch = pyarrow.record_batch(
+            {
+                "i": pyarrow.array([1, 2]),
+                "value": pyarrow.array([duration_to_relativedelta("3 days"), duration_to_relativedelta("7 minutes")]),
+            }
+        )
+        array = Array.from_arrow(record_batch)
+        assert array == Array([Duration("3 days"), Duration("7 minutes")])
+
+    def test_from_arrow_with_duration_and_index_name(self):
+        record_batch = pyarrow.record_batch(
+            {
+                "my index": pyarrow.array([1, 2]),
+                "value": pyarrow.array([duration_to_relativedelta("3 days"), duration_to_relativedelta("7 minutes")]),
+            }
+        )
+        array = Array.from_arrow(record_batch)
+        assert array == Array([Duration("3 days"), Duration("7 minutes")], index_name="my index")
+
+    def test_from_arrow_with_empty_record_batch(self):
+        record_batch = pyarrow.record_batch({"i": [], "value": pyarrow.array([], type=pyarrow.float64())})
+        array = Array.from_arrow(record_batch)
+        assert array == Array([], value_type=float)
+        record_batch = pyarrow.record_batch({"my index": [], "value": pyarrow.array([], type=pyarrow.float64())})
+        array = Array.from_arrow(record_batch)
+        assert array == Array([], value_type=float, index_name="my index")
+        record_batch = pyarrow.record_batch({"i": [], "value": pyarrow.array([], type=pyarrow.bool_())})
+        array = Array.from_arrow(record_batch)
+        assert array == Array([], value_type=bool)
+        record_batch = pyarrow.record_batch({"i": [], "value": pyarrow.array([], type=pyarrow.string())})
+        array = Array.from_arrow(record_batch)
+        assert array == Array([], value_type=str)
+        record_batch = pyarrow.record_batch(
+            {"i": [], "value": pyarrow.array([], type=pyarrow.month_day_nano_interval())}
+        )
+        array = Array.from_arrow(record_batch)
+        assert array == Array([], value_type=relativedelta)
 
 
 class TestTimePattern:
@@ -1148,10 +991,19 @@ class TestTimePattern:
         record_batch = pattern.as_arrow()
         index_array = pyarrow.array(["WD1-7"])
         value_array = pyarrow.array([2.3])
-        metadata = {"p": json.dumps(time_period_format_specification())}
-        expected = pyarrow.record_batch({"p": index_array, "value": value_array}, metadata=metadata)
+        expected = with_column_as_time_period(pyarrow.record_batch({"p": index_array, "value": value_array}), "p")
         assert record_batch == expected
-        assert record_batch.schema.metadata == expected.schema.metadata
+        assert load_field_metadata(record_batch.field("p")) == time_period_format_specification()
+
+    def test_from_arrow(self):
+        index_array = pyarrow.array(["WD1-7"])
+        value_array = pyarrow.array([2.3])
+        record_batch = with_column_as_time_period(
+            pyarrow.record_batch({"pattern": index_array, "value": value_array}), "pattern"
+        )
+        time_pattern = TimePattern.from_arrow(record_batch)
+        assert time_pattern == TimePattern(["WD1-7"], [2.3], index_name="pattern")
+        assert time_pattern.get_value("WD1-7") == 2.3
 
 
 class TestTimeSeriesFixedResolution:
@@ -1206,10 +1058,11 @@ class TestTimeSeriesFixedResolution:
             type=pyarrow.timestamp("s"),
         )
         value_array = pyarrow.array([2.3, 3.2])
-        metadata = {"t": json.dumps(time_series_metadata(ignore_year=False, repeat=False))}
-        expected = pyarrow.record_batch({"t": index_array, "value": value_array}, metadata=metadata)
+        expected = with_column_as_time_stamps(
+            pyarrow.record_batch({"t": index_array, "value": value_array}), "t", ignore_year=False, repeat=False
+        )
         assert record_batch == expected
-        assert record_batch.schema.metadata == expected.schema.metadata
+        assert load_field_metadata(record_batch.field("t")) == time_series_metadata(ignore_year=False, repeat=False)
 
     def test_as_arrow_with_index_name(self):
         time_series = TimeSeriesFixedResolution(
@@ -1224,10 +1077,76 @@ class TestTimeSeriesFixedResolution:
             type=pyarrow.timestamp("s"),
         )
         value_array = pyarrow.array([2.3, 3.2])
-        metadata = {"stamps": json.dumps(time_series_metadata(ignore_year=True, repeat=True))}
-        expected = pyarrow.record_batch({"stamps": index_array, "value": value_array}, metadata=metadata)
+        expected = with_column_as_time_stamps(
+            pyarrow.record_batch({"stamps": index_array, "value": value_array}), "stamps", ignore_year=True, repeat=True
+        )
         assert record_batch == expected
-        assert record_batch.schema.metadata == expected.schema.metadata
+        assert load_field_metadata(record_batch.field("stamps")) == time_series_metadata(ignore_year=True, repeat=True)
+
+    def test_from_database_with_fixed_resolution_series(self):
+        original = TimeSeriesFixedResolution("2025-02-05T09:59", "15m", [1.1, 1.2], ignore_year=False, repeat=False)
+        value, value_type = to_database(original)
+        deserialized = from_database(value, value_type)
+        assert deserialized == TimeSeriesVariableResolution(
+            ["2025-02-05T09:59", "2025-02-05T10:14"], [1.1, 1.2], ignore_year=False, repeat=False
+        )
+
+    def test_from_database_with_ignore_year(self):
+        original = TimeSeriesFixedResolution("2025-02-05T09:59", "15m", [1.1, 1.2], ignore_year=True, repeat=False)
+        value, value_type = to_database(original)
+        deserialized = from_database(value, value_type)
+        assert deserialized == TimeSeriesVariableResolution(
+            ["2025-02-05T09:59", "2025-02-05T10:14"], [1.1, 1.2], ignore_year=True, repeat=False
+        )
+
+    def test_from_database_with_repeat(self):
+        original = TimeSeriesFixedResolution("2025-02-05T09:59", "15m", [1.1, 1.2], ignore_year=False, repeat=True)
+        value, value_type = to_database(original)
+        serialized = from_database(value, value_type)
+        assert serialized == TimeSeriesVariableResolution(
+            ["2025-02-05T09:59", "2025-02-05T10:14"], [1.1, 1.2], ignore_year=False, repeat=True
+        )
+
+    def test_from_arrow(self):
+        index_array = pyarrow.array(
+            [
+                datetime(year=2025, month=8, day=18, hour=17, minute=11),
+                datetime(year=2025, month=8, day=18, hour=21, minute=11),
+            ],
+        )
+        value_array = pyarrow.array([2.3, 3.2])
+        record_batch = with_column_as_time_stamps(
+            pyarrow.record_batch({"stamp": index_array, "value": value_array}), "stamp", ignore_year=True, repeat=False
+        )
+        time_series = TimeSeriesFixedResolution.from_arrow(record_batch)
+        assert time_series == TimeSeriesFixedResolution(
+            "2025-08-18T17:11", "4h", [2.3, 3.2], ignore_year=True, repeat=False, index_name="stamp"
+        )
+
+    def test_from_arrow_with_variable_resolution(self):
+        index_array = pyarrow.array(
+            [
+                datetime(year=2025, month=8, day=22, hour=1, minute=0),
+                datetime(year=2025, month=8, day=22, hour=3, minute=0),
+                datetime(year=2025, month=8, day=22, hour=6, minute=0),
+                datetime(year=2025, month=8, day=22, hour=10, minute=0),
+                datetime(year=2025, month=8, day=22, hour=12, minute=0),
+                datetime(year=2025, month=8, day=22, hour=15, minute=0),
+            ],
+        )
+        value_array = pyarrow.array([2.3, 3.3, 4.3, 5.3, 6.3, 7.3])
+        record_batch = with_column_as_time_stamps(
+            pyarrow.record_batch({"t": index_array, "value": value_array}), "t", ignore_year=False, repeat=True
+        )
+        time_series = TimeSeriesFixedResolution.from_arrow(record_batch)
+        assert time_series == TimeSeriesFixedResolution(
+            "2025-08-22T01:00",
+            ["2h", "3h", "4h"],
+            [2.3, 3.3, 4.3, 5.3, 6.3, 7.3],
+            ignore_year=False,
+            repeat=True,
+            index_name="t",
+        )
 
 
 class TestTimeSeriesVariableResolution:
@@ -1261,10 +1180,11 @@ class TestTimeSeriesVariableResolution:
             type=pyarrow.timestamp("s"),
         )
         value_array = pyarrow.array([2.3, 3.2])
-        metadata = {"t": json.dumps(time_series_metadata(ignore_year=False, repeat=False))}
-        expected = pyarrow.record_batch({"t": index_array, "value": value_array}, metadata=metadata)
+        expected = with_column_as_time_stamps(
+            pyarrow.record_batch({"t": index_array, "value": value_array}), "t", ignore_year=False, repeat=False
+        )
         assert record_batch == expected
-        assert record_batch.schema.metadata == expected.schema.metadata
+        assert load_field_metadata(record_batch.field("t")) == time_series_metadata(ignore_year=False, repeat=False)
 
     def test_as_arrow_with_index_name(self):
         time_series = TimeSeriesVariableResolution(
@@ -1279,10 +1199,38 @@ class TestTimeSeriesVariableResolution:
             type=pyarrow.timestamp("s"),
         )
         value_array = pyarrow.array([2.3, 3.2])
-        metadata = {"stamp": json.dumps(time_series_metadata(ignore_year=True, repeat=True))}
-        expected = pyarrow.record_batch({"stamp": index_array, "value": value_array}, metadata=metadata)
+        expected = with_column_as_time_stamps(
+            pyarrow.record_batch({"stamp": index_array, "value": value_array}), "stamp", ignore_year=True, repeat=True
+        )
         assert record_batch == expected
-        assert record_batch.schema.metadata == expected.schema.metadata
+        assert load_field_metadata(record_batch.field("stamp")) == time_series_metadata(ignore_year=True, repeat=True)
+
+    def test_from_database(self):
+        original = TimeSeriesVariableResolution(
+            ["2025-02-05T09:59", "2025-02-05T10:14", "2025-02-05T11:31"],
+            [1.1, 1.2, 1.3],
+            ignore_year=False,
+            repeat=False,
+        )
+        value, value_type = to_database(original)
+        deserialized = from_database(value, value_type)
+        assert deserialized == original
+
+    def test_from_arrow(self):
+        index_array = pyarrow.array(
+            [
+                datetime(year=2025, month=8, day=21, hour=9, minute=10),
+                datetime(year=2025, month=8, day=21, hour=9, minute=14),
+            ],
+        )
+        value_array = pyarrow.array([2.3, 3.2])
+        record_batch = with_column_as_time_stamps(
+            pyarrow.record_batch({"stamp": index_array, "value": value_array}), "stamp", ignore_year=False, repeat=True
+        )
+        time_series = TimeSeriesVariableResolution.from_arrow(record_batch)
+        assert time_series == TimeSeriesVariableResolution(
+            ["2025-08-21T09:10", "2025-08-21T09:14"], [2.3, 3.2], ignore_year=False, repeat=True, index_name="stamp"
+        )
 
 
 class TestMap:
@@ -1290,6 +1238,15 @@ class TestMap:
         map_value = Map(["a", "b"], [2.3, 3.2])
         record_batch = map_value.as_arrow()
         expected = pyarrow.record_batch({"col_1": pyarrow.array(["a", "b"]), "value": pyarrow.array([2.3, 3.2])})
+        assert record_batch == expected
+        assert record_batch.schema.metadata == expected.schema.metadata
+
+    def test_as_arrow_with_empty_map(self):
+        map_value = Map([], [], index_type=str)
+        record_batch = map_value.as_arrow()
+        expected = pyarrow.record_batch(
+            {"col_1": pyarrow.array([], type=pyarrow.string()), "value": pyarrow.array([], type=pyarrow.float64())}
+        )
         assert record_batch == expected
         assert record_batch.schema.metadata == expected.schema.metadata
 
@@ -1304,7 +1261,8 @@ class TestMap:
                     [
                         datetime(year=2025, month=8, day=5, hour=15, minute=30),
                         datetime(year=2025, month=8, day=5, hour=15, minute=45),
-                    ]
+                    ],
+                    type=pyarrow.timestamp("s"),
                 ),
                 "value": pyarrow.array([2.3, 3.2]),
             }
@@ -1313,10 +1271,10 @@ class TestMap:
         assert record_batch.schema.metadata == expected.schema.metadata
 
     def test_as_arrow_with_nested_map(self):
-        map_value = Map(["a", "b", "c"], ["yes", Map([Duration("1h"), Duration("1h")], [True, False]), "no"])
+        map_value = Map(["a", "b", "c"], ["yes", Map([Duration("1h"), Duration("2h")], [True, False]), "no"])
         record_batch = map_value.as_arrow()
         indexes_1 = pyarrow.RunEndEncodedArray.from_arrays([1, 3, 4], ["a", "b", "c"])
-        indexes_2 = pyarrow.array([None, duration_to_relativedelta("1h"), duration_to_relativedelta("1h"), None])
+        indexes_2 = pyarrow.array([None, duration_to_relativedelta("1h"), duration_to_relativedelta("2h"), None])
         str_values = pyarrow.array(["yes", "no"])
         bool_values = pyarrow.array([True, False])
         values = pyarrow.UnionArray.from_dense(
@@ -1326,7 +1284,7 @@ class TestMap:
         )
         expected = pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "value": values})
         assert record_batch == expected
-        assert record_batch.schema.metadata == expected.schema.metadata
+        assert record_batch.schema.metadata is None
 
     def test_as_arrow_with_time_series(self):
         map_value = Map(
@@ -1350,10 +1308,422 @@ class TestMap:
             type=pyarrow.timestamp("s"),
         )
         values = pyarrow.array([2.3, 3.2, -2.3, -3.2])
-        metadata = {"t": json.dumps(time_series_metadata(True, True))}
-        expected = pyarrow.record_batch({"col_1": indexes_1, "t": indexes_2, "value": values}, metadata=metadata)
+        expected = with_column_as_time_stamps(
+            pyarrow.record_batch({"col_1": indexes_1, "t": indexes_2, "value": values}),
+            "t",
+            ignore_year=True,
+            repeat=True,
+        )
         assert record_batch == expected
-        assert record_batch.schema.metadata == expected.schema.metadata
+        assert record_batch.schema.metadata is None
+        assert load_field_metadata(record_batch.field("t")) == time_series_metadata(ignore_year=True, repeat=True)
+
+    def test_from_database(self):
+        original_map = Map(["A", "B"], [2.3, 3.2])
+        blob, value_type = to_database(original_map)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == Map(["A", "B"], [2.3, 3.2], index_name="col_1")
+
+    def test_from_database_with_empty_map(self):
+        original_map = Map([], [], str)
+        value, value_type = to_database(original_map)
+        deserialized = from_database(value, value_type)
+        assert deserialized == Map([], [], str, index_name="col_1")
+
+    def test_from_database_with_string_to_string_map_with_index_name(self):
+        original_map = Map(["key"], ["value"], index_name="Keys")
+        value, value_type = to_database(original_map)
+        deserialized = from_database(value, value_type)
+        assert deserialized == original_map
+
+    def test_from_database_with_date_time_to_different_simple_types_map_with_index_name(self):
+        original_map = Map(
+            [DateTime("2024-02-09T10:00"), DateTime("2024-02-09T11:00")],
+            ["value", 2.3],
+            index_name="timestamps",
+        )
+        value, value_type = to_database(original_map)
+        deserialized = from_database(value, value_type)
+        assert deserialized == original_map
+
+    def test_from_database_with_nested_maps_of_different_index_types_raises(self):
+        string_map = Map([11.0], ["value"], index_name="nested index")
+        float_map = Map(["key"], [22.0], index_name="nested index")
+        original_map = Map(["strings", "floats"], [string_map, float_map], index_name="main index")
+        with pytest.raises(SpineDBAPIError, match="^different index types at the same depth are not supported$"):
+            to_database(original_map)
+
+    def test_from_database_with_unevenly_nested_map_with_fixed_resolution_time_series(self):
+        float_map = Map(["key"], [22.0], index_name="nested index")
+        time_series = TimeSeriesVariableResolution(
+            ["2025-02-26T09:00:00", "2025-02-26T10:00:00"], [2.3, 23.0], ignore_year=False, repeat=False
+        )
+        time_series_map = Map([DateTime("2024-02-26T16:45:00")], [time_series])
+        nested_time_series_map = Map(["ts", "no ts"], [time_series_map, "empty"], index_name="nested index")
+        original_map = Map(
+            ["not nested", "time series", "floats"],
+            ["none", nested_time_series_map, float_map],
+            index_name="main index",
+        )
+        value, value_type = to_database(original_map)
+        deserialized = from_database(value, value_type)
+        expected = deep_copy_value(original_map)
+        expected.get_value("time series").get_value("ts").index_name = "col_3"
+        assert deserialized == expected
+
+    def test_from_database_with_unevenly_nested_map(self):
+        string_map = Map(["first"], ["value"], index_name="nested index")
+        float_map = Map(["key"], [22.0], index_name="nested index")
+        duration_map = Map([Duration("12h")], [Duration("9M")])
+        another_string_map = Map([Duration("11h")], ["future"])
+        nested_map = Map(
+            ["nested durations", "duration to string", "non nested"],
+            [duration_map, another_string_map, "empty"],
+            index_name="nested index",
+        )
+        original_map = Map(
+            ["not nested", "strings", "durations", "floats"],
+            ["none", string_map, nested_map, float_map],
+            index_name="main index",
+        )
+        value, value_type = to_database(original_map)
+        deserialized = from_database(value, value_type)
+        expected = deep_copy_value(original_map)
+        expected.get_value("durations").get_value("nested durations").index_name = "col_3"
+        expected.get_value("durations").get_value("duration to string").index_name = "col_3"
+        assert deserialized == expected
+
+    def test_as_arrow_with_nested_time_series(self):
+        map_value = Map(
+            ["realization", "forecast_1", "forecast_tail"],
+            [
+                Map(
+                    [DateTime("2000-01-01T00:00:00")],
+                    [
+                        TimeSeriesFixedResolution(
+                            "2000-01-01T00:00:00", "1h", [0.73, 0.66], ignore_year=False, repeat=False
+                        )
+                    ],
+                ),
+                Map(
+                    [DateTime("2000-01-01T00:00:00")],
+                    [
+                        TimeSeriesFixedResolution(
+                            "2000-01-01T00:00:00", "1h", [0.63, 0.61], ignore_year=False, repeat=False
+                        )
+                    ],
+                ),
+                Map(
+                    [DateTime("2000-01-01T00:00:00")],
+                    [
+                        TimeSeriesFixedResolution(
+                            "2000-01-01T00:00:00", "1h", [0.68, 0.64], ignore_year=False, repeat=False
+                        )
+                    ],
+                ),
+            ],
+        )
+        record_batch = map_value.as_arrow()
+        indexes_1 = pyarrow.RunEndEncodedArray.from_arrays([2, 4, 6], ["realization", "forecast_1", "forecast_tail"])
+        indexes_2 = pyarrow.RunEndEncodedArray.from_arrays(
+            [6],
+            [
+                datetime(year=2000, month=1, day=1, hour=00),
+            ],
+            type=pyarrow.run_end_encoded(pyarrow.int64(), pyarrow.timestamp("s")),
+        )
+        indexes_3 = pyarrow.array(
+            [
+                datetime(year=2000, month=1, day=1, hour=00),
+                datetime(year=2000, month=1, day=1, hour=1),
+                datetime(year=2000, month=1, day=1, hour=00),
+                datetime(year=2000, month=1, day=1, hour=1),
+                datetime(year=2000, month=1, day=1, hour=00),
+                datetime(year=2000, month=1, day=1, hour=1),
+            ],
+            type=pyarrow.timestamp("s"),
+        )
+        values = pyarrow.array([0.73, 0.66, 0.63, 0.61, 0.68, 0.64])
+        expected = with_column_as_time_stamps(
+            pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "t": indexes_3, "value": values}),
+            "t",
+            ignore_year=False,
+            repeat=False,
+        )
+        assert record_batch == expected
+        assert record_batch.schema.metadata is None
+        assert load_field_metadata(record_batch.field("t")) == time_series_metadata(ignore_year=False, repeat=False)
+
+    def test_from_arrow_with_empty_record_batch(self):
+        record_batch = pyarrow.record_batch(
+            {"col_1": pyarrow.array([], type=pyarrow.string()), "value": pyarrow.array([], type=pyarrow.float64())}
+        )
+        map_value = Map.from_arrow(record_batch)
+        assert map_value == Map([], [], index_type=str, index_name="col_1")
+
+    def test_from_arrow_with_string_indices(self):
+        record_batch = pyarrow.record_batch({"col_1": pyarrow.array(["A", "B"]), "value": pyarrow.array([2.3, 3.2])})
+        map_value = Map.from_arrow(record_batch)
+        assert map_value == Map(["A", "B"], [2.3, 3.2], index_type=str, index_name="col_1")
+
+    def test_from_arrow_with_duration_values(self):
+        record_batch = pyarrow.record_batch(
+            {
+                "col_1": pyarrow.array(["A", "B"]),
+                "value": pyarrow.array([relativedelta(months=3), relativedelta(months=7)]),
+            }
+        )
+        map_value = Map.from_arrow(record_batch)
+        assert map_value == Map(
+            ["A", "B"], [Duration("3 months"), Duration("7 months")], index_type=str, index_name="col_1"
+        )
+
+    def test_from_arrow_with_datetime_indices(self):
+        record_batch = pyarrow.record_batch(
+            {
+                "col_1": pyarrow.array(
+                    [
+                        datetime(year=2025, month=8, day=22, hour=16, minute=40),
+                        datetime(year=2025, month=8, day=22, hour=18, minute=0),
+                    ]
+                ),
+                "value": pyarrow.array([2.3, 3.2]),
+            }
+        )
+        map_value = Map.from_arrow(record_batch)
+        assert map_value == Map(
+            [DateTime("2025-08-22T16:40"), DateTime("2025-08-22T18:00")], [2.3, 3.2], index_name="col_1"
+        )
+
+    def test_from_arrow_with_nested_structure(self):
+        indexes_1 = pyarrow.RunEndEncodedArray.from_arrays([1, 3, 4], ["a", "b", "c"])
+        indexes_2 = pyarrow.array([None, duration_to_relativedelta("1h"), duration_to_relativedelta("2h"), None])
+        str_values = pyarrow.array(["yes", "no"])
+        bool_values = pyarrow.array([True, False])
+        values = pyarrow.UnionArray.from_dense(
+            pyarrow.array([0, 1, 1, 0], type=pyarrow.int8()),
+            pyarrow.array([0, 0, 1, 1], type=pyarrow.int32()),
+            [str_values, bool_values],
+        )
+        record_batch = pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "value": values})
+        map_value = Map.from_arrow(record_batch)
+        assert map_value == Map(
+            ["a", "b", "c"],
+            ["yes", Map([Duration("1h"), Duration("2h")], [True, False], index_name="col_2"), "no"],
+            index_name="col_1",
+        )
+
+    def test_from_arrow_with_nested_time_series(self):
+        indexes_1 = pyarrow.array(["a", "a", "b", "b"])
+        indexes_2 = pyarrow.array(
+            [
+                datetime(year=2025, month=8, day=25, hour=8, minute=25),
+                datetime(year=2025, month=8, day=25, hour=8, minute=35),
+                datetime(year=2025, month=8, day=25, hour=8, minute=35),
+                datetime(year=2025, month=8, day=25, hour=8, minute=45),
+            ]
+        )
+        values = pyarrow.array([2.3, 3.2, -2.3, -3.2])
+        metadata = {"stamp": json.dumps(time_series_metadata(ignore_year=True, repeat=False))}
+        record_batch = with_column_as_time_stamps(
+            pyarrow.record_batch({"choice": indexes_1, "stamp": indexes_2, "value": values}, metadata=metadata),
+            "stamp",
+            ignore_year=True,
+            repeat=False,
+        )
+        map_value = Map.from_arrow(record_batch)
+        assert map_value == Map(
+            ["a", "b"],
+            [
+                TimeSeriesVariableResolution(
+                    [
+                        "2025-08-25T08:25",
+                        "2025-08-25T08:35",
+                    ],
+                    [2.3, 3.2],
+                    ignore_year=True,
+                    repeat=False,
+                    index_name="stamp",
+                ),
+                TimeSeriesVariableResolution(
+                    [
+                        "2025-08-25T08:35",
+                        "2025-08-25T08:45",
+                    ],
+                    [-2.3, -3.2],
+                    ignore_year=True,
+                    repeat=False,
+                    index_name="stamp",
+                ),
+            ],
+            index_name="choice",
+        )
+
+
+class TestToDatabaseForRecordBatches:
+    def test_strings_as_run_end_encoded(self):
+        index_array = pyarrow.RunEndEncodedArray.from_arrays([3, 5], ["A", "B"])
+        value_array = pyarrow.RunEndEncodedArray.from_arrays([2, 5], ["a", "b"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_date_times_as_run_end_encoded_index(self):
+        index_array = pyarrow.RunEndEncodedArray.from_arrays(
+            [3, 5],
+            [
+                datetime(year=2025, month=7, day=24, hour=11, minute=41),
+                datetime(year=2025, month=7, day=24, hour=18, minute=41),
+            ],
+        )
+        value_array = pyarrow.RunEndEncodedArray.from_arrays([2, 5], ["a", "b"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_duration_as_run_end_encoded(self):
+        index_array = pyarrow.RunEndEncodedArray.from_arrays([3, 5], [parse_duration("PT30M"), parse_duration("PT45M")])
+        value_array = pyarrow.RunEndEncodedArray.from_arrays([2, 5], [parse_duration("P3Y"), parse_duration("P2Y")])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_dictionary(self):
+        index_array = pyarrow.DictionaryArray.from_arrays([0, 1, 0], ["A", "B"])
+        value_array = pyarrow.DictionaryArray.from_arrays([1, 0, 2], [2.3, 3.2, -2.3])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_date_times_in_dictionary(self):
+        index_array = pyarrow.DictionaryArray.from_arrays(
+            [0, 1, 0],
+            [
+                datetime(year=2025, month=7, day=24, hour=13, minute=20),
+                datetime(year=2025, month=7, day=24, hour=13, minute=20),
+            ],
+        )
+        value_array = pyarrow.DictionaryArray.from_arrays([1, 0, 1], [True, False])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_durations_in_dictionary(self):
+        index_array = pyarrow.DictionaryArray.from_arrays([0, 1, 0], [parse_duration("P23D"), parse_duration("P5M")])
+        value_array = pyarrow.DictionaryArray.from_arrays([2, 1, 0], ["a", "b", "c"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_union(self):
+        index_array = pyarrow.array(["integer", "float_generic", "float_int_like", "string", "boolean", "duration"])
+        int_array = pyarrow.array([23])
+        float_array = pyarrow.array([2.3, 5.0])
+        str_array = pyarrow.array(["A"])
+        boolean_array = pyarrow.array([True])
+        duration_array = pyarrow.array([parse_duration("PT5H")])
+        value_type_array = pyarrow.array([0, 1, 1, 2, 3, 4], type=pyarrow.int8())
+        value_index_array = pyarrow.array([0, 0, 1, 0, 0, 0], type=pyarrow.int32())
+        value_array = pyarrow.UnionArray.from_dense(
+            value_type_array, value_index_array, [int_array, float_array, str_array, boolean_array, duration_array]
+        )
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_union_as_index_raises(self):
+        int_array = pyarrow.array([23])
+        value_type_array = pyarrow.array([0], type=pyarrow.int8())
+        value_index_array = pyarrow.array([0], type=pyarrow.int32())
+        value_array = pyarrow.UnionArray.from_dense(value_type_array, value_index_array, [int_array])
+        record_batch = pyarrow.RecordBatch.from_arrays([value_array, value_array], ["Indexes", "Values"])
+        with pytest.raises(SpineDBAPIError, match="union array cannot be index"):
+            to_database(record_batch)
+
+    def test_float(self):
+        index_array = pyarrow.array([1.1, 2.2])
+        value_array = pyarrow.array([2.3, 3.2])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_str(self):
+        index_array = pyarrow.array(["T01", "T02"])
+        value_array = pyarrow.array(["high", "low"])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_int(self):
+        index_array = pyarrow.array([23, 55])
+        value_array = pyarrow.array([-2, -4])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_date_time(self):
+        index_array = pyarrow.array([datetime(year=2025, month=7, day=21, hour=15, minute=30)])
+        value_array = pyarrow.array([2.3])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_duration(self):
+        index_array = pyarrow.array([parse_duration("P3D")])
+        value_array = pyarrow.array([parse_duration("PT5H")])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_time_pattern(self):
+        index_array = pyarrow.array(["M1-4,M9-12", "M5-8"])
+        value_array = pyarrow.array([3.0, -2.0])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        record_batch = with_column_as_time_period(record_batch, "Indexes")
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_bool(self):
+        index_array = pyarrow.array(["T001", "T002"])
+        value_array = pyarrow.array([False, True])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        blob, value_type = to_database(record_batch)
+        deserialized = from_database(blob, value_type)
+        assert deserialized == record_batch
+        assert deserialized.schema.metadata == record_batch.schema.metadata
+
+    def test_bool_as_index_raises(self):
+        index_array = pyarrow.array([True, False])
+        value_array = pyarrow.array([False, True])
+        record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
+        with pytest.raises(SpineDBAPIError, match="boolean array cannot be index"):
+            to_database(record_batch)
 
 
 class TestPickling(unittest.TestCase):
@@ -1412,3 +1782,70 @@ class TestTypeForValue(unittest.TestCase):
             ("time_series", 1),
         )
         self.assertEqual(type_for_value(Map(["a", "b"], [Map(["i"], [2.3]), 23.0])), ("map", 2))
+
+
+class TestFromDatabaseToDimensionCount:
+    def test_zero_dimensional_types(self):
+        assert from_database_to_dimension_count(*to_database(None)) == 0
+        assert from_database_to_dimension_count(*to_database("a string")) == 0
+        assert from_database_to_dimension_count(*to_database(5)) == 0
+        assert from_database_to_dimension_count(*to_database(2.3)) == 0
+        assert from_database_to_dimension_count(*to_database(True)) == 0
+        assert (
+            from_database_to_dimension_count(*to_database(datetime(year=2025, month=8, day=25, hour=15, minute=15)))
+            == 0
+        )
+        assert from_database_to_dimension_count(*to_database(duration_to_relativedelta("5 years"))) == 0
+
+    def test_one_dimensional_types(self):
+        assert from_database_to_dimension_count(*to_database(Array([2.3, 3.2]))) == 1
+        assert from_database_to_dimension_count(*to_database(TimePattern(["WD1-7"], [23.0]))) == 1
+        assert (
+            from_database_to_dimension_count(
+                *to_database(
+                    TimeSeriesFixedResolution("2025-08-25T15:15", "1h", [2.3], ignore_year=False, repeat=False)
+                )
+            )
+            == 1
+        )
+        assert (
+            from_database_to_dimension_count(
+                *to_database(
+                    TimeSeriesVariableResolution(
+                        ["2025-08-25T15:15", "2025-08-25T16:15"], [2.3, 3.2], ignore_year=False, repeat=False
+                    )
+                )
+            )
+            == 1
+        )
+
+    def test_variable_dimensional_types(self):
+        assert from_database_to_dimension_count(*to_database(Map(["a"], [2.3]))) == 1
+        assert from_database_to_dimension_count(*to_database(Map(["a"], [Map(["A"], [2.3])]))) == 2
+        indexes_1 = pyarrow.array(["A", "B"])
+        values = pyarrow.array([2.3, 3.3])
+        record_batch = pyarrow.record_batch({"category": indexes_1, "value": values})
+        assert from_database_to_dimension_count(*to_database(record_batch)) == 1
+        indexes_2 = pyarrow.array(["a", "a"])
+        record_batch = pyarrow.record_batch({"category": indexes_1, "subcategory": indexes_2, "value": values})
+        assert from_database_to_dimension_count(*to_database(record_batch)) == 2
+
+
+class TestMonthDayNanoIntervalToIsoDuration:
+    def test_seconds(self):
+        durations = ["PT0S", "PT23S", "PT120S", "PT145S", "PT7200S", "PT7310S", "PT86400S", "PT86460S"]
+        intervals = pyarrow.array([parse_duration(d) for d in durations])
+        converted = [_month_day_nano_interval_to_iso_duration(dt) for dt in intervals]
+        assert converted == ["P0D", "PT23S", "PT2M", "PT2M25S", "PT2H", "PT2H1M50S", "P1D", "P1DT1M"]
+
+    def test_days(self):
+        durations = ["P0D", "P12D", "P1DT4H"]
+        intervals = pyarrow.array([parse_duration(d) for d in durations])
+        converted = [_month_day_nano_interval_to_iso_duration(dt) for dt in intervals]
+        assert converted == ["P0D", "P12D", "P1DT4H"]
+
+    def test_months(self):
+        durations = ["P0M", "P5M", "P12M", "P17M"]
+        intervals = pyarrow.array([parse_duration(d) for d in durations])
+        converted = [_month_day_nano_interval_to_iso_duration(dt) for dt in intervals]
+        assert converted == ["P0D", "P5M", "P1Y", "P1Y5M"]
