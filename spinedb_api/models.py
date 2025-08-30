@@ -312,69 +312,55 @@ AllArrays: TypeAlias = RunEndIndex | DictEncodedIndex | ArrayIndex | RunEndArray
 Table: TypeAlias = list[Annotated[AllArrays, Field(discriminator="type")]]
 
 
+def from_json(json_str: str, type_: type[Table | AllArrays] = Table):
+    """Generic wrapper for JSON parsing."""
+    return TypeAdapter(type_).validate_json(json_str)
+
+
+def from_dict(value: dict, type_: type[Table | AllArrays] = Table):
+    """Generic wrapper for converting from a dictionary."""
+    return TypeAdapter(type_).validate_python(value)
+
+
+def to_json(obj: Table | AllArrays) -> str:
+    """Generic wrapper to serialise to JSON."""
+    # FIXME: check why the equivalent: TypeAdapter(obj).dump_json() isn't working
+    return RootModel[type(obj)](obj).model_dump_json()
+
+
 class ArrayAsDict(TypedDict):
     name: str
-    values: list
-    value_type: str
     type: str
-    metadata: NotRequired[Optional[str]]
+    values: list
+    value_type: TypeNames
+    value_types: NotRequired[list[TypeNames | NullTypeName]]
+    metadata: NotRequired[str]
     indices: NotRequired[list]
     run_end: NotRequired[Integers]
     run_len: NotRequired[Integers]
-    special_types: NotRequired[dict[int, SpecialTypeNames]]
 
 
 def dict_to_array(data: ArrayAsDict) -> AllArrays:
+    """Wrapper to read structured dictionary as an array."""
     match data["type"]:
         case "array":
-            return Array(
-                name=data["name"], value_type=data["value_type"], values=data["values"], metadata=data.get("metadata")
-            )
+            type_ = Array
         case "array_index":
-            return ArrayIndex(
-                name=data["name"], value_type=data["value_type"], values=data["values"], metadata=data.get("metadata")
-            )
+            type_ = ArrayIndex
         case "dict_encoded_array":
-            return DictEncodedArray(
-                name=data["name"],
-                value_type=data["value_type"],
-                indices=data.get("indices", []),
-                values=data["values"],
-                metadata=data.get("metadata"),
-            )
+            type_ = DictEncodedArray
         case "dict_encoded_index":
-            return DictEncodedIndex(
-                name=data["name"],
-                value_type=data["value_type"],
-                indices=data.get("indices", []),
-                values=data["values"],
-                metadata=data.get("metadata"),
-            )
+            type_ = DictEncodedIndex
         case "run_end_array":
-            return RunEndArray(
-                name=data["name"],
-                value_type=data["value_type"],
-                run_end=data.get("run_end", []),
-                values=data["values"],
-                metadata=data.get("metadata"),
-            )
+            type_ = RunEndArray
         case "run_end_index":
-            return RunEndIndex(
-                name=data["name"],
-                value_type=data["value_type"],
-                run_end=data.get("run_end", []),
-                values=data["values"],
-                metadata=data.get("metadata"),
-            )
+            type_ = RunEndIndex
         case "any_array":
-            return AnyArray(
-                name=data["name"],
-                values=data["values"],
-                special_types=data["special_types"],
-                metadata=data.get("metadata"),
-            )
+            type_ = AnyArray
         case _:
             raise ValueError(f"{data['type']}: unknown array type")
+
+    return TypeAdapter(type_).validate_python(data)
 
 
 if __name__ == "__main__":
