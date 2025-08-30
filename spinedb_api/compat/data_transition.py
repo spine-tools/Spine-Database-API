@@ -20,7 +20,7 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
 from pydantic import RootModel
-from ..models import Table
+from ..models import Table, TimePeriod
 from .encode import convert_records_to_columns, to_table
 
 # Regex pattern to indentify numerical sequences encoded as string
@@ -185,6 +185,8 @@ def _formatter(index_type: str) -> _FmtIdx:
             return _atoi_dict
         case "float" | "noop":
             return lambda name, key: {name: key}
+        case "time_pattern" | "timepattern" | "time-pattern":
+            return lambda name, key: {name: TimePeriod(key)}
         case _:  # fallback to noop w/ a warning
             warn(f"{index_type}: unknown type, fallback to noop formatter")
             return lambda name, key: {name: key}
