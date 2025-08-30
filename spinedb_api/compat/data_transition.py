@@ -313,7 +313,7 @@ def make_records(
             "data": str() | int() as data,
         }:
             _fmt = _formatter(data_t)
-            res.append({**idx_lvls, **_fmt("value", data)})
+            res.append({**idx_lvls, **_fmt(data_t, data)})
         # values
         case int() | float() | str() | bool() as data:
             _fmt = _formatter("noop")
