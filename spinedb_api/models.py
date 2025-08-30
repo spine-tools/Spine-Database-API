@@ -175,33 +175,8 @@ type_map: dict[type, TypeNames] = {
 }
 
 
-class _ConvertsIndexByValueType:
-
-    @model_validator(mode="after")
-    def convert_to_final_type(self) -> Self:
-        match getattr(self, "value_type"):
-            case "date_time":
-                super().__setattr__(
-                    "values", [datetime.fromisoformat(x) if x is not None else x for x in getattr(self, "values")]
-                )
-            case "duration":
-                super().__setattr__(
-                    "values", [parse_duration(x) if x is not None else x for x in getattr(self, "values")]
-                )
-        return self
-
-
-class _ConvertsByValueType:
-
-    @model_validator(mode="after")
-    def convert_to_final_type(self) -> Self:
-        if getattr(self, "value_type") == "duration":
-            super().__setattr__("values", [parse_duration(x) if x is not None else x for x in getattr(self, "values")])
-        return self
-
-
 @dataclass(frozen=True)
-class RunLengthIndex(_ConvertsIndexByValueType):
+class RunLengthIndex:
     """Run length encoded array
 
     NOTE: this is not supported by PyArrow, if we use it, we will have
@@ -212,96 +187,100 @@ class RunLengthIndex(_ConvertsIndexByValueType):
     name: str
     run_len: Integers
     values: IndexTypes
-    value_type: IndexValueTypeNames
-    metadata: Optional[Metadata] = None
+    value_type: TypeNames
+    metadata: str = ""
     type: Literal["run_length_index"] = "run_length_index"
 
 
 @dataclass(frozen=True)
-class RunEndIndex(_ConvertsIndexByValueType):
+class RunLengthArray:
+    """Run length encoded array
+
+    NOTE: this is not supported by PyArrow, if we use it, we will have
+    to convert to a supported format.
+
+    """
+
+    name: str
+    run_len: Integers
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: str = ""
+    type: Literal["run_length_array"] = "run_length_array"
+
+
+@dataclass(frozen=True)
+class RunEndIndex:
     """Run end encoded array"""
 
     name: str
     run_end: Integers
     values: IndexTypes
-    value_type: IndexValueTypeNames
-    metadata: Optional[Metadata] = None
+    value_type: TypeNames
+    metadata: str = ""
     type: Literal["run_end_index"] = "run_end_index"
 
 
 @dataclass(frozen=True)
-class DictEncodedIndex(_ConvertsIndexByValueType):
+class RunEndArray:
+    """Run end encoded array"""
+
+    name: str
+    run_end: Integers
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: str = ""
+    type: Literal["run_end_array"] = "run_end_array"
+
+
+@dataclass(frozen=True)
+class DictEncodedIndex:
     """Dictionary encoded array"""
 
     name: str
     indices: Integers
     values: IndexTypes
-    value_type: IndexValueTypeNames
-    metadata: Optional[Metadata] = None
+    value_type: TypeNames
+    metadata: str = ""
     type: Literal["dict_encoded_index"] = "dict_encoded_index"
 
 
 @dataclass(frozen=True)
-class ArrayIndex(_ConvertsIndexByValueType):
-    """Any array that is an index, e.g. a sequence, timestamps, labels"""
-
-    name: str
-    values: IndexTypes
-    value_type: IndexValueTypeNames
-    metadata: Optional[Metadata] = None
-    type: Literal["array_index"] = "array_index"
-
-
-@dataclass(frozen=True)
-class RunLengthArray(_ConvertsByValueType):
-    """Run length encoded array
-
-    NOTE: this is not supported by PyArrow, if we use it, we will have
-    to convert to a supported format.
-
-    """
-
-    name: str
-    run_len: Integers
-    values: NullableValueTypes
-    value_type: ValueTypeNames
-    metadata: Optional[Metadata] = None
-    type: Literal["run_length_array"] = "run_length_array"
-
-
-@dataclass(frozen=True)
-class RunEndArray(_ConvertsByValueType):
-    """Run end encoded array"""
-
-    name: str
-    run_end: Integers
-    values: NullableValueTypes
-    value_type: ValueTypeNames
-    metadata: Optional[Metadata] = None
-    type: Literal["run_end_array"] = "run_end_array"
-
-
-@dataclass(frozen=True)
-class DictEncodedArray(_ConvertsByValueType):
+class DictEncodedArray:
     """Dictionary encoded array"""
 
     name: str
     indices: NullableIntegers
-    values: NullableValueTypes
-    value_type: ValueTypeNames
-    metadata: Optional[Metadata] = None
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: str = ""
     type: Literal["dict_encoded_array"] = "dict_encoded_array"
 
 
 @dataclass(frozen=True)
-class Array(_ConvertsByValueType):
+class ArrayIndex:
+    """Any array that is an index, e.g. a sequence, timestamps, labels"""
+
+    name: str
+    values: IndexTypes
+    value_type: TypeNames
+    metadata: str = ""
+    type: Literal["array_index"] = "array_index"
+
+
+@dataclass(frozen=True)
+class Array:
     """Array"""
 
     name: str
-    values: NullableValueTypes
-    value_type: ValueTypeNames
-    metadata: Optional[Metadata] = None
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: str = ""
     type: Literal["array"] = "array"
+
+
+AnyType: TypeAlias = str | int | float | bool | RelativeDelta | Datetime
+NullableAnyTypes: TypeAlias = list[AnyType | None]
 
 
 @dataclass(frozen=True)
@@ -310,21 +289,19 @@ class AnyArray:
 
     name: str
     values: NullableAnyTypes
-    special_types: dict[int, SpecialTypeNames]
-    value_type: Literal["any"] = "any"
-    metadata: Optional[Metadata] = None
+    value_types: list[TypeNames | NullTypeName]
+    metadata: str = ""
     type: Literal["any_array"] = "any_array"
 
     @model_validator(mode="after")
     def convert_to_final_type(self) -> Self:
-        special_types = getattr(self, "special_types")
-        values = getattr(self, "values")
-        for row, value_type in special_types.items():
-            match value_type:
-                case "duration":
-                    values[row] = parse_duration(values[row])
-                case _:
-                    raise ValueError(f"unknown special type {value_type}")
+        if len(self.values) != len(self.value_types):
+            raise ValueError("mismatching values and value_types")
+
+        for i in range(len(self.values)):
+            val = self.values[i]
+            typ = self.value_types[i]
+            self.values[i] = TypeAdapter(typename_map[typ]).validate_python(val)
         return self
 
 
@@ -332,7 +309,7 @@ class AnyArray:
 # following type union following which, we need to implement a
 # converter to a compatible pyarrow array type
 AllArrays: TypeAlias = RunEndIndex | DictEncodedIndex | ArrayIndex | RunEndArray | DictEncodedArray | Array | AnyArray
-Table: TypeAlias = list[AllArrays]
+Table: TypeAlias = list[Annotated[AllArrays, Field(discriminator="type")]]
 
 
 class ArrayAsDict(TypedDict):
