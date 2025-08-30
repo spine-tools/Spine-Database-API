@@ -381,11 +381,10 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
     import json
     from pathlib import Path
-    from pydantic import RootModel
 
     parser = ArgumentParser(__doc__)
     parser.add_argument("json_file", help="Path of JSON schema file to write")
     opts = parser.parse_args()
 
-    schema = RootModel[Table].model_json_schema(mode="serialization")
-    Path(opts.json_file).write_text(json.dumps(schema, indent=2))
+    schema = TypeAdapter(Table).json_schema(mode="serialization")
+    Path(opts.json_file).write_text(json.dumps(schema))
