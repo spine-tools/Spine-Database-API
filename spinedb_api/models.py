@@ -106,6 +106,7 @@ TimePeriod_: TypeAlias = Annotated[
     PlainSerializer(str),
     WithJsonSchema({"type": "string", "format": "time_period"}, mode="serialization"),
 ]
+Metadata = FormatMetadata | TimeSeriesMetadata
 
 # non-nullable arrays
 Floats: TypeAlias = list[float]
@@ -188,7 +189,7 @@ class RunLengthIndex:
     run_len: Integers
     values: IndexTypes
     value_type: TypeNames
-    metadata: str = ""
+    metadata: Metadata | None = None
     type: Literal["run_length_index"] = "run_length_index"
 
 
@@ -205,7 +206,7 @@ class RunLengthArray:
     run_len: Integers
     values: NullableTypes
     value_type: TypeNames
-    metadata: str = ""
+    metadata: Metadata | None = None
     type: Literal["run_length_array"] = "run_length_array"
 
 
@@ -217,7 +218,7 @@ class RunEndIndex:
     run_end: Integers
     values: IndexTypes
     value_type: TypeNames
-    metadata: str = ""
+    metadata: Metadata | None = None
     type: Literal["run_end_index"] = "run_end_index"
 
 
@@ -229,7 +230,7 @@ class RunEndArray:
     run_end: Integers
     values: NullableTypes
     value_type: TypeNames
-    metadata: str = ""
+    metadata: Metadata | None = None
     type: Literal["run_end_array"] = "run_end_array"
 
 
@@ -241,7 +242,7 @@ class DictEncodedIndex:
     indices: Integers
     values: IndexTypes
     value_type: TypeNames
-    metadata: str = ""
+    metadata: Metadata | None = None
     type: Literal["dict_encoded_index"] = "dict_encoded_index"
 
 
@@ -253,7 +254,7 @@ class DictEncodedArray:
     indices: NullableIntegers
     values: NullableTypes
     value_type: TypeNames
-    metadata: str = ""
+    metadata: Metadata | None = None
     type: Literal["dict_encoded_array"] = "dict_encoded_array"
 
 
@@ -264,7 +265,7 @@ class ArrayIndex:
     name: str
     values: IndexTypes
     value_type: TypeNames
-    metadata: str = ""
+    metadata: Metadata | None = None
     type: Literal["array_index"] = "array_index"
 
 
@@ -275,7 +276,7 @@ class Array:
     name: str
     values: NullableTypes
     value_type: TypeNames
-    metadata: str = ""
+    metadata: Metadata | None = None
     type: Literal["array"] = "array"
 
 
@@ -290,7 +291,7 @@ class AnyArray:
     name: str
     values: NullableAnyTypes
     value_types: list[TypeNames | NullTypeName]
-    metadata: str = ""
+    metadata: Metadata | None = None
     type: Literal["any_array"] = "any_array"
 
     @model_validator(mode="after")
@@ -334,7 +335,7 @@ class ArrayAsDict(TypedDict):
     values: list
     value_type: TypeNames
     value_types: NotRequired[list[TypeNames | NullTypeName]]
-    metadata: NotRequired[str]
+    metadata: NotRequired[Metadata | None]
     indices: NotRequired[list]
     run_end: NotRequired[Integers]
     run_len: NotRequired[Integers]
