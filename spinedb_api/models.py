@@ -12,16 +12,33 @@
 
 """Write JSON schema for JSON blob in SpineDB"""
 
-from datetime import datetime, timedelta
-from typing import Annotated, Literal, Optional, TypeAlias
+from datetime import datetime
+from datetime import timedelta
+from types import NoneType
+from typing import Annotated
+from typing import Literal
+from typing import TypeAlias
+from typing import TypedDict
+
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
-from pydantic import BeforeValidator, PlainSerializer, PlainValidator, model_validator
+from pydantic import BeforeValidator
+from pydantic import Field
+from pydantic import PlainSerializer
+from pydantic import PlainValidator
+from pydantic import RootModel
+from pydantic import TypeAdapter
+from pydantic import WithJsonSchema
+from pydantic import model_validator
 from pydantic.dataclasses import dataclass
-from typing_extensions import NotRequired, Self, TypedDict
-from spinedb_api.helpers import FormatMetadata, TimeSeriesMetadata
-from .compat.converters import parse_duration, to_duration
+from typing_extensions import NotRequired
+from typing_extensions import Self
+
+from .compat.converters import to_duration
+from .compat.converters import to_relativedelta
+from .helpers import FormatMetadata
+from .helpers import TimeSeriesMetadata
 
 
 def from_timestamp(ts: str | pd.Timestamp | datetime) -> str | datetime:
