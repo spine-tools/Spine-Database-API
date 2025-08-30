@@ -9,6 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
+from datetime import timedelta
 import re
 
 from dateutil.relativedelta import relativedelta
@@ -52,8 +53,37 @@ def parse_duration(value: str) -> relativedelta:
     return delta
 
 
-def _delta_as_dict(delta: relativedelta | pd.DateOffset) -> dict:
-    return {k: v for k, v in vars(delta).items() if not k.startswith("_") and k.endswith("s") and v}
+def _delta_as_dict(delta: relativedelta | pd.DateOffset | timedelta) -> dict:
+    match delta:
+        case timedelta():
+            return dict(days=delta.days, seconds=delta.seconds, microseconds=delta.microseconds)
+        case relativedelta() | pd.DateOffset():
+            return {k: v for k, v in vars(delta).items() if not k.startswith("_") and k.endswith("s") and v}
+        case _:
+            raise TypeError(f"{delta}: unknown type {type(delta)}")
+
+
+def to_relativedelta(offset: str | pd.DateOffset | timedelta) -> relativedelta:
+    """Convert various compatible time offset formats to `relativedelta`.
+
+    Compatible formats:
+    - JSON string in "duration" format
+    - `pandas.DateOffset`
+    - `datetime.timedelta`
+
+    Everyone should use this instead of trying to convert themselves.
+
+    """
+    match offset:
+        case str():
+            return parse_duration(offset)
+        case _:
+            return relativedelta(**_delta_as_dict(offset))
+
+
+def to_dateoffset(delta: relativedelta) -> pd.DateOffset:
+    """Convert `relativedelta` to `pandas.DateOffset`."""
+    return pd.DateOffset(**_delta_as_dict(delta))
 
 
 _duration_abbrevs = {
@@ -67,7 +97,18 @@ _duration_abbrevs = {
 }
 
 
-def to_duration(delta: relativedelta | pd.DateOffset) -> str:
+def to_duration(delta: relativedelta | pd.DateOffset | timedelta) -> str:
+    """Convert various compatible time offset objects to JSON string
+    in "duration" format.
+
+    Compatible formats:
+    - `relativedelta`
+    - `pandas.DateOffset`
+    - `datetime.timedelta`
+
+    Use this for any kind of serialisation.
+
+    """
     kwargs = _delta_as_dict(delta)
     duration = "P"
     for unit, abbrev in _duration_abbrevs.items():
@@ -79,11 +120,3 @@ def to_duration(delta: relativedelta | pd.DateOffset) -> str:
             case _, num:
                 duration += f"{num}{abbrev}"
     return duration.rstrip("T")
-
-
-def from_dateoffset(offset: pd.DateOffset) -> relativedelta:
-    return relativedelta(**_delta_as_dict(offset))
-
-
-def to_dateoffset(delta: relativedelta) -> pd.DateOffset:
-    return pd.DateOffset(**_delta_as_dict(delta))
