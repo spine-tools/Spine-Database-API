@@ -41,53 +41,118 @@ from .helpers import FormatMetadata
 from .helpers import TimeSeriesMetadata
 
 
-def from_timestamp(ts: str | pd.Timestamp | datetime) -> str | datetime:
-    if isinstance(ts, pd.Timestamp):
-        return ts.to_pydatetime()
-    return ts
+def from_timestamp(ts: str | pd.Timestamp | datetime) -> datetime:
+    match ts:
+        # NOTE: subtype of datetime, has to be before
+        case pd.Timestamp():
+            return ts.to_pydatetime()
+        case datetime():
+            return ts
+        case str():
+            return datetime.fromisoformat(ts)
+        case _:
+            raise ValueError(f"{ts}: could not coerce to `datetime`")
 
 
-Integers: TypeAlias = list[int]
+def validate_relativedelta(value: str | pd.DateOffset | timedelta | relativedelta) -> relativedelta:
+    match value:
+        case relativedelta():
+            return value
+        case str() | pd.DateOffset() | timedelta():
+            return to_relativedelta(value)
+        case _:
+            raise ValueError(f"{value}: cannot coerce `{type(value)}` to `relativedelta`")
 
+
+# types
+class TimePeriod(str):
+    """Wrapper type necessary for data migration.
+
+    This is necessary to discriminate from regular strings during
+    during DB migration.  In the future if the migration script
+    doesn't need to be supported, this type can be removed, and the
+    `TimePeriod_` annotation below can just use `str`.  Something like
+    this:
+
+    .. sourcecode:: python
+
+       TimePeriod_: TypeAlias = Annotated[
+           str,
+           WithJsonSchema(
+               {"type": "string", "format": "time_period"},
+               mode="serialization"
+           ),
+       ]
+
+    """
+
+    def __init__(self, value) -> None:
+        if not isinstance(value, str):
+            raise ValueError(f"{type(value)}: non-string values cannot be a TimePeriod")
+        super().__init__()
+
+
+# annotations for validation
 Datetime: TypeAlias = Annotated[datetime, BeforeValidator(from_timestamp)]
 RelativeDelta: TypeAlias = Annotated[
     relativedelta,
-    PlainValidator(parse_duration),
-    PlainSerializer(to_duration),
+    PlainValidator(validate_relativedelta),
+    PlainSerializer(to_duration, when_used="json"),
+    WithJsonSchema({"type": "string", "format": "duration"}, mode="serialization"),
 ]
+TimePeriod_: TypeAlias = Annotated[
+    TimePeriod,
+    PlainValidator(TimePeriod),
+    PlainSerializer(str),
+    WithJsonSchema({"type": "string", "format": "time_period"}, mode="serialization"),
+]
+
+# non-nullable arrays
+Floats: TypeAlias = list[float]
+Integers: TypeAlias = list[int]
+Strings: TypeAlias = list[str]
+Booleans: TypeAlias = list[bool]
+Datetimes: TypeAlias = list[Datetime]
+Durations: TypeAlias = list[RelativeDelta]
+TimePeriods_: TypeAlias = list[TimePeriod_]
 
 # nullable variant of arrays
 NullableIntegers: TypeAlias = list[int | None]
 NullableFloats: TypeAlias = list[float | None]
 NullableStrings: TypeAlias = list[str | None]
 NullableBooleans: TypeAlias = list[bool | None]
-NullableDurations: TypeAlias = list[RelativeDelta | None]
 NullableDatetimes: TypeAlias = list[Datetime | None]
-
-AnyType: TypeAlias = str | int | float | bool | RelativeDelta
-NullableAnyTypes: TypeAlias = list[AnyType | None]
+NullableDurations: TypeAlias = list[RelativeDelta | None]
+NullableTimePeriods_: TypeAlias = list[TimePeriod_ | None]
 
 # sets of types used to define array schemas below
-IndexTypes: TypeAlias = NullableIntegers | NullableFloats | NullableStrings | NullableDatetimes | NullableDurations
-NullableValueTypes: TypeAlias = (
-    NullableIntegers | NullableFloats | NullableStrings | NullableBooleans | NullableDurations
+IndexTypes: TypeAlias = Integers | Floats | Strings | Booleans | Datetimes | Durations | TimePeriods_
+NullableTypes: TypeAlias = (
+    NullableIntegers
+    | NullableFloats
+    | NullableStrings
+    | NullableBooleans
+    | NullableDatetimes
+    | NullableDurations
+    | NullableTimePeriods_
 )
 
 # names of types used in the schema
-ValueTypeNames: TypeAlias = Literal[
-    "str",
-    "int",
-    "float",
-    "bool",
-    "date_time",
-    "duration",
-    "time_period",
-]
-IndexValueTypeNames: TypeAlias = Literal["str", "int", "float", "date_time", "duration", "time_period"]
-SpecialTypeNames: TypeAlias = Literal["duration"]
-Metadata = FormatMetadata | TimeSeriesMetadata
+NullTypeName: TypeAlias = Literal["null"]
+TypeNames: TypeAlias = Literal["int", "float", "str", "bool", "date_time", "duration", "time_period"]
+SpecialTypeNames: TypeAlias = Literal["duration"]  # FIXME: remove
 
-type_map: dict[type, ValueTypeNames] = {
+typename_map: dict[NullTypeName | TypeNames, type | TypeAlias] = {
+    "str": str,
+    "int": int,
+    "float": float,
+    "bool": bool,
+    "date_time": Datetime,
+    "duration": RelativeDelta,
+    "time_period": TimePeriod,
+    "null": NoneType,
+}
+type_map: dict[type, TypeNames] = {
     str: "str",
     int: "int",
     np.int8: "int",
