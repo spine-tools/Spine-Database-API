@@ -280,7 +280,7 @@ class Array:
     type: Literal["array"] = "array"
 
 
-AnyType: TypeAlias = str | int | float | bool | RelativeDelta | Datetime
+AnyType: TypeAlias = str | int | float | bool | RelativeDelta | Datetime | TimePeriod_
 NullableAnyTypes: TypeAlias = list[AnyType | None]
 
 
