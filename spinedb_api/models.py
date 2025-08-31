@@ -326,7 +326,7 @@ def from_dict(value: dict, type_: type[Table | AllArrays] = Table):
 def to_json(obj: Table | AllArrays) -> str:
     """Generic wrapper to serialise to JSON."""
     # FIXME: check why the equivalent: TypeAdapter(obj).dump_json() isn't working
-    return RootModel[type(obj)](obj).model_dump_json()
+    return RootModel[type(obj)](obj).model_dump_json(mode="serialization")
 
 
 class ArrayAsDict(TypedDict):
