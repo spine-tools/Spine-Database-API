@@ -280,8 +280,10 @@ class Array:
     type: Literal["array"] = "array"
 
 
-AnyType: TypeAlias = str | int | float | bool | RelativeDelta | Datetime | TimePeriod_
+# NOTE: anyarray excludes "time_period"
+AnyType: TypeAlias = str | int | float | bool | RelativeDelta | Datetime
 NullableAnyTypes: TypeAlias = list[AnyType | None]
+AnyTypeNames: TypeAlias = Literal["int", "float", "str", "bool", "date_time", "duration"]
 
 
 @dataclass(frozen=True)
@@ -290,7 +292,7 @@ class AnyArray:
 
     name: str
     values: NullableAnyTypes
-    value_types: list[TypeNames | NullTypeName]
+    value_types: list[AnyTypeNames | NullTypeName]
     metadata: Metadata | None = None
     type: Literal["any_array"] = "any_array"
 
@@ -333,8 +335,8 @@ class ArrayAsDict(TypedDict):
     name: str
     type: str
     values: list
-    value_types: NotRequired[list[TypeNames | NullTypeName]]
     value_type: NotRequired[TypeNames]
+    value_types: NotRequired[list[AnyTypeNames | NullTypeName]]
     metadata: NotRequired[Metadata | None]
     indices: NotRequired[list]
     run_end: NotRequired[Integers]
