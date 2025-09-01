@@ -54,13 +54,22 @@ def parse_duration(value: str) -> relativedelta:
     return delta
 
 
-def _normalise_delta(months=0, days=0, seconds=0, microseconds=0, nanoseconds=0) -> dict:
+def _normalise_delta(years=0, months=0, days=0, hours=0, minutes=0, seconds=0, microseconds=0, nanoseconds=0) -> dict:
     microseconds += nanoseconds // 1_000
+
     seconds += microseconds // 1_000_000
-    minutes, seconds = seconds // 60, seconds % 60
-    hours, minutes = minutes // 60, minutes % 60
-    days, hours = hours // 24, hours % 24
-    years, months = months // 12, months % 12
+
+    minutes += seconds // 60
+    seconds = seconds % 60
+
+    hours += minutes // 60
+    minutes = minutes % 60
+
+    days += hours // 24
+    hours = hours % 24
+
+    years += months // 12
+    months = months % 12
 
     units = ("years", "months", "days", "hours", "minutes", "seconds")
     values = (years, months, days, hours, minutes, seconds)
