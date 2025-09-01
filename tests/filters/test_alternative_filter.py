@@ -119,9 +119,9 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             config = alternative_filter_config(["new@2005-05-05T22:23:24", "new@2023-23-23T11:12:13"])
             alternative_filter_from_dict(db_map, config)
             parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(len(parameters), 2)
+            self.assertEqual(len(parameters), 1)
             values = {from_database(p.value, p.type) for p in parameters}
-            self.assertEqual(values, {23.0, 101.1})
+            self.assertEqual(values, {101.1})
 
     def test_filters_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -178,6 +178,45 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             alternative_filter_from_dict(db_map, config)
             scenario_alternatives = db_map.query(db_map.scenario_alternative_sq).all()
             self.assertEqual(len(scenario_alternatives), 0)
+
+    def test_filters_active_by_default_entity_by_another_alternative_than_its_entity_alternative(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Cat", active_by_default=True))
+            self._assert_success(db_map.add_entity_item(name="Felix", entity_class_name="Cat"))
+            self._assert_success(db_map.add_alternative_item(name="Other"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_class_name="Cat",
+                    entity_byname=("Felix",),
+                    alternative_name="Base",
+                    active=True,
+                )
+            )
+            db_map.commit_session("Add stuff.")
+            config = alternative_filter_config(["Other"])
+            alternative_filter_from_dict(db_map, config)
+            entities = db_map.query(db_map.entity_sq).all()
+            self.assertEqual(len(entities), 1)
+            self.assertCountEqual([e.name for e in entities], ["Felix"])
+
+    def test_filters_inactive_by_default_entity_by_another_alternative_than_its_entity_alternative_not(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Cat", active_by_default=False))
+            self._assert_success(db_map.add_entity_item(name="Felix", entity_class_name="Cat"))
+            self._assert_success(db_map.add_alternative_item(name="Other"))
+            self._assert_success(
+                db_map.add_entity_alternative_item(
+                    entity_class_name="Cat",
+                    entity_byname=("Felix",),
+                    alternative_name="Base",
+                    active=True,
+                )
+            )
+            db_map.commit_session("Add stuff.")
+            config = alternative_filter_config(["Other"])
+            alternative_filter_from_dict(db_map, config)
+            entities = db_map.query(db_map.entity_sq).all()
+            self.assertEqual(len(entities), 0)
 
     def test_filters_entities_in_class_thats_active_by_default(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
