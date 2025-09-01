@@ -107,8 +107,8 @@ from .arrow_value import (
 from .compat.converters import parse_duration, to_duration
 from .exception import ParameterValueFormatError, SpineDBAPIError
 from .helpers import time_series_metadata
-from .models import SpecialTypeNames
-from .value_support import ArrowTypeNames, JSONValue, load_db_value, to_union_array, validate_time_period
+from .models import NullTypeName, TypeNames
+from .value_support import JSONValue, load_db_value, to_union_array, validate_time_period
 
 TABLE_TYPE: Literal["table"] = "table"
 
@@ -2281,14 +2281,13 @@ def to_list(loaded_value: pyarrow.RecordBatch) -> list[dict]:
             case pyarrow.UnionArray():
                 if not is_value_column:
                     raise SpineDBAPIError("union array cannot be index")
-                value_list, special_types = _union_array_values_to_list(column)
+                value_list, type_list = _union_array_values_to_list(column)
                 arrays.append(
                     {
                         **base_data,
                         "type": "any_array",
                         "values": value_list,
-                        "value_type": "any",
-                        "special_types": special_types,
+                        "value_types": type_list,
                     }
                 )
             case pyarrow.TimestampArray():
@@ -2331,7 +2330,7 @@ def _array_values_to_list(values: pyarrow.Array, value_type: pyarrow.DataType) -
     return values.to_pylist()
 
 
-def _arrow_data_type_to_value_type(data_type: pyarrow.DataType) -> ArrowTypeNames:
+def _arrow_data_type_to_value_type(data_type: pyarrow.DataType) -> TypeNames | NullTypeName:
     if pyarrow.types.is_floating(data_type):
         return "float"
     if pyarrow.types.is_integer(data_type):
@@ -2344,20 +2343,22 @@ def _arrow_data_type_to_value_type(data_type: pyarrow.DataType) -> ArrowTypeName
         return "duration"
     if pyarrow.types.is_boolean(data_type):
         return "bool"
-    raise SpineDBAPIError(f"unknown Arrow data type {data_type.__name__}")
+    if pyarrow.types.is_null(data_type):
+        return "null"
+    raise SpineDBAPIError(f"unknown Arrow data type {data_type}")
 
 
-def _union_array_values_to_list(column: pyarrow.UnionArray) -> tuple[list, dict[int, SpecialTypeNames]]:
+def _union_array_values_to_list(column: pyarrow.UnionArray) -> tuple[list, list[TypeNames | NullTypeName]]:
     values = []
-    special_types = {}
+    types = []
     for i, x in enumerate(column):
+        types.append(_arrow_data_type_to_value_type(x.type[x.type_code].type))
         match x.value:
             case pyarrow.MonthDayNanoIntervalScalar():
-                special_types[i] = "duration"
                 values.append(_month_day_nano_interval_to_iso_duration(x))
             case _:
                 values.append(x.as_py())
-    return values, special_types
+    return values, types
 
 
 _ZERO_DURATION = "P0D"

@@ -12,33 +12,26 @@
 
 """Write JSON schema for JSON blob in SpineDB"""
 
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 from types import NoneType
-from typing import Annotated
-from typing import Literal
-from typing import TypeAlias
-from typing import TypedDict
-
+from typing import Annotated, Literal, TypeAlias, TypedDict
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
-from pydantic import BeforeValidator
-from pydantic import Field
-from pydantic import PlainSerializer
-from pydantic import PlainValidator
-from pydantic import RootModel
-from pydantic import TypeAdapter
-from pydantic import WithJsonSchema
-from pydantic import model_validator
+from pydantic import (
+    BeforeValidator,
+    Field,
+    PlainSerializer,
+    PlainValidator,
+    RootModel,
+    TypeAdapter,
+    WithJsonSchema,
+    model_validator,
+)
 from pydantic.dataclasses import dataclass
-from typing_extensions import NotRequired
-from typing_extensions import Self
-
-from .compat.converters import to_duration
-from .compat.converters import to_relativedelta
-from .helpers import FormatMetadata
-from .helpers import TimeSeriesMetadata
+from typing_extensions import NotRequired, Self
+from .compat.converters import to_duration, to_relativedelta
+from .helpers import FormatMetadata, TimeSeriesMetadata
 
 
 def from_timestamp(ts: str | pd.Timestamp | datetime) -> datetime:
@@ -127,7 +120,6 @@ NullableDurations: TypeAlias = list[RelativeDelta | None]
 NullableTimePeriods_: TypeAlias = list[TimePeriod_ | None]
 
 # sets of types used to define array schemas below
-IndexTypes: TypeAlias = Integers | Floats | Strings | Booleans | Datetimes | Durations | TimePeriods_
 NullableTypes: TypeAlias = (
     NullableIntegers
     | NullableFloats
@@ -141,9 +133,8 @@ NullableTypes: TypeAlias = (
 # names of types used in the schema
 NullTypeName: TypeAlias = Literal["null"]
 TypeNames: TypeAlias = Literal["int", "float", "str", "bool", "date_time", "duration", "time_period"]
-SpecialTypeNames: TypeAlias = Literal["duration"]  # FIXME: remove
 
-typename_map: dict[NullTypeName | TypeNames, type | TypeAlias] = {
+typename_map: dict[NullTypeName | TypeNames, type] = {
     "str": str,
     "int": int,
     "float": float,
@@ -176,8 +167,21 @@ type_map: dict[type, TypeNames] = {
 }
 
 
+class TypeAdapterMixin:
+    @model_validator(mode="after")
+    def convert_to_final_type(self) -> Self:
+        value_type = getattr(self, "value_type")
+        values = getattr(self, "values")
+        if value_type in ("date_time", "duration", "time_period"):
+            adapter = TypeAdapter(typename_map[value_type])
+            for i in range(len(values)):
+                value = values[i]
+                values[i] = adapter.validate_python(values[i]) if value is not None else None
+        return self
+
+
 @dataclass(frozen=True)
-class RunLengthIndex:
+class RunLengthIndex(TypeAdapterMixin):
     """Run length encoded array
 
     NOTE: this is not supported by PyArrow, if we use it, we will have
@@ -187,14 +191,14 @@ class RunLengthIndex:
 
     name: str
     run_len: Integers
-    values: IndexTypes
+    values: NullableTypes
     value_type: TypeNames
     metadata: Metadata | None = None
     type: Literal["run_length_index"] = "run_length_index"
 
 
 @dataclass(frozen=True)
-class RunLengthArray:
+class RunLengthArray(TypeAdapterMixin):
     """Run length encoded array
 
     NOTE: this is not supported by PyArrow, if we use it, we will have
@@ -211,19 +215,19 @@ class RunLengthArray:
 
 
 @dataclass(frozen=True)
-class RunEndIndex:
+class RunEndIndex(TypeAdapterMixin):
     """Run end encoded array"""
 
     name: str
     run_end: Integers
-    values: IndexTypes
+    values: NullableTypes
     value_type: TypeNames
     metadata: Metadata | None = None
     type: Literal["run_end_index"] = "run_end_index"
 
 
 @dataclass(frozen=True)
-class RunEndArray:
+class RunEndArray(TypeAdapterMixin):
     """Run end encoded array"""
 
     name: str
@@ -235,19 +239,19 @@ class RunEndArray:
 
 
 @dataclass(frozen=True)
-class DictEncodedIndex:
+class DictEncodedIndex(TypeAdapterMixin):
     """Dictionary encoded array"""
 
     name: str
     indices: Integers
-    values: IndexTypes
+    values: NullableTypes
     value_type: TypeNames
     metadata: Metadata | None = None
     type: Literal["dict_encoded_index"] = "dict_encoded_index"
 
 
 @dataclass(frozen=True)
-class DictEncodedArray:
+class DictEncodedArray(TypeAdapterMixin):
     """Dictionary encoded array"""
 
     name: str
@@ -259,18 +263,27 @@ class DictEncodedArray:
 
 
 @dataclass(frozen=True)
-class ArrayIndex:
+class ArrayIndex(TypeAdapterMixin):
     """Any array that is an index, e.g. a sequence, timestamps, labels"""
 
     name: str
-    values: IndexTypes
+    values: NullableTypes
     value_type: TypeNames
     metadata: Metadata | None = None
     type: Literal["array_index"] = "array_index"
 
+    @model_validator(mode="after")
+    def convert_to_final_type(self) -> Self:
+        if self.value_type in ("date_time", "duration", "time_period"):
+            adapter = TypeAdapter(typename_map[self.value_type])
+            for i in range(len(self.values)):
+                value = self.values[i]
+                self.values[i] = adapter.validate_python(value) if value is not None else None
+        return self
+
 
 @dataclass(frozen=True)
-class Array:
+class Array(TypeAdapterMixin):
     """Array"""
 
     name: str

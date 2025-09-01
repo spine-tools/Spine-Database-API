@@ -17,15 +17,6 @@ from typing import Any, Literal, Optional, TypeAlias
 import pyarrow
 from .exception import ParameterValueFormatError
 
-ArrowTypeNames: TypeAlias = Literal[
-    "str",
-    "int",
-    "float",
-    "bool",
-    "date_time",
-    "duration",
-    "null",
-]
 JSONValue = bool | float | str | list | dict
 
 _INTERVAL_REGEXP = re.compile(r"(Y|M|D|WD|h|m|s)")
