@@ -14,6 +14,7 @@ import re
 
 from dateutil.relativedelta import relativedelta
 import pandas as pd
+import pyarrow as pa
 
 # Regex pattern to identify a number encoded as a string
 freq = r"([0-9]+)"
@@ -53,17 +54,33 @@ def parse_duration(value: str) -> relativedelta:
     return delta
 
 
-def _delta_as_dict(delta: relativedelta | pd.DateOffset | timedelta) -> dict:
+def _normalise_delta(months=0, days=0, seconds=0, microseconds=0, nanoseconds=0) -> dict:
+    microseconds += nanoseconds // 1_000
+    seconds += microseconds // 1_000_000
+    minutes, seconds = seconds // 60, seconds % 60
+    hours, minutes = minutes // 60, minutes % 60
+    days, hours = hours // 24, hours % 24
+    years, months = months // 12, months % 12
+
+    units = ("years", "months", "days", "hours", "minutes", "seconds")
+    values = (years, months, days, hours, minutes, seconds)
+    res = {unit: value for unit, value in zip(units, values) if value > 0}
+    return res
+
+
+def _delta_as_dict(delta: relativedelta | pd.DateOffset | timedelta | pa.MonthDayNano) -> dict:
     match delta:
+        case pa.MonthDayNano():
+            return _normalise_delta(months=delta.months, days=delta.days, nanoseconds=delta.nanoseconds)
         case timedelta():
-            return dict(days=delta.days, seconds=delta.seconds, microseconds=delta.microseconds)
+            return _normalise_delta(days=delta.days, seconds=delta.seconds, microseconds=delta.microseconds)
         case relativedelta() | pd.DateOffset():
             return {k: v for k, v in vars(delta).items() if not k.startswith("_") and k.endswith("s") and v}
         case _:
             raise TypeError(f"{delta}: unknown type {type(delta)}")
 
 
-def to_relativedelta(offset: str | pd.DateOffset | timedelta) -> relativedelta:
+def to_relativedelta(offset: str | pd.DateOffset | timedelta | pa.MonthDayNano) -> relativedelta:
     """Convert various compatible time offset formats to `relativedelta`.
 
     Compatible formats:
@@ -97,7 +114,10 @@ _duration_abbrevs = {
 }
 
 
-def to_duration(delta: relativedelta | pd.DateOffset | timedelta) -> str:
+_ZERO_DURATION = "P0D"
+
+
+def to_duration(delta: relativedelta | pd.DateOffset | timedelta | pa.MonthDayNano) -> str:
     """Convert various compatible time offset objects to JSON string
     in "duration" format.
 
@@ -119,4 +139,5 @@ def to_duration(delta: relativedelta | pd.DateOffset | timedelta) -> str:
                 pass
             case _, num:
                 duration += f"{num}{abbrev}"
-    return duration.rstrip("T")
+    duration = duration.rstrip("T")
+    return duration if duration != "P" else _ZERO_DURATION
