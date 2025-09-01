@@ -333,8 +333,8 @@ class ArrayAsDict(TypedDict):
     name: str
     type: str
     values: list
-    value_type: TypeNames
     value_types: NotRequired[list[TypeNames | NullTypeName]]
+    value_type: NotRequired[TypeNames]
     metadata: NotRequired[Metadata | None]
     indices: NotRequired[list]
     run_end: NotRequired[Integers]
