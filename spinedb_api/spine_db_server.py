@@ -438,6 +438,7 @@ class _DBWorker:
     def _do_clear_filters(self):
         self._db_map.restore_entity_sq_maker()
         self._db_map.restore_entity_element_sq_maker()
+        self._db_map.restore_entity_location_sq_maker()
         self._db_map.restore_entity_class_sq_maker()
         self._db_map.restore_parameter_definition_sq_maker()
         self._db_map.restore_parameter_value_sq_maker()

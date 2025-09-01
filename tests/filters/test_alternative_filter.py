@@ -218,6 +218,28 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             entities = db_map.query(db_map.entity_sq).all()
             self.assertEqual(len(entities), 0)
 
+    def test_filters_entity_location(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Cat")
+            db_map.add_entity(name="Felix", entity_class_name="Cat")
+            db_map.add_entity_location(
+                entity_class_name="Cat",
+                entity_byname=("Felix",),
+                lat=0.0,
+                lon=0.0,
+                alt=0.0,
+                shape_name="foo",
+                shape_blob="bar",
+            )
+            db_map.add_entity_alternative(
+                entity_class_name="Cat", entity_byname=("Felix",), alternative_name="Base", active=False
+            )
+            db_map.commit_session("Add stuff.")
+            config = alternative_filter_config(["Base"])
+            alternative_filter_from_dict(db_map, config)
+            entity_locations = db_map.query(db_map.entity_location_sq).all()
+            self.assertEqual(len(entity_locations), 0)
+
     def test_filters_entities_in_class_thats_active_by_default(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="ActiveByDefault", active_by_default=True))
