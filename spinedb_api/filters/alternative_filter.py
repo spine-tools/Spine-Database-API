@@ -416,28 +416,11 @@ def _make_alternative_filtered_parameter_value_sq(db_map, state):
     Returns:
         Alias: a subquery for parameter value filtered by selected alternatives
     """
+    subquery = state.original_parameter_value_sq
     ext_entity_sq = _ext_entity_sq(db_map, state)
-    rank_alt_sq = _rank_alternative_sq(state.alternatives)
-    ext_parameter_value_sq = (
-        db_map.query(
-            state.original_parameter_value_sq,
-            func.row_number()
-            .over(
-                partition_by=[
-                    state.original_parameter_value_sq.c.parameter_definition_id,
-                    state.original_parameter_value_sq.c.entity_id,
-                ],
-                order_by=desc(rank_alt_sq.c.rank),
-            )  # the one with the highest rank will have row_number equal to 1, so it will 'win' in the filter below
-            .label("desc_rank_row_number"),
-        ).filter(
-            state.original_parameter_value_sq.c.entity_id == ext_entity_sq.c.id,
-            state.original_parameter_value_sq.c.alternative_id == rank_alt_sq.c.alternative_id,
-        )
-    ).subquery()
-    filtered_by_entity_activity = (
-        db_map.query(ext_parameter_value_sq)
-        .filter(ext_parameter_value_sq.c.desc_rank_row_number == 1)
-        .outerjoin(ext_entity_sq, ext_parameter_value_sq.c.entity_id == ext_entity_sq.c.id)
+    filtered_by_activity = (
+        db_map.query(subquery)
+        .join(ext_entity_sq, subquery.c.entity_id == ext_entity_sq.c.id)
+        .filter(subquery.c.alternative_id.in_(state.alternatives))
     )
-    return filter_by_active_elements(db_map, filtered_by_entity_activity, ext_entity_sq).subquery()
+    return filter_by_active_elements(db_map, filtered_by_activity, ext_entity_sq).subquery()
