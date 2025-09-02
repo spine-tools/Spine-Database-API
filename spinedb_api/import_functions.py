@@ -16,18 +16,23 @@ This functionality is equivalent to the one provided by :meth:`.DatabaseMapping.
 but the syntax is a little more compact.
 """
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import suppress
-from typing import Any, Optional
+from typing import Any, Optional, TypeAlias
 from . import DatabaseMapping, SpineDBAPIError
 from .helpers import _parse_metadata
-from .parameter_value import Value, fancy_type_to_type_and_rank, get_conflict_fixer, to_database
+from .parameter_value import ConflictResolution, Value, fancy_type_to_type_and_rank, get_conflict_fixer, to_database
+
+UnparseCallable: TypeAlias = Callable[[Value], tuple[bytes, Optional[str]]]
+ParameterValue: TypeAlias = (
+    tuple[str, str | tuple[str, ...], str, Any] | tuple[str, str | tuple[str, ...], str, Any, str]
+)
 
 
 def import_data(
     db_map: DatabaseMapping,
-    unparse_value: Callable[[Value], tuple[bytes, Optional[str]]] = to_database,
-    on_conflict: str = "merge",
+    unparse_value: UnparseCallable = to_database,
+    on_conflict: ConflictResolution = "merge",
     **kwargs,
 ) -> tuple[int, list[str]]:
     """Imports data into a Spine database using a standard format.
@@ -99,9 +104,9 @@ def import_data(
 
 
 def get_data_for_import(
-    db_map,
-    all_errors,
-    unparse_value=to_database,
+    db_map: DatabaseMapping,
+    all_errors: list[str],
+    unparse_value: UnparseCallable = to_database,
     fix_value_conflict=get_conflict_fixer("merge"),
     entity_classes=(),
     entities=(),
@@ -369,18 +374,23 @@ def import_parameter_types(db_map, data, unparse_value=to_database):
     return import_data(db_map, parameter_types=data, unparse_value=unparse_value)
 
 
-def import_parameter_values(db_map, data, unparse_value=to_database, on_conflict="merge"):
+def import_parameter_values(
+    db_map: DatabaseMapping,
+    data: Iterable[ParameterValue],
+    unparse_value=to_database,
+    on_conflict: ConflictResolution = "merge",
+) -> tuple[int, list[str]]:
     """Imports parameter values into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence):
+        db_map: database mapping
+        data:
             tuples of (class name [str], entity name [str] or byname [tuple[str]], parameter definition name [str], value, [alternative_name [str]])
-        unparse_value (Callable): function to parse parameter values
-        on_conflict (str): Conflict resolution strategy; options: "keep", "replace", "merge"
+        unparse_value: function to parse parameter values
+        on_conflict: Conflict resolution strategy; options: "keep", "replace", "merge"
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, parameter_values=data, unparse_value=unparse_value, on_conflict=on_conflict)
 

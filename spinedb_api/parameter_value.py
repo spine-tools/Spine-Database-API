@@ -88,9 +88,8 @@ from datetime import datetime
 from itertools import takewhile
 import json
 from json.decoder import JSONDecodeError
-import math
 import re
-from typing import Any, Optional, SupportsFloat, Type, Union
+from typing import Any, Literal, Optional, SupportsFloat, Type, TypeAlias, Union
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import numpy as np
@@ -109,6 +108,12 @@ _TIME_SERIES_PLAIN_INDEX_UNIT = "m"
 FLOAT_VALUE_TYPE = "float"
 BOOLEAN_VALUE_TYPE = "bool"
 STRING_VALUE_TYPE = "str"
+
+
+ConflictResolution: TypeAlias = Literal["keep", "replace", "merge"]
+ConflictResolutionCallable: TypeAlias = Callable[
+    [tuple[bytes, Optional[str]], tuple[bytes, Optional[str]]], tuple[bytes, Optional[str]]
+]
 
 
 def from_database(value: bytes, type_: Optional[str]) -> Optional[Value]:
@@ -368,12 +373,16 @@ def merge_parsed(parsed_value: Optional[Value], parsed_other: Optional[Value]) -
     return parsed_value.merge(parsed_other)
 
 
-_MERGE_FUNCTIONS = {"keep": lambda new, old: old, "replace": lambda new, old: new, "merge": merge}
+_MERGE_FUNCTIONS: dict[ConflictResolution:ConflictResolutionCallable] = {
+    "keep": lambda new, old: old,
+    "replace": lambda new, old: new,
+    "merge": merge,
+}
 
 
 def get_conflict_fixer(
-    on_conflict: str,
-) -> Callable[[tuple[bytes, Optional[str]], tuple[bytes, Optional[str]]], tuple[bytes, Optional[str]]]:
+    on_conflict: ConflictResolution,
+) -> ConflictResolutionCallable:
     """
     :meta private:
     Returns parameter value conflict resolution function.

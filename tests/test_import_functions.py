@@ -43,9 +43,13 @@ from spinedb_api.import_functions import (
     import_scenarios,
 )
 from spinedb_api.parameter_value import (
+    Array,
+    DateTime,
+    Duration,
     Map,
     TimePattern,
     TimeSeriesFixedResolution,
+    TimeSeriesVariableResolution,
     dump_db_value,
     from_database,
     to_database,
@@ -2134,5 +2138,40 @@ class TestImportEntityClassDisplayModeEntityClass(AssertSuccessTestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
+def _identity(x):
+    return x
+
+
+class TestImportWithDatabaseValue:
+    def test_all_value_types(self):
+        values = [
+            2.3,
+            "a string",
+            True,
+            DateTime("2025-09-02T11:15"),
+            Duration("2 years"),
+            Array([DateTime("2025-09-02T12:00")]),
+            TimePattern(["D1-7"], [2.3]),
+            TimeSeriesFixedResolution("2025-09-02T12:00", "7D", [2.3], ignore_year=True, repeat=False),
+            TimeSeriesVariableResolution(["2025-09-02T12:00"], [2.3], ignore_year=False, repeat=True),
+            Map([Duration("5 hours")], [2.3]),
+        ]
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_parameter_definition(entity_class_name="Object", name="X")
+            db_map.add_entity(entity_class_name="Object", name="widget")
+            for value in values:
+                assert_imports(
+                    import_parameter_values(
+                        db_map, [("Object", "widget", "X", to_database(value))], unparse_value=_identity
+                    )
+                )
+                assert (
+                    db_map.parameter_value(
+                        entity_class_name="Object",
+                        entity_byname=("widget",),
+                        parameter_definition_name="X",
+                        alternative_name="Base",
+                    )["parsed_value"]
+                    == value
+                )
