@@ -420,7 +420,7 @@ def _make_alternative_filtered_parameter_value_sq(db_map, state):
     ext_entity_sq = _ext_entity_sq(db_map, state)
     filtered_by_activity = (
         db_map.query(subquery)
-        .outerjoin(ext_entity_sq, subquery.c.entity_id == ext_entity_sq.c.id)
-        .filter(subquery.c.alternative_id.in_(state.alternatives), ext_entity_sq.c.id != None)
+        .join(ext_entity_sq, subquery.c.entity_id == ext_entity_sq.c.id)
+        .filter(subquery.c.alternative_id.in_(state.alternatives))
     )
     return filter_by_active_elements(db_map, filtered_by_activity, ext_entity_sq).subquery()
