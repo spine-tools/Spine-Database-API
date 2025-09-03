@@ -17,7 +17,7 @@ It lets everything depending on the selected alternatives through and filters ou
 """
 from collections.abc import Iterable
 from functools import partial
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, select, literal, cast, Integer, union_all, func, desc
 from ..exception import SpineDBAPIError
 from .query_utils import filter_by_active_elements
 
@@ -191,10 +191,40 @@ class _AlternativeFilterState:
         return list(scenario_ids)
 
 
+def _rank_alternative_sq(alternatives):
+    if not alternatives:
+        return select(literal(None).label("rank"), literal(None).label("alternative_id"))
+    rank_alt_rows = list(enumerate(reversed(alternatives)))
+    selects = [
+        # NOTE: optimization to reduce the size of the statement:
+        # make type cast only for first row, for other rows DB engine will infer
+        select(cast(literal(rank), Integer).label("rank"), cast(literal(alt_id), Integer).label("alternative_id"))
+        if i == 0
+        else select(literal(rank), literal(alt_id))  # no type cast
+        for i, (rank, alt_id) in enumerate(rank_alt_rows)
+    ]
+    return union_all(*selects).alias(name="rank_alternative")
+
+
 def _ext_entity_sq(db_map, state):
-    return (
+    """Filter entities in given `db_map` by the alternatives defined by given `state`."""
+    # NOTE: the 'alternatives' filter is pretty much like the 'scenario' filter,
+    # except that here the alternatives are explicitly given in a list by the user (in increasing rank order)
+    # (whereas in the 'scenario' filter, they are given by a scenario
+    # and fetched from the scenario_alternative table...)
+    # For the implementation we create a literal subquery with alternatives and their ranks
+    # that we join to the entity subquery (in the same fashion as we join the scenario_alternative table
+    # in the scenario filter).
+    rank_alt_sq = _rank_alternative_sq(state.alternatives)
+    entity_sq = (
         db_map.query(
             state.original_entity_sq,
+            func.row_number()
+            .over(
+                partition_by=[state.original_entity_sq.c.id],
+                order_by=desc(rank_alt_sq.c.rank),
+            )
+            .label("desc_rank_row_number"),
             state.original_entity_alternative_sq.c.active,
             db_map.entity_class_sq.c.active_by_default,
         )
@@ -203,13 +233,23 @@ def _ext_entity_sq(db_map, state):
             state.original_entity_sq.c.id == state.original_entity_alternative_sq.c.entity_id,
         )
         .outerjoin(db_map.entity_class_sq, state.original_entity_sq.c.class_id == db_map.entity_class_sq.c.id)
+        .outerjoin(rank_alt_sq, state.original_entity_alternative_sq.c.alternative_id == rank_alt_sq.c.alternative_id)
         .filter(
             or_(
                 state.original_entity_alternative_sq.c.alternative_id == None,
-                state.original_entity_alternative_sq.c.alternative_id.in_(state.alternatives),
-            )
+                state.original_entity_alternative_sq.c.alternative_id == rank_alt_sq.c.alternative_id,
+                db_map.entity_class_sq.c.active_by_default == True,
+            ),
         )
     ).subquery()
+    return (
+        db_map.query(entity_sq)
+        .filter(
+            entity_sq.c.desc_rank_row_number == 1,
+            or_(entity_sq.c.active == True, and_(entity_sq.c.active == None, entity_sq.c.active_by_default == True)),
+        )
+        .subquery()
+    )
 
 
 def _make_alternative_filtered_entity_alternative_sq(db_map, state):
@@ -228,9 +268,9 @@ def _make_alternative_filtered_entity_alternative_sq(db_map, state):
     ext_entity_sq = _ext_entity_sq(db_map, state)
     return (
         db_map.query(state.original_entity_alternative_sq)
-        .filter(state.original_entity_alternative_sq.c.entity_id == ext_entity_sq.c.id)
         .filter(
-            or_(ext_entity_sq.c.active == True, ext_entity_sq.c.active == None),
+            state.original_entity_alternative_sq.c.alternative_id.in_(state.alternatives),
+            state.original_entity_alternative_sq.c.entity_id == ext_entity_sq.c.id,
         )
         .subquery()
     )
@@ -253,13 +293,9 @@ def _make_alternative_filtered_entity_element_sq(db_map, state):
     element_sq = ext_entity_sq.alias()
     return (
         db_map.query(state.original_entity_element_sq)
-        .filter(state.original_entity_element_sq.c.entity_id == entity_sq.c.id)
-        .filter(state.original_entity_element_sq.c.element_id == element_sq.c.id)
         .filter(
-            or_(entity_sq.c.active == True, entity_sq.c.active == None),
-        )
-        .filter(
-            or_(element_sq.c.active == True, and_(element_sq.c.active == None, element_sq.c.active_by_default == True)),
+            state.original_entity_element_sq.c.entity_id == entity_sq.c.id,
+            state.original_entity_element_sq.c.element_id == element_sq.c.id,
         )
         .subquery()
     )
@@ -284,11 +320,6 @@ def _make_alternative_filtered_entity_sq(db_map, state):
         ext_entity_sq.c.name,
         ext_entity_sq.c.description,
         ext_entity_sq.c.commit_id,
-    ).filter(
-        or_(
-            ext_entity_sq.c.active == True,
-            and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
-        ),
     )
     return filter_by_active_elements(db_map, filtered_by_activity, ext_entity_sq).subquery()
 
@@ -310,22 +341,8 @@ def _make_alternative_filtered_entity_group_sq(db_map, state):
     return (
         db_map.query(state.original_entity_group_sq)
         .filter(
-            and_(
-                state.original_entity_group_sq.c.entity_id == ext_entity_sq1.c.id,
-                or_(
-                    ext_entity_sq1.c.active == True,
-                    and_(ext_entity_sq1.c.active == None, ext_entity_sq1.c.active_by_default == True),
-                ),
-            )
-        )
-        .filter(
-            and_(
-                state.original_entity_group_sq.c.member_id == ext_entity_sq2.c.id,
-                or_(
-                    ext_entity_sq2.c.active == True,
-                    and_(ext_entity_sq2.c.active == None, ext_entity_sq2.c.active_by_default == True),
-                ),
-            )
+            state.original_entity_group_sq.c.entity_id == ext_entity_sq1.c.id,
+            state.original_entity_group_sq.c.member_id == ext_entity_sq2.c.id,
         )
         .subquery()
     )
@@ -403,13 +420,7 @@ def _make_alternative_filtered_parameter_value_sq(db_map, state):
     ext_entity_sq = _ext_entity_sq(db_map, state)
     filtered_by_activity = (
         db_map.query(subquery)
+        .join(ext_entity_sq, subquery.c.entity_id == ext_entity_sq.c.id)
         .filter(subquery.c.alternative_id.in_(state.alternatives))
-        .outerjoin(ext_entity_sq, subquery.c.entity_id == ext_entity_sq.c.id)
-        .filter(
-            or_(
-                ext_entity_sq.c.active == True,
-                and_(ext_entity_sq.c.active == None, ext_entity_sq.c.active_by_default == True),
-            )
-        )
     )
     return filter_by_active_elements(db_map, filtered_by_activity, ext_entity_sq).subquery()

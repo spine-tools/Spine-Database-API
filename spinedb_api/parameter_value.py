@@ -90,7 +90,7 @@ from itertools import takewhile
 import json
 from json.decoder import JSONDecodeError
 import re
-from typing import Any, Counter, Literal, Optional, SupportsFloat, Type, TypeAlias, Union
+from typing import Any, ClassVar, Counter, Literal, Optional, SupportsFloat, Type, TypeAlias, Union
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import numpy as np
@@ -124,6 +124,12 @@ _TIME_SERIES_PLAIN_INDEX_UNIT = "m"
 FLOAT_VALUE_TYPE = "float"
 BOOLEAN_VALUE_TYPE = "bool"
 STRING_VALUE_TYPE = "str"
+
+
+ConflictResolution: TypeAlias = Literal["keep", "replace", "merge"]
+ConflictResolutionCallable: TypeAlias = Callable[
+    [tuple[bytes, Optional[str]], tuple[bytes, Optional[str]]], tuple[bytes, Optional[str]]
+]
 
 
 def from_database(value: bytes, type_: Optional[str]) -> Optional[Value | ParameterValue]:
@@ -379,12 +385,16 @@ def merge_parsed(parsed_value: Optional[Value], parsed_other: Optional[Value]) -
     return parsed_value.merge(parsed_other)
 
 
-_MERGE_FUNCTIONS = {"keep": lambda new, old: old, "replace": lambda new, old: new, "merge": merge}
+_MERGE_FUNCTIONS: dict[ConflictResolution:ConflictResolutionCallable] = {
+    "keep": lambda new, old: old,
+    "replace": lambda new, old: new,
+    "merge": merge,
+}
 
 
 def get_conflict_fixer(
-    on_conflict: str,
-) -> Callable[[tuple[bytes, Optional[str]], tuple[bytes, Optional[str]]], tuple[bytes, Optional[str]]]:
+    on_conflict: ConflictResolution,
+) -> ConflictResolutionCallable:
     """
     :meta private:
     Returns parameter value conflict resolution function.
@@ -779,7 +789,7 @@ class DateTime(ParameterValue):
     VALUE_TYPE = "single value"
     TYPE = "date_time"
 
-    def __init__(self, value: Optional[Union[str, DateTime, datetime]] = None):
+    def __init__(self, value: Optional[Union[str, DateTime, datetime, pyarrow.TimestampScalar]] = None):
         """
         Args:
             The `date_time` value.
@@ -796,6 +806,8 @@ class DateTime(ParameterValue):
                     raise ParameterValueFormatError(f'Could not parse datetime from "{value}"') from error
         elif isinstance(value, DateTime):
             value = copy(value._value)
+        elif isinstance(value, pyarrow.TimestampScalar):
+            value = value.as_py()
         elif not isinstance(value, datetime):
             raise ParameterValueFormatError(f'"{type(value).__name__}" cannot be converted to DateTime.')
         self._value = value
@@ -1129,12 +1141,14 @@ class Array(IndexedValue):
         index_name = arrow_value.column_names[0]
         if len(value_column) == 0:
             return cls([], value_type=_arrow_type_to_python(value_column.type), index_name=index_name)
-        if arrow_value.schema.types[value_column_index] == pyarrow.month_day_nano_interval():
+        if pyarrow.types.is_interval(arrow_value.schema.types[value_column_index]):
             return cls(list(Duration(d) for d in value_column), index_name=index_name)
+        if pyarrow.types.is_timestamp(arrow_value.schema.types[value_column_index]):
+            return cls(list(DateTime(t) for t in value_column), index_name=index_name)
         return cls(value_column.to_pylist(), index_name=index_name)
 
 
-ArrayValue: TypeAlias = float | bool | str | Duration
+ArrayValue: TypeAlias = float | bool | str | Duration | DateTime
 
 
 class _TimePatternIndexes(_Indexes):
@@ -1317,7 +1331,9 @@ class TimeSeriesFixedResolution(TimeSeries):
     other than having getters for their values.
     """
 
-    _memoized_indexes: dict[tuple[np.datetime64, tuple[relativedelta, ...], int], nptyping.NDArray[np.datetime64]] = {}
+    _memoized_indexes: ClassVar[
+        dict[tuple[np.datetime64, tuple[relativedelta, ...], int], nptyping.NDArray[np.datetime64]]
+    ] = {}
 
     def __init__(
         self,
