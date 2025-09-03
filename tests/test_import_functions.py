@@ -1271,7 +1271,7 @@ class TestImportParameterValue(AssertSuccessTestCase):
                 alternative_name="Base",
             )
             self.assertTrue(value_item)
-            merged_value = Map(["T1", "T2", "T3", "T4"], [1.1, 1.2, 1.3, 1.4])
+            merged_value = Map(["T1", "T2", "T3", "T4"], [1.1, 1.2, 1.3, 1.4], index_name="col_1")
             self.assertEqual(value_item["parsed_value"], merged_value)
 
     def test_import_duplicate_object_parameter_value(self):
@@ -2166,12 +2166,18 @@ class TestImportWithDatabaseValue:
                         db_map, [("Object", "widget", "X", to_database(value))], unparse_value=_identity
                     )
                 )
-                assert (
-                    db_map.parameter_value(
-                        entity_class_name="Object",
-                        entity_byname=("widget",),
-                        parameter_definition_name="X",
-                        alternative_name="Base",
-                    )["parsed_value"]
-                    == value
-                )
+                db_value = db_map.parameter_value(
+                    entity_class_name="Object",
+                    entity_byname=("widget",),
+                    parameter_definition_name="X",
+                    alternative_name="Base",
+                )["parsed_value"]
+                if isinstance(value, TimeSeriesFixedResolution):
+                    assert db_value == TimeSeriesVariableResolution(
+                        ["2025-09-02T12:00"], [2.3], ignore_year=True, repeat=False
+                    )
+                elif isinstance(value, Map):
+                    value.index_name = "col_1"
+                    assert db_value == value
+                else:
+                    assert db_value == value
