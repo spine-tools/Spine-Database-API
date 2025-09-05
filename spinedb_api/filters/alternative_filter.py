@@ -17,7 +17,7 @@ It lets everything depending on the selected alternatives through and filters ou
 """
 from collections.abc import Iterable
 from functools import partial
-from sqlalchemy import and_, or_, select, literal, cast, Integer, union_all, func, desc
+from sqlalchemy import Integer, and_, cast, func, literal, or_, select, union_all
 from ..exception import SpineDBAPIError
 from .query_utils import filter_by_active_elements
 
@@ -196,14 +196,16 @@ class _AlternativeFilterState:
 
 def _rank_alternative_sq(alternatives):
     if not alternatives:
-        return select(literal(None).label("rank"), literal(None).label("alternative_id"))
+        return select(literal(None).label("rank"), literal(None).label("alternative_id")).subquery("rank_alternative")
     rank_alt_rows = list(enumerate(reversed(alternatives)))
     selects = [
         # NOTE: optimization to reduce the size of the statement:
         # make type cast only for first row, for other rows DB engine will infer
-        select(cast(literal(rank), Integer).label("rank"), cast(literal(alt_id), Integer).label("alternative_id"))
-        if i == 0
-        else select(literal(rank), literal(alt_id))  # no type cast
+        (
+            select(cast(literal(rank), Integer).label("rank"), cast(literal(alt_id), Integer).label("alternative_id"))
+            if i == 0
+            else select(literal(rank), literal(alt_id))
+        )  # no type cast
         for i, (rank, alt_id) in enumerate(rank_alt_rows)
     ]
     return union_all(*selects).alias(name="rank_alternative")
@@ -223,10 +225,7 @@ def _ext_entity_sq(db_map, state):
         db_map.query(
             state.original_entity_sq,
             func.row_number()
-            .over(
-                partition_by=[state.original_entity_sq.c.id],
-                order_by=desc(rank_alt_sq.c.rank),
-            )
+            .over(partition_by=[state.original_entity_sq.c.id], order_by=rank_alt_sq.c.rank.desc())
             .label("desc_rank_row_number"),
             state.original_entity_alternative_sq.c.active,
             db_map.entity_class_sq.c.active_by_default,
