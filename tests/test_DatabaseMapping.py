@@ -3337,6 +3337,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertEqual(value_item["parsed_value"], Duration("3h"))
             self.assertEqual(value_item["arrow_value"], relativedelta(hours=3))
 
+    def test_update_list_value_by_parsed_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_parameter_value_list(name="my list")
+            list_value = db_map.add_list_value(parameter_value_list_name="my list", parsed_value="original", index=0)
+            list_value.update(parsed_value="new")
+            self.assertEqual(list_value["parsed_value"], "new")
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

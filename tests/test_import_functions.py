@@ -42,6 +42,7 @@ from spinedb_api.import_functions import (
     import_scenario_alternatives,
     import_scenarios,
 )
+from spinedb_api.incomplete_values import dump_db_value
 from spinedb_api.parameter_value import (
     Array,
     DateTime,
@@ -50,7 +51,6 @@ from spinedb_api.parameter_value import (
     TimePattern,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
-    dump_db_value,
     from_database,
     to_database,
 )
@@ -1576,8 +1576,18 @@ class TestImportParameterValue(AssertSuccessTestCase):
             self.assertEqual(value.entity_name, "aa")
 
             time_series = from_database(value.value, value.type)
-            expected_result = TimeSeriesFixedResolution(
-                "2000-01-01 00:00:00", "1h", [0.0, 1.0, 2.0, 4.0, 8.0, 0.0], False, False
+            expected_result = TimeSeriesVariableResolution(
+                [
+                    "2000-01-01 00:00:00",
+                    "2000-01-01 01:00:00",
+                    "2000-01-01 02:00:00",
+                    "2000-01-01 03:00:00",
+                    "2000-01-01 04:00:00",
+                    "2000-01-01 05:00:00",
+                ],
+                [0.0, 1.0, 2.0, 4.0, 8.0, 0.0],
+                False,
+                False,
             )
             self.assertEqual(time_series, expected_result)
 

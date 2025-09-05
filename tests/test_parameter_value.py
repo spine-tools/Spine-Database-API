@@ -42,11 +42,10 @@ from spinedb_api.parameter_value import (
     duration_to_relativedelta,
     fancy_type_to_type_and_rank,
     from_database,
-    from_database_to_dimension_count,
     relativedelta_to_duration,
     to_database,
+    type_and_rank_for_value,
     type_and_rank_to_fancy_type,
-    type_for_value,
 )
 
 
@@ -155,6 +154,18 @@ class TestParameterValue(unittest.TestCase):
         value = from_database(database_value, type_="float")
         self.assertIsInstance(value, float)
         self.assertEqual(value, 23.0)
+
+    def test_from_database_int_like_float(self):
+        database_value = b"23"
+        value = from_database(database_value, type_="float")
+        self.assertIsInstance(value, float)
+        self.assertEqual(value, 23.0)
+
+    def test_from_database_int(self):
+        database_value = b"23"
+        value = from_database(database_value, type_="int")
+        self.assertIsInstance(value, int)
+        self.assertEqual(value, 23)
 
     def test_from_database_boolean(self):
         database_value = b"true"
@@ -856,6 +867,23 @@ class TestParameterValue(unittest.TestCase):
         self.assertEqual(x, copy_of_x)
         self.assertIsNot(x, copy_of_x)
         self.assertIsNot(x.get_value("T1"), copy_of_x.get_value("T1"))
+
+
+class TestInt:
+    def test_from_database(self):
+        value = from_database(*to_database(23))
+        assert isinstance(value, int)
+        assert value == 23
+
+
+class TestFloat:
+    def test_from_database(self):
+        value = from_database(*to_database(2.3))
+        assert isinstance(value, float)
+        assert value == 2.3
+        value = from_database(*to_database(5.0))
+        assert isinstance(value, float)
+        assert value == 5.0
 
 
 class TestDuration:
@@ -1769,66 +1797,19 @@ class TestFancyTypeToTypeAndRank(unittest.TestCase):
 
 class TestTypeForValue(unittest.TestCase):
     def test_function_works(self):
-        self.assertEqual(type_for_value(None), (None, 0))
-        self.assertEqual(type_for_value(2.3), ("float", 0))
-        self.assertEqual(type_for_value("debug"), ("str", 0))
-        self.assertEqual(type_for_value(False), ("bool", 0))
-        self.assertEqual(type_for_value(DateTime("2024-07-25T11:00:00")), ("date_time", 0))
-        self.assertEqual(type_for_value(Duration("23D")), ("duration", 0))
-        self.assertEqual(type_for_value(Array(["a", "b"])), ("array", 1))
-        self.assertEqual(type_for_value(TimePattern(["D1-7"], [8.0])), ("time_pattern", 1))
+        self.assertEqual(type_and_rank_for_value(None), (None, 0))
+        self.assertEqual(type_and_rank_for_value(2.3), ("float", 0))
+        self.assertEqual(type_and_rank_for_value("debug"), ("str", 0))
+        self.assertEqual(type_and_rank_for_value(False), ("bool", 0))
+        self.assertEqual(type_and_rank_for_value(DateTime("2024-07-25T11:00:00")), ("date_time", 0))
+        self.assertEqual(type_and_rank_for_value(Duration("23D")), ("duration", 0))
+        self.assertEqual(type_and_rank_for_value(Array(["a", "b"])), ("array", 1))
+        self.assertEqual(type_and_rank_for_value(TimePattern(["D1-7"], [8.0])), ("time_pattern", 1))
         self.assertEqual(
-            type_for_value(TimeSeriesVariableResolution(["2024-07-24T11:00:00"], [2.3], False, False)),
+            type_and_rank_for_value(TimeSeriesVariableResolution(["2024-07-24T11:00:00"], [2.3], False, False)),
             ("time_series", 1),
         )
-        self.assertEqual(type_for_value(Map(["a", "b"], [Map(["i"], [2.3]), 23.0])), ("map", 2))
-
-
-class TestFromDatabaseToDimensionCount:
-    def test_zero_dimensional_types(self):
-        assert from_database_to_dimension_count(*to_database(None)) == 0
-        assert from_database_to_dimension_count(*to_database("a string")) == 0
-        assert from_database_to_dimension_count(*to_database(5)) == 0
-        assert from_database_to_dimension_count(*to_database(2.3)) == 0
-        assert from_database_to_dimension_count(*to_database(True)) == 0
-        assert (
-            from_database_to_dimension_count(*to_database(datetime(year=2025, month=8, day=25, hour=15, minute=15)))
-            == 0
-        )
-        assert from_database_to_dimension_count(*to_database(duration_to_relativedelta("5 years"))) == 0
-
-    def test_one_dimensional_types(self):
-        assert from_database_to_dimension_count(*to_database(Array([2.3, 3.2]))) == 1
-        assert from_database_to_dimension_count(*to_database(TimePattern(["WD1-7"], [23.0]))) == 1
-        assert (
-            from_database_to_dimension_count(
-                *to_database(
-                    TimeSeriesFixedResolution("2025-08-25T15:15", "1h", [2.3], ignore_year=False, repeat=False)
-                )
-            )
-            == 1
-        )
-        assert (
-            from_database_to_dimension_count(
-                *to_database(
-                    TimeSeriesVariableResolution(
-                        ["2025-08-25T15:15", "2025-08-25T16:15"], [2.3, 3.2], ignore_year=False, repeat=False
-                    )
-                )
-            )
-            == 1
-        )
-
-    def test_variable_dimensional_types(self):
-        assert from_database_to_dimension_count(*to_database(Map(["a"], [2.3]))) == 1
-        assert from_database_to_dimension_count(*to_database(Map(["a"], [Map(["A"], [2.3])]))) == 2
-        indexes_1 = pyarrow.array(["A", "B"])
-        values = pyarrow.array([2.3, 3.3])
-        record_batch = pyarrow.record_batch({"category": indexes_1, "value": values})
-        assert from_database_to_dimension_count(*to_database(record_batch)) == 1
-        indexes_2 = pyarrow.array(["a", "a"])
-        record_batch = pyarrow.record_batch({"category": indexes_1, "subcategory": indexes_2, "value": values})
-        assert from_database_to_dimension_count(*to_database(record_batch)) == 2
+        self.assertEqual(type_and_rank_for_value(Map(["a", "b"], [Map(["i"], [2.3]), 23.0])), ("map", 2))
 
 
 class TestMonthDayNanoIntervalToIsoDuration:

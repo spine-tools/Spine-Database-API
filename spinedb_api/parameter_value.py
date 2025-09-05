@@ -122,6 +122,7 @@ TIME_SERIES_DEFAULT_RESOLUTION = "1h"
 # Default unit if resolution is given as a number instead of a string.
 _TIME_SERIES_PLAIN_INDEX_UNIT = "m"
 FLOAT_VALUE_TYPE = "float"
+INT_VALUE_TYPE = "int"
 BOOLEAN_VALUE_TYPE = "bool"
 STRING_VALUE_TYPE = "str"
 
@@ -160,12 +161,13 @@ def from_database(value: bytes, type_: Optional[str]) -> Optional[Value | Parame
         return TimeSeriesVariableResolution.from_arrow(to_record_batch(parsed))
     if type_ == Map.TYPE:
         return Map.from_arrow(to_record_batch(parsed))
-    if isinstance(parsed, SupportsFloat) and not isinstance(parsed, bool):
+    if isinstance(parsed, int) and type_ == FLOAT_VALUE_TYPE:
+        # json.dumps() writes floats without decimals as ints.
         return float(parsed)
     return parsed
 
 
-def to_database(parsed_value: Optional[Value | ParameterValue]) -> tuple[bytes, Optional[str]]:
+def to_database(parsed_value: Optional[Value | ParameterValue | dict]) -> tuple[bytes, Optional[str]]:
     """
     Converts a Python object representing a parameter value into its DB representation.
 
@@ -187,8 +189,11 @@ def to_database(parsed_value: Optional[Value | ParameterValue]) -> tuple[bytes, 
         return json.dumps(to_list(parsed_value.as_arrow())).encode("UTF8"), parsed_value.TYPE
     if isinstance(parsed_value, pyarrow.RecordBatch):
         return json.dumps(to_list(parsed_value)).encode(), TABLE_TYPE
+    if isinstance(parsed_value, dict):
+        db_type = parsed_value.pop("type")
+    else:
+        db_type = type_for_scalar(parsed_value)
     db_value = json.dumps(parsed_value).encode("UTF8")
-    db_type = type_for_scalar(parsed_value)
     return db_value, db_type
 
 
@@ -265,31 +270,6 @@ def relativedelta_to_duration(delta: relativedelta) -> str:
     return "0h"
 
 
-def dump_db_value(parsed_value: JSONValue) -> tuple[bytes, str]:
-    """
-    Unparses a JSON object into a binary blob and type string.
-
-    If the given object is a dict, extracts the "type" property from it.
-
-    :meta private:
-
-    Args:
-        parsed_value: A JSON object, typically obtained by calling :func:`load_db_value`.
-
-    Returns:
-        database representation (value and type).
-    """
-    match parsed_value:
-        case dict():
-            value_type = parsed_value["type"]
-        case list():
-            value_type = TABLE_TYPE
-        case _:
-            value_type = type_for_scalar(parsed_value)
-    db_value = json.dumps(parsed_value).encode("UTF8")
-    return db_value, value_type
-
-
 def from_database_to_single_value(database_value: bytes, value_type: Optional[str]) -> Union[str, Optional[Value]]:
     """
     Same as :func:`from_database`, but in the case of indexed types returns just the type as a string.
@@ -306,27 +286,6 @@ def from_database_to_single_value(database_value: bytes, value_type: Optional[st
     if value_type is None or value_type not in NON_ZERO_RANK_TYPES:
         return from_database(database_value, value_type)
     return value_type
-
-
-def from_database_to_dimension_count(database_value: bytes, value_type: Optional[str]) -> int:
-    """
-    Counts the dimensions in a database representation of a parameter value (value and type).
-
-    :meta private:
-
-    Args:
-        database_value: the database value
-        value_type: the value type
-
-    Returns:
-        number of dimensions
-    """
-    if value_type in RANK_1_TYPES:
-        return 1
-    if value_type == Map.TYPE or value_type == TABLE_TYPE:
-        parsed = load_db_value(database_value)
-        return len(parsed) - 1
-    return 0
 
 
 def from_dict(value: dict, value_type: str) -> Optional[Value]:
@@ -2091,48 +2050,6 @@ def fancy_type_to_type_and_rank(fancy_type: str) -> tuple[str, int]:
     return fancy_type, 0
 
 
-def join_value_and_type(db_value: bytes, db_type: Optional[str]) -> str:
-    """Joins database value and type into a string.
-    The resulting string is a JSON string.
-    In case of complex types (duration, date_time, time_series, time_pattern, array, map),
-    the type is just added as top-level key.
-
-    :meta private:
-
-    Args:
-        db_value: database value
-        db_type: value type
-
-    Returns:
-        parameter value as JSON with an additional ``type`` field.
-    """
-    try:
-        parsed = load_db_value(db_value)
-    except ParameterValueFormatError:
-        parsed = None
-    if isinstance(parsed, dict):
-        parsed["type"] = db_type
-    return json.dumps(parsed)
-
-
-def split_value_and_type(value_and_type: str) -> tuple[bytes, str]:
-    """Splits the given string into value and type.
-
-    :meta private:
-
-    Args:
-        value_and_type: a string joining value and type, as obtained by calling :func:`join_value_and_type`.
-
-    Returns:
-        database value and type.
-    """
-    try:
-        parsed = json.loads(value_and_type)
-    except (TypeError, json.JSONDecodeError):
-        parsed = value_and_type
-    return dump_db_value(parsed)
-
-
 def deep_copy_value(value: Optional[Value]) -> Optional[Value]:
     """Copies a value.
     The operation is deep meaning that nested Maps will be copied as well.
@@ -2184,7 +2101,7 @@ def deep_copy_map(value: Map) -> Map:
     return Map(xs, ys, index_type=value.index_type, index_name=value.index_name)
 
 
-def type_for_value(value: Value) -> tuple[str, int]:
+def type_and_rank_for_value(value: Value) -> tuple[str, int]:
     """Declares value's database type and rank.
 
     Args:
@@ -2193,6 +2110,8 @@ def type_for_value(value: Value) -> tuple[str, int]:
     Returns:
         type and rank
     """
+    if isinstance(value, pyarrow.RecordBatch):
+        return TABLE_TYPE, value.num_columns - 1
     if isinstance(value, Map):
         return Map.TYPE, map_dimensions(value)
     if isinstance(value, ParameterValue):
@@ -2202,7 +2121,7 @@ def type_for_value(value: Value) -> tuple[str, int]:
     return type_for_scalar(value), 0
 
 
-def type_for_scalar(parsed_value: JSONValue) -> Optional[str]:
+def type_for_scalar(parsed_value: bool | float | int | str | datetime | relativedelta | None) -> Optional[str]:
     """Declares scalar value's database type.
 
     Args:
@@ -2213,14 +2132,18 @@ def type_for_scalar(parsed_value: JSONValue) -> Optional[str]:
     """
     if parsed_value is None:
         return None
-    if isinstance(parsed_value, dict):
-        return parsed_value["type"]
     if isinstance(parsed_value, bool):
         return BOOLEAN_VALUE_TYPE
-    if isinstance(parsed_value, SupportsFloat):
+    if isinstance(parsed_value, float):
         return FLOAT_VALUE_TYPE
+    if isinstance(parsed_value, int):
+        return INT_VALUE_TYPE
     if isinstance(parsed_value, str):
         return STRING_VALUE_TYPE
+    if isinstance(parsed_value, datetime):
+        return DateTime.TYPE
+    if isinstance(parsed_value, relativedelta):
+        return Duration.TYPE
     raise ParameterValueFormatError(f"Values of type {type(parsed_value).__name__} not supported.")
 
 

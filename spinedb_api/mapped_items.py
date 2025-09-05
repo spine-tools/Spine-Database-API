@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 from __future__ import annotations
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import suppress
 import inspect
 from operator import itemgetter
@@ -676,14 +676,11 @@ class ParsedValueBase(MappedItemBase):
             return self._arrow_value
         return super().__getitem__(key)
 
-    def merge(self, other):
-        merged, updated_fields = super().merge(other)
-        if not merged:
-            return merged, updated_fields
-        if self.value_key in merged:
+    def update(self, other):
+        super().update(other)
+        if self.value_key in other:
             self._parsed_value = None
             self._arrow_value = None
-        return merged, updated_fields
 
     def _strip_equal_fields(self, other):
         undefined = object()
@@ -1114,7 +1111,7 @@ class ListValueItem(ParsedValueBase):
         "parsed_value": {"type": ParameterValue, "value": "The value.", "optional": True},
         "index": {"type": int, "value": "The value index.", "optional": True},
     }
-    unique_keys = (("parameter_value_list_name", "value_and_type"), ("parameter_value_list_name", "index"))
+    unique_keys = (("parameter_value_list_name", "parsed_value", "type"), ("parameter_value_list_name", "index"))
     required_key_combinations = (
         ("parameter_value_list_name", "parameter_value_list_id"),
         (
@@ -1134,7 +1131,7 @@ class ListValueItem(ParsedValueBase):
 
     def __getitem__(self, key):
         if key == "value_and_type":
-            return (self["value"], self["type"])
+            return (super().__getitem__("value"), super().__getitem__("key"))
         return super().__getitem__(key)
 
 
