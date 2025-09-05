@@ -15,7 +15,7 @@ from collections.abc import Iterable
 from itertools import dropwhile, takewhile
 from json import dump, load
 import sys
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 from .alternative_filter import (
     ALTERNATIVE_FILTER_SHORTHAND_TAG,
@@ -63,7 +63,11 @@ from .value_transformer import (
     value_transformer_shorthand_to_config,
 )
 
+if TYPE_CHECKING:
+    from ..db_mapping import DatabaseMapping
+
 __all__ = ("append_filter_config", "apply_filter_stack", "clear_filter_configs", "filter_configs", "name_from_dict")
+
 
 FILTER_IDENTIFIER = "spinedbfilter"
 SHORTHAND_TAG = "cfg:"
