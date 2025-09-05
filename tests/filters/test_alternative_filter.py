@@ -119,9 +119,9 @@ class TestAlternativeFilter(AssertSuccessTestCase):
             config = alternative_filter_config(["new@2005-05-05T22:23:24", "new@2023-23-23T11:12:13"])
             alternative_filter_from_dict(db_map, config)
             parameters = db_map.query(db_map.parameter_value_sq).all()
-            self.assertEqual(len(parameters), 1)
+            self.assertEqual(len(parameters), 2)
             values = {from_database(p.value, p.type) for p in parameters}
-            self.assertEqual(values, {101.1})
+            self.assertEqual(values, {23.0, 101.1})
 
     def test_filters_alternatives(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
