@@ -706,7 +706,7 @@ def closing_spine_db_server(
     db_url: str,
     upgrade: bool = False,
     memory: bool = False,
-    ordering=Optional[OrderingDict],
+    ordering: Optional[OrderingDict] = None,
     server_manager_queue: Optional[MPQueue] = None,
 ):
     """Creates a Spine DB server.
@@ -728,6 +728,13 @@ def closing_spine_db_server(
         server_manager_queue = mngr.queue
     else:
         mngr = None
+    if ordering is None:
+        ordering = {
+            "id": 0,
+            "current": 0,
+            "precursors": set(),
+            "part_count": 0,
+        }
     server_address = start_spine_db_server(server_manager_queue, db_url, memory=memory, ordering=ordering)
     host, port = server_address
     try:
