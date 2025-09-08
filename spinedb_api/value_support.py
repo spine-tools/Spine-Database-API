@@ -22,7 +22,7 @@ JSONValue = bool | float | str | list | dict
 _INTERVAL_REGEXP = re.compile(r"(Y|M|D|WD|h|m|s)")
 
 
-def load_db_value(db_value: bytes) -> Optional[JSONValue]:
+def load_db_value(db_value: bytes, _type: str = "") -> Optional[JSONValue]:
     """
     Parses a binary blob into a JSON object.
 
