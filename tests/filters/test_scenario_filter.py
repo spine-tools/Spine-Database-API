@@ -19,7 +19,6 @@ from spinedb_api import (
     append_filter_config,
     apply_filter_stack,
     apply_scenario_filter_to_subqueries,
-    export_data,
     from_database,
     to_database,
 )
