@@ -65,6 +65,18 @@ class SpineDBClient(ReceiveAllMixing):
         """Reverts the last write report for this server."""
         return self._send("cancel_db_checkout")
 
+    def apply_filters(self, filters: dict) -> dict:
+        """Applies given filters to the database.
+
+        Args:
+            filters: filter configs.
+        """
+        return self._send("apply_filters", args=(filters,))
+
+    def clear_filters(self) -> dict:
+        """Clears filters from the database."""
+        return self._send("clear_filters")
+
     def import_data(self, data, comment):
         """Imports data to the DB using :func:`~spinedb_api.import_functions.import_data` and commits the changes.
 

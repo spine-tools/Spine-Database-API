@@ -1559,6 +1559,16 @@ class DatabaseMappingQueryMixin:
         self._make_entity_location_sq = MethodType(DatabaseMappingQueryMixin._make_entity_location_sq, self)
         self._clear_subqueries("entity_location")
 
+    def restore_entity_alternative_sq_maker(self):
+        """Restores the original function that creates the ``entity_alternative_sq`` property."""
+        self._make_entity_alternative_sq = MethodType(DatabaseMappingQueryMixin._make_entity_alternative_sq, self)
+        self._clear_subqueries("entity_alternative")
+
+    def restore_entity_group_sq_maker(self):
+        """Restores the original function that creates the ``entity_group_sq`` property."""
+        self._make_entity_group_sq = MethodType(DatabaseMappingQueryMixin._make_entity_group_sq, self)
+        self._clear_subqueries("entity_group")
+
     def restore_parameter_definition_sq_maker(self):
         """Restores the original function that creates the ``parameter_definition_sq`` property."""
         self._make_parameter_definition_sq = MethodType(DatabaseMappingQueryMixin._make_parameter_definition_sq, self)
