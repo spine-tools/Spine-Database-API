@@ -392,7 +392,7 @@ class DatabaseMappingQueryMixin:
             :class:`~sqlalchemy.sql.Subquery`
         """
         if self._entity_location_sq is None:
-            self._entity_location_sq = self._subquery("entity_location")
+            self._entity_location_sq = self._make_entity_location_sq()
         return self._entity_location_sq
 
     @property
@@ -1301,6 +1301,15 @@ class DatabaseMappingQueryMixin:
         """
         return self._subquery("entity_element")
 
+    def _make_entity_location_sq(self):
+        """
+        Creates a subquery for entity-locations.
+
+        Returns:
+            Subquery: an entity_location subquery
+        """
+        return self._subquery("entity_location")
+
     def _make_entity_group_sq(self):
         """
         Creates a subquery for entity groups.
@@ -1442,6 +1451,17 @@ class DatabaseMappingQueryMixin:
         self._make_entity_element_sq = MethodType(method, self)
         self._clear_subqueries("entity_element")
 
+    def override_entity_location_sq_maker(self, method):
+        """
+        Overrides the function that creates the ``entity_location_sq`` property.
+
+        Args:
+            method (Callable): a function that accepts a :class:`DatabaseMapping` as its argument and
+                returns entity_location subquery as an :class:`Subquery` object
+        """
+        self._make_entity_location_sq = MethodType(method, self)
+        self._clear_subqueries("entity_location")
+
     def override_entity_group_sq_maker(self, method):
         """
         Overrides the function that creates the ``entity_group_sq`` property.
@@ -1533,6 +1553,21 @@ class DatabaseMappingQueryMixin:
         """Restores the original function that creates the ``entity_element_sq`` property."""
         self._make_entity_element_sq = MethodType(DatabaseMappingQueryMixin._make_entity_element_sq, self)
         self._clear_subqueries("entity_element")
+
+    def restore_entity_location_sq_maker(self):
+        """Restores the original function that creates the ``entity_location_sq`` property."""
+        self._make_entity_location_sq = MethodType(DatabaseMappingQueryMixin._make_entity_location_sq, self)
+        self._clear_subqueries("entity_location")
+
+    def restore_entity_alternative_sq_maker(self):
+        """Restores the original function that creates the ``entity_alternative_sq`` property."""
+        self._make_entity_alternative_sq = MethodType(DatabaseMappingQueryMixin._make_entity_alternative_sq, self)
+        self._clear_subqueries("entity_alternative")
+
+    def restore_entity_group_sq_maker(self):
+        """Restores the original function that creates the ``entity_group_sq`` property."""
+        self._make_entity_group_sq = MethodType(DatabaseMappingQueryMixin._make_entity_group_sq, self)
+        self._clear_subqueries("entity_group")
 
     def restore_parameter_definition_sq_maker(self):
         """Restores the original function that creates the ``parameter_definition_sq`` property."""

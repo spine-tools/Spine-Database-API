@@ -16,6 +16,7 @@ import threading
 import unittest
 from spinedb_api import Array, DateTime, Duration, Map, TimePattern, TimeSeriesVariableResolution, to_database
 from spinedb_api.db_mapping import DatabaseMapping
+from spinedb_api.filters.alternative_filter import alternative_filter_config
 from spinedb_api.spine_db_client import SpineDBClient
 from spinedb_api.spine_db_server import DBHandler, closing_spine_db_server, db_server_manager
 
@@ -242,3 +243,80 @@ class TestDBServer(unittest.TestCase):
                     ["Object", "map", "X", list(to_database(Map([DateTime("2025-09-02T13:50")], [2.3]))), "Base"],
                 ],
             )
+
+    def test_clear_alternative_filter_restores_entity_and_entity_alternative_and_entity_group_subqueries(self):
+        with closing_spine_db_server("sqlite://") as server_url:
+            client = SpineDBClient.from_server_url(server_url)
+            result = client.call_method("add_alternative", name="not included")
+            self.assertEqual(result["result"]["name"], "not included")
+            result = client.call_method("add_entity_class", name="Object")
+            self.assertEqual(result["result"]["name"], "Object")
+            result = client.call_method("add_entity", entity_class_name="Object", name="widget")
+            self.assertEqual(result["result"]["entity_class_name"], "Object")
+            self.assertEqual(result["result"]["name"], "widget")
+            result = client.call_method(
+                "add_entity_alternative",
+                entity_class_name="Object",
+                entity_byname=("widget",),
+                alternative_name="Base",
+                active=False,
+            )
+            self.assertEqual(result["result"]["entity_class_name"], "Object")
+            self.assertEqual(result["result"]["entity_byname"], ["widget"])
+            self.assertEqual(result["result"]["alternative_name"], "Base")
+            self.assertFalse(result["result"]["active"])
+            result = client.call_method(
+                "add_entity_alternative",
+                entity_class_name="Object",
+                entity_byname=("widget",),
+                alternative_name="not included",
+                active=True,
+            )
+            self.assertEqual(result["result"]["entity_class_name"], "Object")
+            self.assertEqual(result["result"]["entity_byname"], ["widget"])
+            self.assertEqual(result["result"]["alternative_name"], "not included")
+            self.assertTrue(result["result"]["active"])
+            result = client.call_method("add_entity", entity_class_name="Object", name="group")
+            self.assertEqual(result["result"]["entity_class_name"], "Object")
+            self.assertEqual(result["result"]["name"], "group")
+            result = client.call_method(
+                "add_entity_group", entity_class_name="Object", group_name="group", member_name="widget"
+            )
+            self.assertEqual(result["result"]["entity_class_name"], "Object")
+            self.assertEqual(result["result"]["group_name"], "group")
+            self.assertEqual(result["result"]["member_name"], "widget")
+            result = client.call_method("commit_session", "Add test data.")
+            self.assertEqual(result, {"result": [[], []]})
+            result = client.call_method("entity", entity_class_name="Object", name="widget")
+            self.assertEqual(result["result"]["entity_class_name"], "Object")
+            self.assertEqual(result["result"]["name"], "widget")
+            result = client.apply_filters({"alternatives": ["Base"]})
+            self.assertEqual(result, {"result": True})
+            result = client.call_method("entity", entity_class_name="Object", name="widget")
+            self.assertEqual(result, {"error": "no entity matching {'entity_class_name': 'Object', 'name': 'widget'}"})
+            result = client.call_method(
+                "entity_alternative",
+                entity_class_name="Object",
+                entity_byname=("widget",),
+                alternative_name="not included",
+            )
+            self.assertEqual(
+                result, {"error": "no entity matching {'entity_class_name': 'Object', 'entity_byname': ['widget']}"}
+            )
+            result = client.call_method("find_entity_groups", entity_class_name="Object", group_name="group")
+            self.assertEqual(result, {"result": []})
+            result = client.clear_filters()
+            self.assertEqual(result, {"result": True})
+            result = client.call_method("entity", entity_class_name="Object", name="widget")
+            self.assertEqual(result["result"]["entity_class_name"], "Object")
+            self.assertEqual(result["result"]["name"], "widget")
+            result = client.call_method(
+                "entity_alternative",
+                entity_class_name="Object",
+                entity_byname=("widget",),
+                alternative_name="not included",
+            )
+            self.assertEqual(result["result"]["alternative_name"], "not included")
+            result = client.call_method("find_entity_groups", entity_class_name="Object", group_name="group")
+            self.assertIsInstance(result["result"], list)
+            self.assertEqual(len(result["result"]), 1)
