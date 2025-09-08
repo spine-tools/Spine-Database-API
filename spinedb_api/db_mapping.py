@@ -1058,12 +1058,16 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 new_items.append(item)
             else:
                 item.handle_refetch()
-            items.append(item)
+                items.append(item)
         # Once all items are added, add the unique key values
         # Otherwise items that refer to other items that come later in the query will be seen as corrupted
         for item in new_items:
             mapped_table.add_unique(item)
-            item.become_referrer()
+            if not item.become_referrer():
+                mapped_table.remove_item(item)
+                mapped_table.remove_unique(item)
+                continue
+            items.append(item)
         return items
 
     def fetch_more(self, item_type, offset=0, limit=None, **kwargs):
