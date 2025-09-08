@@ -41,7 +41,7 @@ def convert_tool_feature_method_to_active_by_default(conn, use_existing_tool_fea
             tf_table = meta.tables["tool_feature"]
             f_table = meta.tables["feature"]
             lv_id_by_pdef_id = {
-                x["parameter_definition_id"]: x["id"]
+                x.parameter_definition_id: x.id
                 for x in conn.execute(
                     sa.select(lv_table.c.id, f_table.c.parameter_definition_id)
                     .where(tfm_table.c.parameter_value_list_id == lv_table.c.parameter_value_list_id)
@@ -127,7 +127,7 @@ def convert_tool_feature_method_to_entity_alternative(conn, use_existing_tool_fe
             tf_table = meta.tables["tool_feature"]
             f_table = meta.tables["feature"]
             lv_id_by_pdef_id = {
-                x["parameter_definition_id"]: x["id"]
+                x.parameter_definition_id: x.id
                 for x in conn.execute(
                     sa.select(lv_table.c.id, f_table.c.parameter_definition_id)
                     .where(tfm_table.c.parameter_value_list_id == lv_table.c.parameter_value_list_id)
