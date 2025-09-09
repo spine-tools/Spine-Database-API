@@ -12,6 +12,7 @@
 """ Contains import mappings for database items such as entities, entity classes and parameter values. """
 
 from enum import Enum, auto, unique
+from typing import ClassVar
 from spinedb_api.exception import InvalidMapping, InvalidMappingComponent
 from spinedb_api.mapping import Mapping, Position, is_pivoted, parse_fixed_position_value, unflatten
 
@@ -85,6 +86,8 @@ def check_validity(root_mapping):
 
 class ImportMapping(Mapping):
     """Base class for import mappings."""
+
+    ignorable: ClassVar[bool] = False
 
     def __init__(self, position, value=None, skip_columns=None, read_start_row=0, filter_re=""):
         """
@@ -240,9 +243,7 @@ class ImportMapping(Mapping):
 
     def _filter_accepts_row(self, source_row):
         """Whether or not the row passes the filter for this mapping."""
-        if self.position == Position.hidden and self.value is None:
-            return True
-        if self._filter_re is None:
+        if (self.position == Position.hidden and self.value is None) or self._filter_re is None:
             return True
         source_data = self._data(source_row)
         return self._filter_re.search(str(source_data)) is not None
@@ -273,7 +274,10 @@ class ImportMapping(Mapping):
         if not (self.position == Position.hidden and self.value is None):
             source_data = self._data(source_row)
             if source_data is None:
-                self._skip_row(state)
+                if not self.ignorable or self.child is None:
+                    self._skip_row(state)
+                    return
+                self.child.import_row(source_row, state, mapped_data, errors=errors)
                 return
             try:
                 self._import_row(source_data, state, mapped_data)
@@ -434,6 +438,7 @@ class EntityMetadataMapping(ImportMapping):
     """
 
     MAP_TYPE = "EntityMetadata"
+    ignorable = True
 
     def _import_row(self, source_data, state, mapped_data):
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
@@ -475,6 +480,7 @@ class EntityAlternativeActivityMapping(ImportMapping):
     """
 
     MAP_TYPE = "EntityAlternativeActivity"
+    ignorable = True
 
     def _import_row(self, source_data, state, mapped_data):
         if source_data is None or source_data == "":
@@ -747,6 +753,7 @@ class ParameterValueMetadataMapping(ImportMapping):
     """
 
     MAP_TYPE = "ParameterValueMetadata"
+    ignorable = True
 
     def _import_row(self, source_data, state, mapped_data):
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
