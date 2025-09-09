@@ -1054,20 +1054,18 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         # Add items first
         for x in chunk:
             item, new = mapped_table.add_item_from_db(x, not is_db_dirty)
+            if item is None:
+                continue
             if new:
                 new_items.append(item)
             else:
                 item.handle_refetch()
-                items.append(item)
+            items.append(item)
         # Once all items are added, add the unique key values
         # Otherwise items that refer to other items that come later in the query will be seen as corrupted
         for item in new_items:
             mapped_table.add_unique(item)
-            if not item.become_referrer():
-                mapped_table.remove_item(item)
-                mapped_table.remove_unique(item)
-                continue
-            items.append(item)
+            item.become_referrer()
         return items
 
     def fetch_more(self, item_type, offset=0, limit=None, **kwargs):

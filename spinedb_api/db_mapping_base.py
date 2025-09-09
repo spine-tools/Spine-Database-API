@@ -437,6 +437,9 @@ class MappedTable(dict):
     def _make_and_add_item(self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool) -> MappedItemBase:
         if not isinstance(item, MappedItemBase):
             item = self._db_map.make_item(self.item_type, **item)
+            invalid_key = item.first_invalid_key()
+            if invalid_key is not None:
+                return None
             try:
                 item.polish()
             except SpineDBAPIError as error:
@@ -460,6 +463,8 @@ class MappedTable(dict):
                     return mapped_item, False
                 mapped_item.handle_id_steal()
             mapped_item = self._make_and_add_item(item, ignore_polishing_errors=True)
+            if mapped_item is None:
+                return None, None
             if self.purged:
                 # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
                 mapped_item.cascade_remove()
@@ -897,22 +902,19 @@ class MappedItemBase(dict):
         def add_self_as_referrer(ref_id):
             ref = mapped_table.get(ref_id)
             if ref is None:
-                return False
+                raise RuntimeError(f"Reference id {ref_id} in '{ref_table}' table not found")
             ref.add_referrer(self)
-            return True
 
         for field, ref_table in self._references.items():
-            mapped_table = self.db_map.mapped_table(ref_table)
             field_value = self[field]
             if not field_value:
                 continue
+            mapped_table = self.db_map.mapped_table(ref_table)
             if isinstance(field_value, tuple):
                 for id_ in field_value:
-                    if not add_self_as_referrer(id_):
-                        return False
+                    add_self_as_referrer(id_)
             else:
-                if not add_self_as_referrer(field_value):
-                    return False
+                add_self_as_referrer(field_value)
         for field, ref_table in self._weak_references.items():
             try:
                 id_ = self[field]
