@@ -1184,12 +1184,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                         self._do_add_items(connection, tablename, *to_add)
             except Exception as error:
                 raise error
-            self._session.commit()
             if self._memory:
                 self._memory_dirty = True
             transformation_info = compatibility_transformations(
                 self._session.connection(), apply=apply_compatibility_transforms
             )
+            self._session.commit()
             self._commit_count = self._query_commit_count()
         return transformation_info
 
