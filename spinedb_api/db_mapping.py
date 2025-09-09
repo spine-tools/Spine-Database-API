@@ -1054,6 +1054,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         # Add items first
         for x in chunk:
             item, new = mapped_table.add_item_from_db(x, not is_db_dirty)
+            if item is None:
+                # Item has a broken reference from DB
+                continue
             if new:
                 new_items.append(item)
             else:

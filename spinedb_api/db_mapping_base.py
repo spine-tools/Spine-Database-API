@@ -434,7 +434,9 @@ class MappedTable(dict):
             except ValueError:
                 pass
 
-    def _make_and_add_item(self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool) -> MappedItemBase:
+    def _make_and_add_item(
+        self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool, check_invalid_refs: bool = False
+    ) -> MappedItemBase:
         if not isinstance(item, MappedItemBase):
             item = self._db_map.make_item(self.item_type, **item)
             try:
@@ -442,6 +444,8 @@ class MappedTable(dict):
             except SpineDBAPIError as error:
                 if not ignore_polishing_errors:
                     raise error
+            if check_invalid_refs and item.first_invalid_key() is not None:
+                return None
         db_id = item.pop("id", None) if item.has_valid_id else None
         item["id"] = new_id = TempId.new_unique(self.item_type, self._temp_id_lookup)
         if db_id is not None:
@@ -459,7 +463,10 @@ class MappedTable(dict):
                 if is_db_clean or self._same_item(mapped_item.db_equivalent(), item):
                     return mapped_item, False
                 mapped_item.handle_id_steal()
-            mapped_item = self._make_and_add_item(item, ignore_polishing_errors=True)
+            mapped_item = self._make_and_add_item(item, ignore_polishing_errors=True, check_invalid_refs=True)
+            if mapped_item is None:
+                # Item has a broken reference in the DB, nothing to do here
+                return None, None
             if self.purged:
                 # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
                 mapped_item.cascade_remove()
@@ -901,10 +908,10 @@ class MappedItemBase(dict):
             ref.add_referrer(self)
 
         for field, ref_table in self._references.items():
-            mapped_table = self.db_map.mapped_table(ref_table)
             field_value = self[field]
             if not field_value:
-                return
+                continue
+            mapped_table = self.db_map.mapped_table(ref_table)
             if isinstance(field_value, tuple):
                 for id_ in field_value:
                     add_self_as_referrer(id_)
