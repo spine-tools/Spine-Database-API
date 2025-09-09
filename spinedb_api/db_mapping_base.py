@@ -927,7 +927,6 @@ class MappedItemBase(dict):
             except KeyError:
                 continue
             ref.add_weak_referrer(self)
-        return True
 
     def cascade_restore(self, source: Optional[object] = None) -> None:
         """Restores this item (if removed) and all its referrers in cascade.
