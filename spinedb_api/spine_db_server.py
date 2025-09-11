@@ -119,7 +119,7 @@ from .incomplete_values import dump_db_value
 from .server_client_helpers import ReceiveAllMixing, decode, encode
 from .spine_db_client import SpineDBClient
 
-_current_server_version = 8
+_current_server_version = 9
 
 
 class OrderingDict(TypedDict):
