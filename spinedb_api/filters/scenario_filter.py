@@ -37,6 +37,8 @@ def apply_scenario_filter_to_subqueries(db_map, scenario):
     db_map.override_entity_sq_maker(make_entity_sq)
     make_entity_group_sq = partial(_make_scenario_filtered_entity_group_sq, state=state)
     db_map.override_entity_group_sq_maker(make_entity_group_sq)
+    make_entity_location_sq = partial(_make_scenario_filtered_entity_location_sq, state=state)
+    db_map.override_entity_location_sq_maker(make_entity_location_sq)
     make_entity_alternative_sq = partial(_make_scenario_filtered_entity_alternative_sq, state=state)
     db_map.override_entity_alternative_sq_maker(make_entity_alternative_sq)
     make_parameter_value_sq = partial(_make_scenario_filtered_parameter_value_sq, state=state)
@@ -131,6 +133,7 @@ class _ScenarioFilterState:
         self.original_entity_element_sq = db_map.entity_element_sq
         self.original_entity_alternative_sq = db_map.entity_alternative_sq
         self.original_entity_group_sq = db_map.entity_group_sq
+        self.original_entity_location_sq = db_map.entity_location_sq
         self.original_parameter_value_sq = db_map.parameter_value_sq
         self.original_scenario_sq = db_map.scenario_sq
         self.original_scenario_alternative_sq = db_map.scenario_alternative_sq
@@ -324,6 +327,26 @@ def _make_scenario_filtered_entity_group_sq(db_map, state):
             state.original_entity_group_sq.c.entity_id == ext_entity_sq1.c.id,
             state.original_entity_group_sq.c.member_id == ext_entity_sq2.c.id,
         )
+        .subquery()
+    )
+
+
+def _make_scenario_filtered_entity_location_sq(db_map, state):
+    """Returns an entity filtering subquery similar to :func:`DatabaseMapping.entity_location_sq`.
+
+    This function can be used as replacement for entity subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_AlternativeFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for entity_location filtered by selected scenario
+    """
+    ext_entity_sq = _ext_entity_sq(db_map, state)
+    return (
+        db_map.query(state.original_entity_location_sq)
+        .filter(state.original_entity_location_sq.c.entity_id == ext_entity_sq.c.id)
         .subquery()
     )
 

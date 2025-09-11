@@ -1052,6 +1052,47 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_missing_entity_alternative_does_not_prevent_importing_of_values(self):
+        data_source = iter(
+            [
+                [None, None, "Whether unit is included", "In MW"],
+                ["alternative", "unit", "Entity Alternative", "existing"],
+                ["Fail", "Wind_plant", None, 150],
+                ["Succeed", "Wind_plant", True, 200],
+            ]
+        )
+
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "unit"},
+                {"map_type": "Entity", "position": 1},
+                {"map_type": "EntityMetadata", "position": "hidden"},
+                {"map_type": "Alternative", "position": 0},
+                {"map_type": "EntityAlternativeActivity", "position": 2},
+                {"map_type": "ParameterDefinition", "position": -2},
+                {"map_type": "ParameterValueMetadata", "position": "hidden"},
+                {"map_type": "ParameterValue", "position": "hidden"},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "string", 2: "boolean", 3: "float"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Succeed", "Fail"},
+                "entities": [("unit", "Wind_plant")],
+                "entity_alternatives": [("unit", ("Wind_plant",), "Succeed", True)],
+                "entity_classes": [("unit",)],
+                "parameter_definitions": [("unit", "existing")],
+                "parameter_values": [
+                    ["unit", "Wind_plant", "existing", 150.0, "Fail"],
+                    ["unit", "Wind_plant", "existing", 200.0, "Succeed"],
+                ],
+            },
+        )
+
     def test_json_converter_with_legacy_values(self):
         header = ["Entity", "Value"]
         values = [

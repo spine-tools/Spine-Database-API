@@ -11,15 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `spinedb_api` now requires SLQAlchemy 2.0.
-  Things should work as before, except
-  if you are using a SQLite database backed by temporary file/in temporary directory,
-  you may need to call `db_map.engine.dispose()` before the SQLite file gets removed.
-- The 'alternatives' filter now assumes the alternatives in the filter are given in ascending rank order,
-  and then follows a similar logic as the 'scenario' filter where alternatives with higher ranks are prioritized.
-  This is to disambiguate a case where one entity was active in, say, alternative A, and inactive in alternative B,
-  and the user specified an 'alternatives' filter that included both A and B.
-
 ### Deprecated
 
 ### Removed
@@ -27,6 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.36.0]
+
+### Changed
+
+- `spinedb_api` now requires SLQAlchemy 2.0.
+  Things should work as before, except
+  if you are using an SQLite database backed by temporary file or a file in temporary directory,
+  you may need to call `db_map.engine.dispose()` before the SQLite file gets removed.
+- The 'alternatives' filter now assumes the alternatives in the filter are given in ascending rank order,
+  and then follows a similar logic as the 'scenario' filter where alternatives with higher ranks are prioritized.
+  This is to disambiguate a case where one entity was active in, say, alternative A, and inactive in alternative B,
+  and the user specified an 'alternatives' filter that included both A and B.
 
 ## [0.35.1]
 

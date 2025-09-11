@@ -17,7 +17,7 @@ It lets everything depending on the selected alternatives through and filters ou
 """
 from collections.abc import Iterable
 from functools import partial
-from sqlalchemy import and_, or_, select, literal, cast, Integer, union_all, func, desc
+from sqlalchemy import Integer, and_, cast, func, literal, or_, select, union_all
 from ..exception import SpineDBAPIError
 from .query_utils import filter_by_active_elements
 
@@ -44,6 +44,8 @@ def apply_alternative_filter_to_parameter_value_sq(db_map, alternatives):
     db_map.override_scenario_sq_maker(make_scenario_sq)
     make_entity_element_sq = partial(_make_alternative_filtered_entity_element_sq, state=state)
     db_map.override_entity_element_sq_maker(make_entity_element_sq)
+    make_entity_location_sq = partial(_make_alternative_filtered_entity_location_sq, state=state)
+    db_map.override_entity_location_sq_maker(make_entity_location_sq)
     make_entity_sq = partial(_make_alternative_filtered_entity_sq, state=state)
     db_map.override_entity_sq_maker(make_entity_sq)
     make_entity_alternative_sq = partial(_make_alternative_filtered_entity_alternative_sq, state=state)
@@ -130,6 +132,7 @@ class _AlternativeFilterState:
         self.original_entity_element_sq = db_map.entity_element_sq
         self.original_entity_alternative_sq = db_map.entity_alternative_sq
         self.original_entity_group_sq = db_map.entity_group_sq
+        self.original_entity_location_sq = db_map.entity_location_sq
         self.original_parameter_value_sq = db_map.parameter_value_sq
         self.original_scenario_sq = db_map.scenario_sq
         self.original_scenario_alternative_sq = db_map.scenario_alternative_sq
@@ -193,14 +196,16 @@ class _AlternativeFilterState:
 
 def _rank_alternative_sq(alternatives):
     if not alternatives:
-        return select(literal(None).label("rank"), literal(None).label("alternative_id"))
+        return select(literal(None).label("rank"), literal(None).label("alternative_id")).subquery("rank_alternative")
     rank_alt_rows = list(enumerate(reversed(alternatives)))
     selects = [
         # NOTE: optimization to reduce the size of the statement:
         # make type cast only for first row, for other rows DB engine will infer
-        select(cast(literal(rank), Integer).label("rank"), cast(literal(alt_id), Integer).label("alternative_id"))
-        if i == 0
-        else select(literal(rank), literal(alt_id))  # no type cast
+        (
+            select(cast(literal(rank), Integer).label("rank"), cast(literal(alt_id), Integer).label("alternative_id"))
+            if i == 0
+            else select(literal(rank), literal(alt_id))
+        )  # no type cast
         for i, (rank, alt_id) in enumerate(rank_alt_rows)
     ]
     return union_all(*selects).alias(name="rank_alternative")
@@ -220,10 +225,7 @@ def _ext_entity_sq(db_map, state):
         db_map.query(
             state.original_entity_sq,
             func.row_number()
-            .over(
-                partition_by=[state.original_entity_sq.c.id],
-                order_by=desc(rank_alt_sq.c.rank),
-            )
+            .over(partition_by=[state.original_entity_sq.c.id], order_by=rank_alt_sq.c.rank.desc())
             .label("desc_rank_row_number"),
             state.original_entity_alternative_sq.c.active,
             db_map.entity_class_sq.c.active_by_default,
@@ -344,6 +346,26 @@ def _make_alternative_filtered_entity_group_sq(db_map, state):
             state.original_entity_group_sq.c.entity_id == ext_entity_sq1.c.id,
             state.original_entity_group_sq.c.member_id == ext_entity_sq2.c.id,
         )
+        .subquery()
+    )
+
+
+def _make_alternative_filtered_entity_location_sq(db_map, state):
+    """Returns an entity filtering subquery similar to :func:`DatabaseMapping.entity_location_sq`.
+
+    This function can be used as replacement for entity subquery maker in :class:`DatabaseMapping`.
+
+    Args:
+        db_map (DatabaseMapping): a database map
+        state (_AlternativeFilterState): a state bound to ``db_map``
+
+    Returns:
+        Alias: a subquery for entity_location filtered by selected alternatives
+    """
+    ext_entity_sq = _ext_entity_sq(db_map, state)
+    return (
+        db_map.query(state.original_entity_location_sq)
+        .filter(state.original_entity_location_sq.c.entity_id == ext_entity_sq.c.id)
         .subquery()
     )
 
