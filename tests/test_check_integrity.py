@@ -50,8 +50,8 @@ class TestCheckIntegrity(unittest.TestCase):
                 "list_value",
                 {"id": 1, **_val_dict(True), "index": 0, "parameter_value_list_id": 1},
                 {"id": 2, **_val_dict(False), "index": 1, "parameter_value_list_id": 1},
-                {"id": 3, **_val_dict(42), "index": 0, "parameter_value_list_id": 2},
-                {"id": 4, **_val_dict(-2), "index": 1, "parameter_value_list_id": 2},
+                {"id": 3, **_val_dict(42.0), "index": 0, "parameter_value_list_id": 2},
+                {"id": 4, **_val_dict(-2.0), "index": 1, "parameter_value_list_id": 2},
                 {"id": 5, **_val_dict("foo"), "index": 0, "parameter_value_list_id": 3},
                 {"id": 6, **_val_dict("Bar"), "index": 1, "parameter_value_list_id": 3},
                 {"id": 7, **_val_dict("BAZ"), "index": 2, "parameter_value_list_id": 3},
@@ -77,21 +77,22 @@ class TestCheckIntegrity(unittest.TestCase):
 
     def test_parameter_values_and_default_values_with_list_references(self):
         # regression test for spine-tools/Spine-Toolbox#1878
-        for type_, fail, pass_ in self.data:
-            id_ = self.value_type[type_]  # setup: parameter definition/value list ids are equal
-            for k, value in enumerate(fail):
-                with self.subTest(type=type_, value=value):
-                    item = self.get_item(id_, value, type_, 1)
-                    with self.db_map:
+        with self.db_map:
+            for type_, fail, pass_ in self.data:
+                id_ = self.value_type[type_]  # setup: parameter definition/value list ids are equal
+                for k, value in enumerate(fail):
+                    with self.subTest(type=type_, value=value):
+                        item = self.get_item(id_, value, type_, 1)
                         _, errors = self.db_map.add_items("parameter_value", item)
-                    self.assertEqual(len(errors), 1)
-                    parsed_value = json.loads(value.decode("utf8"))
-                    if isinstance(parsed_value, Number):
-                        parsed_value = float(parsed_value)
-                    self.assertEqual(errors[0], f"value {parsed_value} of par{id_} for ('Tom',) is not in list{id_}")
-            for k, value in enumerate(pass_):
-                with self.subTest(type=type_, value=value):
-                    item = self.get_item(id_, value, type_, k + 1)
-                    with self.db_map:
+                        self.assertEqual(len(errors), 1)
+                        parsed_value = json.loads(value.decode("utf8"))
+                        if isinstance(parsed_value, Number):
+                            parsed_value = float(parsed_value)
+                        self.assertEqual(
+                            errors[0], f"value {parsed_value} of par{id_} for ('Tom',) is not in list{id_}"
+                        )
+                for k, value in enumerate(pass_):
+                    with self.subTest(type=type_, value=value):
+                        item = self.get_item(id_, value, type_, k + 1)
                         _, errors = self.db_map.add_items("parameter_value", item)
-                    self.assertEqual(errors, [])
+                        self.assertEqual(errors, [])

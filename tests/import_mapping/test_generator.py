@@ -11,10 +11,25 @@
 ######################################################################################################################
 
 """ Contains unit tests for the generator module. """
+import datetime
+import json
 import unittest
-from spinedb_api import Array, DateTime, Duration, Map
+from dateutil.relativedelta import relativedelta
+import pyarrow
+from spinedb_api import (
+    Array,
+    DateTime,
+    Duration,
+    Map,
+    TimePattern,
+    TimeSeries,
+    TimeSeriesFixedResolution,
+    TimeSeriesVariableResolution,
+    to_database,
+)
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.import_mapping.type_conversion import value_to_convert_spec
+from spinedb_api.incomplete_values import join_value_and_type
 
 
 class TestGetMappedData(unittest.TestCase):
@@ -1074,6 +1089,165 @@ class TestGetMappedData(unittest.TestCase):
                 "parameter_values": [
                     ["unit", "Wind_plant", "existing", 150.0, "Fail"],
                     ["unit", "Wind_plant", "existing", 200.0, "Succeed"],
+                ],
+            },
+        )
+
+    def test_json_converter_with_legacy_values(self):
+        header = ["Entity", "Value"]
+        values = [
+            DateTime("2025-09-05T09:11"),
+            Duration("4 hours"),
+            Array([2.3]),
+            TimePattern(["WD1-7"], [2.3]),
+            TimeSeriesFixedResolution("2025-09-05T09:16", "1h", [2.3], ignore_year=True, repeat=False),
+            TimeSeriesVariableResolution(["2025-09-05T09:16"], [2.3], ignore_year=False, repeat=True),
+            Map(["a"], ["b"]),
+        ]
+        data = []
+        expected_imported_parameter_values = []
+        for i, value in enumerate(values):
+            value_dict = value.to_dict()
+            value_dict["type"] = value.TYPE
+            entity = value.TYPE + str(i)
+            data.append([entity, json.dumps(value_dict)])
+            expected_value = value.as_arrow()
+            if isinstance(value, TimeSeries):
+                new_fields = []
+                for field_i in range(len(expected_value.schema)):
+                    field = expected_value.schema.field(field_i)
+                    if pyarrow.types.is_timestamp(field.type):
+                        field = field.with_type(pyarrow.timestamp("us"))
+                    new_fields.append((field.name, field.type))
+                expected_value = expected_value.cast(pyarrow.schema(new_fields))
+            expected_imported_parameter_values.append(["Object", entity, "y", expected_value, "Base"])
+        data_source = iter(data)
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "y"},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterValue", "position": 1},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "json"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entity_classes": [
+                    ("Object",),
+                ],
+                "entities": [
+                    ("Object", "date_time0"),
+                    ("Object", "duration1"),
+                    ("Object", "array2"),
+                    ("Object", "time_pattern3"),
+                    ("Object", "time_series4"),
+                    ("Object", "time_series5"),
+                    ("Object", "map6"),
+                ],
+                "parameter_definitions": [("Object", "y")],
+                "alternatives": {"Base"},
+                "parameter_values": expected_imported_parameter_values,
+            },
+        )
+
+    def test_json_converter(self):
+        header = ["Entity", "Value"]
+        values = [
+            2.3,
+            23,
+            "a string",
+            True,
+            datetime.datetime(year=2025, month=9, day=5, hour=10, minute=4),
+            relativedelta(hours=7),
+            pyarrow.record_batch({"col_1": pyarrow.array(["a"]), "value": pyarrow.array("b")}),
+        ]
+        data = []
+        expected_imported_parameter_values = []
+        for value in values:
+            blob, value_type = to_database(value)
+            value_and_type = join_value_and_type(blob, value_type)
+            entity = value_type
+            data.append([entity, value_and_type])
+            expected_imported_parameter_values.append(["Object", entity, "y", value, "Base"])
+        data_source = iter(data)
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "y"},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterValue", "position": 1},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "json"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entity_classes": [
+                    ("Object",),
+                ],
+                "entities": [
+                    ("Object", "float"),
+                    ("Object", "int"),
+                    ("Object", "str"),
+                    ("Object", "bool"),
+                    ("Object", "date_time"),
+                    ("Object", "duration"),
+                    ("Object", "table"),
+                ],
+                "parameter_definitions": [("Object", "y")],
+                "alternatives": {"Base"},
+                "parameter_values": expected_imported_parameter_values,
+            },
+        )
+
+    def test_json_converter_with_unrecognized_json_imports_string_as_is(self):
+        header = ["Entity", "Value"]
+        values = [
+            2.3,
+            23,
+            "a string",
+            True,
+            datetime.datetime(year=2025, month=9, day=5, hour=10, minute=4),
+            relativedelta(hours=7),
+            pyarrow.record_batch({"col_1": pyarrow.array(["a"]), "value": pyarrow.array("b")}),
+        ]
+        data = [["non-compatible json", json.dumps({"my_data": [11]})], ["total gibberish", "abc"]]
+        data_source = iter(data)
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "y"},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterValue", "position": 1},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "json"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entity_classes": [
+                    ("Object",),
+                ],
+                "entities": [("Object", "non-compatible json"), ("Object", "total gibberish")],
+                "parameter_definitions": [("Object", "y")],
+                "alternatives": {"Base"},
+                "parameter_values": [
+                    ["Object", "non-compatible json", "y", json.dumps({"my_data": [11]}), "Base"],
+                    ["Object", "total gibberish", "y", "abc", "Base"],
                 ],
             },
         )

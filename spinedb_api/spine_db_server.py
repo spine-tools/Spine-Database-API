@@ -115,11 +115,11 @@ from .filters.alternative_filter import alternative_filter_config
 from .filters.scenario_filter import scenario_filter_config
 from .filters.tools import apply_filter_stack
 from .import_functions import import_data
-from .parameter_value import dump_db_value
+from .incomplete_values import dump_db_value
 from .server_client_helpers import ReceiveAllMixing, decode, encode
 from .spine_db_client import SpineDBClient
 
-_current_server_version = 8
+_current_server_version = 9
 
 
 class OrderingDict(TypedDict):
@@ -674,7 +674,13 @@ def quick_db_checkout(server_manager_queue, ordering):
     _ManagerRequestHandler(server_manager_queue).quick_db_checkout(ordering)
 
 
-def start_spine_db_server(server_manager_queue, db_url, upgrade: bool = False, memory: bool = False, ordering=None):
+def start_spine_db_server(
+    server_manager_queue: _DeepCopyableQueue,
+    db_url: str,
+    ordering: OrderingDict,
+    upgrade: bool = False,
+    memory: bool = False,
+) -> tuple[str, int]:
     handler = _ManagerRequestHandler(server_manager_queue)
     server_address = handler.start_server(db_url, upgrade, memory, ordering)
     return server_address
@@ -735,7 +741,7 @@ def closing_spine_db_server(
             "precursors": set(),
             "part_count": 0,
         }
-    server_address = start_spine_db_server(server_manager_queue, db_url, memory=memory, ordering=ordering)
+    server_address = start_spine_db_server(server_manager_queue, db_url, ordering, upgrade=upgrade, memory=memory)
     host, port = server_address
     try:
         yield urlunsplit(("http", f"{host}:{port}", "", "", ""))
