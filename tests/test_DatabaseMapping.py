@@ -5866,6 +5866,21 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self.assertCountEqual(entity_class_names, ["cat", "dog"])
             db_map.engine.dispose()
 
+    def test_uncommitted_mapped_items_are_updated_by_externally_committed_items(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            with DatabaseMapping(url, create=True) as db_map1:
+                db_map1.add_entity_class(name="widget")
+                db_map1.add_entity(entity_class_name="widget", name="gadget")
+                with DatabaseMapping(url) as db_map2:
+                    # Add the same entity
+                    db_map2.add_entity_class(name="widget")
+                    db_map2.add_entity(entity_class_name="widget", name="gadget")
+                    db_map2.commit_session("No comment")
+                db_map2.engine.dispose()
+                db_map1.commit_session("No comment")
+            db_map1.engine.dispose()
+
     def test_uncommitted_mapped_items_take_id_from_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
