@@ -592,7 +592,7 @@ class MappedItemBase(dict):
     """A dictionary that represents a db item."""
 
     item_type: ClassVar[str] = "not implemented"
-    fields: ClassVar[dict[str:FieldDict]] = {}
+    fields: ClassVar[dict[str, FieldDict]] = {}
     """A dictionary mapping fields to a another dict mapping "type" to a Python type,
     "value" to a description of the value for the key, and "optional" to a bool."""
     _defaults: ClassVar[dict[str, Any]] = {}
@@ -642,7 +642,7 @@ class MappedItemBase(dict):
         super().__init__(**kwargs)
         self.db_map = db_map
         self._referrers: dict[TempId, MappedItemBase] = {}
-        self._weak_referrers: dict[TempId, MappedItemBase] = {}
+        self._weak_referrers: dict[tuple[str, TempId], MappedItemBase] = {}
         self.restore_callbacks: set[Callable[[MappedItemBase], bool]] = set()
         self.update_callbacks: set[Callable[[MappedItemBase], bool]] = set()
         self.remove_callbacks: set[Callable[[MappedItemBase], bool]] = set()
