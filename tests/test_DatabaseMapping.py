@@ -3320,6 +3320,31 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             relationship = db_map.add_entity(entity_byname=("thing", "thing"), entity_class_name="Object__Object")
             self.assertEqual(relationship["name"], "thing__thing")
 
+    def test_entity_class_with_id_that_replaces_a_removed_id_is_found_by_fetch_all(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object1")
+                db_map.add_entity_class(name="Object2")
+                dummy_class = db_map.add_entity_class(name="Dummy")
+                db_map.add_entity_class(name="Object3")
+                db_map.add_entity_class(dimension_name_list=["Object1", "Object2"])
+                db_map.commit_session("Add test data.")
+                dummy_class.remove()
+                db_map.commit_session("Remove dummy class.")
+            db_map.close()
+            with DatabaseMapping(url) as db_map:
+                db_map.add_entity_class(dimension_name_list=["Object1__Object2", "Object3"])
+                db_map.commit_session("Add relationship.")
+            db_map.close()
+            with DatabaseMapping(url) as db_map:
+                classes = db_map.fetch_all("entity_class")
+                self.assertCountEqual(
+                    [c["name"] for c in classes],
+                    ["Object1", "Object2", "Object3", "Object1__Object2", "Object1__Object2__Object3"],
+                )
+            db_map.close()
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
