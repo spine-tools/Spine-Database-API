@@ -443,7 +443,7 @@ class MappedTable(dict):
                 pass
 
     def _make_item(
-        self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool, check_invalid_refs: bool = False
+        self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool
     ) -> MappedItemBase:
         if not isinstance(item, MappedItemBase):
             item = self._db_map.make_item(self.item_type, **item)
@@ -452,20 +452,18 @@ class MappedTable(dict):
             except SpineDBAPIError as error:
                 if not ignore_polishing_errors:
                     raise error
-            if check_invalid_refs and item.first_invalid_key() is not None:
-                return None
         return item
 
-    def _and_add_item(self, item):
+    def _and_add_item(self, item: MappedItemBase) -> None:
         db_id = item.pop("id", None) if item.has_valid_id else None
         item["id"] = new_id = TempId.new_unique(self.item_type, self._temp_id_lookup)
         if db_id is not None:
             new_id.resolve(db_id)
         self[new_id] = item
 
-    def add_item_from_db(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool]:
+    def add_item_from_db(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool] | tuple[None, None]:
         """Adds an item fetched from the DB."""
-        new_item = self._make_item(item, ignore_polishing_errors=True, check_invalid_refs=True)
+        new_item = self._make_item(item, ignore_polishing_errors=True)
         if new_item is None:
             # Item has a broken reference in the DB, nothing to do here
             return None, None
@@ -594,7 +592,7 @@ class MappedItemBase(dict):
     """A dictionary that represents a db item."""
 
     item_type: ClassVar[str] = "not implemented"
-    fields: ClassVar[dict[str:FieldDict]] = {}
+    fields: ClassVar[dict[str, FieldDict]] = {}
     """A dictionary mapping fields to a another dict mapping "type" to a Python type,
     "value" to a description of the value for the key, and "optional" to a bool."""
     _defaults: ClassVar[dict[str, Any]] = {}
@@ -644,7 +642,7 @@ class MappedItemBase(dict):
         super().__init__(**kwargs)
         self.db_map = db_map
         self._referrers: dict[TempId, MappedItemBase] = {}
-        self._weak_referrers: dict[TempId, MappedItemBase] = {}
+        self._weak_referrers: dict[tuple[str, TempId], MappedItemBase] = {}
         self.restore_callbacks: set[Callable[[MappedItemBase], bool]] = set()
         self.update_callbacks: set[Callable[[MappedItemBase], bool]] = set()
         self.remove_callbacks: set[Callable[[MappedItemBase], bool]] = set()
