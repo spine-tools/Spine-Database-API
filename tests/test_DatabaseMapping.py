@@ -3344,6 +3344,31 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             list_value.update(parsed_value="new")
             self.assertEqual(list_value["parsed_value"], "new")
 
+    def test_entity_class_with_id_that_replaces_a_removed_id_is_found_by_fetch_all(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Object1")
+                db_map.add_entity_class(name="Object2")
+                dummy_class = db_map.add_entity_class(name="Dummy")
+                db_map.add_entity_class(name="Object3")
+                db_map.add_entity_class(dimension_name_list=["Object1", "Object2"])
+                db_map.commit_session("Add test data.")
+                dummy_class.remove()
+                db_map.commit_session("Remove dummy class.")
+            db_map.close()
+            with DatabaseMapping(url) as db_map:
+                db_map.add_entity_class(dimension_name_list=["Object1__Object2", "Object3"])
+                db_map.commit_session("Add relationship.")
+            db_map.close()
+            with DatabaseMapping(url) as db_map:
+                classes = db_map.fetch_all("entity_class")
+                self.assertCountEqual(
+                    [c["name"] for c in classes],
+                    ["Object1", "Object2", "Object3", "Object1__Object2", "Object1__Object2__Object3"],
+                )
+            db_map.close()
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
@@ -5889,6 +5914,21 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self.assertEqual(commit_msgs, {"Create the database", "one", "two"})
                 self.assertCountEqual(entity_class_names, ["cat", "dog"])
             db_map.engine.dispose()
+
+    def test_uncommitted_mapped_items_are_updated_by_externally_committed_items(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            with DatabaseMapping(url, create=True) as db_map1:
+                db_map1.add_entity_class(name="widget")
+                db_map1.add_entity(entity_class_name="widget", name="gadget")
+                with DatabaseMapping(url) as db_map2:
+                    # Add the same entity
+                    db_map2.add_entity_class(name="widget")
+                    db_map2.add_entity(entity_class_name="widget", name="gadget")
+                    db_map2.commit_session("No comment")
+                db_map2.engine.dispose()
+                db_map1.commit_session("No comment")
+            db_map1.engine.dispose()
 
     def test_uncommitted_mapped_items_take_id_from_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:

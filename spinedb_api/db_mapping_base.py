@@ -195,12 +195,18 @@ class DatabaseMappingBase:
     def refresh_session(self):
         """Clears fetch progress, so the DB is queried again, and committed, unchanged items."""
         changed_statuses = {Status.to_add, Status.to_update, Status.to_remove}
+        to_remove = []
         for item_type in self.item_types():
             mapped_table = self._mapped_tables[item_type]
             for item in list(mapped_table.values()):
                 if item.status not in changed_statuses:
-                    mapped_table.remove_unique(item)
-                    del mapped_table[dict.__getitem__(item, "id")]
+                    to_remove.append((mapped_table, item))
+        # First remove unique keys, then ids, otherwise the unique keys are not fully removed
+        # due to missing references
+        for mapped_table, item in to_remove:
+            mapped_table.remove_unique(item)
+        for mapped_table, item in to_remove:
+            del mapped_table[dict.__getitem__(item, "id")]
         self._commit_count = None
         self._fetched.clear()
 
@@ -354,7 +360,9 @@ class MappedTable(dict):
                 return self._unique_key_value_to_item(key, value, fetch=fetch)
             except SpineDBAPIError:
                 continue
-        raise SpineDBAPIError(f"no {self.item_type} matching {item}")
+        raise SpineDBAPIError(
+            f"no {self.item_type} matching {item if not isinstance(item, MappedItemBase) else 'given item'}"
+        )
 
     def find_item_by_unique_key(self, item: dict, fetch: bool = True) -> MappedItemBase:
         try:
@@ -434,8 +442,8 @@ class MappedTable(dict):
             except ValueError:
                 pass
 
-    def _make_and_add_item(
-        self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool, check_invalid_refs: bool = False
+    def _make_item(
+        self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool
     ) -> MappedItemBase:
         if not isinstance(item, MappedItemBase):
             item = self._db_map.make_item(self.item_type, **item)
@@ -444,45 +452,46 @@ class MappedTable(dict):
             except SpineDBAPIError as error:
                 if not ignore_polishing_errors:
                     raise error
-            if check_invalid_refs and item.first_invalid_key() is not None:
-                return None
+        return item
+
+    def _and_add_item(self, item: MappedItemBase) -> None:
         db_id = item.pop("id", None) if item.has_valid_id else None
         item["id"] = new_id = TempId.new_unique(self.item_type, self._temp_id_lookup)
         if db_id is not None:
             new_id.resolve(db_id)
         self[new_id] = item
-        return item
 
-    def add_item_from_db(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool]:
+    def add_item_from_db(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool] | tuple[None, None]:
         """Adds an item fetched from the DB."""
+        new_item = self._make_item(item, ignore_polishing_errors=True)
+        if new_item is None:
+            # Item has a broken reference in the DB, nothing to do here
+            return None, None
         try:
-            mapped_item = self._find_fully_qualified_item_by_unique_key(item, fetch=False)
+            existing_item = self._find_fully_qualified_item_by_unique_key(new_item, fetch=False)
         except SpineDBAPIError:
-            mapped_item = self.get(item["id"])
-            if mapped_item:
-                if is_db_clean or self._same_item(mapped_item.db_equivalent(), item):
-                    return mapped_item, False
-                mapped_item.handle_id_steal()
-            mapped_item = self._make_and_add_item(item, ignore_polishing_errors=True, check_invalid_refs=True)
-            if mapped_item is None:
-                # Item has a broken reference in the DB, nothing to do here
-                return None, None
+            same_id_item = self.get(item["id"])
+            if same_id_item:
+                if is_db_clean or self._same_item(same_id_item.db_equivalent(), item):
+                    return same_id_item, False
+                same_id_item.handle_id_steal()
+            self._and_add_item(new_item)
             if self.purged:
                 # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
-                mapped_item.cascade_remove()
-            return mapped_item, True
-        if is_db_clean or self._same_item(mapped_item, item):
-            mapped_item.force_id(item["id"])
-            if mapped_item.status == Status.to_add and (
-                mapped_item.replaced_item_waiting_for_removal is None
-                or mapped_item.replaced_item_waiting_for_removal["id"].db_id != item["id"]
+                new_item.cascade_remove()
+            return new_item, True
+        if is_db_clean or self._same_item(existing_item, item):
+            existing_item.force_id(item["id"])
+            if existing_item.status == Status.to_add and (
+                existing_item.replaced_item_waiting_for_removal is None
+                or existing_item.replaced_item_waiting_for_removal["id"].db_id != item["id"]
             ):
-                # We could test if the non-unique fields of mapped_item and db item are equal
+                # We could test if the non-unique fields of existing_item and db item are equal
                 # and set status to Status.committed
                 # but that is potentially complex operation (for e.g. large parameter values)
-                # so we take a shortcut here and assume that mapped_item always contains modified data.
-                mapped_item.status = Status.to_update
-            return mapped_item, False
+                # so we take a shortcut here and assume that existing_item always contains modified data.
+                existing_item.status = Status.to_update
+        return existing_item, False
 
     def _same_item(self, mapped_item: MappedItemBase, db_item: dict) -> bool:
         """Whether the two given items have the same unique keys.
@@ -524,7 +533,8 @@ class MappedTable(dict):
             raise SpineDBAPIError("\n".join(errors))
 
     def add_item(self, item: dict) -> MappedItemBase:
-        item = self._make_and_add_item(item, ignore_polishing_errors=False)
+        item = self._make_item(item, ignore_polishing_errors=False)
+        self._and_add_item(item)
         self.add_unique(item)
         item.become_referrer()
         item.status = Status.to_add
@@ -582,7 +592,7 @@ class MappedItemBase(dict):
     """A dictionary that represents a db item."""
 
     item_type: ClassVar[str] = "not implemented"
-    fields: ClassVar[dict[str:FieldDict]] = {}
+    fields: ClassVar[dict[str, FieldDict]] = {}
     """A dictionary mapping fields to a another dict mapping "type" to a Python type,
     "value" to a description of the value for the key, and "optional" to a bool."""
     _defaults: ClassVar[dict[str, Any]] = {}
@@ -632,7 +642,7 @@ class MappedItemBase(dict):
         super().__init__(**kwargs)
         self.db_map = db_map
         self._referrers: dict[TempId, MappedItemBase] = {}
-        self._weak_referrers: dict[TempId, MappedItemBase] = {}
+        self._weak_referrers: dict[tuple[str, TempId], MappedItemBase] = {}
         self.restore_callbacks: set[Callable[[MappedItemBase], bool]] = set()
         self.update_callbacks: set[Callable[[MappedItemBase], bool]] = set()
         self.remove_callbacks: set[Callable[[MappedItemBase], bool]] = set()
