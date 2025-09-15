@@ -442,9 +442,7 @@ class MappedTable(dict):
             except ValueError:
                 pass
 
-    def _make_item(
-        self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool
-    ) -> MappedItemBase:
+    def _make_item(self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool) -> MappedItemBase:
         if not isinstance(item, MappedItemBase):
             item = self._db_map.make_item(self.item_type, **item)
             try:
@@ -461,12 +459,9 @@ class MappedTable(dict):
             new_id.resolve(db_id)
         self[new_id] = item
 
-    def add_item_from_db(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool] | tuple[None, None]:
+    def add_item_from_db(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool]:
         """Adds an item fetched from the DB."""
         new_item = self._make_item(item, ignore_polishing_errors=True)
-        if new_item is None:
-            # Item has a broken reference in the DB, nothing to do here
-            return None, None
         try:
             existing_item = self._find_fully_qualified_item_by_unique_key(new_item, fetch=False)
         except SpineDBAPIError:
@@ -910,12 +905,13 @@ class MappedItemBase(dict):
         for weak_referrer in self._weak_referrers.values():
             weak_referrer.call_update_callbacks()
 
-    def become_referrer(self) -> None:
+    def become_referrer(self) -> bool:
         def add_self_as_referrer(ref_id):
             ref = mapped_table.get(ref_id)
             if ref is None:
-                raise RuntimeError(f"Reference id {ref_id} in '{ref_table}' table not found")
+                return False
             ref.add_referrer(self)
+            return True
 
         for field, ref_table in self._references.items():
             field_value = self[field]
@@ -924,9 +920,11 @@ class MappedItemBase(dict):
             mapped_table = self.db_map.mapped_table(ref_table)
             if isinstance(field_value, tuple):
                 for id_ in field_value:
-                    add_self_as_referrer(id_)
+                    if not add_self_as_referrer(id_):
+                        return False
             else:
-                add_self_as_referrer(field_value)
+                if not add_self_as_referrer(field_value):
+                    return False
         for field, ref_table in self._weak_references.items():
             try:
                 id_ = self[field]
@@ -939,6 +937,7 @@ class MappedItemBase(dict):
             except KeyError:
                 continue
             ref.add_weak_referrer(self)
+        return True
 
     def cascade_restore(self, source: Optional[object] = None) -> None:
         """Restores this item (if removed) and all its referrers in cascade.
