@@ -146,25 +146,12 @@ def get_current_server_version() -> int:
     return _current_server_version
 
 
-def _parse_value(v, type_):
-    return (v, type_)
-
-
-def _unparse_value(value_and_type):
-    if isinstance(value_and_type, (tuple, list)) and len(value_and_type) == 2:
-        value, type_ = value_and_type
-        if value is None or (isinstance(value, bytes) and (isinstance(type_, str) or type_ is None)):
-            # Tuple of value and type ready to go
-            return value, type_
-    # JSON object
-    return dump_db_value(value_and_type)
-
-
 class SpineDBServer(socketserver.TCPServer):
     def __init__(self, manager_queue, ordering, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.manager_queue = manager_queue
         self.ordering = ordering
+        self.worker = None
 
 
 class _DeepCopyableQueue(MPQueue):
@@ -202,7 +189,6 @@ class _DBServerManager:
         return {
             "start_server": self._start_server,
             "shutdown_server": self._shutdown_server,
-            "shutdown_servers": self._shutdown_servers,
             "db_checkin": self._db_checkin,
             "db_checkout": self._db_checkout,
             "quick_db_checkout": self._quick_db_checkout,
@@ -250,9 +236,6 @@ class _DBServerManager:
         server.server_close()
         return True
 
-    def _shutdown_servers(self):
-        return all(self._shutdown_server(server_address) for server_address in list(self._servers))
-
     def _db_checkin(self, server_address):
         server = self._servers.get(server_address)
         if not server:
@@ -299,41 +282,51 @@ class _DBServerManager:
         checkouts.pop(ordering["current"], None)
 
 
-class _ManagerRequestHandler:
-    def __init__(self, mngr_queue):
-        self._mngr_queue = mngr_queue
+def _run_request_on_manager(request, server_manager_queue, *args, **kwargs):
+    with mp.Manager() as manager:
+        output_queue = manager.Queue()
+        server_manager_queue.put((output_queue, request, args, kwargs))
+        return output_queue.get()
 
-    def _run_request(self, request, *args, **kwargs):
-        with mp.Manager() as manager:
-            output_queue = manager.Queue()
-            self._mngr_queue.put((output_queue, request, args, kwargs))
-            return output_queue.get()
 
-    def start_server(self, db_url, upgrade, memory, ordering):
-        return self._run_request("start_server", db_url, upgrade, memory, ordering)
+def start_spine_db_server(server_manager_queue, db_url, upgrade: bool = False, memory: bool = False, ordering=None):
+    return _run_request_on_manager("start_server", server_manager_queue, db_url, upgrade, memory, ordering)
 
-    def shutdown_server(self, server_address):
-        return self._run_request("shutdown_server", server_address)
 
-    def shutdown_servers(self):
-        return self._run_request("shutdown_servers")
+def shutdown_spine_db_server(server_manager_queue, server_address):
+    return _run_request_on_manager("shutdown_server", server_manager_queue, server_address)
 
-    def register_ordering(self, server_address, ordering):
-        return self._run_request("register_ordering", server_address, ordering)
 
-    def db_checkin(self, server_address):
-        event = self._run_request("db_checkin", server_address)
-        if event:
-            event.wait()
+def db_checkin(server_manager_queue, server_address):
+    event = _run_request_on_manager("db_checkin", server_manager_queue, server_address)
+    if event:
+        event.wait()
 
-    def db_checkout(self, server_address):
-        return self._run_request("db_checkout", server_address)
 
-    def quick_db_checkout(self, ordering):
-        return self._run_request("quick_db_checkout", ordering)
+def db_checkout(server_manager_queue, server_address):
+    return _run_request_on_manager("db_checkout", server_manager_queue, server_address)
 
-    def cancel_db_checkout(self, server_address):
-        return self._run_request("cancel_db_checkout", server_address)
+
+def quick_db_checkout(server_manager_queue, ordering):
+    return _run_request_on_manager("quick_db_checkout", server_manager_queue, ordering)
+
+
+def cancel_db_checkout(server_manager_queue, server_address):
+    return _run_request_on_manager("cancel_db_checkout", server_manager_queue, server_address)
+
+
+def _parse_value(v, type_):
+    return (v, type_)
+
+
+def _unparse_value(value_and_type):
+    if isinstance(value_and_type, (tuple, list)) and len(value_and_type) == 2:
+        value, type_ = value_and_type
+        if value is None or (isinstance(value, bytes) and (isinstance(type_, str) or type_ is None)):
+            # Tuple of value and type ready to go
+            return value, type_
+    # JSON object
+    return dump_db_value(value_and_type)
 
 
 class _DBWorker:
@@ -390,7 +383,7 @@ class _DBWorker:
                 result = handler(*args, **kwargs)
             self._out_queue.put(result)
 
-    def run(self, request, args, kwargs):
+    def _run_request(self, request, args, kwargs):
         with self._lock:
             self._in_queue.put((request, args, kwargs))
             return self._out_queue.get()
@@ -458,70 +451,33 @@ class _DBWorker:
             return {"error": str(error)}
 
 
-class _DBManager:
-    def __init__(self):
-        self._workers = {}
-
-    def open_db_map(self, server_address, db_url, upgrade, memory):
-        worker = self._workers.get(server_address)
-        if worker is None:
+class HandleDBRequestMixin:
+    def open_db_map(self, db_url, upgrade, memory):
+        if self.worker is None:
             try:
-                self._workers[server_address] = _DBWorker(db_url, upgrade, memory)
+                self.worker = _DBWorker(db_url, upgrade, memory)
             except Exception as error:  # pylint: disable=broad-except
                 return {"error": str(error)}
         return {"result": True}
 
-    def close_db_map(self, server_address):
-        worker = self._workers.pop(server_address, None)
-        if worker is None:
-            return {"result": True}
-        worker.shutdown()
+    def close_db_map(self):
+        if self.worker is not None:
+            self.worker.shutdown()
         return {"result": True}
 
-    def get_db_url(self, server_address):
-        worker = self._workers.get(server_address)
-        if worker is not None:
-            return worker.db_url
-
-    def _run_request(self, server_address, request, args=(), kwargs=None, create=True):
-        if kwargs is None:
-            kwargs = {}
-        worker = self._workers.get(server_address)
-        if worker is not None:
-            return worker.run(request, args, kwargs)
-
-    def query(self, server_address, *args):
-        return self._run_request(server_address, "query", args=args)
-
-    def filtered_query(self, server_address, **kwargs):
-        return self._run_request(server_address, "filtered_query", kwargs=kwargs)
-
-    def import_data(self, server_address, data, comment):
-        return self._run_request(server_address, "import_data", args=(data, comment))
-
-    def export_data(self, server_address, **kwargs):
-        return self._run_request(server_address, "export_data", kwargs=kwargs)
-
-    def call_method(self, server_address, method_name, *args, **kwargs):
-        return self._run_request(server_address, "call_method", args=(method_name, *args), kwargs=kwargs)
-
-    def apply_filters(self, server_address, configs):
-        return self._run_request(server_address, "apply_filters", args=(configs,))
-
-    def clear_filters(self, server_address):
-        return self._run_request(server_address, "clear_filters")
-
-
-_db_manager = _DBManager()
-
-
-class HandleDBMixin:
     def get_db_url(self):
         """
         Returns:
             str: The underlying db url
         """
-        return _db_manager.get_db_url(self.server_address)
+        if self.worker is not None:
+            return self.worker.db_url
+
+    def _run_request_on_worker(self, request, args=(), kwargs=None):
+        if kwargs is None:
+            kwargs = {}
+        if self.worker is not None:
+            return self.worker._run_request(request, args, kwargs)
 
     def query(self, *args):
         """
@@ -530,7 +486,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is a dict from subquery name to a list of items from thay subquery, if successful.
         """
-        return _db_manager.query(self.server_address, *args)
+        return self._run_request_on_worker("query", args=args)
 
     def filtered_query(self, **kwargs):
         """
@@ -539,7 +495,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is a dict from subquery name to a list of items from thay subquery, if successful.
         """
-        return _db_manager.filtered_query(self.server_address, **kwargs)
+        return self._run_request_on_worker("filtered_query", kwargs=kwargs)
 
     def import_data(self, data, comment):
         """Imports data and commit.
@@ -550,7 +506,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is a list of import errors, if successful.
         """
-        return _db_manager.import_data(self.server_address, data, comment)
+        return self._run_request_on_worker("import_data", args=(data, comment))
 
     def export_data(self, **kwargs):
         """Exports data.
@@ -558,7 +514,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is the data exported from the db
         """
-        return _db_manager.export_data(self.server_address, **kwargs)
+        return self._run_request_on_worker("export_data", kwargs=kwargs)
 
     def call_method(self, method_name, *args, **kwargs):
         """Calls a method from the DatabaseMapping class.
@@ -571,7 +527,7 @@ class HandleDBMixin:
         Returns:
             dict: where result is the return value of the method
         """
-        return _db_manager.call_method(self.server_address, method_name, *args, **kwargs)
+        return self._run_request_on_worker("call_method", args=(method_name, *args), kwargs=kwargs)
 
     def apply_filters(self, filters):
         obsolete = ("tool",)
@@ -580,28 +536,22 @@ class HandleDBMixin:
             for key, value in filters.items()
             if key not in obsolete
         ]
-        return _db_manager.apply_filters(self.server_address, configs)
+        return self._run_request_on_worker("apply_filters", args=(configs,))
 
     def clear_filters(self):
-        return _db_manager.clear_filters(self.server_address)
+        return self._run_request_on_worker("clear_filters")
 
     def db_checkin(self):
-        _ManagerRequestHandler(self.server_manager_queue).db_checkin(self.server_address)
+        db_checkin(self.server_manager_queue, self.server_address)
         return {"result": True}
 
     def db_checkout(self):
-        _ManagerRequestHandler(self.server_manager_queue).db_checkout(self.server_address)
+        db_checkout(self.server_manager_queue, self.server_address)
         return {"result": True}
 
     def cancel_db_checkout(self):
-        _ManagerRequestHandler(self.server_manager_queue).cancel_db_checkout(self.server_address)
+        cancel_db_checkout(self.server_manager_queue, self.server_address)
         return {"result": True}
-
-    def open_db_map(self, db_url, upgrade, memory):
-        return _db_manager.open_db_map(self.server_address, db_url, upgrade, memory)
-
-    def close_db_map(self):
-        return _db_manager.close_db_map(self.server_address)
 
     def _get_response(self, request):
         request, *extras = decode(request)
@@ -643,19 +593,28 @@ class HandleDBMixin:
         return encode(response)
 
 
-class DBHandler(HandleDBMixin):
+class DBHandler(HandleDBRequestMixin):
     def __init__(self, db_url, upgrade=False, memory=False):
         self.server_address = uuid.uuid4().hex
-        error = _db_manager.open_db_map(self.server_address, db_url, upgrade, memory).get("error")
+        self.worker = None
+        error = self.open_db_map(db_url, upgrade, memory).get("error")
         if error:
             raise RuntimeError(error)
         atexit.register(self.close)
 
     def close(self):
-        _db_manager.close_db_map(self.server_address)
+        self.close_db_map()
 
 
-class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequestHandler):
+class DBRequestHandler(ReceiveAllMixing, HandleDBRequestMixin, socketserver.BaseRequestHandler):
+    @property
+    def worker(self):
+        return self.server.worker
+
+    @worker.setter
+    def worker(self, worker):
+        self.server.worker = worker
+
     @property
     def server_address(self):
         return self.server.server_address
@@ -668,21 +627,6 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBMixin, socketserver.BaseRequest
         request = self._recvall()
         response = self.handle_request(request)
         self.request.sendall(response + bytes(self._EOT, self._ENCODING))
-
-
-def quick_db_checkout(server_manager_queue, ordering):
-    _ManagerRequestHandler(server_manager_queue).quick_db_checkout(ordering)
-
-
-def start_spine_db_server(server_manager_queue, db_url, upgrade: bool = False, memory: bool = False, ordering=None):
-    handler = _ManagerRequestHandler(server_manager_queue)
-    server_address = handler.start_server(db_url, upgrade, memory, ordering)
-    return server_address
-
-
-def shutdown_spine_db_server(server_manager_queue, server_address):
-    handler = _ManagerRequestHandler(server_manager_queue)
-    handler.shutdown_server(server_address)
 
 
 @contextmanager
