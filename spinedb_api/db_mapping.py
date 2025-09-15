@@ -155,7 +155,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             backup_url (str, optional): A URL to backup the DB before upgrading.
             create (bool, optional): Whether to create a new Spine DB at the given `url` if it's not already one.
             apply_filters (bool, optional): Whether to apply filters in the `url`'s query segment.
-            commit_lock (threading.Lock, optional): Whether to use a SQLite memory DB as replacement for the original one.
+            commit_lock (threading.Lock, optional): If given, committing to the DB is done with the lock.
             memory (bool, optional): Whether to use a SQLite memory DB as replacement for the original one.
             sqlite_timeout (int, optional): The number of seconds to wait before raising SQLite connection errors.
         """
