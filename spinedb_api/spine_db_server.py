@@ -338,6 +338,7 @@ class _DBWorker:
         self._memory = memory
         self._create = create
         self._db_map = None
+        self._closed = False
         self._lock = threading.Lock()
         self._in_queue = Queue()
         self._out_queue = Queue()
@@ -352,6 +353,9 @@ class _DBWorker:
         return str(self._db_map.db_url)
 
     def shutdown(self):
+        if self._closed:
+            return
+        self._closed = True
         self._db_map.close()
         self._in_queue.put(self._CLOSE)
         self._thread.join()
