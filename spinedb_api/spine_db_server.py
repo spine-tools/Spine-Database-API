@@ -113,7 +113,7 @@ from .db_mapping import DatabaseMapping
 from .export_functions import export_data
 from .filters.alternative_filter import alternative_filter_config
 from .filters.scenario_filter import scenario_filter_config
-from .filters.tools import apply_filter_stack
+from .filters.tools import apply_filter_stack, clear_filter_configs
 from .import_functions import import_data
 from .parameter_value import dump_db_value
 from .server_client_helpers import ReceiveAllMixing, decode, encode
@@ -329,6 +329,14 @@ def _unparse_value(value_and_type):
     return dump_db_value(value_and_type)
 
 
+_commit_locks = {}
+
+
+def _get_commit_lock(db_url):
+    clean_url = clear_filter_configs(db_url)
+    return _commit_locks.setdefault(clean_url, threading.Lock())
+
+
 class _DBWorker:
     _CLOSE: ClassVar[Literal["close"]] = "close"
 
@@ -363,7 +371,11 @@ class _DBWorker:
     def _do_work(self):
         try:
             self._db_map = DatabaseMapping(
-                self._db_url, upgrade=self._upgrade, memory=self._memory, create=self._create
+                self._db_url,
+                upgrade=self._upgrade,
+                memory=self._memory,
+                commit_lock=_get_commit_lock(self._db_url),
+                create=self._create,
             )
             self._out_queue.put(None)
         except Exception as error:  # pylint: disable=broad-except
