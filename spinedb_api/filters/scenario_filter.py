@@ -201,34 +201,25 @@ def _ext_entity_sq(db_map, state):
             db_map.entity_class_sq.c.active_by_default,
             state.original_scenario_alternative_sq.c.scenario_id,
         )
+        .filter(state.original_entity_sq.c.class_id == db_map.entity_class_sq.c.id)
         .outerjoin(
             state.original_entity_alternative_sq,
             state.original_entity_sq.c.id == state.original_entity_alternative_sq.c.entity_id,
         )
-        .outerjoin(db_map.entity_class_sq, state.original_entity_sq.c.class_id == db_map.entity_class_sq.c.id)
         .outerjoin(
             state.original_scenario_alternative_sq,
             state.original_entity_alternative_sq.c.alternative_id
             == state.original_scenario_alternative_sq.c.alternative_id,
-        )
-        .filter(
-            or_(
-                state.original_scenario_alternative_sq.c.scenario_id == None,
-                state.original_scenario_alternative_sq.c.scenario_id == state.scenario_id,
-            ),
-            or_(
-                state.original_entity_alternative_sq.c.alternative_id == None,
-                state.original_entity_alternative_sq.c.alternative_id
-                == state.original_scenario_alternative_sq.c.alternative_id,
-                db_map.entity_class_sq.c.active_by_default == True,
-            ),
         )
     ).subquery()
     return (
         db_map.query(entity_sq)
         .filter(
             entity_sq.c.desc_rank_row_number == 1,
-            or_(entity_sq.c.active == True, and_(entity_sq.c.active == None, entity_sq.c.active_by_default == True)),
+            or_(
+                and_(entity_sq.c.scenario_id == state.scenario_id, entity_sq.c.active == True),
+                and_(entity_sq.c.scenario_id == None, entity_sq.c.active_by_default == True),
+            ),
         )
         .subquery()
     )
