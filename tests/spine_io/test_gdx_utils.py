@@ -141,42 +141,7 @@ class TestGamsSupportsNewApi:
 *** Note: For solvers, other expiration dates may apply.
 *** Status: Normal completion
 --- Job ? Stop 08/07/25 11:58:53 elapsed 0:00:00.016"""
-        output_48 = r"""--- Job ? Start 09/16/25 11:10:09 48.3.0 71b5641f WEX-WEI x86 64bit/MS Windows
-***
-*** GAMS Base Module 48.3.0 71b5641f Nov 12, 2024          WEI x86 64bit/MS Window
-***
-*** GAMS Development Corporation
-*** 2751 Prosperity Ave, Suite 210
-*** Fairfax, VA 22031, USA
-*** +1 202-342-0180, +1 202-342-0181 fax
-*** support@gams.com, www.gams.com
-***
-*** GAMS Release     : 48.3.0 71b5641f WEX-WEI x86 64bit/MS Windows
-*** Release Date     : Nov 12, 2024
-*** To use this release, you must have a valid license file for
-*** this platform with maintenance expiration date later than
-*** Oct 14, 2024
-*** System Directory : C:\GAMS\48\
-***
-*** License          : C:\xxx\hassle\22222222222222222222222222222222
-*** Large MUD - 20 User License                    S241010|0002CO-GEN
-*** VTT Technical Research Centre of Finland Ltd, CARO
-*** DC16012 01CL
-*** License Admin: N. N., n.n@example.com
-***
-*** Licensed platform                             : Generic platforms
-*** The installed license is valid.
-*** Maintenance expiration date (GAMS base module): Feb 02, 2026
-*** Note: For solvers, other expiration dates may apply.
-*** Status: Normal completion
---- Job ? Stop 09/16/25 11:10:09 elapsed 0:00:00.016"""
-        for output, expected in [
-            (output_24, False),
-            (output_41, False),
-            (output_42, True),
-            (output_47, True),
-            (output_48, True),
-        ]:
+        for output, expected in [(output_24, False), (output_41, False), (output_42, True), (output_47, True)]:
             completed_process = mock.MagicMock()
             completed_process.returncode = 0
             completed_process.stderr = ""

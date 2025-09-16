@@ -16,7 +16,6 @@ import os
 import re
 import subprocess
 import sys
-from tempfile import TemporaryDirectory
 from typing import Optional
 
 if sys.platform == "win32":
@@ -67,13 +66,7 @@ def find_gams_directory() -> Optional[str]:
 
 def gams_supports_new_api(gams_path: str) -> bool:
     gams_exec = os.path.join(gams_path, "gams")
-    with TemporaryDirectory() as work_dir:
-        # We use a temporary directory here to ensure we run the command in a writable place.
-        # GAMS creates some temporary folders when executed.
-        # If this fails e.g. because the user has no write access to the current work directory,
-        # the command fails as well.
-        # The current work directory may be read-only e.g. when Toolbox was started from a read-only directory.
-        completed = subprocess.run([gams_exec, "?"], cwd=work_dir, capture_output=True, text=True)
+    completed = subprocess.run([gams_exec, "?"], capture_output=True, text=True)
     if completed.returncode != 0 or completed.stderr:
         return False
     version_re = re.compile(r"^\*\*\* GAMS Release +: (?P<major>\d+)")
