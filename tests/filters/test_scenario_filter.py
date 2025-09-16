@@ -33,6 +33,31 @@ from tests.mock_helpers import AssertSuccessTestCase
 
 
 class TestScenarioFilterInMemory(AssertSuccessTestCase):
+    def test_filter_entity_inactive_but_in_unrelated_alternative(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="cat", active_by_default=True)
+            db_map.add_entity(name="Felix", entity_class_name="cat")
+            db_map.add_entity(name="Tom", entity_class_name="cat")
+            db_map.add_alternative(name="alt")
+            db_map.add_alternative(name="other_alt")
+            db_map.add_entity_alternative(
+                alternative_name="alt", entity_class_name="cat", entity_byname=("Felix",), active=False
+            )
+            db_map.add_entity_alternative(
+                alternative_name="Base", entity_class_name="cat", entity_byname=("Tom",), active=False
+            )
+
+            db_map.add_scenario(name="scen")
+            db_map.add_scenario_alternative(scenario_name="scen", alternative_name="Base", rank=1)
+            db_map.add_scenario(name="other_scen")
+            db_map.add_scenario_alternative(scenario_name="other_scen", alternative_name="alt", rank=2)
+            db_map.add_scenario_alternative(scenario_name="other_scen", alternative_name="Base", rank=1)
+            db_map.commit_session("Add data.")
+            apply_filter_stack(db_map, [scenario_filter_config("scen")])
+            entities = db_map.query(db_map.wide_entity_sq).all()
+            self.assertEqual(len(entities), 1)
+            self.assertEqual(entities[0].name, "Felix")
+
     def test_filter_entities_with_default_activity_only(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="visible", active_by_default=True))
