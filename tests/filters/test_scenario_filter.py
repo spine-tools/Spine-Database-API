@@ -53,9 +53,7 @@ class TestScenarioFilterInMemory(AssertSuccessTestCase):
             db_map.add_scenario_alternative(scenario_name="other_scen", alternative_name="alt", rank=2)
             db_map.add_scenario_alternative(scenario_name="other_scen", alternative_name="Base", rank=1)
             db_map.commit_session("Add data.")
-            # Filter by the first scenario
             apply_filter_stack(db_map, [scenario_filter_config("scen")])
-            # The entity should show up
             entities = db_map.query(db_map.wide_entity_sq).all()
             self.assertEqual(len(entities), 1)
             self.assertEqual(entities[0].name, "Felix")
