@@ -12,7 +12,8 @@
 """ This module provides the scenario filter. """
 
 from functools import partial
-from sqlalchemy import and_, desc, func, or_
+from sqlalchemy import and_, case, desc, func, or_
+from sqlalchemy.sql.expression import label
 from ..exception import SpineDBAPIError
 from .query_utils import filter_by_active_elements
 
@@ -188,18 +189,23 @@ class _ScenarioFilterState:
 
 
 def _ext_entity_sq(db_map, state):
+    scen_alt_sq = (
+        db_map.query(state.original_scenario_alternative_sq).filter_by(scenario_id=state.scenario_id).subquery()
+    )
+    active = case(
+        (scen_alt_sq.c.scenario_id == None, db_map.entity_class_sq.c.active_by_default),
+        else_=state.original_entity_alternative_sq.c.active,
+    )
     entity_sq = (
         db_map.query(
             state.original_entity_sq,
             func.row_number()
             .over(
                 partition_by=[state.original_entity_sq.c.id],
-                order_by=desc(state.original_scenario_alternative_sq.c.rank),
+                order_by=desc(scen_alt_sq.c.rank),
             )
             .label("desc_rank_row_number"),
-            state.original_entity_alternative_sq.c.active,
-            db_map.entity_class_sq.c.active_by_default,
-            state.original_scenario_alternative_sq.c.scenario_id,
+            label("active", active),
         )
         .filter(state.original_entity_sq.c.class_id == db_map.entity_class_sq.c.id)
         .outerjoin(
@@ -207,22 +213,11 @@ def _ext_entity_sq(db_map, state):
             state.original_entity_sq.c.id == state.original_entity_alternative_sq.c.entity_id,
         )
         .outerjoin(
-            state.original_scenario_alternative_sq,
-            state.original_entity_alternative_sq.c.alternative_id
-            == state.original_scenario_alternative_sq.c.alternative_id,
+            scen_alt_sq,
+            state.original_entity_alternative_sq.c.alternative_id == scen_alt_sq.c.alternative_id,
         )
     ).subquery()
-    return (
-        db_map.query(entity_sq)
-        .filter(
-            entity_sq.c.desc_rank_row_number == 1,
-            or_(
-                and_(entity_sq.c.scenario_id == state.scenario_id, entity_sq.c.active == True),
-                and_(entity_sq.c.scenario_id == None, entity_sq.c.active_by_default == True),
-            ),
-        )
-        .subquery()
-    )
+    return db_map.query(entity_sq).filter(entity_sq.c.desc_rank_row_number == 1, entity_sq.c.active == True).subquery()
 
 
 def _make_scenario_filtered_entity_element_sq(db_map, state):

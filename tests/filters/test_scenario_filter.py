@@ -37,15 +37,23 @@ class TestScenarioFilterInMemory(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_entity_class(name="cat", active_by_default=True)
             db_map.add_entity(name="Felix", entity_class_name="cat")
+            db_map.add_entity(name="Tom", entity_class_name="cat")
             db_map.add_alternative(name="alt")
-            # Disable entity in alt
+            db_map.add_alternative(name="other_alt")
             db_map.add_entity_alternative(
                 alternative_name="alt", entity_class_name="cat", entity_byname=("Felix",), active=False
             )
-            # Create scenario only with Base, not including alt
+            db_map.add_entity_alternative(
+                alternative_name="Base", entity_class_name="cat", entity_byname=("Tom",), active=False
+            )
+
             db_map.add_scenario(name="scen")
             db_map.add_scenario_alternative(scenario_name="scen", alternative_name="Base", rank=1)
+            db_map.add_scenario(name="other_scen")
+            db_map.add_scenario_alternative(scenario_name="other_scen", alternative_name="alt", rank=2)
+            db_map.add_scenario_alternative(scenario_name="other_scen", alternative_name="Base", rank=1)
             db_map.commit_session("Add data.")
+            # Filter by the first scenario
             apply_filter_stack(db_map, [scenario_filter_config("scen")])
             # The entity should show up
             entities = db_map.query(db_map.wide_entity_sq).all()
