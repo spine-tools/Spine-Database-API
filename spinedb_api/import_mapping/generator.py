@@ -16,10 +16,13 @@ using ``import_functions.import_data()``
 """
 from collections.abc import Callable
 from copy import deepcopy
+import json
 from operator import itemgetter
 from typing import Any, Optional
+from .. import arrow_value
 from ..exception import ParameterValueFormatError
 from ..helpers import string_to_bool
+from ..incomplete_values import split_value_and_type
 from ..mapping import Position, is_pivoted
 from ..parameter_value import (
     Array,
@@ -28,10 +31,10 @@ from ..parameter_value import (
     TimeSeriesVariableResolution,
     convert_leaf_maps_to_specialized_containers,
     from_database,
-    split_value_and_type,
 )
 from .import_mapping import ImportMapping, check_validity
 from .import_mapping_compat import import_mapping_from_dict
+from .type_conversion import JSONObject
 
 _NO_VALUE = object()
 
@@ -386,11 +389,11 @@ def _make_value(row, value_pos):
         if "data" not in value:
             return _NO_VALUE
         return _parameter_value_from_dict(value)
-    if isinstance(value, str):
+    if isinstance(value, JSONObject):
         try:
-            return from_database(*split_value_and_type(value))
-        except ParameterValueFormatError:
-            pass
+            return arrow_value.from_database(*split_value_and_type(value.json_string))
+        except (json.JSONDecodeError, TypeError, KeyError, ParameterValueFormatError):
+            value = value.json_string
     return value
 
 
