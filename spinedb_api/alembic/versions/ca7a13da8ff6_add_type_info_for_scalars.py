@@ -40,8 +40,8 @@ def _update_scalar_type_info(table, value_label, type_label, connection):
         parsed_value = json.loads(value)
         if parsed_value is None:
             continue
-        if isinstance(value, dict):
-            value_type = value["type"]
+        if isinstance(parsed_value, dict):
+            value_type = parsed_value["type"]
         else:
             value_type = type_for_scalar(parsed_value)
         connection.execute(update_statement.where(table.c.id == id_), {type_label: value_type})
