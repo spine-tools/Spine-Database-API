@@ -1346,6 +1346,51 @@ class TestMap:
         assert record_batch.schema.metadata is None
         assert load_field_metadata(record_batch.field("t")) == time_series_metadata(ignore_year=True, repeat=True)
 
+    def test_as_arrow_with_uneven_time_series(self):
+        forecast_value = Map(
+            [DateTime("2025-09-17T11:00")],
+            [
+                TimeSeriesVariableResolution(
+                    ["2025-09-17T11:00", "2025-09-17T12:00"], [-2.3, -3.2], ignore_year=False, repeat=False
+                ),
+            ],
+        )
+        map_value = Map(
+            ["forecast", "realization"],
+            [
+                forecast_value,
+                TimeSeriesVariableResolution(
+                    ["2025-09-17T11:00", "2025-09-17T12:00"], [-2.2, -3.1], ignore_year=False, repeat=False
+                ),
+            ],
+        )
+        record_batch = map_value.as_arrow()
+        indexes_1 = pyarrow.RunEndEncodedArray.from_arrays([2, 4], ["forecast", "realization"])
+        indexes_2 = pyarrow.RunEndEncodedArray.from_arrays(
+            [2, 4],
+            [datetime(year=2025, month=9, day=17, hour=11), None],
+            type=pyarrow.run_end_encoded(pyarrow.int64(), pyarrow.timestamp("s")),
+        )
+        indexes_3 = pyarrow.array(
+            [
+                datetime(year=2025, month=9, day=17, hour=11),
+                datetime(year=2025, month=9, day=17, hour=12),
+                datetime(year=2025, month=9, day=17, hour=11),
+                datetime(year=2025, month=9, day=17, hour=12),
+            ],
+            type=pyarrow.timestamp("s"),
+        )
+        values = pyarrow.array([-2.3, -3.2, -2.2, -3.1])
+        expected = with_column_as_time_stamps(
+            pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "t": indexes_3, "value": values}),
+            "t",
+            ignore_year=False,
+            repeat=False,
+        )
+        assert record_batch == expected
+        assert record_batch.schema.metadata is None
+        assert load_field_metadata(record_batch.field("t")) == time_series_metadata(ignore_year=False, repeat=False)
+
     def test_from_database(self):
         original_map = Map(["A", "B"], [2.3, 3.2])
         blob, value_type = to_database(original_map)

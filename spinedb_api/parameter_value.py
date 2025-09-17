@@ -106,7 +106,7 @@ from .arrow_value import (
 )
 from .compat.converters import parse_duration, to_duration
 from .exception import ParameterValueFormatError, SpineDBAPIError
-from .helpers import time_series_metadata
+from .helpers import TimeSeriesMetadata, time_series_metadata
 from .models import NullTypeName, TypeNames
 from .value_support import JSONValue, load_db_value, to_union_array, validate_time_period
 
@@ -1958,7 +1958,7 @@ def _unroll_nested_indexed_value(
     index_rows: list[list],
     base_index: list,
     value_column: list,
-    metadata_by_column_index: dict[int, dict[str, Any]],
+    metadata_by_column_index: dict[int, dict[str, Any] | TimeSeriesMetadata],
 ) -> None:
     depth = len(base_index)
     if depth == len(header):
@@ -1968,11 +1968,24 @@ def _unroll_nested_indexed_value(
             case _:
                 raise SpineDBAPIError("unsupported indexed value type")
         header.append(_MapHeader(value.index_name, index_type))
+        index_i = depth
+    else:
+        for i, column_header in enumerate(header):
+            if value.index_name == column_header.name:
+                index_i = i
+                break
+        else:
+            index_i = depth
+        if index_i > len(base_index):
+            base_index = base_index + (index_i - len(base_index)) * [None]
+            depth = index_i
     for x, y in zip(value.indexes, value.values):
         value_column.append(y)
-        index_rows.append(base_index + ([x.as_arrow()] if isinstance(x, ParameterValue) else [x]))
-    if isinstance(value, TimeSeries) and depth not in metadata_by_column_index:
-        metadata_by_column_index[depth] = time_series_metadata(value.ignore_year, value.repeat)
+        index = x.as_arrow() if isinstance(x, ParameterValue) else x
+        index_row = [base_index[i] if i != index_i else index for i in range(depth + 1)]
+        index_rows.append(index_row)
+    if isinstance(value, TimeSeries) and index_i not in metadata_by_column_index:
+        metadata_by_column_index[index_i] = time_series_metadata(value.ignore_year, value.repeat)
 
 
 def _table_to_record_batch(
