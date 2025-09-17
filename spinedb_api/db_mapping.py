@@ -142,6 +142,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         create=False,
         apply_filters=True,
         memory=False,
+        commit_lock=None,
         sqlite_timeout=1800,
     ):
         """
@@ -154,6 +155,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             backup_url (str, optional): A URL to backup the DB before upgrading.
             create (bool, optional): Whether to create a new Spine DB at the given `url` if it's not already one.
             apply_filters (bool, optional): Whether to apply filters in the `url`'s query segment.
+            commit_lock (threading.Lock, optional): If given, committing to the DB is done with the lock.
             memory (bool, optional): Whether to use a SQLite memory DB as replacement for the original one.
             sqlite_timeout (int, optional): The number of seconds to wait before raising SQLite connection errors.
         """
@@ -174,6 +176,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         except ArgumentError as error:
             raise SpineDBAPIError("Could not parse the given URL. Please check that it is valid.") from error
         self.username = username if username else "anon"
+        self._commit_lock = commit_lock
         self._memory = memory
         self._memory_dirty = False
         self._original_engine = self.create_engine(
@@ -1060,12 +1063,15 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 new_items.append(item)
             else:
                 item.handle_refetch()
-            items.append(item)
+                items.append(item)
         # Once all items are added, add the unique key values
         # Otherwise items that refer to other items that come later in the query will be seen as corrupted
         for item in new_items:
+            if not item.become_referrer():
+                mapped_table.remove_item(item)
+                continue
             mapped_table.add_unique(item)
-            item.become_referrer()
+            items.append(item)
         return items
 
     def fetch_more(self, item_type, offset=0, limit=None, **kwargs):
@@ -1158,6 +1164,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         if not comment:
             raise SpineDBAPIError("Commit message cannot be empty.")
+        if self._commit_lock is not None:
+            with self._commit_lock:
+                return self._do_commit_session(comment, apply_compatibility_transforms)
+        return self._do_commit_session(comment, apply_compatibility_transforms)
+
+    def _do_commit_session(self, comment: str, apply_compatibility_transforms: bool) -> CompatibilityTransformations:
         with self:
             dirty_items = self._dirty_items()
             if not dirty_items:
