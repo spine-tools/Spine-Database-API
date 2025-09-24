@@ -6,7 +6,7 @@ Create Date: 2019-09-17 13:38:53.437119
 
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
@@ -381,7 +381,7 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
     row = conn.execute(text("SELECT MAX(id) FROM entity")).fetchone()
     entity_id = row[0] + 1 if row else 1
     user = "alembic"
-    date = datetime.utcnow()
+    date = datetime.now(timezone.utc)
     conn.execute(
         text(
             """
