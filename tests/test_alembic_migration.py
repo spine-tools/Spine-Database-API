@@ -11,12 +11,14 @@
 ######################################################################################################################
 import pathlib
 import shutil
+import pytest
 from spinedb_api import (
     Array,
     DatabaseMapping,
     DateTime,
     Duration,
     Map,
+    SpineDBAPIError,
     TimePattern,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
@@ -31,37 +33,18 @@ class TestMigrationFrom070a0eb89e88:
         shutil.copyfile(source_path, destination_path)
         url = "sqlite:///" + str(destination_path)
         with DatabaseMapping(url, upgrade=True) as db_map:
-            self._assert_parameter_value_list_and_list_values(db_map)
+            self._assert_parameter_value_lists(db_map)
             self._assert_entity_classes(db_map)
             self._assert_entities(db_map)
             self._assert_parameter_definitions(db_map)
             self._assert_parameter_values(db_map)
 
     @staticmethod
-    def _assert_parameter_value_list_and_list_values(db_map):
+    def _assert_parameter_value_lists(db_map):
         parameter_value_lists = db_map.find_parameter_value_lists()
         assert len(parameter_value_lists) == 1
-        assert parameter_value_lists[0]["name"] == "Enumeration"
-        list_values = db_map.find_list_values()
-        assert len(list_values) == 3
-        reds = db_map.find_list_values(parameter_value_list_name="Enumeration", index=0)
-        assert len(reds) == 1
-        red = reds[0]
-        assert red["parameter_value_list_name"] == "Enumeration"
-        assert red["parsed_value"] == "red"
-        assert red["index"] == 0
-        greens = db_map.find_list_values(parameter_value_list_name="Enumeration", index=1)
-        assert len(greens) == 1
-        green = greens[0]
-        assert green["parameter_value_list_name"] == "Enumeration"
-        assert green["parsed_value"] == "green"
-        assert green["index"] == 1
-        blues = db_map.find_list_values(parameter_value_list_name="Enumeration", index=2)
-        assert len(blues) == 1
-        blue = blues[0]
-        assert blue["parameter_value_list_name"] == "Enumeration"
-        assert blue["parsed_value"] == "blue"
-        assert blue["index"] == 2
+        enumeration = db_map.parameter_value_list(name="Enumeration")
+        assert enumeration["parsed_value_list"] == ["red", "green", "blue"]
 
     @staticmethod
     def _assert_entity_classes(db_map):
@@ -71,14 +54,17 @@ class TestMigrationFrom070a0eb89e88:
         assert widget_class["description"] == "Widgets of all kinds."
         assert widget_class["dimension_name_list"] == ()
         assert widget_class["display_icon"] == 280379751657962
+        assert widget_class["active_by_default"]
         gadget_class = db_map.entity_class(name="Gadget")
         assert gadget_class["description"] == "Gadget is not widget."
         assert gadget_class["dimension_name_list"] == ()
         assert gadget_class["display_icon"] == 280741980139948
+        assert gadget_class["active_by_default"]
         gadget_widget_class = db_map.entity_class(name="Gadget__Widget")
         assert gadget_widget_class["description"] is None
         assert gadget_widget_class["dimension_name_list"] == ("Gadget", "Widget")
         assert gadget_widget_class["display_icon"] is None
+        assert gadget_widget_class["active_by_default"]
 
     @staticmethod
     def _assert_entities(db_map):
@@ -399,3 +385,144 @@ class TestMigrationFrom39e860a11b05:
             alternative_name="Base",
         )
         assert yield_time["parsed_value"] == Array([Duration("2M"), Duration("3M")])
+
+
+class TestMigrationFrom989fccf80441:
+    # This revision includes tool feature methods that have been superseded by entity alternatives.
+    def test_migration_to_latest(self, tmp_path):
+        source_path = pathlib.Path(__file__).parent / "legacy_databases" / "989fccf80441.sqlite"
+        destination_path = tmp_path / "db.sqlite"
+        shutil.copyfile(source_path, destination_path)
+        url = "sqlite:///" + str(destination_path)
+        with DatabaseMapping(url, upgrade=True) as db_map:
+            self._assert_alternatives(db_map)
+            self._assert_parameter_value_lists(db_map)
+            self._assert_entity_classes(db_map)
+            self._assert_entities(db_map)
+            self._assert_parameter_definitions(db_map)
+            self._assert_parameter_values(db_map)
+            self._assert_entity_alternatives(db_map)
+
+    @staticmethod
+    def _assert_alternatives(db_map):
+        assert len(db_map.find_alternatives()) == 3
+        base = db_map.alternative(name="Base")
+        assert base["description"] == "Base alternative"
+        inverted_activities = db_map.alternative(name="inverted_activities")
+        assert inverted_activities["description"] == ""
+        expected_activities = db_map.alternative(name="expected_activities")
+        assert expected_activities["description"] == ""
+
+    @staticmethod
+    def _assert_parameter_value_lists(db_map):
+        assert len(db_map.find_parameter_value_lists()) == 2
+        booleans = db_map.parameter_value_list(name="Booleans")
+        assert booleans["parsed_value_list"] == [True, False]
+        yes_no = db_map.parameter_value_list(name="YesNo")
+        assert yes_no["parsed_value_list"] == ["yes", "no"]
+
+    @staticmethod
+    def _assert_entity_classes(db_map):
+        assert len(db_map.find_entity_classes()) == 6
+        widget_class = db_map.entity_class(name="Widget")
+        assert widget_class["description"] is None
+        assert widget_class["dimension_name_list"] == ()
+        assert widget_class["display_icon"] is None
+        assert not widget_class["active_by_default"]
+        gadget_class = db_map.entity_class(name="Gadget")
+        assert gadget_class["description"] is None
+        assert gadget_class["dimension_name_list"] == ()
+        assert gadget_class["display_icon"] is None
+        assert not gadget_class["active_by_default"]
+        activist = db_map.entity_class(name="Activist")
+        assert activist["description"] is None
+        assert activist["dimension_name_list"] == ()
+        assert activist["display_icon"] is None
+        assert activist["active_by_default"]
+        passivist = db_map.entity_class(name="Passivist")
+        assert passivist["description"] is None
+        assert passivist["dimension_name_list"] == ()
+        assert passivist["display_icon"] is None
+        assert not passivist["active_by_default"]
+        positive = db_map.entity_class(name="Positive")
+        assert positive["description"] is None
+        assert positive["dimension_name_list"] == ()
+        assert positive["display_icon"] is None
+        assert positive["active_by_default"]
+        negative = db_map.entity_class(name="Negative")
+        assert negative["description"] is None
+        assert negative["dimension_name_list"] == ()
+        assert negative["display_icon"] is None
+        assert not negative["active_by_default"]
+
+    @staticmethod
+    def _assert_entities(db_map):
+        assert len(db_map.find_entities()) == 5
+        assert db_map.entity(entity_class_name="Widget", name="undefined_activity")["description"] is None
+        assert db_map.entity(entity_class_name="Widget", name="active")["description"] is None
+        assert db_map.entity(entity_class_name="Widget", name="inactive")["description"] is None
+        assert db_map.entity(entity_class_name="Gadget", name="yes_active")["description"] is None
+        assert db_map.entity(entity_class_name="Gadget", name="no_active")["description"] is None
+
+    @staticmethod
+    def _assert_parameter_definitions(db_map):
+        widget_is_active = db_map.parameter_definition(entity_class_name="Widget", name="is_active")
+        assert widget_is_active["description"] is None
+        assert widget_is_active["parsed_value"] is None
+        assert widget_is_active["parameter_value_list_name"] == "Booleans"
+        gadget_is_active = db_map.parameter_definition(entity_class_name="Gadget", name="is_active")
+        assert gadget_is_active["description"] is None
+        assert gadget_is_active["parsed_value"] is None
+        assert gadget_is_active["parameter_value_list_name"] == "YesNo"
+
+    @staticmethod
+    def _assert_parameter_values(db_map):
+        assert len(db_map.find_parameter_values()) == 0
+
+    @staticmethod
+    def _assert_entity_alternatives(db_map):
+        assert len(db_map.find_entity_alternatives()) == 10
+        with pytest.raises(SpineDBAPIError):
+            db_map.entity_alternative(
+                alternative_name="Base", entity_class_name="Widget", entity_byname=("undefined_activity",)
+            )
+        with pytest.raises(SpineDBAPIError):
+            db_map.entity_alternative(alternative_name="Base", entity_class_name="Widget", entity_byname=("active",))
+        with pytest.raises(SpineDBAPIError):
+            db_map.entity_alternative(alternative_name="Base", entity_class_name="Widget", entity_byname=("inactive",))
+        with pytest.raises(SpineDBAPIError):
+            db_map.entity_alternative(
+                alternative_name="Base", entity_class_name="Gadget", entity_byname=("yes_active",)
+            )
+        with pytest.raises(SpineDBAPIError):
+            db_map.entity_alternative(alternative_name="Base", entity_class_name="Gadget", entity_byname=("no_active",))
+        assert not db_map.entity_alternative(
+            alternative_name="expected_activities", entity_class_name="Widget", entity_byname=("undefined_activity",)
+        )["active"]
+        assert db_map.entity_alternative(
+            alternative_name="expected_activities", entity_class_name="Widget", entity_byname=("active",)
+        )["active"]
+        assert not db_map.entity_alternative(
+            alternative_name="expected_activities", entity_class_name="Widget", entity_byname=("inactive",)
+        )["active"]
+        assert db_map.entity_alternative(
+            alternative_name="expected_activities", entity_class_name="Gadget", entity_byname=("yes_active",)
+        )["active"]
+        assert not db_map.entity_alternative(
+            alternative_name="expected_activities", entity_class_name="Gadget", entity_byname=("no_active",)
+        )["active"]
+        assert not db_map.entity_alternative(
+            alternative_name="inverted_activities", entity_class_name="Widget", entity_byname=("undefined_activity",)
+        )["active"]
+        assert not db_map.entity_alternative(
+            alternative_name="inverted_activities", entity_class_name="Widget", entity_byname=("active",)
+        )["active"]
+        assert db_map.entity_alternative(
+            alternative_name="inverted_activities", entity_class_name="Widget", entity_byname=("inactive",)
+        )["active"]
+        assert not db_map.entity_alternative(
+            alternative_name="inverted_activities", entity_class_name="Gadget", entity_byname=("yes_active",)
+        )["active"]
+        assert db_map.entity_alternative(
+            alternative_name="inverted_activities", entity_class_name="Gadget", entity_byname=("no_active",)
+        )["active"]
