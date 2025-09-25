@@ -33,11 +33,17 @@ class TestMigrationFrom070a0eb89e88:
         shutil.copyfile(source_path, destination_path)
         url = "sqlite:///" + str(destination_path)
         with DatabaseMapping(url, upgrade=True) as db_map:
+            self._assert_alternatives(db_map)
             self._assert_parameter_value_lists(db_map)
             self._assert_entity_classes(db_map)
             self._assert_entities(db_map)
             self._assert_parameter_definitions(db_map)
             self._assert_parameter_values(db_map)
+
+    @staticmethod
+    def _assert_alternatives(db_map):
+        assert len(db_map.find_alternatives()) == 1
+        assert db_map.alternative(name="Base")["description"] == "Base alternative"
 
     @staticmethod
     def _assert_parameter_value_lists(db_map):
