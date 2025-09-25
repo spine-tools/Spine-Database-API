@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `parameter_value_list` items now have a field `parsed_value_list` which contains the list of parsed list values,
+  sorted by index. For example, if a value list `answers` contains values `yes` and `no`, then 
+
+```python
+answers = db_map.parameter_value_list(name="answers")
+assert answers["parsed_value_list"] == ["yes", "no"]  
+```
+
 ### Changed
 
 ### Deprecated

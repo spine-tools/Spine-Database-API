@@ -153,5 +153,9 @@ def _create_import_alternative(db_map, state):
     scenarios = state.scenarios
     timestamp = state.timestamp
     sep = "__" if scenarios else ""
-    db_map._import_alternative_name = f"{'_'.join(scenarios)}{sep}{execution_item}@{timestamp}"
-    db_map.add_item("alternative", name=db_map._import_alternative_name)
+    db_map._import_alternative_name = alt_name = f"{'_'.join(scenarios)}{sep}{execution_item}@{timestamp}"
+    db_map.add_alternative(name=alt_name)
+    for scen_name in scenarios:
+        scen = db_map.add_scenario(name=scen_name)
+        rank = len(scen["sorted_scenario_alternatives"]) + 1  # ranks are 1-based
+        db_map.add_scenario_alternative(scenario_name=scen_name, alternative_name=alt_name, rank=rank)

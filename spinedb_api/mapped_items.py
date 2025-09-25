@@ -1101,6 +1101,16 @@ class ParameterValueListItem(MappedItemBase):
     unique_keys = (("name",),)
     required_key_combinations = (("name",),)
 
+    def __getitem__(self, key):
+        if key == "parsed_value_list":
+            list_value_table = self.db_map.mapped_table("list_value")
+            list_value_items = self.db_map.find(
+                list_value_table, parameter_value_list_name=dict.__getitem__(self, "name")
+            )
+            list_value_items.sort(key=itemgetter("index"))
+            return [item["parsed_value"] for item in list_value_items]
+        return super().__getitem__(key)
+
 
 class ListValueItem(ParsedValueBase):
     item_type = "list_value"
