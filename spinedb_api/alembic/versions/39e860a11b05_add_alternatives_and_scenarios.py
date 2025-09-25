@@ -99,7 +99,7 @@ def alter_tables_after_update():
             batch_op.add_column(sa.Column("scenario_id", sa.Integer, server_default=sa.null()))
             batch_op.add_column(sa.Column("scenario_alternative_id", sa.Integer, server_default=sa.null()))
         user = "alembic"
-        date = datetime.utcnow()
+        date = datetime.now(timezone.utc)
         conn = op.get_bind()
         conn.execute(
             text(
@@ -113,8 +113,10 @@ def alter_tables_after_update():
                 scenario_alternative_id = 1
             """
             ),
-            user=user,
-            date=date,
+            {
+                "user": user,
+                "date": date,
+            },
         )
 
     with op.batch_alter_table("entity_type") as batch_op:
