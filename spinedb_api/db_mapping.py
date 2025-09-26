@@ -170,7 +170,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             db_url = db_url.difference_update_query("spinedbfilter")
         else:
             filter_configs = []
-        self._filter_configs = filter_configs if apply_filters else None
         try:
             self.sa_url = make_url(db_url)
         except ArgumentError as error:
@@ -194,8 +193,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self._session = None
         self._context_open_count = 0
-        if self._filter_configs is not None:
-            stack = load_filters(self._filter_configs)
+        self.filter_configs = []
+        filter_configs = filter_configs if apply_filters else None
+        if filter_configs is not None:
+            stack = load_filters(filter_configs)
             apply_filter_stack(self, stack)
 
     def __enter__(self):
@@ -1263,7 +1264,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     def get_filter_configs(self) -> list[dict]:
         """Returns the config dicts of filters applied to this database mapping."""
-        return self._filter_configs
+        return self.filter_configs
 
     def close(self):
         self._original_engine.dispose()

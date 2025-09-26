@@ -451,6 +451,7 @@ class SpineDBServerBase:
         self._db_map.restore_alternative_sq_maker()
         self._db_map.restore_scenario_sq_maker()
         self._db_map.restore_scenario_alternative_sq_maker()
+        self._db_map.filter_configs.clear()
         return {"result": True}
 
     def _do_apply_filters(self, configs):
