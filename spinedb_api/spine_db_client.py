@@ -107,12 +107,6 @@ class SpineDBClient(ReceiveAllMixing):
     def query(self, query_name: str, *args, **kwargs) -> dict:
         return self._send("query", args=(query_name, *args), kwargs=kwargs)
 
-    def open_db_map(self, db_url, upgrade, memory):
-        return self._send("open_db_map", args=(db_url, upgrade, memory))
-
-    def close_db_map(self):
-        return self._send("close_db_map")
-
     def _send(self, request, args=None, kwargs=None, receive=True):
         """
         Sends a request to the server with the given arguments.
