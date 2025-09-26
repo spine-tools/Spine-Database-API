@@ -598,8 +598,11 @@ class DBHandler(HandleDBRequestMixin):
     """
 
     def __init__(self, db_url, upgrade=False, memory=False):
-        server = SpineDBServerBase(db_url, upgrade, memory, None, uuid.uuid4().hex, None)
-        atexit.register(server.close_db_map)
+        self.server = SpineDBServerBase(db_url, upgrade, memory, None, None, None)
+        atexit.register(self.close)
+
+    def close(self):
+        self.server.close_db_map()
 
 
 class DBRequestHandler(ReceiveAllMixing, HandleDBRequestMixin, socketserver.BaseRequestHandler):
