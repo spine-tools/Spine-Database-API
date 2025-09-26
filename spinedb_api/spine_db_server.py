@@ -146,15 +146,9 @@ def get_current_server_version() -> int:
     return _current_server_version
 
 
-class SpineDBServer(socketserver.TCPServer):
-    def __init__(self, manager_queue, ordering, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.manager_queue = manager_queue
-        self.ordering = ordering
-        self.worker = None
-
-
 class _DeepCopyableQueue(MPQueue):
+    """A Queue that supports deepcopy so it can be passed around within resources metadata at engine level."""
+
     def __init__(self, *args, **kwargs):
         ctx = mp.get_context()
         super().__init__(*args, **kwargs, ctx=ctx)
@@ -164,6 +158,11 @@ class _DeepCopyableQueue(MPQueue):
 
 
 class _DBServerManager:
+    """Enables synchronization between DB servers.
+    All the associated DB servers have access to the _queue attribute which they can use to issue requests,
+    typically related to checking in and out of DBs.
+    """
+
     _SHUTDOWN: ClassVar[Literal["shutdown"]] = "shutdown"
     _CHECKOUT_COMPLETE: ClassVar[Literal["checkout_complete"]] = "checkout_complete"
 
@@ -172,9 +171,14 @@ class _DBServerManager:
         self._servers = {}
         self._checkouts = {}
         self._waiters = {}
+        self._commit_locks = {}
         self._queue = _DeepCopyableQueue()
         self._process = mp.Process(target=self._do_work)
         self._process.start()
+
+    def _get_commit_lock(self, db_url):
+        clean_url = clear_filter_configs(db_url)
+        return self._commit_locks.setdefault(clean_url, threading.Lock())
 
     def shutdown(self):
         self._queue.put(self._SHUTDOWN)
@@ -209,11 +213,14 @@ class _DBServerManager:
 
     def _start_server(self, db_url, upgrade, memory, ordering):
         host = "127.0.0.1"
+        commit_lock = self._get_commit_lock(db_url)
         while True:
             with socketserver.TCPServer((host, 0), None) as s:
                 port = s.server_address[1]
             try:
-                server = SpineDBServer(self._queue, ordering, (host, port), DBRequestHandler)
+                server = SpineDBServer(
+                    db_url, upgrade, memory, commit_lock, self._queue, ordering, (host, port), DBRequestHandler
+                )
                 break
             except OSError:
                 # [Errno 98] Address already in use
@@ -222,16 +229,13 @@ class _DBServerManager:
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True
         server_thread.start()
-        error = SpineDBClient(server.server_address).open_db_map(db_url, upgrade, memory).get("error")
-        if error:
-            raise RuntimeError(error)
         return server.server_address
 
     def _shutdown_server(self, server_address):
         server = self._servers.pop(server_address, None)
         if server is None:
             return False
-        SpineDBClient(server.server_address).close_db_map()
+        server.close_db_map()
         server.shutdown()
         server.server_close()
         return True
@@ -329,28 +333,25 @@ def _unparse_value(value_and_type):
     return dump_db_value(value_and_type)
 
 
-_commit_locks = {}
+class SpineDBServerBase:
+    """Implements the interface between the server and the DB.
 
+    Since server requests might come from different threads, and SQLite objects can only be used
+    from the thread they were created, here we need to use a dedicated thread to hold and manipulate
+    our DatabaseMapping."""
 
-def _get_commit_lock(db_url):
-    clean_url = clear_filter_configs(db_url)
-    return _commit_locks.setdefault(clean_url, threading.Lock())
-
-
-class _DBWorker:
     _CLOSE: ClassVar[Literal["close"]] = "close"
 
-    def __init__(self, db_url, upgrade, memory, create=True):
-        self._db_url = db_url
-        self._upgrade = upgrade
-        self._memory = memory
-        self._create = create
+    def __init__(self, db_url, upgrade, memory, commit_lock, manager_queue, ordering, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.manager_queue = manager_queue
+        self.ordering = ordering
         self._db_map = None
         self._closed = False
         self._lock = threading.Lock()
         self._in_queue = Queue()
         self._out_queue = Queue()
-        self._thread = threading.Thread(target=self._do_work)
+        self._thread = threading.Thread(target=lambda: self._do_work(db_url, upgrade, memory, commit_lock))
         self._thread.start()
         error = self._out_queue.get()
         if isinstance(error, Exception):
@@ -360,23 +361,16 @@ class _DBWorker:
     def db_url(self):
         return str(self._db_map.db_url)
 
-    def shutdown(self):
-        if self._closed:
-            return
-        self._closed = True
-        self._db_map.close()
-        self._in_queue.put(self._CLOSE)
-        self._thread.join()
+    def close_db_map(self):
+        if not self._closed:
+            self._closed = True
+            self._db_map.close()
+            self._in_queue.put(self._CLOSE)
+            self._thread.join()
 
-    def _do_work(self):
+    def _do_work(self, db_url, upgrade, memory, commit_lock):
         try:
-            self._db_map = DatabaseMapping(
-                self._db_url,
-                upgrade=self._upgrade,
-                memory=self._memory,
-                commit_lock=_get_commit_lock(self._db_url),
-                create=self._create,
-            )
+            self._db_map = DatabaseMapping(db_url, upgrade=upgrade, memory=memory, commit_lock=commit_lock, create=True)
             self._out_queue.put(None)
         except Exception as error:  # pylint: disable=broad-except
             self._out_queue.put(error)
@@ -399,7 +393,7 @@ class _DBWorker:
                 result = handler(*args, **kwargs)
             self._out_queue.put(result)
 
-    def _run_request(self, request, args, kwargs):
+    def run_request(self, request, args, kwargs):
         with self._lock:
             self._in_queue.put((request, args, kwargs))
             return self._out_queue.get()
@@ -457,6 +451,7 @@ class _DBWorker:
         self._db_map.restore_alternative_sq_maker()
         self._db_map.restore_scenario_sq_maker()
         self._db_map.restore_scenario_alternative_sq_maker()
+        self._db_map.filter_configs.clear()
         return {"result": True}
 
     def _do_apply_filters(self, configs):
@@ -467,33 +462,22 @@ class _DBWorker:
             return {"error": str(error)}
 
 
+class SpineDBServer(SpineDBServerBase, socketserver.TCPServer):
+    """A socket server for accessing and manipulating a Spine DB."""
+
+
 class HandleDBRequestMixin:
-    def open_db_map(self, db_url, upgrade, memory):
-        if self.worker is None:
-            try:
-                self.worker = _DBWorker(db_url, upgrade, memory)
-            except Exception as error:  # pylint: disable=broad-except
-                return {"error": str(error)}
-        return {"result": True}
-
-    def close_db_map(self):
-        if self.worker is not None:
-            self.worker.shutdown()
-        return {"result": True}
-
     def get_db_url(self):
         """
         Returns:
             str: The underlying db url
         """
-        if self.worker is not None:
-            return self.worker.db_url
+        return self.server.db_url
 
-    def _run_request_on_worker(self, request, args=(), kwargs=None):
+    def _run_request_on_server(self, request, args=(), kwargs=None):
         if kwargs is None:
             kwargs = {}
-        if self.worker is not None:
-            return self.worker._run_request(request, args, kwargs)
+        return self.server.run_request(request, args, kwargs)
 
     def query(self, *args):
         """
@@ -502,7 +486,7 @@ class HandleDBRequestMixin:
         Returns:
             dict: where result is a dict from subquery name to a list of items from thay subquery, if successful.
         """
-        return self._run_request_on_worker("query", args=args)
+        return self._run_request_on_server("query", args=args)
 
     def filtered_query(self, **kwargs):
         """
@@ -511,7 +495,7 @@ class HandleDBRequestMixin:
         Returns:
             dict: where result is a dict from subquery name to a list of items from thay subquery, if successful.
         """
-        return self._run_request_on_worker("filtered_query", kwargs=kwargs)
+        return self._run_request_on_server("filtered_query", kwargs=kwargs)
 
     def import_data(self, data, comment):
         """Imports data and commit.
@@ -522,7 +506,7 @@ class HandleDBRequestMixin:
         Returns:
             dict: where result is a list of import errors, if successful.
         """
-        return self._run_request_on_worker("import_data", args=(data, comment))
+        return self._run_request_on_server("import_data", args=(data, comment))
 
     def export_data(self, **kwargs):
         """Exports data.
@@ -530,7 +514,7 @@ class HandleDBRequestMixin:
         Returns:
             dict: where result is the data exported from the db
         """
-        return self._run_request_on_worker("export_data", kwargs=kwargs)
+        return self._run_request_on_server("export_data", kwargs=kwargs)
 
     def call_method(self, method_name, *args, **kwargs):
         """Calls a method from the DatabaseMapping class.
@@ -543,7 +527,7 @@ class HandleDBRequestMixin:
         Returns:
             dict: where result is the return value of the method
         """
-        return self._run_request_on_worker("call_method", args=(method_name, *args), kwargs=kwargs)
+        return self._run_request_on_server("call_method", args=(method_name, *args), kwargs=kwargs)
 
     def apply_filters(self, filters):
         obsolete = ("tool",)
@@ -552,10 +536,10 @@ class HandleDBRequestMixin:
             for key, value in filters.items()
             if key not in obsolete
         ]
-        return self._run_request_on_worker("apply_filters", args=(configs,))
+        return self._run_request_on_server("apply_filters", args=(configs,))
 
     def clear_filters(self):
-        return self._run_request_on_worker("clear_filters")
+        return self._run_request_on_server("clear_filters")
 
     def db_checkin(self):
         db_checkin(self.server_manager_queue, self.server_address)
@@ -594,8 +578,6 @@ class HandleDBRequestMixin:
             "db_checkin": self.db_checkin,
             "db_checkout": self.db_checkout,
             "cancel_db_checkout": self.cancel_db_checkout,
-            "open_db_map": self.open_db_map,
-            "close_db_map": self.close_db_map,
         }.get(request)
         if handler is None:
             return {"error": f"invalid request '{request}'"}
@@ -610,26 +592,22 @@ class HandleDBRequestMixin:
 
 
 class DBHandler(HandleDBRequestMixin):
+    """Enables manipulating a DB by sending the same requests one would send to a DB server.
+    This allows clients to use a common interface to communicate with DBs without worrying if the communication
+    is going to take place with or without a server.
+    At the moment it's used by SpineInterface to run unit-tests.
+    """
+
     def __init__(self, db_url, upgrade=False, memory=False):
-        self.server_address = uuid.uuid4().hex
-        self.worker = None
-        error = self.open_db_map(db_url, upgrade, memory).get("error")
-        if error:
-            raise RuntimeError(error)
+        self.server = SpineDBServerBase(db_url, upgrade, memory, None, None, None)
         atexit.register(self.close)
 
     def close(self):
-        self.close_db_map()
+        self.server.close_db_map()
 
 
 class DBRequestHandler(ReceiveAllMixing, HandleDBRequestMixin, socketserver.BaseRequestHandler):
-    @property
-    def worker(self):
-        return self.server.worker
-
-    @worker.setter
-    def worker(self, worker):
-        self.server.worker = worker
+    """Handles requests to a DB server."""
 
     @property
     def server_address(self):

@@ -85,7 +85,10 @@ def apply_filter_stack(db_map: DatabaseMapping, stack: Iterable[dict]) -> None:
     }
     with db_map:
         for filter_ in stack:
+            if filter_ in db_map.filter_configs:
+                continue
             appliers[filter_["type"]](db_map, filter_)
+            db_map.filter_configs.append(filter_)
 
 
 def load_filters(configs):
