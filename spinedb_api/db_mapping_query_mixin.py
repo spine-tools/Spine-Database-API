@@ -314,7 +314,7 @@ class DatabaseMappingQueryMixin:
                 .order_by(self.entity_sq.c.id, entity_element_sq_with_name.c.position)
                 .subquery("ext_entity_sq")
             )
-            wide_entity_sq_with_count = (
+            self._wide_entity_sq = (
                 self.query(
                     ext_entity_sq.c.id,
                     ext_entity_sq.c.class_id,
@@ -323,8 +323,6 @@ class DatabaseMappingQueryMixin:
                     ext_entity_sq.c.commit_id,
                     group_concat(ext_entity_sq.c.element_id, ext_entity_sq.c.position).label("element_id_list"),
                     group_concat(ext_entity_sq.c.element_name, ext_entity_sq.c.position).label("element_name_list"),
-                    func.count(ext_entity_sq.c.element_id).label("element_id_count"),
-                    func.count(ext_entity_sq.c.element_name).label("element_name_count"),
                 )
                 .group_by(
                     ext_entity_sq.c.id,
@@ -333,11 +331,6 @@ class DatabaseMappingQueryMixin:
                     ext_entity_sq.c.description,
                     ext_entity_sq.c.commit_id,
                 )
-                .subquery("wide_entity_sq_with_count")
-            )
-            self._wide_entity_sq = (
-                self.query(wide_entity_sq_with_count)
-                .filter(wide_entity_sq_with_count.c.element_name_count == wide_entity_sq_with_count.c.element_id_count)
                 .subquery("wide_entity_sq")
             )
         return self._wide_entity_sq
