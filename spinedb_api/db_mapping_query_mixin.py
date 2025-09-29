@@ -300,18 +300,18 @@ class DatabaseMappingQueryMixin:
             :class:`~sqlalchemy.sql.Subquery`
         """
         if self._wide_entity_sq is None:
-            entity_element_sq = (
+            entity_element_sq_with_name = (
                 self.query(self.entity_element_sq, self.entity_sq.c.name.label("element_name"))
-                .filter(self.entity_element_sq.c.element_id == self.entity_sq.c.id)
-                .subquery("entity_element_sq")
+                .outerjoin(self.entity_sq, self.entity_element_sq.c.element_id == self.entity_sq.c.id)
+                .subquery("entity_element_sq_with_name")
             )
             ext_entity_sq = (
-                self.query(self.entity_sq, entity_element_sq)
+                self.query(self.entity_sq, entity_element_sq_with_name)
                 .outerjoin(
-                    entity_element_sq,
-                    self.entity_sq.c.id == entity_element_sq.c.entity_id,
+                    entity_element_sq_with_name,
+                    self.entity_sq.c.id == entity_element_sq_with_name.c.entity_id,
                 )
-                .order_by(self.entity_sq.c.id, entity_element_sq.c.position)
+                .order_by(self.entity_sq.c.id, entity_element_sq_with_name.c.position)
                 .subquery("ext_entity_sq")
             )
             self._wide_entity_sq = (
