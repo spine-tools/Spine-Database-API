@@ -33,7 +33,7 @@ class ReceiveAllMixing:
         Receives and returns all data in the request.
 
         Returns:
-            str
+            bytes
         """
         fragments = []
         while True:
@@ -52,12 +52,12 @@ class _TailJSONEncoder(json.JSONEncoder):
 
     def __init__(self):
         super().__init__()
-        self._tail_parts = []
+        self._parts = []
         self._tip = 0
 
     def default(self, o):
         if isinstance(o, bytes):
-            self._tail_parts.append(o)
+            self._parts.append(o)
             new_tip = self._tip + len(o)
             fr, to = self._tip, new_tip - 1
             address = f"{_START_OF_ADDRESS}{fr}{_ADDRESS_SEP}{to}"
@@ -73,9 +73,14 @@ class _TailJSONEncoder(json.JSONEncoder):
             return o.private_id
         return super().default(o)
 
-    @property
-    def tail(self):
-        return b"".join(self._tail_parts)
+    def iterencode_asbytes(self, o):
+        for chunk in self.iterencode(o):
+            yield chunk.encode()
+        yield _START_OF_TAIL.encode()
+        yield from self._parts
+
+    def encode_asbytes(self, o):
+        return self.encode(o).encode() + _START_OF_TAIL.encode() + b"".join(self._parts)
 
 
 def encode(o):
@@ -94,9 +99,11 @@ def encode(o):
     Returns:
         bytes: Encoded message.
     """
-    encoder = _TailJSONEncoder()
-    s = encoder.encode(o)
-    return s.encode() + _START_OF_TAIL.encode() + encoder.tail
+    return _TailJSONEncoder().encode_asbytes(o)
+
+
+def iterencode(o):
+    return _TailJSONEncoder().iterencode_asbytes(o)
 
 
 def decode(b):

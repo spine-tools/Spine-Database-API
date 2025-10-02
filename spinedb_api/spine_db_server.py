@@ -116,7 +116,7 @@ from .filters.scenario_filter import scenario_filter_config
 from .filters.tools import apply_filter_stack, clear_filter_configs
 from .import_functions import import_data
 from .parameter_value import dump_db_value
-from .server_client_helpers import ReceiveAllMixing, decode, encode
+from .server_client_helpers import ReceiveAllMixing, decode, encode, iterencode
 from .spine_db_client import SpineDBClient
 
 _current_server_version = 8
@@ -586,10 +586,6 @@ class HandleDBRequestMixin:
         except Exception:  # pylint: disable=broad-except
             return {"error": traceback.format_exc()}
 
-    def handle_request(self, request):
-        response = self._get_response(request)
-        return encode(response)
-
 
 class DBHandler(HandleDBRequestMixin):
     """Enables manipulating a DB by sending the same requests one would send to a DB server.
@@ -605,6 +601,10 @@ class DBHandler(HandleDBRequestMixin):
     def close(self):
         self.server.close_db_map()
 
+    def handle_request(self, request):
+        response = self._get_response(request)
+        return encode(response)
+
 
 class DBRequestHandler(ReceiveAllMixing, HandleDBRequestMixin, socketserver.BaseRequestHandler):
     """Handles requests to a DB server."""
@@ -619,8 +619,10 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBRequestMixin, socketserver.Base
 
     def handle(self):
         request = self._recvall()
-        response = self.handle_request(request)
-        self.request.sendall(response + bytes(self._EOT, self._ENCODING))
+        response = self._get_response(request)
+        for chunk in iterencode(response):
+            self.request.sendall(chunk)
+        self.request.sendall(self._BEOT)
 
 
 @contextmanager
