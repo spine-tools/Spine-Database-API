@@ -248,22 +248,26 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return getattr(self, sq_name)
 
     @staticmethod
-    def get_upgrade_db_prompt_data(url, create=False):
+    def get_upgrade_db_prompt_data(
+        url: str | URL, create: bool = False
+    ) -> tuple[str, str, dict[str, dict], dict[str, str] | None, int | None] | None:
         """Returns data to prompt the user what to do if the DB at the given url is not the latest version.
         If it is, then returns None.
 
         :meta private:
 
         Args:
-            url (str)
-            create (bool,optional)
+            url: database url
+            create: if True, create a new database if it does not exist
 
         Returns:
-            str: The title of the prompt
-            str: The text of the prompt
-            dict: Mapping different options, to kwargs to pass to DatabaseMapping constructor in order to apply them
-            dict or None: Mapping different options, to additional notes
-            int or None: The preferred option if any
+            A tuple that consists of:
+
+                - the title of the prompt
+                - the text of the prompt
+                - mapping from different options to kwargs to pass to DatabaseMapping constructor in order to apply them
+                - mapping from different options to additional notes
+                - preferred option if any
         """
         sa_url = make_url(url)
         try:
