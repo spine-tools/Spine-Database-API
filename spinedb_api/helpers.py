@@ -24,6 +24,7 @@ from alembic.environment import EnvironmentContext
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import (
+    URL,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -882,7 +883,7 @@ def fix_name_ambiguity(input_list: Sequence[str], offset: int = 0, prefix: str =
     return result
 
 
-def vacuum(url: str) -> tuple[int, str]:
+def vacuum(url: str | URL) -> tuple[int, str]:
     engine = create_engine(url, future=True)
     if not engine.url.drivername.startswith("sqlite"):
         return 0, "bytes"
