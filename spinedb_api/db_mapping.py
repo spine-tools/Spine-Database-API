@@ -529,6 +529,15 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 raise SpineDBAPIError(f"{mapped_table.item_type} matching {kwargs} has been removed")
         return item.public_item
 
+    def get_or_add_by_type(self, item_type: str, **kwargs) -> PublicItem:
+        return self.get_or_add(self.mapped_table(item_type), **kwargs)
+                
+    def get_or_add(self, mapped_table: MappedTable, **kwargs) -> PublicItem:
+        try:
+            return self.item(mapped_table, **kwargs)
+        except SpineDBAPIError:
+            return self.add(mapped_table, **kwargs)
+
     def item_by_type(self, item_type: str, **kwargs) -> PublicItem:
         return self.item(self._mapped_tables[item_type], **kwargs)
 
