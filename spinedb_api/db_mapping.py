@@ -1531,7 +1531,8 @@ def _add_convenience_methods(node):
 
 try:
     import astroid
+    from astroid.nodes import ClassDef
 
-    astroid.MANAGER.register_transform(astroid.ClassDef, _add_convenience_methods)
+    astroid.MANAGER.register_transform(ClassDef, _add_convenience_methods)
 except ModuleNotFoundError:
     pass
