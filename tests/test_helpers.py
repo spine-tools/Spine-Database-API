@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for helpers.py."""
-
+import gc
 import pathlib
 from tempfile import TemporaryDirectory
 import unittest
@@ -115,6 +115,7 @@ class TestVacuum(unittest.TestCase):
             self.assertEqual(freed, 0)
             self.assertEqual(units, "bytes")
             engine.dispose()
+            gc.collect()
 
 
 class TestCopyDatabase(AssertSuccessTestCase):
@@ -124,7 +125,7 @@ class TestCopyDatabase(AssertSuccessTestCase):
             with DatabaseMapping(source_url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="ForgottenAtAGasStation"))
                 db_map.commit_session("Add some data.")
-            db_map.engine.dispose()
+            db_map.close()
             target_url = "sqlite:///" + str(pathlib.Path(temp_dir) / "destination.sqlite")
             engine = create_new_spine_database(target_url)
             engine.dispose()
@@ -132,7 +133,8 @@ class TestCopyDatabase(AssertSuccessTestCase):
             with DatabaseMapping(target_url) as db_map:
                 entity_class = db_map.get_entity_class_item(name="ForgottenAtAGasStation")
                 self.assertTrue(bool(entity_class))
-            db_map.engine.dispose()
+            db_map.close()
+            gc.collect()
 
 
 class TestFixNameAmbiguity(unittest.TestCase):
