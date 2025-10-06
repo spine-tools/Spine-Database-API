@@ -160,7 +160,7 @@ def _parse_metadata(metadata: str) -> Iterator[tuple[str, str]]:
         yield (key, str(value))
 
 
-def _is_head(db_url: str, upgrade=False) -> bool:
+def _is_head(db_url: str | URL, upgrade=False) -> bool:
     """Check whether the database at db_url is at the head revision."""
     engine = create_engine(db_url, future=True)
     return is_head_engine(engine, upgrade=upgrade)
@@ -193,8 +193,8 @@ def is_head_engine(engine: Engine, upgrade: bool = False) -> bool:
 
 
 def copy_database(
-    dest_url: str,
-    source_url: str,
+    dest_url: str | URL,
+    source_url: str | URL,
     overwrite: bool = True,
     upgrade: bool = False,
     only_tables: Sequence[str] = (),
@@ -211,7 +211,7 @@ def copy_database(
         skip_tables: If given, these tables are skipped.
     """
     if not _is_head(source_url, upgrade=upgrade):
-        raise SpineDBVersionError(url=source_url)
+        raise SpineDBVersionError(url=str(source_url))
     source_engine = create_engine(source_url, future=True)
     dest_engine = create_engine(dest_url, future=True)
     copy_database_bind(
@@ -279,7 +279,7 @@ def schema_dict(insp) -> dict:
     }
 
 
-def is_empty(db_url: str) -> bool:
+def is_empty(db_url: str | URL) -> bool:
     try:
         engine = create_engine(db_url, future=True)
     except DatabaseError as e:
@@ -354,6 +354,7 @@ def create_spine_metadata() -> MetaData:
         Column("display_icon", BigInteger, server_default=null()),
         Column("hidden", Integer, server_default="0"),
         Column("active_by_default", Boolean(name="active_by_default"), server_default=true(), nullable=False),
+        UniqueConstraint("name"),
     )
     Table(
         "superclass_subclass",
@@ -399,6 +400,7 @@ def create_spine_metadata() -> MetaData:
         Column("name", String(255), nullable=False),
         Column("description", Text(), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
+        UniqueConstraint("id", "class_id"),
         UniqueConstraint("class_id", "name"),
     )
     Table(
@@ -647,7 +649,7 @@ def create_spine_metadata() -> MetaData:
     return meta
 
 
-def create_new_spine_database(db_url: str) -> Engine:
+def create_new_spine_database(db_url: str | URL) -> Engine:
     """Create a new Spine database at the given url."""
     try:
         engine = create_engine(db_url, future=True)
@@ -677,7 +679,7 @@ def create_new_spine_database_from_engine(engine: Engine) -> None:
         raise SpineDBAPIError(f"Unable to create Spine database: {e}") from None
 
 
-def _create_first_spine_database(db_url: str) -> Engine:
+def _create_first_spine_database(db_url: str | URL) -> Engine:
     """Creates a Spine database with the very first version at the given url."""
     try:
         engine = create_engine(db_url, future=True)
