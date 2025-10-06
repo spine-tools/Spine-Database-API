@@ -5976,8 +5976,12 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     widget_class = shadow_db_map.get_entity_class_item(name="Widget")
                     widget_class.update(name="NotAWidget")
                     gadget_class = shadow_db_map.get_entity_class_item(name="Gadget")
-                    gadget_class.update(name="Widget")
+                    gadget_class.update(name="NotAGadget")
+                    shadow_db_map.commit_session(
+                        "Rename Widget and Gadget to something else to circumvent unique constraints."
+                    )
                     widget_class.update(name="Gadget")
+                    gadget_class.update(name="Widget")
                     shadow_db_map.commit_session("Swap Widget and Gadget to cause mayhem.")
                 shadow_db_map.engine.dispose()
                 db_map.refresh_session()
