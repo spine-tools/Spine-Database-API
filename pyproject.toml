@@ -23,7 +23,7 @@ dependencies = [
     "GDX2py >=2.2.0",
     "ijson >=3.1.4",
     "chardet >=4.0.0",
-    "PyMySQL >=1.0.2",
+    "PyMySQL[rsa] >=1.0.2",
     "psycopg2-binary",
     "pyarrow >= 19.0",
     "pandas >= 2.2.3",
