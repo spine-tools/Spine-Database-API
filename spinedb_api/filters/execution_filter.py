@@ -26,6 +26,10 @@ def apply_execution_filter(db_map, execution):
         db_map (DatabaseMapping): a database map to alter
         execution (dict): execution descriptor
     """
+    config = execution_filter_config(execution)
+    if config in db_map.filter_configs:
+        return
+    db_map.filter_configs.append(config)
     state = _ExecutionFilterState(db_map, execution)
     create_import_alternative = partial(_create_import_alternative, state=state)
     db_map.override_create_import_alternative(create_import_alternative)

@@ -35,6 +35,10 @@ def apply_alternative_filter_to_parameter_value_sq(db_map, alternatives):
         db_map (DatabaseMapping): a database map to alter
         alternatives (Iterable of str or int, optional): alternative names or ids;
     """
+    config = alternative_filter_config(alternatives)
+    if config in db_map.filter_configs:
+        return
+    db_map.filter_configs.append(config)
     state = _AlternativeFilterState(db_map, alternatives)
     make_alternative_sq = partial(_make_alternative_filtered_alternative_sq, state=state)
     db_map.override_alternative_sq_maker(make_alternative_sq)

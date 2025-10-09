@@ -33,6 +33,10 @@ def apply_renaming_to_entity_class_sq(db_map, name_map):
         db_map (DatabaseMapping): a database map
         name_map (dict): a map from old name to new name
     """
+    config = entity_class_renamer_config(**name_map)
+    if config in db_map.filter_configs:
+        return
+    db_map.filter_configs.append(config)
     state = _EntityClassRenamerState(db_map, name_map)
     renaming = partial(_make_renaming_entity_class_sq, state=state)
     db_map.override_entity_class_sq_maker(renaming)
@@ -99,6 +103,9 @@ def apply_renaming_to_parameter_definition_sq(db_map, name_map):
         db_map (DatabaseMapping): a database map
         name_map (dict): a map from old name to new name
     """
+    config = parameter_renamer_config(name_map)
+    if config in db_map.filter_configs:
+        return
     state = _ParameterRenamerState(db_map, name_map)
     renaming = partial(_make_renaming_parameter_definition_sq, state=state)
     db_map.override_parameter_definition_sq_maker(renaming)
