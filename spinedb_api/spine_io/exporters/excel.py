@@ -34,7 +34,7 @@ from spinedb_api.export_mapping.export_mapping import (
     ScenarioMapping,
 )
 from spinedb_api.export_mapping.group_functions import GroupOneOrNone
-from ...parameter_value import from_database_to_dimension_count
+from ...incomplete_values import from_database_to_dimension_count
 from .excel_writer import ExcelWriter
 from .writer import write
 

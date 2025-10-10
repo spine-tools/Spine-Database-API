@@ -115,11 +115,11 @@ from .filters.alternative_filter import alternative_filter_config
 from .filters.scenario_filter import scenario_filter_config
 from .filters.tools import apply_filter_stack, clear_filter_configs
 from .import_functions import import_data
-from .parameter_value import dump_db_value
+from .incomplete_values import dump_db_value
 from .server_client_helpers import ReceiveAllMixing, decode, encode
 from .spine_db_client import SpineDBClient
 
-_current_server_version = 8
+_current_server_version = 9
 
 
 class OrderingDict(TypedDict):
@@ -211,7 +211,7 @@ class _DBServerManager:
         for server_address in list(self._servers):
             self._shutdown_server(server_address)
 
-    def _start_server(self, db_url, upgrade, memory, ordering):
+    def _start_server(self, db_url, ordering, upgrade, memory):
         host = "127.0.0.1"
         commit_lock = self._get_commit_lock(db_url)
         while True:
@@ -293,8 +293,10 @@ def _run_request_on_manager(request, server_manager_queue, *args, **kwargs):
         return output_queue.get()
 
 
-def start_spine_db_server(server_manager_queue, db_url, upgrade: bool = False, memory: bool = False, ordering=None):
-    return _run_request_on_manager("start_server", server_manager_queue, db_url, upgrade, memory, ordering)
+def start_spine_db_server(
+    server_manager_queue, db_url, ordering: OrderingDict, upgrade: bool = False, memory: bool = False
+):
+    return _run_request_on_manager("start_server", server_manager_queue, db_url, ordering, upgrade, memory)
 
 
 def shutdown_spine_db_server(server_manager_queue, server_address):
@@ -673,7 +675,7 @@ def closing_spine_db_server(
             "precursors": set(),
             "part_count": 0,
         }
-    server_address = start_spine_db_server(server_manager_queue, db_url, memory=memory, ordering=ordering)
+    server_address = start_spine_db_server(server_manager_queue, db_url, ordering, upgrade=upgrade, memory=memory)
     host, port = server_address
     try:
         yield urlunsplit(("http", f"{host}:{port}", "", "", ""))
