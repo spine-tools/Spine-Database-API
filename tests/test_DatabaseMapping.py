@@ -11,6 +11,7 @@
 ######################################################################################################################
 """ Unit tests for DatabaseMapping class. """
 from collections import namedtuple
+import gc
 import os.path
 from tempfile import TemporaryDirectory
 import threading
@@ -24,6 +25,7 @@ from spinedb_api import (
     SpineDBAPIError,
     SpineIntegrityError,
     append_filter_config,
+    apply_alternative_filter_to_parameter_value_sq,
     from_database,
     import_functions,
     to_database,
@@ -86,13 +88,13 @@ class TestDatabaseMappingConstruction(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add scen.")
-            db_map.engine.dispose()
+            db_map.close()
             try:
                 db_map2 = DatabaseMapping(url)
             except:
                 self.fail("DatabaseMapping.__init__() should not raise.")
             else:
-                db_map2.engine.dispose()
+                db_map2.close()
 
 
 class TestDatabaseMapping(AssertSuccessTestCase):
@@ -102,10 +104,10 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_metadata_item(name="Title", value="The four horsemen")
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 self.assertEqual(db_map.get_item("metadata", name="Title", value="The four horsemen", fetch=False), {})
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_rolling_back_new_item_invalidates_its_id(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -141,7 +143,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 activities = ((row.name, row.active_by_default) for row in entity_classes)
                 expected = (("HiddenStuff", False), ("VisibleStuff", True))
                 self.assertCountEqual(activities, expected)
-            out_db_map.engine.dispose()
+            out_db_map.close()
             with DatabaseMapping(url) as db_map:
                 entity_classes = db_map.get_entity_class_items()
                 self.assertEqual(len(entity_classes), 2)
@@ -151,7 +153,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     expected_activity = expected.pop(name)
                     with self.subTest(class_name=name):
                         self.assertEqual(activity, expected_activity)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_commit_parameter_value(self):
         with TemporaryDirectory() as temp_dir:
@@ -177,7 +179,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Added data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 color = db_map.get_item(
                     "parameter_value",
@@ -188,7 +190,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 value = from_database(color["value"], color["type"])
                 self.assertEqual(value, "mainly orange")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_commit_multidimensional_parameter_value(self):
         with TemporaryDirectory() as temp_dir:
@@ -231,7 +233,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Added data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 color = db_map.get_item(
                     "parameter_value",
@@ -242,7 +244,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 value = from_database(color["value"], color["type"])
                 self.assertEqual(value, 0.23)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_updating_entity_name_updates_the_name_in_parameter_value_too(self):
         with DatabaseMapping(IN_MEMORY_DB_URL, create=True) as db_map:
@@ -485,9 +487,9 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 with DatabaseMapping(url) as other_db_map:
                     self._assert_success(other_db_map.add_item("entity_class", name="cc"))
                     other_db_map.commit_session("Added a class")
-                other_db_map.engine.dispose()
+                other_db_map.close()
                 self.assertTrue(db_map.has_external_commits())
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_has_external_commits_returns_false_after_commit_session(self):
         with TemporaryDirectory() as temp_dir:
@@ -496,11 +498,11 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 with DatabaseMapping(url) as other_db_map:
                     other_db_map.add_item("entity_class", name="cc")
                     other_db_map.commit_session("Added a class")
-                other_db_map.engine.dispose()
+                other_db_map.close()
                 self._assert_success(db_map.add_item("entity_class", name="omega"))
                 db_map.commit_session("Added a class")
                 self.assertFalse(db_map.has_external_commits())
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_get_items_gives_commits(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -519,7 +521,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self._assert_success(db_map.add_entity_item(name="Sylvester", entity_class_name="cat"))
                 self._assert_success(db_map.add_entity_item(name="Tom", entity_class_name="cat"))
                 db_map.commit_session("Arf!")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 # Remove the entity in the middle and add a multi-D one referring to the third entity.
                 # The multi-D one will go in the middle.
@@ -528,13 +530,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     db_map.add_entity_item(element_name_list=("Pulgoso", "Tom"), entity_class_name="dog__cat")
                 )
                 db_map.commit_session("Meow!")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 # The ("Pulgoso", "Tom") entity will be fetched before "Tom".
                 # What happens?
                 entities = db_map.get_items("entity")
                 self.assertEqual(len(entities), 3)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_committing_scenario_alternatives(self):
         with TemporaryDirectory() as temp_dir:
@@ -555,7 +557,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertIsNotNone(item)
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 scenario_alternatives = db_map.get_items("scenario_alternative")
                 self.assertEqual(len(scenario_alternatives), 2)
@@ -565,7 +567,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(scenario_alternatives[1]["scenario_name"], "my_scenario")
                 self.assertEqual(scenario_alternatives[1]["alternative_name"], "alt2")
                 self.assertEqual(scenario_alternatives[1]["rank"], 1)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_committing_entity_class_items_doesnt_add_commit_ids_to_them(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -737,12 +739,12 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 with DatabaseMapping(url) as another_db_map:
                     another_db_map.add_entity_class_item(name="Gadget")
                     another_db_map.commit_session("Add another entity class.")
-                another_db_map.engine.dispose()
+                another_db_map.close()
                 db_map.reset_purging()
                 entity_classes = db_map.get_entity_class_items()
                 self.assertEqual(len(entity_classes), 1)
                 self.assertEqual(entity_classes[0]["name"], "Gadget")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_restored_entity_class_item_has_display_icon_field(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -851,7 +853,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add parameter value.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 value = db_map.get_parameter_value_item(
                     entity_class_name="Object",
@@ -861,7 +863,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertNotEqual(value, {})
                 self.assertEqual(value["parsed_value"], 2.3)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_nonexistent_parameter_value_with_list_value_does_not_traceback(self):
         with TemporaryDirectory() as temp_dir:
@@ -893,7 +895,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add parameter value.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 value = db_map.get_parameter_value_item(
                     entity_class_name="Object",
@@ -902,7 +904,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     alternative_name="extra alternative",
                 )
                 self.assertEqual(value, {})
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_add_entity_class_by_dimension_names(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -964,12 +966,12 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertIn("parameter_value_list_name", definition_item)
                 self.assertEqual(definition_item["parameter_value_list_name"], "Values")
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 definition_item = db_map.get_parameter_definition_item(name="x", entity_class_name="Object")
                 self.assertIn("parameter_value_list_name", definition_item)
                 self.assertEqual(definition_item["parameter_value_list_name"], "Values")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_get_parameter_definition_item_without_value_list_(self):
         with TemporaryDirectory() as temp_dir:
@@ -981,11 +983,11 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertIsNone(definition_item["parameter_value_list_name"])
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 definition_item = db_map.get_parameter_definition_item(name="x", entity_class_name="Object")
                 self.assertIsNone(definition_item["parameter_value_list_name"])
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_get_non_existent_parameter_definition_item_without_value_list_returns_empty_dict(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1015,13 +1017,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 scenario.remove()
                 self._assert_success(db_map.add_scenario_item(name="high lows", description="Readded scenario"))
                 db_map.commit_session("Readd 'high lows' scenario")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 scenario = db_map.get_scenario_item(name="high lows")
                 self.assertNotEqual(scenario, {})
                 self.assertEqual(scenario["name"], "high lows")
                 self.assertEqual(scenario["description"], "Readded scenario")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_restoring_original_item_fails_after_it_has_been_removed_and_replaced(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1256,7 +1258,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertFalse(active)
                 active = db_map.item_active_in_scenario(entity_items[1], 2)
                 self.assertTrue(active)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_remove_items(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1299,7 +1301,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add value list.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.fetch_more("parameter_value_list")
                 value_list = db_map.get_parameter_value_list_item(name="yes_no")
@@ -1317,7 +1319,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(list_values[0]["parameter_value_list_name"], "yes_no")
                 self.assertEqual(from_database(list_values[0]["value"], list_values[0]["type"]), "yes")
                 self.assertIsNone(list_values[0].mapped_item.replaced_item_waiting_for_removal)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_add_referrer_called_only_once_for_fetched_items(self):
         with TemporaryDirectory() as temp_dir:
@@ -1331,12 +1333,12 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add value list.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 value_list = db_map.get_parameter_value_list_item(name="list of values")
                 db_map.get_list_value_item(parameter_value_list_name="list_of_values", index=0)
                 self.assertEqual(len(value_list.mapped_item._referrers), 1)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_remove_scenario_alternative_from_middle(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1587,11 +1589,11 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add parameter with types.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 definition = db_map.get_parameter_definition_item(entity_class_name="Widget", name="typed")
                 self.assertEqual(definition["parameter_type_list"], ("array", "3d_map", "str"))
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_set_parameter_value_to_null(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1671,7 +1673,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add test data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 value_item = db_map.get_parameter_value_item(
                     entity_class_name="Object",
@@ -1680,7 +1682,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     alternative_name="Base",
                 )
                 self.assertEqual(value_item["parsed_value"], Duration("90m"))
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_add_indirectly_purged_values_back(self):
         with TemporaryDirectory() as temp_dir:
@@ -1702,7 +1704,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add test data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.purge_items("entity")
                 self._assert_success(db_map.add_entity_item(name="object", entity_class_name="Object"))
@@ -1725,7 +1727,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertTrue(value_item)
                 db_map.commit_session("Add purged data back.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 value_item = db_map.get_parameter_value_item(
                     entity_class_name="Object",
@@ -1735,7 +1737,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertTrue(value_item)
                 self.assertEqual(value_item["parsed_value"], Duration("90m"))
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_add_purged_values_back(self):
         with TemporaryDirectory() as temp_dir:
@@ -1757,7 +1759,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add test data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.purge_items("parameter_value")
                 db_map.purge_items("entity")
@@ -1782,7 +1784,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertTrue(value_item)
                 db_map.commit_session("Add purged data back.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 value_item = db_map.get_parameter_value_item(
                     entity_class_name="Object",
@@ -1792,7 +1794,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertTrue(value_item)
                 self.assertEqual(value_item["parsed_value"], Duration("90m"))
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_add_purged_alternative_back_then_commit_and_add_other_items_back(self):
         with TemporaryDirectory() as temp_dir:
@@ -1814,7 +1816,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add test data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.purge_items("parameter_value")
                 db_map.purge_items("entity")
@@ -1834,7 +1836,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add data back.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 alternative_item = db_map.get_alternative_item(
                     name="Base",
@@ -1849,7 +1851,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 self.assertTrue(value_item)
                 self.assertEqual(value_item["parsed_value"], Duration("90m"))
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_invalid_color_values_get_rejected_in_entity_class_display_mode(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1899,16 +1901,16 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     db_map.add_list_value_item(parameter_value_list_name="Enum", index=1, value=value, type=value_type)
                 )
                 db_map.commit_session("Add value list")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 value_list = db_map.get_parameter_value_list_item(name="Enum")
                 value_list.remove()
                 db_map.commit_session("Remove value list")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 list_value_rows = db_map.query(db_map.list_value_sq).all()
                 self.assertEqual(len(list_value_rows), 0)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_scenario_alternative_ids_dont_get_messed_up(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -1967,7 +1969,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_alternative_item(name="alt"))
                 db_map.commit_session("Add alternative")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 alternative_in_db = db_map.get_alternative_item(name="alt")
                 self.assertNotEqual(alternative_in_db, {})
@@ -1977,11 +1979,11 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 replacement_alternative.remove()
                 alternative_in_db.restore()
                 db_map.commit_session("No net changes")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 restored_alternative = db_map.get_alternative_item(name="alt")
                 self.assertEqual(restored_alternative["name"], "alt")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_do_fetch_more_in_chunks(self):
         with TemporaryDirectory() as temp_dir:
@@ -1992,13 +1994,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self._assert_success(db_map.add_entity_class_item(name="Gadget"))
                 self._assert_success(db_map.add_entity_item(name="gadget1", entity_class_name="Gadget"))
                 db_map.commit_session("Add data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 widgets = db_map.get_items("entity", entity_class_name="Widget")
                 self.assertEqual(len(widgets), 1)
                 gadgets = db_map.get_items("entity", entity_class_name="Gadget")
                 self.assertEqual(len(gadgets), 1)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_add_parameter_definition_to_database_with_parameter_types_does_not_raise_key_error(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -2064,12 +2066,12 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 db_map.commit_session("Add test data")
             filtered_url = append_filter_config(url, scenario_filter_config("HideWidget"))
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(filtered_url) as db_map:
                 db_map.fetch_all("entity_alternative")
                 entity_alternatives = db_map.get_entity_alternative_items()
                 self.assertEqual(len(entity_alternatives), 0)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_add_parameter_definition_by_entity_class_id(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -2084,13 +2086,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self._assert_success(db_map.add_parameter_value_list_item(name="my_enum"))
                 db_map.commit_session("Add value list.")
                 list_id = db_map.query(db_map.parameter_value_list_sq).first().id
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 self._assert_success(db_map.remove_item("parameter_value_list", list_id))
                 db_map.commit_session("Remove value list")
                 value_lists = db_map.query(db_map.parameter_value_list_sq).all()
                 self.assertEqual(value_lists, [])
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_with_block_reminder_exception(self):
         db_map = DatabaseMapping("sqlite://", create=True)
@@ -2227,11 +2229,11 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.commit_session("Add parameter definition with list value as default value.")
                 self.assertEqual(definition["default_type"], "str")
                 self.assertEqual(definition._asdict()["default_type"], "str")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 definition = db_map.get_parameter_definition_item(entity_class_name="Cat", name="color")
                 self.assertEqual(definition._asdict()["default_type"], "str")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_add_item_unchecked_returns_public_item(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -2438,14 +2440,14 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_parameter_value_list(name="enum")
                 db_map.commit_session("Add test data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.purge_items("parameter_value_list")
                 db_map.reset()
                 items = db_map.find_parameter_value_lists()
                 self.assertEqual(len(items), 1)
                 self.assertEqual(items[0]["name"], "enum")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_data_is_fetched_again_after_reset(self):
         with TemporaryDirectory() as temp_dir:
@@ -2458,7 +2460,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertFalse(db_map.has_external_commits())
                 db_map.reset()
                 self.assertTrue(db_map.has_external_commits())
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_purge_parameter_definition_with_default_value_from_value_list(self):
         with TemporaryDirectory() as temp_dir:
@@ -2474,7 +2476,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     parsed_value="infinite",
                 )
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.purge_items("parameter_value_list")
                 db_map.purge_items("parameter_definition")
@@ -2485,12 +2487,12 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(list_values, [])
                 value_lists = db_map.find_parameter_value_lists()
                 self.assertEqual(value_lists, [])
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 self.assertEqual(db_map.query(db_map.parameter_value_list_sq).all(), [])
                 self.assertEqual(db_map.query(db_map.list_value_sq).all(), [])
                 self.assertEqual(db_map.query(db_map.parameter_definition_sq).all(), [])
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_add_entity_with_location_data(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -2562,7 +2564,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     shape_blob="{}",
                 )
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 no_location = db_map.entity(entity_class_name="Object", name="no_location")
                 self.assertIsNone(no_location["lat"])
@@ -2576,7 +2578,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(with_location["alt"], 55.0)
                 self.assertEqual(with_location["shape_name"], "hexagon")
                 self.assertEqual(with_location["shape_blob"], "{}")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_entity_location_data_available_in_asdict(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -2721,13 +2723,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_entity_class(name="Unit")
                 db_map.add_entity(entity_class_name="Unit", name="mana_source")
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 entity = db_map.entity(entity_class_name="Unit", name="mana_source")
                 entity.update(lat=2.3, lon=3.2)
                 self.assertEqual(entity["lat"], 2.3)
                 self.assertEqual(entity["lon"], 3.2)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_update_fetched_entitys_location_by_single_field(self):
         with TemporaryDirectory() as temp_dir:
@@ -2744,7 +2746,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     shape_blob="{}",
                 )
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 entity = db_map.entity(entity_class_name="Unit", name="mana_source")
                 self.assertEqual(entity["lat"], 2.3)
@@ -2782,7 +2784,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(entity["alt"], -55.0)
                 self.assertEqual(entity["shape_name"], "polygram")
                 self.assertEqual(entity["shape_blob"], '{"feature": {}}')
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_update_entitys_location_with_half_new_data(self):
         with TemporaryDirectory() as temp_dir:
@@ -2799,7 +2801,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     shape_blob="{}",
                 )
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 entity = db_map.entity(entity_class_name="Unit", name="mana_source")
                 entity.update(lat=-2.3, lon=3.2)
@@ -2832,7 +2834,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(entity["alt"], -55.0)
                 self.assertEqual(entity["shape_name"], "polygram")
                 self.assertEqual(entity["shape_blob"], '{"feature": {}}')
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_updating_entitys_location_data_with_missing_data_raises_exception(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -2906,13 +2908,13 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_entity_class(name="Object")
                 db_map.add_entity(entity_class_name="Object", name="mouse", lat=2.3, lon=3.2)
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.purge_items("entity_location")
                 entity = db_map.entity(entity_class_name="Object", name="mouse")
                 self.assertIsNone(entity["lat"])
                 self.assertIsNone(entity["lon"])
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_fetching_after_refresh_session_should_not_fail(self):
         with TemporaryDirectory() as temp_dir:
@@ -2937,7 +2939,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     alternative_name="Base",
                 )
                 db_map.commit_session("Add base data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(target_url) as db_map:
                 db_map.add_parameter_value(
                     entity_class_name="unit__to_node",
@@ -2955,7 +2957,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     alternative_name="Base",
                 )
                 self.assertEqual(value["parsed_value"], 55.0)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_refresh_session_should_not_destroy_added_value(self):
         with TemporaryDirectory() as temp_dir:
@@ -2980,7 +2982,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     alternative_name="Base",
                 )
                 db_map.commit_session("Add base data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(target_url) as db_map:
                 db_map.add_parameter_value(
                     entity_class_name="unit__to_node",
@@ -2991,7 +2993,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
                 db_map.refresh_session()
                 db_map.commit_session("Add value.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(target_url) as db_map:
                 value_item = db_map.parameter_value(
                     entity_class_name="unit__to_node",
@@ -3000,7 +3002,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     alternative_name="Base",
                 )
                 self.assertEqual(value_item["parsed_value"], 2.3)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_existing_entity_items_location_data_in_asdict(self):
         with TemporaryDirectory() as temp_dir:
@@ -3018,7 +3020,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     shape_blob="{}",
                 )
                 db_map.commit_session("Add test data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 entity_dict = db_map.entity(entity_class_name="Object", name="nothing")._asdict()
                 self.assertIsNone(entity_dict["lat"])
@@ -3032,7 +3034,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(entity_dict["alt"], 55.0)
                 self.assertEqual(entity_dict["shape_name"], "blob")
                 self.assertEqual(entity_dict["shape_blob"], "{}")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_updating_entity_location_does_not_update_its_parameter_values(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -3117,12 +3119,12 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_entity_class(name="group")
                 db_map.add_entity_class(dimension_name_list=["asset", "group"])
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 classes = db_map.find_entity_classes(name="asset__group")
                 self.assertEqual(len(classes), 1)
                 self.assertEqual(classes[0]["name"], "asset__group")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_fetch_all_returns_public_items(self):
         with TemporaryDirectory() as temp_dir:
@@ -3131,7 +3133,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_entity_class(name="Object")
                 db_map.add_scenario(name="my scenario")
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 classes_and_scenarios = db_map.fetch_all("entity_class", "scenario")
                 self.assertEqual(len(classes_and_scenarios), 2)
@@ -3141,7 +3143,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 scenarios = [item["name"] for item in classes_and_scenarios if item.item_type == "scenario"]
                 self.assertEqual(len(scenarios), 1)
                 self.assertEqual(scenarios[0], "my scenario")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_set_parameter_definitions_list_value_to_none(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -3188,16 +3190,16 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     parsed_value=2.3,
                 )
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 entity_item = db_map.entity(entity_class_name="Subject__Object", entity_byname=("widget", "gadget"))
                 entity_item.remove()
                 db_map.commit_session("Remove the entity.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 values = db_map.find_parameter_values()
                 self.assertEqual(values, [])
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_deleting_element_from_multidimensional_entity_deletes_all_parameter_values_too(self):
         with TemporaryDirectory() as temp_dir:
@@ -3218,16 +3220,16 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     parsed_value=2.3,
                 )
                 db_map.commit_session("Add test data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 entity_item = db_map.entity(entity_class_name="Object", name="gadget")
                 entity_item.remove()
                 db_map.commit_session("Remove the entity.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 values = db_map.find_parameter_values()
                 self.assertEqual(values, [])
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_add_metadata(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -5913,14 +5915,14 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
             c1.start()
             c1.join()
             c2.join()
-            db_map1.engine.dispose()
-            db_map2.engine.dispose()
+            db_map1.close()
+            db_map2.close()
             with DatabaseMapping(url) as db_map:
                 commit_msgs = {x.comment for x in db_map.query(db_map.commit_sq)}
                 entity_class_names = [x.name for x in db_map.query(db_map.entity_class_sq)]
                 self.assertEqual(commit_msgs, {"Create the database", "one", "two"})
                 self.assertCountEqual(entity_class_names, ["cat", "dog"])
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_uncommitted_mapped_items_are_updated_by_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:
@@ -5933,9 +5935,9 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     db_map2.add_entity_class(name="widget")
                     db_map2.add_entity(entity_class_name="widget", name="gadget")
                     db_map2.commit_session("No comment")
-                db_map2.engine.dispose()
+                db_map2.close()
                 db_map1.commit_session("No comment")
-            db_map1.engine.dispose()
+            db_map1.close()
 
     def test_uncommitted_mapped_items_take_id_from_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:
@@ -5950,7 +5952,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     db_map2.commit_session("No comment")
                     committed_resolved_entity_classes = [x.resolve() for x in db_map2.get_items("entity_class")]
                     committed_resolved_id_by_name = {x["name"]: x["id"] for x in committed_resolved_entity_classes}
-                db_map2.engine.dispose()
+                db_map2.close()
                 # Verify that the uncommitted classes are now seen as 'committed'
                 uncommitted_entity_classes = db_map1.get_items("entity_class")
                 uncommitted_resolved_entity_classes = [x.resolve() for x in uncommitted_entity_classes]
@@ -5960,7 +5962,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     self.assertFalse(mapped_item.is_committed())
                     self.assertEqual(mapped_item._mapped_item.status, Status.to_update)
                 db_map1.commit_session("Update classes already in database.")
-            db_map1.engine.dispose()
+            db_map1.close()
 
     def test_committed_mapped_items_take_id_from_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:
@@ -5970,7 +5972,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self._assert_success(db_map0.add_entity_class_item(name="widget"))
                 self._assert_success(db_map0.add_entity_class_item(name="gadget"))
                 db_map0.commit_session("No comment")
-            db_map0.engine.dispose()
+            db_map0.close()
             with DatabaseMapping(url) as db_map1:
                 with DatabaseMapping(url) as db_map2:
                     # Purge, then add *gadget* before *widget* (swap the order)
@@ -5980,11 +5982,11 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     self._assert_success(db_map2.add_entity_class_item(name="widget"))
                     self._assert_success(db_map2.add_entity_item(entity_class_name="gadget", name="phone"))
                     db_map2.commit_session("No comment")
-                db_map2.engine.dispose()
+                db_map2.close()
                 # Check that we see the entity added by the other mapping
                 phone = db_map1.get_entity_item(entity_class_name="gadget", name="phone")
                 self.assertIsNotNone(phone)
-            db_map1.engine.dispose()
+            db_map1.close()
 
     def test_fetching_entities_after_external_change_has_renamed_their_classes(self):
         with TemporaryDirectory() as temp_dir:
@@ -6000,14 +6002,18 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     widget_class = shadow_db_map.get_entity_class_item(name="Widget")
                     widget_class.update(name="NotAWidget")
                     gadget_class = shadow_db_map.get_entity_class_item(name="Gadget")
-                    gadget_class.update(name="Widget")
+                    gadget_class.update(name="NotAGadget")
+                    shadow_db_map.commit_session(
+                        "Rename Widget and Gadget to something else to circumvent unique constraints."
+                    )
                     widget_class.update(name="Gadget")
+                    gadget_class.update(name="Widget")
                     shadow_db_map.commit_session("Swap Widget and Gadget to cause mayhem.")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 db_map.refresh_session()
                 gadget = db_map.get_entity_item(entity_class_name="Gadget", name="smart_watch")
                 self.assertEqual(gadget["name"], "smart_watch")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_additive_commit_from_another_db_map_gets_fetched(self):
         with TemporaryDirectory() as temp_dir:
@@ -6019,7 +6025,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     self._assert_success(shadow_db_map.add_entity_class_item(name="my_class"))
                     self._assert_success(shadow_db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
                     shadow_db_map.commit_session("Add entity.")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 db_map.refresh_session()
                 items = db_map.get_items("entity")
                 self.assertEqual(len(items), 1)
@@ -6040,7 +6046,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         "commit_id": 2,
                     },
                 )
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_restoring_entity_whose_db_id_has_been_replaced_by_external_db_modification(self):
         with TemporaryDirectory() as temp_dir:
@@ -6060,7 +6066,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         shadow_db_map.add_entity_item(entity_class_name="my_class", name="other_entity")
                     )
                     shadow_db_map.commit_session("Add entity with different name, probably reusing previous id.")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 items = db_map.fetch_more("entity")
                 self.assertEqual(len(items), 1)
                 self.assertEqual(items[0]["name"], "other_entity")
@@ -6070,7 +6076,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self.assertEqual(restored_item["name"], "my_entity")
                 all_items = db_map.get_entity_items()
                 self.assertEqual(len(all_items), 2)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_cunning_ways_to_make_external_changes(self):
         with TemporaryDirectory() as temp_dir:
@@ -6130,7 +6136,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         )
                     )
                     shadow_db_map.commit_session("Add entities.")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 entity_items = db_map.get_entity_items()
                 self.assertEqual(len(entity_items), 2)
                 unique_values = {(x["name"], x["entity_class_name"]) for x in entity_items}
@@ -6154,7 +6160,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self.assertIn(
                     ("interesting_class", "quality", "other_entity", "Base", *to_database(99.9)), unique_values
                 )
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_update_entity_metadata_externally(self):
         with TemporaryDirectory() as temp_dir:
@@ -6186,7 +6192,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     self.assertTrue(metadata_item)
                     metadata_item.update(entity_byname=("other_entity",))
                     shadow_db_map.commit_session("Move entity metadata to another entity")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 metadata_items = db_map.get_entity_metadata_items()
                 self.assertEqual(len(metadata_items), 2)
                 self.assertNotEqual(metadata_items[0]["id"], metadata_items[1]["id"])
@@ -6196,7 +6202,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 }
                 self.assertIn(("my_class", ("my_entity",), "my_metadata", metadata_value), unique_values)
                 self.assertIn(("my_class", ("other_entity",), "my_metadata", metadata_value), unique_values)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_update_parameter_value_metadata_externally(self):
         with TemporaryDirectory() as temp_dir:
@@ -6255,7 +6261,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     self.assertTrue(metadata_item)
                     metadata_item.update(entity_byname=("other_entity",))
                     shadow_db_map.commit_session("Move parameter value metadata to another entity")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 metadata_items = db_map.get_parameter_value_metadata_items()
                 self.assertEqual(len(metadata_items), 2)
                 self.assertNotEqual(metadata_items[0]["id"], metadata_items[1]["id"])
@@ -6274,7 +6280,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self.assertIn(
                     ("my_class", "x", ("other_entity",), "my_metadata", "Base", metadata_value), unique_values
                 )
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_update_entity_alternative_externally(self):
         with TemporaryDirectory() as temp_dir:
@@ -6301,7 +6307,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     self.assertTrue(entity_alternative)
                     entity_alternative.update(entity_byname=("other_entity",))
                     shadow_db_map.commit_session("Move entity alternative to another entity.")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 entity_alternatives = db_map.get_entity_alternative_items()
                 self.assertEqual(len(entity_alternatives), 2)
                 self.assertNotEqual(entity_alternatives[0]["id"], entity_alternatives[1]["id"])
@@ -6310,7 +6316,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 }
                 self.assertIn(("my_class", "my_entity", "Base"), unique_values)
                 self.assertIn(("my_class", "other_entity", "Base"), unique_values)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_update_superclass_subclass_externally(self):
         with TemporaryDirectory() as temp_dir:
@@ -6327,14 +6333,14 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     superclass_subclass = shadow_db_map.get_superclass_subclass_item(subclass_name="floor")
                     superclass_subclass.update(subclass_name="soil")
                     shadow_db_map.commit_session("Changes subclass to another one.")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 superclass_subclasses = db_map.get_superclass_subclass_items()
                 self.assertEqual(len(superclass_subclasses), 2)
                 self.assertNotEqual(superclass_subclasses[0]["id"], superclass_subclasses[1]["id"])
                 unique_values = {(x["superclass_name"], x["subclass_name"]) for x in superclass_subclasses}
                 self.assertIn(("ceiling", "floor"), unique_values)
                 self.assertIn(("ceiling", "soil"), unique_values)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_adding_same_parameters_values_to_different_entities_externally(self):
         with TemporaryDirectory() as temp_dir:
@@ -6372,7 +6378,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         )
                     )
                     shadow_db_map.commit_session("Add another entity.")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 values = db_map.get_parameter_value_items()
                 self.assertEqual(len(values), 1)
                 unique_value = (
@@ -6384,7 +6390,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 value_and_type = (values[0]["value"], values[0]["type"])
                 self.assertEqual(unique_value, ("my_class", "x", "other_entity", "Base"))
                 self.assertEqual(value_and_type, (value, value_type))
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_committing_changed_purged_entity_has_been_overwritten_by_external_change(self):
         with TemporaryDirectory() as temp_dir:
@@ -6400,13 +6406,13 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                         shadow_db_map.add_entity_item(name="other_entity", entity_class_name="my_class")
                     )
                     shadow_db_map.commit_session("Add another entity that steals ghost's id.")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 db_map.do_fetch_all(db_map.mapped_table("entity"))
                 self._assert_success(db_map.add_entity_item(name="dirty_entity", entity_class_name="my_class"))
                 db_map.commit_session("Add still uncommitted entity.")
                 entities = db_map.query(db_map.wide_entity_sq).all()
                 self.assertEqual(len(entities), 2)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_db_items_prevail_if_mapped_items_are_committed(self):
         with TemporaryDirectory() as temp_dir:
@@ -6414,18 +6420,18 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 db_map.commit_session("Add some data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.purge_items("entity_class")
                 db_map.commit_session("Purge all")
                 with DatabaseMapping(url) as shadow_db_map:
                     self._assert_success(shadow_db_map.add_entity_class_item(name="my_class"))
                     shadow_db_map.commit_session("Add same class")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 entity_class_item = db_map.get_entity_class_item(name="my_class")
                 self.assertTrue(entity_class_item)
                 self.assertEqual(entity_class_item["name"], "my_class")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_db_items_prevail_with_get_items_if_mapped_items_are_committed(self):
         with TemporaryDirectory() as temp_dir:
@@ -6433,18 +6439,18 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 db_map.commit_session("Add some data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.purge_items("entity_class")
                 db_map.commit_session("Purge all")
                 with DatabaseMapping(url) as shadow_db_map:
                     self._assert_success(shadow_db_map.add_entity_class_item(name="my_class"))
                     shadow_db_map.commit_session("Add same class")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 entity_class_items = db_map.get_entity_class_items()
                 self.assertEqual(len(entity_class_items), 1)
                 self.assertEqual(entity_class_items[0]["name"], "my_class")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_db_items_prevail_with_item_if_mapped_items_are_committed(self):
         with TemporaryDirectory() as temp_dir:
@@ -6452,17 +6458,17 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="my_class")
                 db_map.commit_session("Add some data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.purge_items("entity_class")
                 db_map.commit_session("Purge all")
                 with DatabaseMapping(url) as shadow_db_map:
                     shadow_db_map.add_entity_class(name="my_class")
                     shadow_db_map.commit_session("Add same class")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 entity_class_item = db_map.entity_class(name="my_class")
                 self.assertEqual(entity_class_item["name"], "my_class")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_db_items_prevail_with_find_if_mapped_items_are_committed(self):
         with TemporaryDirectory() as temp_dir:
@@ -6470,18 +6476,18 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="my_class")
                 db_map.commit_session("Add some data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.purge_items("entity_class")
                 db_map.commit_session("Purge all")
                 with DatabaseMapping(url) as shadow_db_map:
                     shadow_db_map.add_entity_class(name="my_class")
                     shadow_db_map.commit_session("Add same class")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 entity_class_items = db_map.find_entity_classes(name="my_class")
                 self.assertEqual(len(entity_class_items), 1)
                 self.assertEqual(entity_class_items[0]["name"], "my_class")
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_remove_items_then_refresh_then_readd(self):
         with TemporaryDirectory() as temp_dir:
@@ -6490,19 +6496,19 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 self._assert_success(db_map.add_entity_class_item(name="new_class"))
                 db_map.commit_session("Add some data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.fetch_all("entity_class")
                 with DatabaseMapping(url) as shadow_db_map:
                     shadow_db_map.purge_items("entity_class")
                     self._assert_success(shadow_db_map.add_entity_class_item(name="new_class"))
                     shadow_db_map.commit_session("Purge then add new class back")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 db_map.refresh_session()
                 entity_class_names = [x["name"] for x in db_map.get_entity_class_items()]
                 self.assertIn("new_class", entity_class_names)
                 self.assertNotIn("my_class", entity_class_names)
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_remove_items_then_refresh_then_readd2(self):
         with TemporaryDirectory() as temp_dir:
@@ -6512,7 +6518,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 self._assert_success(db_map.add_entity_class_item(name="yyy"))
                 self._assert_success(db_map.add_entity_class_item(name="zzz"))
                 db_map.commit_session("Add some data")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.fetch_all("entity_class")
                 with DatabaseMapping(url) as shadow_db_map:
@@ -6520,12 +6526,12 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     self._assert_success(shadow_db_map.add_entity_class_item(name="zzz"))
                     self._assert_success(shadow_db_map.add_entity_class_item(name="www"))
                     shadow_db_map.commit_session("Purge then add one old class and one new class")
-                shadow_db_map.engine.dispose()
+                shadow_db_map.close()
                 db_map.refresh_session()
                 entity_class_names = [x["name"] for x in db_map.get_entity_class_items()]
                 self.assertEqual(len(entity_class_names), 2)
                 self.assertEqual(set(entity_class_names), {"zzz", "www"})
-            db_map.engine.dispose()
+            db_map.close()
 
     def test_refresh_after_update(self):
         with TemporaryDirectory() as temp_dir:
@@ -6539,7 +6545,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     )
                 )
                 db_map.commit_session("Add initial data.")
-            db_map.engine.dispose()
+            db_map.close()
             with DatabaseMapping(url) as db_map:
                 db_map.fetch_more("parameter_definition")
                 definition = db_map.get_parameter_definition_item(name="z", entity_class_name="Object")
@@ -6550,9 +6556,28 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                     item = definition.update(default_value=value, default_type=value_type)
                     self.assertIsNotNone(item)
                     db_map_2.commit_session("Update parameter default value.")
-                db_map_2.engine.dispose()
+                db_map_2.close()
                 db_map.refresh_session()
                 db_map.fetch_more("parameter_definition")
                 definition = db_map.get_parameter_definition_item(name="z", entity_class_name="Object")
                 self.assertEqual(definition["parsed_value"], "yes")
-            db_map.engine.dispose()
+            db_map.close()
+
+    def test_add_stuff_thats_been_filtered_out(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="cat")
+                db_map.add_entity(name="Tom", entity_class_name="cat")
+                db_map.add_alternative(name="other")
+                db_map.add_entity_alternative(
+                    alternative_name="other", entity_byname=("Tom",), entity_class_name="cat", active=False
+                )
+                db_map.commit_session("Add Tom.")
+            db_map.close()
+            with DatabaseMapping(url, create=True) as db_map:
+                apply_alternative_filter_to_parameter_value_sq(db_map, ["other"])
+                db_map.add_entity(name="Tom", entity_class_name="cat")
+                db_map.commit_session("Add Tom again.")
+            db_map.close()
+            gc.collect()

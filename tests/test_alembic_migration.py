@@ -157,7 +157,9 @@ class TestMigrationFrom070a0eb89e88:
         map_definition = db_map.parameter_definition(entity_class_name="Widget", name="map")
         assert map_definition["description"] == "Parameter with map values."
         assert map_definition["parsed_value"] == Map(
-            ["A", "B"], [Map(["T00", "T01"], [1.1, 2.2]), Map(["T00", "T01"], [3.3, 4.4])], index_name="col_1"
+            ["A", "B"],
+            [Map(["T00", "T01"], [1.1, 2.2], index_name="col_2"), Map(["T00", "T01"], [3.3, 4.4], index_name="col_2")],
+            index_name="col_1",
         )
         assert map_definition["parameter_value_list_name"] is None
 
@@ -231,7 +233,7 @@ class TestMigrationFrom070a0eb89e88:
         assert time_series_fixed_resolution_value["parsed_value"] == TimeSeriesVariableResolution(
             [
                 "2025-09-23T00:00:00",
-                "2025-09-23T60:00:00",
+                "2025-09-23T06:00:00",
             ],
             [-1.1, -2.2],
             ignore_year=False,

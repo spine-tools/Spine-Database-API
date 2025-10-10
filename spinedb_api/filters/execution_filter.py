@@ -26,6 +26,10 @@ def apply_execution_filter(db_map, execution):
         db_map (DatabaseMapping): a database map to alter
         execution (dict): execution descriptor
     """
+    config = execution_filter_config(execution)
+    if config in db_map.filter_configs:
+        return
+    db_map.filter_configs.append(config)
     state = _ExecutionFilterState(db_map, execution)
     create_import_alternative = partial(_create_import_alternative, state=state)
     db_map.override_create_import_alternative(create_import_alternative)
@@ -156,6 +160,6 @@ def _create_import_alternative(db_map, state):
     db_map._import_alternative_name = alt_name = f"{'_'.join(scenarios)}{sep}{execution_item}@{timestamp}"
     db_map.add_alternative(name=alt_name)
     for scen_name in scenarios:
-        scen = db_map.add_scenario(name=scen_name)
+        scen = db_map.get_or_add_by_type("scenario", name=scen_name)
         rank = len(scen["sorted_scenario_alternatives"]) + 1  # ranks are 1-based
         db_map.add_scenario_alternative(scenario_name=scen_name, alternative_name=alt_name, rank=rank)

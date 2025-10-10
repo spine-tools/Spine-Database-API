@@ -105,7 +105,7 @@ class TestDBServer(unittest.TestCase):
                 response = handler.call_method("get_parameter_definition_item", id=definition_id)
                 self.assertEqual(response["result"]["parameter_type_list"], ())
             finally:
-                handler.close_db_map()
+                handler.close()
 
     def test_query_with_data(self):
         with TemporaryDirectory() as temp_dir:

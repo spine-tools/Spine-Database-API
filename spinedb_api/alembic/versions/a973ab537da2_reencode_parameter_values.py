@@ -1,7 +1,7 @@
 """reencode parameter_values
 
 Revision ID: a973ab537da2
-Revises: 91f1f55aa972
+Revises: e9f2c2330cf8
 Create Date: 2025-05-21 12:49:16.861670
 
 """
@@ -15,7 +15,7 @@ from spinedb_api.value_support import load_db_value
 
 # revision identifiers, used by Alembic.
 revision = "a973ab537da2"
-down_revision = "91f1f55aa972"
+down_revision = "e9f2c2330cf8"
 branch_labels = None
 depends_on = None
 

@@ -117,6 +117,7 @@ class TestVacuum(unittest.TestCase):
             self.assertEqual(freed, 0)
             self.assertEqual(units, "bytes")
             engine.dispose()
+            gc.collect()
 
 
 class TestCopyDatabase(AssertSuccessTestCase):

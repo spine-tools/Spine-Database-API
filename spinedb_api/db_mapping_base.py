@@ -11,13 +11,14 @@
 ######################################################################################################################
 from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator
-from contextlib import suppress
+from contextlib import suppress, contextmanager
 from difflib import SequenceMatcher
 from typing import Any, ClassVar, Optional, Type, TypedDict, Union
 from .exception import SpineDBAPIError
 from .helpers import Asterisk
 from .mapped_item_status import Status
 from .temp_id import TempId, resolve
+from .filters.tools import clear_filter_configs
 
 
 class DatabaseMappingBase:
@@ -26,7 +27,7 @@ class DatabaseMappingBase:
     This class is not meant to be used directly. Instead, you should subclass it to fit your particular DB schema.
 
     When subclassing, you need to implement :meth:`item_types`, :meth:`item_factory`, :meth:`_make_sq`,
-    and :meth:`_query_commit_count`.
+    :meth:`_make_query` and :meth:`_query_commit_count`.
     """
 
     def __init__(self):
@@ -100,6 +101,17 @@ class DatabaseMappingBase:
         """
         raise NotImplementedError()
 
+    def _make_query(self, sq):
+        """Returns a :class:`~sqlalchemy.orm.query.Query` object from given subquery.
+
+        Args:
+            sq (class:`~sqlalchemy.sql.expression.Alias`)
+
+        Returns:
+            :class:`~sqlalchemy.orm.query.Query`
+        """
+        raise NotImplementedError()
+
     def _query_commit_count(self):
         """Returns the number of rows in the commit table in the DB.
 
@@ -118,6 +130,26 @@ class DatabaseMappingBase:
             if item.status in (Status.to_add, Status.to_update)
         }
 
+    @contextmanager
+    def _fixing_conflicts(self):
+        if not self.filter_configs or self.db_url == "sqlite://":
+            real_commit_count = self._query_commit_count()
+
+            def fix_conflicts(mapped_table):
+                self.do_fetch_all(mapped_table, commit_count=real_commit_count)  # To fix conflicts in add_item_from_db
+
+            yield fix_conflicts
+
+        else:
+            clean_url = clear_filter_configs(self.db_url)
+            with self.__class__(clean_url) as unfiltered_db_map:
+
+                def fix_conflicts(mapped_table):
+                    for item in unfiltered_db_map._get_next_chunk(mapped_table.item_type, offset=0, limit=None):
+                        mapped_table.handle_fetched_item(item, is_db_clean=False)
+
+                yield fix_conflicts
+
     def _dirty_items(self):
         """Returns a list of tuples of the form (item_type, (to_add, to_update, to_remove)) corresponding to
         items that have been modified but not yet committed.
@@ -125,37 +157,40 @@ class DatabaseMappingBase:
         Returns:
             list
         """
-        real_commit_count = self._query_commit_count()
         dirty_items = []
         purged_item_types = {x for x in self.item_types() if self._mapped_tables[x].purged}
         self._add_descendants(purged_item_types)
-        for item_type in self._sorted_item_types:
-            mapped_table = self._mapped_tables[item_type]
-            self.do_fetch_all(mapped_table, commit_count=real_commit_count)  # To fix conflicts in add_item_from_db
-            to_add = []
-            to_update = []
-            to_remove = []
-            for item in mapped_table.valid_values():
-                if item.status == Status.to_add:
-                    to_add.append(item)
-                elif item.status == Status.to_update:
-                    to_update.append(item)
-                if item.replaced_item_waiting_for_removal is not None:
-                    to_remove.append(item.replaced_item_waiting_for_removal)
-                    item.replaced_item_waiting_for_removal = None
-            if item_type in purged_item_types:
-                to_remove.append(mapped_table.wildcard_item)
-                to_remove.extend(mapped_table.values())
-            else:
-                for item in mapped_table.values():
-                    item.validate()
-                    if item.status == Status.to_remove and item.has_valid_id:
-                        to_remove.append(item)
-                    if item.status == Status.added_and_removed and item.replaced_item_waiting_for_removal is not None:
+        with self._fixing_conflicts() as fix_conflicts:
+            for item_type in self._sorted_item_types:
+                mapped_table = self._mapped_tables[item_type]
+                fix_conflicts(mapped_table)
+                to_add = []
+                to_update = []
+                to_remove = []
+                for item in mapped_table.valid_values():
+                    if item.status == Status.to_add:
+                        to_add.append(item)
+                    elif item.status == Status.to_update:
+                        to_update.append(item)
+                    if item.replaced_item_waiting_for_removal is not None:
                         to_remove.append(item.replaced_item_waiting_for_removal)
                         item.replaced_item_waiting_for_removal = None
-            if to_add or to_update or to_remove:
-                dirty_items.append((item_type, (to_add, to_update, to_remove)))
+                if item_type in purged_item_types:
+                    to_remove.append(mapped_table.wildcard_item)
+                    to_remove.extend(mapped_table.values())
+                else:
+                    for item in mapped_table.values():
+                        item.validate()
+                        if item.status == Status.to_remove and item.has_valid_id:
+                            to_remove.append(item)
+                        if (
+                            item.status == Status.added_and_removed
+                            and item.replaced_item_waiting_for_removal is not None
+                        ):
+                            to_remove.append(item.replaced_item_waiting_for_removal)
+                            item.replaced_item_waiting_for_removal = None
+                if to_add or to_update or to_remove:
+                    dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items
 
     def _rollback(self):
@@ -262,11 +297,93 @@ class DatabaseMappingBase:
             self._commit_count = self._query_commit_count()
         return self._commit_count
 
+    def _do_make_query(self, item_type, **kwargs):
+        """Returns a :class:`~spinedb_api.query.Query` object to fetch items of given type.
+
+        Args:
+            item_type (str): item type
+            **kwargs: query filters
+
+        Returns:
+            :class:`~spinedb_api.query.Query` or None if the mapping is closed.
+        """
+        sq = self._make_sq(item_type)
+        qry = self._make_query(sq)
+        for key, value in kwargs.items():
+            if isinstance(value, tuple):
+                continue
+            value = resolve(value)
+            if hasattr(sq.c, key):
+                qry = qry.filter(getattr(sq.c, key) == value)
+            elif key in (item_class := self.item_factory(item_type))._external_fields:
+                src_key, key = item_class._external_fields[key]
+                ref_type = item_class._references[src_key]
+                ref_sq = self._make_sq(ref_type)
+                try:
+                    qry = qry.filter(getattr(sq.c, src_key) == getattr(ref_sq.c, "id"), getattr(ref_sq.c, key) == value)
+                except AttributeError:
+                    pass
+        return qry
+
+    def _get_next_chunk(self, item_type, offset, limit, **kwargs):
+        """Gets chunk of items from the DB.
+
+        Returns:
+            list(dict): list of dictionary items.
+        """
+        with self:
+            qry = self._do_make_query(item_type, **kwargs)
+            if not qry:
+                return []
+            if not limit:
+                return [x._asdict() for x in qry]
+            return [x._asdict() for x in qry.limit(limit).offset(offset)]
+
     def _do_fetch_more(
         self, mapped_table: MappedTable, offset: int, limit: Optional[int], real_commit_count: Optional[int], **kwargs
     ) -> list[MappedItemBase]:
         """Fetches items from the DB and adds them to the mapping."""
-        raise NotImplementedError()
+        item_type = mapped_table.item_type
+        ref_types = self.item_factory(item_type).ref_types()
+        if real_commit_count is None:
+            real_commit_count = self._query_commit_count()
+        if kwargs and item_type in ref_types:
+            return self.do_fetch_all(self._mapped_tables[item_type], commit_count=real_commit_count)
+        chunk = self._get_next_chunk(mapped_table.item_type, offset, limit, **kwargs)
+        if not chunk:
+            return []
+        is_db_dirty = self._get_commit_count() != real_commit_count
+        if is_db_dirty:
+            # We need to fetch the most recent references because their ids might have changed in the DB
+            item_type = mapped_table.item_type
+            for ref_type in ref_types:
+                if ref_type != item_type:
+                    self.do_fetch_all(self._mapped_tables[ref_type], commit_count=real_commit_count)
+        items = []
+        new_items = []
+        # Add items first
+        for x in chunk:
+            item, fresh = mapped_table.handle_fetched_item(x, not is_db_dirty)
+            if item is None:
+                continue
+            if fresh:
+                mapped_table.do_add_item(item)
+                if mapped_table.purged:
+                    # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
+                    item.cascade_remove()
+                new_items.append(item)
+            else:
+                item.handle_refetch()
+                items.append(item)
+        # Once all items are added, add the unique key values
+        # Otherwise items that refer to other items that come later in the query will be seen as corrupted
+        for item in new_items:
+            if not item.become_referrer():
+                mapped_table.remove_item(item)
+                continue
+            mapped_table.add_unique(item)
+            items.append(item)
+        return items
 
     def do_fetch_all(self, mapped_table: MappedTable, commit_count: Optional[int] = None) -> list[MappedItemBase]:
         """Fetches all items of given type, but only once for each commit_count.
@@ -452,15 +569,16 @@ class MappedTable(dict):
                     raise error
         return item
 
-    def _and_add_item(self, item: MappedItemBase) -> None:
+    def do_add_item(self, item: MappedItemBase) -> None:
         db_id = item.pop("id", None) if item.has_valid_id else None
         item["id"] = new_id = TempId.new_unique(self.item_type, self._temp_id_lookup)
         if db_id is not None:
             new_id.resolve(db_id)
         self[new_id] = item
 
-    def add_item_from_db(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool]:
-        """Adds an item fetched from the DB."""
+    def handle_fetched_item(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool]:
+        """Called when an item is fetched from the DB. Returns a corresponding mapped item
+        and whether or not it is new (no equivalent item is found in the mapping currently)."""
         new_item = self._make_item(item, ignore_polishing_errors=True)
         try:
             existing_item = self._find_fully_qualified_item_by_unique_key(new_item, fetch=False)
@@ -470,10 +588,6 @@ class MappedTable(dict):
                 if is_db_clean or self._same_item(same_id_item.db_equivalent(), item):
                     return same_id_item, False
                 same_id_item.handle_id_steal()
-            self._and_add_item(new_item)
-            if self.purged:
-                # Lazy purge: instead of fetching all at purge time, we purge stuff as it comes.
-                new_item.cascade_remove()
             return new_item, True
         if is_db_clean or self._same_item(existing_item, item):
             existing_item.force_id(item["id"])
@@ -529,7 +643,7 @@ class MappedTable(dict):
 
     def add_item(self, item: dict) -> MappedItemBase:
         item = self._make_item(item, ignore_polishing_errors=False)
-        self._and_add_item(item)
+        self.do_add_item(item)
         self.add_unique(item)
         item.become_referrer()
         item.status = Status.to_add

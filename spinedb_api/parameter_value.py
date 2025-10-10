@@ -1659,22 +1659,7 @@ class Map(IndexedValue):
                 index_type=_arrow_type_to_python(arrow_value.column(0).type),
                 index_name=arrow_value.column_names[0],
             )
-        value_column = arrow_value.column("value")
-        tree_root = {}
-        for row_i in range(arrow_value.num_rows):
-            index = _python_value_as_spine(arrow_value.column(0)[row_i].as_py())
-            current_tree = tree_root
-            for column_i in range(1, arrow_value.num_columns - 1):
-                index_candidate = arrow_value.column(column_i)[row_i].as_py()
-                if index_candidate is None:
-                    break
-                index_candidate = _python_value_as_spine(index_candidate)
-                if index not in current_tree:
-                    current_tree[index] = {}
-                current_tree = current_tree[index]
-                index = index_candidate
-            current_tree[index] = value_column[row_i].as_py()
-        map_value = _dict_to_map(tree_root, arrow_value.column_names)
+        map_value = _map_from_arrow(arrow_value)
         for column_i in range(arrow_value.num_columns - 1):
             try:
                 metadata = load_field_metadata(arrow_value.field(column_i))
@@ -1686,10 +1671,57 @@ class Map(IndexedValue):
         return map_value
 
 
+def _map_from_arrow(arrow_value: pyarrow.RecordBatch) -> Map:
+    indexes = _array_values_as_spine(arrow_value.column(0))
+    if arrow_value.num_columns == 2:
+        values = [_python_value_as_spine(x) for x in arrow_value.column(1).to_pylist()]
+        return Map(indexes, values, index_name=arrow_value.column_names[0])
+    reduced_indexes = []
+    values = []
+    row_i = 0
+    while row_i != arrow_value.num_rows:
+        if not arrow_value.column(1)[row_i].is_valid:
+            reduced_indexes.append(indexes[row_i])
+            values.append(_python_value_as_spine(arrow_value.column(arrow_value.num_columns - 1)[row_i].as_py()))
+            row_i += 1
+            continue
+        base_index = indexes[row_i]
+        sub_row_i = row_i + 1
+        while sub_row_i != arrow_value.num_rows:
+            if indexes[sub_row_i] != base_index or not arrow_value.column(1)[sub_row_i].is_valid:
+                break
+            sub_row_i += 1
+        reduced_indexes.append(base_index)
+        values.append(_map_from_arrow(arrow_value.remove_column(0).slice(row_i, sub_row_i - row_i)))
+        row_i = sub_row_i
+    return Map(reduced_indexes, values, index_name=arrow_value.column_names[0])
+
+
+def _array_values_as_spine(values: pyarrow.Array) -> list:
+    if pyarrow.types.is_run_end_encoded(values.type):
+        value_type = values.values.type
+    elif pyarrow.types.is_dictionary(values.type):
+        value_type = values.dictionary.type
+    else:
+        value_type = values.type
+    if pyarrow.types.is_timestamp(value_type):
+        return [DateTime(t.isoformat()) if t is not None else t for t in values.to_pylist()]
+    if pyarrow.types.is_interval(value_type):
+        return [
+            (
+                Duration(relativedelta(months=dt.months, days=dt.days, microseconds=dt.nanoseconds // 1000))
+                if dt is not None
+                else None
+            )
+            for dt in values.to_pylist()
+        ]
+    return values.to_pylist()
+
+
 def _python_value_as_spine(x: Any) -> Any:
     match x:
         case pyarrow.lib.MonthDayNano():
-            return Duration(relativedelta(months=x.months, days=x.months, microseconds=x.nanoseconds // 1000))
+            return Duration(relativedelta(months=x.months, days=x.days, microseconds=x.nanoseconds // 1000))
         case datetime():
             return DateTime(x)
         case _:
@@ -2002,21 +2034,6 @@ def _build_value_array(value_column: list) -> pyarrow.Array:
             y = y.as_arrow()
         arrow_values.append(y)
     return to_union_array(arrow_values)
-
-
-def _dict_to_map(map_dict: dict, index_names: list[str]) -> Map:
-    indexes = []
-    values = []
-    for index, value in map_dict.items():
-        indexes.append(index)
-        if isinstance(value, dict):
-            value = _dict_to_map(value, index_names[1:])
-        elif isinstance(value, pyarrow.MonthDayNano):
-            value = Duration(
-                relativedelta(months=value.months, days=value.days, microseconds=value.nanoseconds // 1000)
-            )
-        values.append(value)
-    return Map(indexes, values, index_name=index_names[0])
 
 
 # Value types that are supported by spinedb_api

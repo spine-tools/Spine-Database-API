@@ -43,6 +43,10 @@ def apply_value_transform_to_parameter_value_sq(db_map, instructions):
         instructions (dict): mapping from entity class name to mapping from parameter name to list of
             instructions
     """
+    config = value_transformer_config(instructions)
+    if config in db_map.filter_configs:
+        return
+    db_map.filter_configs.append(config)
     state = _ValueTransformerState(db_map, instructions)
     transform = partial(_make_parameter_value_transforming_sq, state=state)
     db_map.override_parameter_value_sq_maker(transform)

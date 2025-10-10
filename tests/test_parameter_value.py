@@ -1541,6 +1541,37 @@ class TestMap:
             index_name="col_1",
         )
 
+    def test_from_arrow_with_unevenly_nested_structure(self):
+        indexes_1 = pyarrow.array(["A", "A"])
+        indexes_2 = pyarrow.array([None, "a"])
+        values = pyarrow.array(["non-nested", "nested"])
+        record_batch = pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "value": values})
+        map_value = Map.from_arrow(record_batch)
+        assert map_value == Map(
+            ["A", "A"],
+            ["non-nested", Map(["a"], ["nested"], index_name="col_2")],
+            index_name="col_1",
+        )
+        indexes_2 = pyarrow.array(["a", None])
+        values = pyarrow.array(["nested", "non-nested"])
+        record_batch = pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "value": values})
+        map_value = Map.from_arrow(record_batch)
+        assert map_value == Map(
+            ["A", "A"],
+            [Map(["a"], ["nested"], index_name="col_2"), "non-nested"],
+            index_name="col_1",
+        )
+        indexes_1 = pyarrow.array(["A", "A", "A"])
+        indexes_2 = pyarrow.array(["a", None, "b"])
+        values = pyarrow.array(["nested", "non-nested", "nested"])
+        record_batch = pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "value": values})
+        map_value = Map.from_arrow(record_batch)
+        assert map_value == Map(
+            ["A", "A", "A"],
+            [Map(["a"], ["nested"], index_name="col_2"), "non-nested", Map(["b"], ["nested"], index_name="col_2")],
+            index_name="col_1",
+        )
+
     def test_from_arrow_with_nested_time_series(self):
         indexes_1 = pyarrow.array(["a", "a", "b", "b"])
         indexes_2 = pyarrow.array(

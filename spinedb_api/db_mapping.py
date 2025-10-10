@@ -170,7 +170,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             db_url = db_url.difference_update_query("spinedbfilter")
         else:
             filter_configs = []
-        self._filter_configs = filter_configs if apply_filters else None
         try:
             self.sa_url = make_url(db_url)
         except ArgumentError as error:
@@ -194,8 +193,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         self._tablenames = [t.name for t in self._metadata.sorted_tables]
         self._session = None
         self._context_open_count = 0
-        if self._filter_configs is not None:
-            stack = load_filters(self._filter_configs)
+        self.filter_configs = []
+        filter_configs = filter_configs if apply_filters else None
+        if filter_configs is not None:
+            stack = load_filters(filter_configs)
             apply_filter_stack(self, stack)
 
     def __enter__(self):
@@ -246,23 +247,30 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         sq_name = self._sq_name_by_item_type[item_type]
         return getattr(self, sq_name)
 
+    def _make_query(self, sq):
+        return self._session.query(sq)
+
     @staticmethod
-    def get_upgrade_db_prompt_data(url, create=False):
+    def get_upgrade_db_prompt_data(
+        url: str | URL, create: bool = False
+    ) -> tuple[str, str, dict[str, dict], dict[str, str] | None, int | None] | None:
         """Returns data to prompt the user what to do if the DB at the given url is not the latest version.
         If it is, then returns None.
 
         :meta private:
 
         Args:
-            url (str)
-            create (bool,optional)
+            url: database url
+            create: if True, create a new database if it does not exist
 
         Returns:
-            str: The title of the prompt
-            str: The text of the prompt
-            dict: Mapping different options, to kwargs to pass to DatabaseMapping constructor in order to apply them
-            dict or None: Mapping different options, to additional notes
-            int or None: The preferred option if any
+            A tuple that consists of:
+
+                - the title of the prompt
+                - the text of the prompt
+                - mapping from different options to kwargs to pass to DatabaseMapping constructor in order to apply them
+                - mapping from different options to additional notes
+                - preferred option if any
         """
         sa_url = make_url(url)
         try:
@@ -523,6 +531,15 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             else:
                 raise SpineDBAPIError(f"{mapped_table.item_type} matching {kwargs} has been removed")
         return item.public_item
+
+    def get_or_add_by_type(self, item_type: str, **kwargs) -> PublicItem:
+        return self.get_or_add(self.mapped_table(item_type), **kwargs)
+
+    def get_or_add(self, mapped_table: MappedTable, **kwargs) -> PublicItem:
+        try:
+            return self.item(mapped_table, **kwargs)
+        except SpineDBAPIError:
+            return self.add(mapped_table, **kwargs)
 
     def item_by_type(self, item_type: str, **kwargs) -> PublicItem:
         return self.item(self._mapped_tables[item_type], **kwargs)
@@ -991,89 +1008,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         return bool(self.remove_items(item_type, Asterisk))
 
-    def _make_query(self, item_type, **kwargs):
-        """Returns a :class:`~spinedb_api.query.Query` object to fetch items of given type.
-
-        Args:
-            item_type (str): item type
-            **kwargs: query filters
-
-        Returns:
-            :class:`~spinedb_api.query.Query` or None if the mapping is closed.
-        """
-        sq = self._make_sq(item_type)
-        qry = self._session.query(sq)
-        for key, value in kwargs.items():
-            if isinstance(value, tuple):
-                continue
-            value = resolve(value)
-            if hasattr(sq.c, key):
-                qry = qry.filter(getattr(sq.c, key) == value)
-            elif key in (item_class := ITEM_CLASS_BY_TYPE[item_type])._external_fields:
-                src_key, key = item_class._external_fields[key]
-                ref_type = item_class._references[src_key]
-                ref_sq = self._make_sq(ref_type)
-                try:
-                    qry = qry.filter(getattr(sq.c, src_key) == getattr(ref_sq.c, "id"), getattr(ref_sq.c, key) == value)
-                except AttributeError:
-                    pass
-        return qry
-
-    def _get_next_chunk(self, item_type, offset, limit, **kwargs):
-        """Gets chunk of items from the DB.
-
-        Returns:
-            list(dict): list of dictionary items.
-        """
-        with self:
-            qry = self._make_query(item_type, **kwargs)
-            if not qry:
-                return []
-            if not limit:
-                return [x._asdict() for x in qry]
-            return [x._asdict() for x in qry.limit(limit).offset(offset)]
-
-    def _do_fetch_more(
-        self, mapped_table: MappedTable, offset: int, limit: Optional[int], real_commit_count: Optional[int], **kwargs
-    ) -> list[MappedItemBase]:
-        item_type = mapped_table.item_type
-        ref_types = ITEM_CLASS_BY_TYPE[item_type].ref_types()
-        if real_commit_count is None:
-            real_commit_count = self._query_commit_count()
-        if kwargs and item_type in ref_types:
-            return self.do_fetch_all(self._mapped_tables[item_type], commit_count=real_commit_count)
-        chunk = self._get_next_chunk(mapped_table.item_type, offset, limit, **kwargs)
-        if not chunk:
-            return []
-        is_db_dirty = self._get_commit_count() != real_commit_count
-        if is_db_dirty:
-            # We need to fetch the most recent references because their ids might have changed in the DB
-            item_type = mapped_table.item_type
-            for ref_type in ref_types:
-                if ref_type != item_type:
-                    self.do_fetch_all(self._mapped_tables[ref_type], commit_count=real_commit_count)
-        items = []
-        new_items = []
-        # Add items first
-        for x in chunk:
-            item, new = mapped_table.add_item_from_db(x, not is_db_dirty)
-            if item is None:
-                continue
-            if new:
-                new_items.append(item)
-            else:
-                item.handle_refetch()
-                items.append(item)
-        # Once all items are added, add the unique key values
-        # Otherwise items that refer to other items that come later in the query will be seen as corrupted
-        for item in new_items:
-            if not item.become_referrer():
-                mapped_table.remove_item(item)
-                continue
-            mapped_table.add_unique(item)
-            items.append(item)
-        return items
-
     def fetch_more(self, item_type, offset=0, limit=None, **kwargs):
         """Fetches items from the DB into the in-memory mapping, incrementally.
 
@@ -1263,7 +1197,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     def get_filter_configs(self) -> list[dict]:
         """Returns the config dicts of filters applied to this database mapping."""
-        return self._filter_configs
+        return self.filter_configs
 
     def close(self):
         self._original_engine.dispose()
@@ -1526,7 +1460,8 @@ def _add_convenience_methods(node):
 
 try:
     import astroid
+    from astroid.nodes import ClassDef
 
-    astroid.MANAGER.register_transform(astroid.ClassDef, _add_convenience_methods)
+    astroid.MANAGER.register_transform(ClassDef, _add_convenience_methods)
 except ModuleNotFoundError:
     pass

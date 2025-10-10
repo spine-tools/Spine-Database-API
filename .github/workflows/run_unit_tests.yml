@@ -83,7 +83,7 @@ jobs:
     uses: spine-tools/SpineInterface.jl/.github/workflows/Test.yml@master
     with:
       host-os: ubuntu-latest
-      julia-version: "1"
+      julia-version: "1.11"
       python-version: "3.13"
       repository: spine-tools/SpineInterface.jl
       spinedb-api-ref-name: ${{ github.ref_name }}
@@ -94,7 +94,7 @@ jobs:
     uses: spine-tools/SpineOpt.jl/.github/workflows/Test.yml@master
     with:
       host-os: ubuntu-latest
-      julia-version: "1"
+      julia-version: "1.11"
       python-version: "3.13"
       repository: spine-tools/SpineOpt.jl
       spinedb-api-ref-name: ${{ github.ref_name }}
