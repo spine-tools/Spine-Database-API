@@ -11,7 +11,7 @@
 ######################################################################################################################
 from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator
-from contextlib import suppress
+from contextlib import suppress, contextmanager
 from difflib import SequenceMatcher
 from typing import Any, ClassVar, Optional, Type, TypedDict, Union
 from .exception import SpineDBAPIError
@@ -130,22 +130,25 @@ class DatabaseMappingBase:
             if item.status in (Status.to_add, Status.to_update)
         }
 
-    def _make_conflict_fixer(self):
+    @contextmanager
+    def _fixing_conflicts(self):
         if not self.filter_configs or self.db_url == "sqlite://":
             real_commit_count = self._query_commit_count()
 
-            def fix_conflict(mapped_table):
+            def fix_conflicts(mapped_table):
                 self.do_fetch_all(mapped_table, commit_count=real_commit_count)  # To fix conflicts in add_item_from_db
+
+            yield fix_conflicts
 
         else:
             clean_url = clear_filter_configs(self.db_url)
             with self.__class__(clean_url) as unfiltered_db_map:
 
-                def fix_conflict(mapped_table):
+                def fix_conflicts(mapped_table):
                     for item in unfiltered_db_map._get_next_chunk(mapped_table.item_type, offset=0, limit=None):
                         mapped_table.handle_fetched_item(item, is_db_clean=False)
 
-        return fix_conflict
+                yield fix_conflicts
 
     def _dirty_items(self):
         """Returns a list of tuples of the form (item_type, (to_add, to_update, to_remove)) corresponding to
@@ -154,37 +157,40 @@ class DatabaseMappingBase:
         Returns:
             list
         """
-        fix_conflict = self._make_conflict_fixer()
         dirty_items = []
         purged_item_types = {x for x in self.item_types() if self._mapped_tables[x].purged}
         self._add_descendants(purged_item_types)
-        for item_type in self._sorted_item_types:
-            mapped_table = self._mapped_tables[item_type]
-            fix_conflict(mapped_table)
-            to_add = []
-            to_update = []
-            to_remove = []
-            for item in mapped_table.valid_values():
-                if item.status == Status.to_add:
-                    to_add.append(item)
-                elif item.status == Status.to_update:
-                    to_update.append(item)
-                if item.replaced_item_waiting_for_removal is not None:
-                    to_remove.append(item.replaced_item_waiting_for_removal)
-                    item.replaced_item_waiting_for_removal = None
-            if item_type in purged_item_types:
-                to_remove.append(mapped_table.wildcard_item)
-                to_remove.extend(mapped_table.values())
-            else:
-                for item in mapped_table.values():
-                    item.validate()
-                    if item.status == Status.to_remove and item.has_valid_id:
-                        to_remove.append(item)
-                    if item.status == Status.added_and_removed and item.replaced_item_waiting_for_removal is not None:
+        with self._fixing_conflicts() as fix_conflicts:
+            for item_type in self._sorted_item_types:
+                mapped_table = self._mapped_tables[item_type]
+                fix_conflicts(mapped_table)
+                to_add = []
+                to_update = []
+                to_remove = []
+                for item in mapped_table.valid_values():
+                    if item.status == Status.to_add:
+                        to_add.append(item)
+                    elif item.status == Status.to_update:
+                        to_update.append(item)
+                    if item.replaced_item_waiting_for_removal is not None:
                         to_remove.append(item.replaced_item_waiting_for_removal)
                         item.replaced_item_waiting_for_removal = None
-            if to_add or to_update or to_remove:
-                dirty_items.append((item_type, (to_add, to_update, to_remove)))
+                if item_type in purged_item_types:
+                    to_remove.append(mapped_table.wildcard_item)
+                    to_remove.extend(mapped_table.values())
+                else:
+                    for item in mapped_table.values():
+                        item.validate()
+                        if item.status == Status.to_remove and item.has_valid_id:
+                            to_remove.append(item)
+                        if (
+                            item.status == Status.added_and_removed
+                            and item.replaced_item_waiting_for_removal is not None
+                        ):
+                            to_remove.append(item.replaced_item_waiting_for_removal)
+                            item.replaced_item_waiting_for_removal = None
+                if to_add or to_update or to_remove:
+                    dirty_items.append((item_type, (to_add, to_update, to_remove)))
         return dirty_items
 
     def _rollback(self):
