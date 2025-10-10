@@ -20,6 +20,7 @@ from unittest.mock import patch
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.engine.url import URL, make_url
 from spinedb_api import (
+    apply_alternative_filter_to_parameter_value_sq,
     DatabaseMapping,
     SpineDBAPIError,
     SpineIntegrityError,
@@ -6535,4 +6536,22 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 db_map.fetch_more("parameter_definition")
                 definition = db_map.get_parameter_definition_item(name="z", entity_class_name="Object")
                 self.assertEqual(definition["parsed_value"], "yes")
+            db_map.engine.dispose()
+
+    def test_add_stuff_thats_been_filtered_out(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="cat")
+                db_map.add_entity(name="Tom", entity_class_name="cat")
+                db_map.add_alternative(name="other")
+                db_map.add_entity_alternative(
+                    alternative_name="other", entity_byname=("Tom",), entity_class_name="cat", active=False
+                )
+                db_map.commit_session("Add Tom.")
+            db_map.engine.dispose()
+            with DatabaseMapping(url, create=True) as db_map:
+                apply_alternative_filter_to_parameter_value_sq(db_map, ["other"])
+                db_map.add_entity(name="Tom", entity_class_name="cat")
+                db_map.commit_session("Add Tom again.")
             db_map.engine.dispose()

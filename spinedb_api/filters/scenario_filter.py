@@ -31,6 +31,10 @@ def apply_scenario_filter_to_subqueries(db_map, scenario):
         db_map (DatabaseMapping): a database map to alter
         scenario (str or int): scenario name or id
     """
+    config = scenario_filter_config(scenario)
+    if config in db_map.filter_configs:
+        return
+    db_map.filter_configs.append(config)
     state = _ScenarioFilterState(db_map, scenario)
     make_entity_element_sq = partial(_make_scenario_filtered_entity_element_sq, state=state)
     db_map.override_entity_element_sq_maker(make_entity_element_sq)
