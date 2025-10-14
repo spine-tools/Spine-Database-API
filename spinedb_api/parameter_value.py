@@ -1672,50 +1672,72 @@ class Map(IndexedValue):
 
 
 def _map_from_arrow(arrow_value: pyarrow.RecordBatch) -> Map:
-    indexes = _array_values_as_spine(arrow_value.column(0))
-    if arrow_value.num_columns == 2:
-        values = [_python_value_as_spine(x) for x in arrow_value.column(1).to_pylist()]
-        return Map(indexes, values, index_name=arrow_value.column_names[0])
-    reduced_indexes = []
-    values = []
-    row_i = 0
-    while row_i != arrow_value.num_rows:
-        if not arrow_value.column(1)[row_i].is_valid:
-            reduced_indexes.append(indexes[row_i])
-            values.append(_python_value_as_spine(arrow_value.column(arrow_value.num_columns - 1)[row_i].as_py()))
-            row_i += 1
-            continue
-        base_index = indexes[row_i]
-        sub_row_i = row_i + 1
-        while sub_row_i != arrow_value.num_rows:
-            if indexes[sub_row_i] != base_index or not arrow_value.column(1)[sub_row_i].is_valid:
-                break
-            sub_row_i += 1
-        reduced_indexes.append(base_index)
-        values.append(_map_from_arrow(arrow_value.remove_column(0).slice(row_i, sub_row_i - row_i)))
-        row_i = sub_row_i
-    return Map(reduced_indexes, values, index_name=arrow_value.column_names[0])
+    values_by_index_path = []
+    value_column = [_python_value_as_spine(x.as_py()) for x in arrow_value.column(arrow_value.num_columns - 1)]
+    for row_i in range(arrow_value.num_rows):
+        index_path = []
+        for column_i in range(arrow_value.num_columns - 1):
+            y = arrow_value.column(column_i)[row_i]
+            if y.is_valid:
+                index_path.append((arrow_value.column_names[column_i], _python_value_as_spine(y.as_py())))
+        values_by_index_path.append((index_path, value_column[row_i]))
+    root_dict = {}
+    for index_path, value in values_by_index_path:
+        root_index = index_path[0]
+        root_dict.setdefault(root_index, []).append(value if len(index_path) == 1 else (index_path[1:], value))
+    collected_dict = _crawl_map_dict_to_collect_all_dimensions(root_dict)
+    return _map_dict_to_map(collected_dict)
 
 
-def _array_values_as_spine(values: pyarrow.Array) -> list:
-    if pyarrow.types.is_run_end_encoded(values.type):
-        value_type = values.values.type
-    elif pyarrow.types.is_dictionary(values.type):
-        value_type = values.dictionary.type
-    else:
-        value_type = values.type
-    if pyarrow.types.is_timestamp(value_type):
-        return [DateTime(t.isoformat()) if t is not None else t for t in values.to_pylist()]
-    if pyarrow.types.is_interval(value_type):
-        return [
-            (
-                Duration(relativedelta(months=dt.months, days=dt.days, microseconds=dt.nanoseconds // 1000))
-                if dt is not None
-                else None
-            )
-            for dt in values.to_pylist()
-        ]
-    return values.to_pylist()
+def _crawl_map_dict_to_collect_all_dimensions(root_dict: dict) -> dict:
+    root_dict = _collect_nested_dimensions(root_dict)
+    for index, values in root_dict.items():
+        for i, value in enumerate(values):
+            if isinstance(value, dict):
+                new_value = _crawl_map_dict_to_collect_all_dimensions(value)
+                values[i] = new_value
+    return root_dict
+
+
+def _collect_nested_dimensions(root_dict: dict) -> dict:
+    new_root_dict = {}
+    for index, values in root_dict.items():
+        for value in values:
+            if not isinstance(value, tuple):
+                new_root_dict.setdefault(index, []).append(value)
+                continue
+            index_path, value = value
+            nested_index = index_path[0]
+            existing_values = new_root_dict.setdefault(index, [])
+            for existing_value in existing_values:
+                if isinstance(existing_value, dict):
+                    existing_index = next(iter(existing_value))
+                    if existing_index[0] == nested_index[0]:
+                        nested_dict = existing_value
+                        break
+            else:
+                nested_dict = {}
+                existing_values.append(nested_dict)
+            nested_dict.setdefault(nested_index, []).append(value if len(index_path) == 1 else (index_path[1:], value))
+    return new_root_dict
+
+
+def _map_dict_to_map(map_dict: dict) -> Map:
+    map_indexes = []
+    map_values = []
+    index_name = None
+    for (current_index_name, index), values in map_dict.items():
+        if index_name is None:
+            index_name = current_index_name
+        if current_index_name != index_name:
+            raise RuntimeError("logic error: index name must not change")
+        for value in values:
+            map_indexes.append(index)
+            if isinstance(value, dict):
+                map_values.append(_map_dict_to_map(value))
+            else:
+                map_values.append(value)
+    return Map(map_indexes, map_values, index_name=index_name)
 
 
 def _python_value_as_spine(x: Any) -> Any:

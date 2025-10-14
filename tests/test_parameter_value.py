@@ -21,7 +21,7 @@ import numpy as np
 import numpy.testing
 import pyarrow
 import pytest
-from spinedb_api import SpineDBAPIError
+from spinedb_api import ParameterValueFormatError, SpineDBAPIError
 from spinedb_api.arrow_value import load_field_metadata, with_column_as_time_period, with_column_as_time_stamps
 from spinedb_api.compat.converters import parse_duration
 from spinedb_api.helpers import time_period_format_specification, time_series_metadata
@@ -1608,12 +1608,12 @@ class TestMap:
         )
         indexes_1 = pyarrow.array(["A", "A", "A"])
         indexes_2 = pyarrow.array(["a", None, "b"])
-        values = pyarrow.array(["nested", "non-nested", "nested"])
+        values = pyarrow.array(["nested1", "non-nested", "nested2"])
         record_batch = pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "value": values})
         map_value = Map.from_arrow(record_batch)
         assert map_value == Map(
-            ["A", "A", "A"],
-            [Map(["a"], ["nested"], index_name="col_2"), "non-nested", Map(["b"], ["nested"], index_name="col_2")],
+            ["A", "A"],
+            [Map(["a", "b"], ["nested1", "nested2"], index_name="col_2"), "non-nested"],
             index_name="col_1",
         )
 
@@ -1662,6 +1662,50 @@ class TestMap:
             ],
             index_name="choice",
         )
+
+    def test_from_arrow_with_uneven_nested_time_series(self):
+        indexes_1 = pyarrow.RunEndEncodedArray.from_arrays([2, 4], ["forecast", "realization"])
+        indexes_2 = pyarrow.RunEndEncodedArray.from_arrays(
+            [2, 4],
+            [datetime(year=2025, month=9, day=17, hour=11), None],
+            type=pyarrow.run_end_encoded(pyarrow.int64(), pyarrow.timestamp("s")),
+        )
+        indexes_3 = pyarrow.array(
+            [
+                datetime(year=2025, month=9, day=17, hour=11),
+                datetime(year=2025, month=9, day=17, hour=12),
+                datetime(year=2025, month=9, day=17, hour=11),
+                datetime(year=2025, month=9, day=17, hour=12),
+            ],
+            type=pyarrow.timestamp("s"),
+        )
+        values = pyarrow.array([-2.3, -3.2, -2.2, -3.1])
+        record_batch = with_column_as_time_stamps(
+            pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "t": indexes_3, "value": values}),
+            "t",
+            ignore_year=False,
+            repeat=False,
+        )
+        map_value = Map.from_arrow(record_batch)
+        expected = Map(
+            ["forecast", "realization"],
+            [
+                Map(
+                    [DateTime("2025-09-17T11:00")],
+                    [
+                        TimeSeriesVariableResolution(
+                            ["2025-09-17T11:00", "2025-09-17T12:00"], [-2.3, -3.2], ignore_year=False, repeat=False
+                        )
+                    ],
+                    index_name="col_2",
+                ),
+                TimeSeriesVariableResolution(
+                    ["2025-09-17T11:00", "2025-09-17T12:00"], [-2.2, -3.1], ignore_year=False, repeat=False
+                ),
+            ],
+            index_name="col_1",
+        )
+        assert map_value == expected
 
 
 class TestToDatabaseForRecordBatches:
