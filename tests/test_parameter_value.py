@@ -1391,6 +1391,104 @@ class TestMap:
         assert record_batch.schema.metadata is None
         assert load_field_metadata(record_batch.field("t")) == time_series_metadata(ignore_year=False, repeat=False)
 
+    def test_as_arrow_with_nested_time_series(self):
+        map_value = Map(
+            ["realization", "forecast_1", "forecast_tail"],
+            [
+                Map(
+                    [DateTime("2000-01-01T00:00:00")],
+                    [
+                        TimeSeriesFixedResolution(
+                            "2000-01-01T00:00:00", "1h", [0.73, 0.66], ignore_year=False, repeat=False
+                        )
+                    ],
+                ),
+                Map(
+                    [DateTime("2000-01-01T00:00:00")],
+                    [
+                        TimeSeriesFixedResolution(
+                            "2000-01-01T00:00:00", "1h", [0.63, 0.61], ignore_year=False, repeat=False
+                        )
+                    ],
+                ),
+                Map(
+                    [DateTime("2000-01-01T00:00:00")],
+                    [
+                        TimeSeriesFixedResolution(
+                            "2000-01-01T00:00:00", "1h", [0.68, 0.64], ignore_year=False, repeat=False
+                        )
+                    ],
+                ),
+            ],
+        )
+        record_batch = map_value.as_arrow()
+        indexes_1 = pyarrow.RunEndEncodedArray.from_arrays([2, 4, 6], ["realization", "forecast_1", "forecast_tail"])
+        indexes_2 = pyarrow.RunEndEncodedArray.from_arrays(
+            [6],
+            [
+                datetime(year=2000, month=1, day=1, hour=00),
+            ],
+            type=pyarrow.run_end_encoded(pyarrow.int64(), pyarrow.timestamp("s")),
+        )
+        indexes_3 = pyarrow.array(
+            [
+                datetime(year=2000, month=1, day=1, hour=00),
+                datetime(year=2000, month=1, day=1, hour=1),
+                datetime(year=2000, month=1, day=1, hour=00),
+                datetime(year=2000, month=1, day=1, hour=1),
+                datetime(year=2000, month=1, day=1, hour=00),
+                datetime(year=2000, month=1, day=1, hour=1),
+            ],
+            type=pyarrow.timestamp("s"),
+        )
+        values = pyarrow.array([0.73, 0.66, 0.63, 0.61, 0.68, 0.64])
+        expected = with_column_as_time_stamps(
+            pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "t": indexes_3, "value": values}),
+            "t",
+            ignore_year=False,
+            repeat=False,
+        )
+        assert record_batch == expected
+        assert record_batch.schema.metadata is None
+        assert load_field_metadata(record_batch.field("t")) == time_series_metadata(ignore_year=False, repeat=False)
+
+    def test_as_arrow_uneven_with_array_leafs(self):
+        row_lookup = Map(["columns", "values"], [Array(["A"]), Array(["!area-!other_area"])])
+        cells = Map(["column", "row_lookup"], ["C", row_lookup])
+        path_patterns = Array(["Lines", "Reference.xlsx"])
+        map_value = Map(
+            ["cells", "path_patterns", "factor", "sheet", "type"],
+            [cells, path_patterns, 1.0, "2025", "single_value_lookup"],
+        )
+        record_batch = map_value.as_arrow()
+        indexes_1 = pyarrow.compute.run_end_encode(
+            pyarrow.array(["cells", "cells", "cells", "path_patterns", "path_patterns", "factor", "sheet", "type"]),
+            run_end_type=pyarrow.int64(),
+        )
+        indexes_2 = pyarrow.compute.run_end_encode(
+            pyarrow.array(["column", "row_lookup", "row_lookup", None, None, None, None, None]),
+            run_end_type=pyarrow.int64(),
+        )
+        indexes_3 = pyarrow.compute.run_end_encode(
+            pyarrow.array([None, "columns", "values", None, None, None, None, None]), run_end_type=pyarrow.int64()
+        )
+        indexes_4 = pyarrow.array(
+            [None, 0, 0, 0, 1, None, None, None],
+        )
+        str_values = pyarrow.array(
+            ["C", "A", "!area-!other_area", "Lines", "Reference.xlsx", "2025", "single_value_lookup"]
+        )
+        float_values = pyarrow.array([1.0])
+        values = pyarrow.UnionArray.from_dense(
+            pyarrow.array([0, 0, 0, 0, 0, 1, 0, 0], type=pyarrow.int8()),
+            pyarrow.array([0, 1, 2, 3, 4, 0, 5, 6], type=pyarrow.int32()),
+            [str_values, float_values],
+        )
+        expected = pyarrow.record_batch(
+            {"col_1": indexes_1, "col_2": indexes_2, "col_3": indexes_3, "i": indexes_4, "value": values}
+        )
+        assert record_batch == expected
+
     def test_from_database(self):
         original_map = Map(["A", "B"], [2.3, 3.2])
         blob, value_type = to_database(original_map)
@@ -1466,66 +1564,22 @@ class TestMap:
         expected.get_value("durations").get_value("duration to string").index_name = "col_3"
         assert deserialized == expected
 
-    def test_as_arrow_with_nested_time_series(self):
-        map_value = Map(
-            ["realization", "forecast_1", "forecast_tail"],
-            [
-                Map(
-                    [DateTime("2000-01-01T00:00:00")],
-                    [
-                        TimeSeriesFixedResolution(
-                            "2000-01-01T00:00:00", "1h", [0.73, 0.66], ignore_year=False, repeat=False
-                        )
-                    ],
-                ),
-                Map(
-                    [DateTime("2000-01-01T00:00:00")],
-                    [
-                        TimeSeriesFixedResolution(
-                            "2000-01-01T00:00:00", "1h", [0.63, 0.61], ignore_year=False, repeat=False
-                        )
-                    ],
-                ),
-                Map(
-                    [DateTime("2000-01-01T00:00:00")],
-                    [
-                        TimeSeriesFixedResolution(
-                            "2000-01-01T00:00:00", "1h", [0.68, 0.64], ignore_year=False, repeat=False
-                        )
-                    ],
-                ),
-            ],
+    def test_from_database_uneven_with_array_leafs(self):
+        row_lookup = Map(["columns", "values"], [Array(["A"]), Array(["!area-!other_area"])])
+        cells = Map(["column", "row_lookup"], ["C", row_lookup])
+        path_patterns = Array(["Lines", "Reference.xlsx"])
+        original = Map(
+            ["cells", "path_patterns", "factor", "sheet", "type"],
+            [cells, path_patterns, 1.0, "2025", "single_value_lookup"],
         )
-        record_batch = map_value.as_arrow()
-        indexes_1 = pyarrow.RunEndEncodedArray.from_arrays([2, 4, 6], ["realization", "forecast_1", "forecast_tail"])
-        indexes_2 = pyarrow.RunEndEncodedArray.from_arrays(
-            [6],
-            [
-                datetime(year=2000, month=1, day=1, hour=00),
-            ],
-            type=pyarrow.run_end_encoded(pyarrow.int64(), pyarrow.timestamp("s")),
-        )
-        indexes_3 = pyarrow.array(
-            [
-                datetime(year=2000, month=1, day=1, hour=00),
-                datetime(year=2000, month=1, day=1, hour=1),
-                datetime(year=2000, month=1, day=1, hour=00),
-                datetime(year=2000, month=1, day=1, hour=1),
-                datetime(year=2000, month=1, day=1, hour=00),
-                datetime(year=2000, month=1, day=1, hour=1),
-            ],
-            type=pyarrow.timestamp("s"),
-        )
-        values = pyarrow.array([0.73, 0.66, 0.63, 0.61, 0.68, 0.64])
-        expected = with_column_as_time_stamps(
-            pyarrow.record_batch({"col_1": indexes_1, "col_2": indexes_2, "t": indexes_3, "value": values}),
-            "t",
-            ignore_year=False,
-            repeat=False,
-        )
-        assert record_batch == expected
-        assert record_batch.schema.metadata is None
-        assert load_field_metadata(record_batch.field("t")) == time_series_metadata(ignore_year=False, repeat=False)
+
+        blob, value_type = to_database(original)
+        deserialized = from_database(blob, value_type)
+        expected = deep_copy_value(original)
+        expected.index_name = "col_1"
+        expected.get_value("cells").index_name = "col_2"
+        expected.get_value("cells").get_value("row_lookup").index_name = "col_3"
+        assert deserialized == expected
 
     def test_from_arrow_with_empty_record_batch(self):
         record_batch = pyarrow.record_batch(

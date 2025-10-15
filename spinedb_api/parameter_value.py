@@ -1668,6 +1668,10 @@ class Map(IndexedValue):
             if metadata and "ignore_year" in metadata and "repeat" in metadata:
                 map_value = convert_leaf_maps_to_specialized_containers(map_value, time_series_kwargs=metadata)
                 break
+        for column_i in range(arrow_value.num_columns - 1):
+            if pyarrow.types.is_integer(arrow_value.column(column_i).type):
+                map_value = convert_leaf_maps_to_specialized_containers(map_value)
+                break
         return map_value
 
 
@@ -1801,7 +1805,10 @@ def convert_leaf_maps_to_specialized_containers(
     Returns:
         a new map with leaves converted.
     """
-    converted_container = _try_convert_to_container(map_, time_series_kwargs)
+    converted_container = _try_convert_to_time_series(map_, time_series_kwargs)
+    if converted_container is not None:
+        return converted_container
+    converted_container = _try_convert_to_array(map_)
     if converted_container is not None:
         return converted_container
     new_values = []
@@ -1900,11 +1907,11 @@ def convert_map_to_dict(map_: Map) -> dict:
     return d
 
 
-def _try_convert_to_container(
+def _try_convert_to_time_series(
     map_: Map, time_series_kwargs: Optional[dict[str, Any]] = None
 ) -> Optional[TimeSeriesVariableResolution]:
     """
-    Tries to convert a map to corresponding specialized container.
+    Tries to convert a map to time series.
 
     Args:
         map_: a map to convert
@@ -1925,6 +1932,26 @@ def _try_convert_to_container(
     if time_series_kwargs is None:
         time_series_kwargs = {"ignore_year": False, "repeat": False}
     return TimeSeriesVariableResolution(stamps, values, index_name=map_.index_name, **time_series_kwargs)
+
+
+def _try_convert_to_array(map_: Map) -> Array | None:
+    """
+    Tries to convert a map to array.
+
+    Args:
+        map_: a map to convert
+
+    Returns:
+        converted Map or None if the map couldn't be converted
+    """
+    if not map_:
+        return None
+    values = []
+    for i, (index, value) in enumerate(zip(map_.indexes, map_.values)):
+        if index != i:
+            return None
+        values.append(value)
+    return Array(values, index_name=map_.index_name)
 
 
 def map_as_arrow(map_: Map) -> pyarrow.RecordBatch:
@@ -1985,6 +2012,8 @@ def _unroll_nested_indexed_value(
     depth = len(base_index)
     if depth == len(header):
         match value:
+            case Array():
+                index_type = int
             case TimeSeries():
                 index_type = np.datetime64
             case _:
