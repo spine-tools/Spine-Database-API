@@ -32,7 +32,7 @@ from sqlalchemy.event import listen
 from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool, StaticPool
-from .compatibility import CompatibilityTransformations, compatibility_transformations
+from .compat.compatibility_transformations import CompatibilityTransformations, compatibility_transformations
 from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, PublicItem
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
@@ -534,7 +534,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     def get_or_add_by_type(self, item_type: str, **kwargs) -> PublicItem:
         return self.get_or_add(self.mapped_table(item_type), **kwargs)
-                
+
     def get_or_add(self, mapped_table: MappedTable, **kwargs) -> PublicItem:
         try:
             return self.item(mapped_table, **kwargs)
