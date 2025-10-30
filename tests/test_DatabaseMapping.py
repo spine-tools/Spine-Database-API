@@ -2566,20 +2566,6 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertEqual(entity["shape_name"], "island")
             self.assertEqual(entity["shape_blob"], "{}")
 
-    def test_add_entity_with_incomplete_location_data_raises(self):
-        with DatabaseMapping("sqlite://", create=True) as db_map:
-            db_map.add_entity_class(name="Object")
-            with self.assertRaisesRegex(SpineDBAPIError, "cannot set latitude without longitude"):
-                db_map.add_entity(entity_class_name="Object", name="gadget", lat=2.3)
-            with self.assertRaisesRegex(SpineDBAPIError, "cannot set longitude without latitude"):
-                db_map.add_entity(entity_class_name="Object", name="gadget", lon=3.2)
-            with self.assertRaisesRegex(SpineDBAPIError, "cannot set altitude without latitude and longitude"):
-                db_map.add_entity(entity_class_name="Object", name="gadget", alt=55.0)
-            with self.assertRaisesRegex(SpineDBAPIError, "cannot set shape_name without shape_blob"):
-                db_map.add_entity(entity_class_name="Object", name="gadget", shape_name="island")
-            with self.assertRaisesRegex(SpineDBAPIError, "cannot set shape_blob without shape_name"):
-                db_map.add_entity(entity_class_name="Object", name="gadget", shape_blob="{}}")
-
     def test_location_data_available_from_database(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
@@ -2871,21 +2857,6 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 self.assertEqual(entity["shape_blob"], '{"feature": {}}')
             db_map.close()
             gc.collect()
-
-    def test_updating_entitys_location_data_with_missing_data_raises_exception(self):
-        with DatabaseMapping("sqlite://", create=True) as db_map:
-            db_map.add_entity_class(name="Object")
-            entity = db_map.add_entity(entity_class_name="Object", name="soon_to_have_location")
-            with self.assertRaisesRegex(SpineDBAPIError, "latitude cannot be set if longitude is None"):
-                entity.update(lat=2.3)
-            with self.assertRaisesRegex(SpineDBAPIError, "longitude cannot be set if latitude is None"):
-                entity.update(lon=3.2)
-            with self.assertRaisesRegex(SpineDBAPIError, "altitude cannot be set if latitude and longitude are None"):
-                entity.update(alt=55.0)
-            with self.assertRaisesRegex(SpineDBAPIError, "shape_name cannot be set if shape_blob is None"):
-                entity.update(shape_name="monogon")
-            with self.assertRaisesRegex(SpineDBAPIError, "shape_blob cannot be set if shape_name is None"):
-                entity.update(shape_blob="{}}")
 
     def test_removing_entity_location_sets_entitys_location_id_to_none(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:

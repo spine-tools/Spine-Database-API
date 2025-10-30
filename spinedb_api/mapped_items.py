@@ -411,23 +411,15 @@ class EntityItem(MappedItemBase):
     def _pop_location_data(item: dict) -> dict[str, str]:
         location = {}
         if "lat" in item:
-            if "lon" not in item:
-                raise SpineDBAPIError("cannot set latitude without longitude")
             location["lat"] = item.pop("lat")
+        if "lon" in item:
             location["lon"] = item.pop("lon")
-            with suppress(KeyError):
-                location["alt"] = item.pop("alt")
-        elif "lon" in item:
-            raise SpineDBAPIError("cannot set longitude without latitude")
-        elif "alt" in item:
-            raise SpineDBAPIError("cannot set altitude without latitude and longitude")
+        if "alt" in item:
+            location["alt"] = item.pop("alt")
         if "shape_name" in item:
-            if "shape_blob" not in item:
-                raise SpineDBAPIError("cannot set shape_name without shape_blob")
             location["shape_name"] = item.pop("shape_name")
+        if "shape_blob" in item:
             location["shape_blob"] = item.pop("shape_blob")
-        elif "shape_blob" in item:
-            raise SpineDBAPIError("cannot set shape_blob without shape_name")
         return location
 
     def added_to_mapped_table(self) -> None:
@@ -1450,24 +1442,6 @@ class EntityLocationItem(MappedItemBase):
     _internal_fields = {
         "entity_id": (("entity_class_name", "entity_byname"), "id"),
     }
-
-    def check_mutability(self):
-        latitude = dict.__getitem__(self, "lat")
-        longitude = dict.__getitem__(self, "lon")
-        if latitude is not None:
-            if longitude is None:
-                raise SpineDBAPIError("latitude cannot be set if longitude is None")
-        elif longitude is not None:
-            raise SpineDBAPIError("longitude cannot be set if latitude is None")
-        if dict.__getitem__(self, "alt") is not None and latitude is None and longitude is None:
-            raise SpineDBAPIError("altitude cannot be set if latitude and longitude are None")
-        name = dict.__getitem__(self, "shape_name")
-        blob = dict.__getitem__(self, "shape_blob")
-        if name is not None:
-            if blob is None:
-                raise SpineDBAPIError("shape_name cannot be set if shape_blob is None")
-        elif blob is not None:
-            raise SpineDBAPIError("shape_blob cannot be set if shape_name is None")
 
 
 ITEM_CLASSES = tuple(
