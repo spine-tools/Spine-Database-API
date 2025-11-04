@@ -11,14 +11,14 @@
 ######################################################################################################################
 from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator
-from contextlib import suppress, contextmanager
+from contextlib import contextmanager, suppress
 from difflib import SequenceMatcher
 from typing import Any, ClassVar, Optional, Type, TypedDict, Union
 from .exception import SpineDBAPIError
+from .filters.tools import clear_filter_configs
 from .helpers import Asterisk
 from .mapped_item_status import Status
 from .temp_id import TempId, resolve
-from .filters.tools import clear_filter_configs
 
 
 class DatabaseMappingBase:
@@ -1290,7 +1290,7 @@ class PublicItem:
         return self._mapped_item.is_valid()
 
     def is_committed(self) -> bool:
-        return self._mapped_item.is_committed()
+        return self._mapped_item.status == Status.committed
 
     def _asdict(self) -> dict:
         return self._mapped_item._asdict()
