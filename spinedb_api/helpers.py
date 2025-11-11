@@ -17,7 +17,7 @@ from itertools import groupby
 import json
 from operator import itemgetter
 import os
-from typing import Any
+from typing import Any, Literal, TypeAlias
 import warnings
 from alembic.config import Config
 from alembic.environment import EnvironmentContext
@@ -58,6 +58,31 @@ from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import FunctionElement, bindparam, cast
 from sqlalchemy.sql.selectable import SelectBase
 from .exception import SpineDBAPIError, SpineDBVersionError
+
+ItemType: TypeAlias = Literal[
+    "alternative",
+    "commit",
+    "display_mode",
+    "entity",
+    "entity_alternative",
+    "entity_class_display_mode",
+    "entity_class",
+    "entity_group",
+    "entity_location",
+    "entity_metadata",
+    "list_value",
+    "metadata",
+    "parameter_definition",
+    "parameter_type",
+    "parameter_value",
+    "parameter_value_list",
+    "parameter_value_metadata",
+    "scenario",
+    "scenario_alternative",
+    "superclass_subclass",
+]
+
+LegacyItemType = Literal["object", "object_class", "relationship", "relationship_class"]
 
 SUPPORTED_DIALECTS = {
     "mysql": "pymysql",

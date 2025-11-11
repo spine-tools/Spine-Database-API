@@ -10,28 +10,37 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Module contains the :class:`Writer` base class and functions to write tabular data. """
+from __future__ import annotations
 from contextlib import contextmanager
 from copy import copy
 from sqlalchemy.exc import OperationalError
-from spinedb_api import SpineDBAPIError
+from spinedb_api import DatabaseMapping, SpineDBAPIError
 from spinedb_api.export_mapping import rows, titles
-from spinedb_api.export_mapping.export_mapping import drop_non_positioned_tail
+from spinedb_api.export_mapping.export_mapping import ExportMapping, drop_non_positioned_tail
 from spinedb_api.export_mapping.group_functions import NoGroup
 
 
-def write(db_map, writer, *mappings, empty_data_header=True, max_tables=None, max_rows=None, group_fns=NoGroup.NAME):
+def write(
+    db_map: DatabaseMapping,
+    writer: Writer,
+    *mappings: ExportMapping,
+    empty_data_header: bool | list[bool] = True,
+    max_tables: int | None = None,
+    max_rows: int | None = None,
+    group_fns: str | list[str] = NoGroup.NAME,
+):
     """
     Writes given mapping.
 
     Args:
-        db_map (DatabaseMapping): database map
-        writer (Writer): target writer
-        mappings (Mapping): root mappings
-        empty_data_header (bool or Iterable of bool): True to write at least header rows even if there is no data,
+        db_map: database map
+        writer: target writer
+        mappings: root mappings
+        empty_data_header: True to write at least header rows even if there is no data,
             False to write nothing; a list of booleans applies to each mapping individually
-        max_tables (int, optional): maximum number of tables to write
-        max_rows (int, optional): maximum number of rows/table to write
-        group_fns (str or Iterable of str): group function names for each mappings
+        max_table: maximum number of tables to write
+        max_rows: maximum number of rows/table to write
+        group_fns: group function names for each mappings
     """
     if isinstance(empty_data_header, bool):
         empty_data_header = len(mappings) * [empty_data_header]
