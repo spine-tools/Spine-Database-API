@@ -3383,6 +3383,33 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.close()
             gc.collect()
 
+    def test_cascade_remove(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "test_db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Klass")
+                db_map.add_entity(name="instance", entity_class_name="Klass")
+                db_map.add_parameter_definition(name="eks", entity_class_name="Klass")
+                db_map.add_parameter_value(
+                    entity_class_name="Klass",
+                    entity_byname=("instance",),
+                    parameter_definition_name="eks",
+                    alternative_name="Base",
+                    parsed_value=2.3,
+                )
+                db_map.commit_session("Add test data.")
+            db_map.close()
+            with DatabaseMapping(url) as db_map:
+                klass = db_map.entity_class(name="Klass")
+                klass.remove()
+                db_map.commit_session("Remove test data in cascade.")
+            db_map.close()
+            with DatabaseMapping(url) as db_map:
+                values = db_map.query(db_map.parameter_value_sq).all()
+                self.assertEqual(values, [])
+            db_map.close()
+            gc.collect()
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
