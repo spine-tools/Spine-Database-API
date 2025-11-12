@@ -15,6 +15,7 @@ This module defines the :class:`.DatabaseMapping` class, the main mean to commun
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
 :ref:`db_mapping_schema`.
 """
+from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import partialmethod
 import logging
@@ -534,7 +535,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     def get_or_add_by_type(self, item_type: str, **kwargs) -> PublicItem:
         return self.get_or_add(self.mapped_table(item_type), **kwargs)
-                
+
     def get_or_add(self, mapped_table: MappedTable, **kwargs) -> PublicItem:
         try:
             return self.item(mapped_table, **kwargs)
@@ -746,7 +747,11 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return result
 
     @staticmethod
-    def _modify_items(function, *items, strict=False):
+    def _modify_items(
+        function: Callable[[dict | PublicItem | MappedItemBase], tuple[list[PublicItem], list[str]]],
+        *items,
+        strict: bool = False,
+    ) -> tuple[list[PublicItem], list[str]]:
         modified, errors = [], []
         for item in items:
             item, error = function(item)
@@ -928,7 +933,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         removed_item = mapped_table.remove_item(item)
         return (removed_item.public_item, None) if removed_item else (None, "failed to remove")
 
-    def remove_items(self, item_type, *ids, check=True, strict=False):
+    def remove_items(
+        self, item_type: str, *ids, check: bool = True, strict: bool = False
+    ) -> tuple[list[PublicItem], list[str]]:
         """Removes many items from the in-memory mapping.
 
         This is legacy method.
@@ -936,14 +943,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
+            item_type: One of <spine_item_types>.
             *ids: Ids of items to be removed.
-            check (bool): Whether to check for data integrity.
-            strict (bool): Whether the method should raise :exc:`~.exception.SpineIntegrityError`
+            check: Whether to check for data integrity.
+            strict: Whether the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the update of one of the items violates an integrity constraint.
 
         Returns:
-            tuple(list(:class:`PublicItem`),list(str)): items successfully removed and found violations.
+            items successfully removed and found violations.
         """
         item_type = self.real_item_type(item_type)
         ids = set(ids)
@@ -993,7 +1000,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         return self._modify_items(lambda x: self.restore_item(item_type, x), *ids)
 
-    def purge_items(self, item_type):
+    def purge_items(self, item_type: str) -> bool:
         """Removes all items of one type.
 
         This is legacy method. Use :meth:`remove_entity`, :meth:`remove_entity_class` etc.
@@ -1001,12 +1008,12 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
+            item_type: One of <spine_item_types>.
 
         Returns:
-            bool: True if any data was removed, False otherwise.
+            True if any data was removed, False otherwise.
         """
-        return bool(self.remove_items(item_type, Asterisk))
+        return bool(self.remove_items(item_type, Asterisk)[0])
 
     def fetch_more(self, item_type, offset=0, limit=None, **kwargs):
         """Fetches items from the DB into the in-memory mapping, incrementally.
