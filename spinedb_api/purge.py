@@ -10,33 +10,31 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Functions to purge DBs.
-"""
+""" Functions to purge DBs. """
 from .db_mapping import DatabaseMapping
-from .exception import SpineDBAPIError, SpineDBVersionError
+from .exception import NothingToCommit, SpineDBAPIError, SpineDBVersionError
 from .filters.tools import clear_filter_configs
 from .helpers import remove_credentials_from_url
 
 
-def purge_url(url, purge_settings, logger=None):
+def purge_url(url: str, purge_settings: dict[str, bool] | None, logger=None) -> bool:
     """Removes all items of selected types from the database at a given URL.
 
     Purges everything if ``purge_settings`` is None.
 
     Args:
-        url (str): database URL
-        purge_settings (dict, optional): mapping from item type to a boolean indicating whether to remove them or not
-        logger (LoggerInterface, optional): logger
+        url: database URL
+        purge_settings: mapping from item type to a boolean indicating whether to remove them or not
+        logger: logger
 
     Returns:
-        bool: True if operation was successful, False otherwise
+        True if operation was successful, False otherwise
     """
     try:
         db_map = DatabaseMapping(url)
     except (SpineDBAPIError, SpineDBVersionError) as err:
-        sanitized_url = clear_filter_configs(remove_credentials_from_url(url))
         if logger:
+            sanitized_url = clear_filter_configs(remove_credentials_from_url(url))
             logger.msg_warning.emit(f"Failed to purge url <b>{sanitized_url}</b>: {err}")
         return False
     with db_map:
@@ -45,18 +43,18 @@ def purge_url(url, purge_settings, logger=None):
     return success
 
 
-def purge(db_map, purge_settings, logger=None):
+def purge(db_map: DatabaseMapping, purge_settings: dict[str, bool] | None, logger=None) -> bool:
     """Removes all items of selected types from a database.
 
     Purges everything if ``purge_settings`` is None.
 
     Args:
-        db_map (DatabaseMapping): target database mapping
-        purge_settings (dict, optional): mapping from item type to a boolean indicating whether to remove them or not
-        logger (LoggerInterface): logger
+        db_map: target database mapping
+        purge_settings: mapping from item type to a boolean indicating whether to remove them or not
+        logger: logger
 
     Returns:
-        bool: True if operation was successful, False otherwise
+        True if operation was successful, False otherwise
     """
     if purge_settings is None:
         # Bring all the pain
@@ -70,7 +68,7 @@ def purge(db_map, purge_settings, logger=None):
                 logger.msg.emit("Purging database...")
             for item_type in removable_db_map_data & set(DatabaseMapping.item_types()):
                 db_map.purge_items(item_type)
-            db_map.commit_session("Purge database")
+                db_map.commit_session("Purge database")
             if logger:
                 logger.msg.emit("Database purged")
         except SpineDBAPIError as err:

@@ -3369,6 +3369,20 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.add_list_value(parameter_value_list_name="Enumeration", parsed_value=3.2, index=1)
             self.assertEqual(value_list_item["parsed_value_list"], [3.2, 2.3])
 
+    def test_purge_cold_db_mapping(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="LiveFastDieYoung")
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                self.assertTrue(db_map.purge_items("entity_class"))
+                db_map.commit_session("Purge entity classes.")
+            with DatabaseMapping(url) as db_map:
+                self.assertEqual(db_map.find_entity_classes(), [])
+            db_map.close()
+            gc.collect()
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

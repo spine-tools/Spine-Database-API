@@ -16,7 +16,7 @@ from difflib import SequenceMatcher
 from typing import Any, ClassVar, Optional, Type, TypedDict, Union
 from .exception import SpineDBAPIError
 from .filters.tools import clear_filter_configs
-from .helpers import Asterisk
+from .helpers import Asterisk, AsteriskType
 from .mapped_item_status import Status
 from .temp_id import TempId, resolve
 
@@ -540,7 +540,7 @@ class MappedTable(dict):
             if unique_item is not current_item and unique_item.is_valid():
                 raise SpineDBAPIError(f"there's already a {self.item_type} with {dict(zip(key, value))}")
 
-    def item_to_remove(self, id_: TempId) -> MappedItemBase:
+    def item_to_remove(self, id_: TempId | AsteriskType) -> MappedItemBase:
         if id_ is Asterisk:
             return self.wildcard_item
         return self.find_item_by_id(id_)
