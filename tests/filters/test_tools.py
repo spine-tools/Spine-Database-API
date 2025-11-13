@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Unit tests for the ``filters.tools`` module. """
+from datetime import datetime
 import os.path
 from tempfile import TemporaryDirectory
 import unittest
@@ -23,17 +24,20 @@ from spinedb_api import (
     pop_filter_configs,
 )
 from spinedb_api.filters.alternative_filter import alternative_filter_config, alternative_names_from_dict
-from spinedb_api.filters.renamer import entity_class_renamer_config
+from spinedb_api.filters.execution_filter import execution_filter_config
+from spinedb_api.filters.renamer import entity_class_renamer_config, parameter_renamer_config
 from spinedb_api.filters.scenario_filter import scenario_filter_config, scenario_name_from_dict
 from spinedb_api.filters.tools import (
     apply_filter_stack,
     ensure_filtering,
     filter_config,
     filter_configs,
+    is_modifying_filter,
     load_filters,
     name_from_dict,
     store_filter,
 )
+from spinedb_api.filters.value_transformer import value_transformer_config
 
 
 class TestLoadFilters(unittest.TestCase):
@@ -289,6 +293,22 @@ class TestNameFromDict(unittest.TestCase):
     def test_returns_none_if_name_not_found(self):
         config = entity_class_renamer_config(name="rename")
         self.assertIsNone(name_from_dict(config))
+
+
+class TestIsModifyingFilter:
+    def test_correctness(self):
+        assert is_modifying_filter(alternative_filter_config(["Base", "alt1"]))
+        assert not is_modifying_filter(
+            execution_filter_config(
+                {"execution_item": "Executioner", "scenarios": ["Scenario1"], "timestamp": datetime.now().isoformat()}
+            )
+        )
+        assert is_modifying_filter(scenario_filter_config("Scenario1"))
+        assert is_modifying_filter(entity_class_renamer_config(cat="fish"))
+        assert is_modifying_filter(parameter_renamer_config({"fish": {"weight": "mass"}}))
+        assert is_modifying_filter(
+            value_transformer_config({"unit": {"invest_cost": [{"operation": "multiply", "rhs": 100.0}]}})
+        )
 
 
 if __name__ == "__main__":

@@ -6588,7 +6588,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
             db_map.close()
             gc.collect()
 
-    def test_add_stuff_thats_been_filtered_out(self):
+    def test_add_stuff_thats_been_filtered_out_raises_error(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
             with DatabaseMapping(url, create=True) as db_map:
@@ -6603,6 +6603,6 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 apply_alternative_filter_to_parameter_value_sq(db_map, ["other"])
                 db_map.add_entity(name="Tom", entity_class_name="cat")
-                db_map.commit_session("Add Tom again.")
+                self.assertRaises(SpineDBAPIError, db_map.commit_session, "Try adding Tom again.")
             db_map.close()
             gc.collect()

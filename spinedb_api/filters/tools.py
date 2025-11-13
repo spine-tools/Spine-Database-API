@@ -66,9 +66,6 @@ from .value_transformer import (
 if TYPE_CHECKING:
     from ..db_mapping import DatabaseMapping
 
-__all__ = ("append_filter_config", "apply_filter_stack", "clear_filter_configs", "filter_configs", "name_from_dict")
-
-
 FILTER_IDENTIFIER = "spinedbfilter"
 SHORTHAND_TAG = "cfg:"
 
@@ -259,6 +256,10 @@ def config_to_shorthand(config):
     return SHORTHAND_TAG + shorthands[config["type"]](config)
 
 
+def is_modifying_filter(filter_config: dict) -> bool:
+    return filter_config["type"] != EXECUTION_FILTER_TYPE
+
+
 def _parse_shorthand(shorthand):
     """
     Converts shorthand filter config into configuration dictionary.
@@ -290,7 +291,9 @@ def name_from_dict(config: dict) -> Optional[str]:
 
 
 def _unparse_url_ensuring_correct_slashes(url):
-    """Converts URL tuple into string ensuring SqlAlchemy compatible format for SQLite URLs.
+    """
+    :meta private:
+    Converts URL tuple into string ensuring SqlAlchemy compatible format for SQLite URLs.
 
     Args:
         url (NamedTuple): URL tuple
