@@ -18,6 +18,7 @@ If you're planning to use this class, it is probably a good idea to first famili
 from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import partialmethod
+from itertools import chain
 import logging
 import os
 from types import MethodType
@@ -38,7 +39,7 @@ from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, P
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .exception import NothingToCommit, NothingToRollback, SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
-from .filters.tools import apply_filter_stack, load_filters, pop_filter_configs
+from .filters.tools import apply_filter_stack, is_modifying_filter, load_filters, pop_filter_configs
 from .helpers import (
     Asterisk,
     _create_first_spine_database,
@@ -1111,6 +1112,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return self._do_commit_session(comment, apply_compatibility_transforms)
 
     def _do_commit_session(self, comment: str, apply_compatibility_transforms: bool) -> CompatibilityTransformations:
+        if self.db_url != "sqlite://" and any(
+            is_modifying_filter(filter_config) for filter_config in self.filter_configs
+        ):
+            raise SpineDBAPIError("Cannot commit to filtered database; data integrity cannot be guaranteed.")
         with self:
             dirty_items = self._dirty_items()
             if not dirty_items:
@@ -1119,21 +1124,20 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             commit_item = {"user": self.username, "date": datetime.now(timezone.utc), "comment": comment}
             connection = self._session.connection()
             try:
-                # TODO: The below locks the DB in sqlite, how about other dialects?
                 commit_id = connection.execute(commit.insert(), commit_item).inserted_primary_key[0]
             except DBAPIError as e:
                 raise SpineDBAPIError(f"Fail to commit: {e.orig.args}") from e
             try:
-                for tablename, (to_add, to_update, to_remove) in dirty_items:
-                    for item in to_add + to_update + to_remove:
+                for bundle in dirty_items:
+                    for item in chain(bundle.to_add, bundle.to_update, bundle.to_remove):
                         item.commit(commit_id)
                     # Remove before add, to help with keeping integrity constraints
-                    if to_remove:
-                        self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
-                    if to_update:
-                        self._do_update_items(connection, tablename, *to_update)
-                    if to_add:
-                        self._do_add_items(connection, tablename, *to_add)
+                    if bundle.to_remove:
+                        self._do_remove_items(connection, bundle.item_type, *{x["id"] for x in bundle.to_remove})
+                    if bundle.to_update:
+                        self._do_update_items(connection, bundle.item_type, *bundle.to_update)
+                    if bundle.to_add:
+                        self._do_add_items(connection, bundle.item_type, *bundle.to_add)
             except Exception as error:
                 raise error
             if self._memory:
