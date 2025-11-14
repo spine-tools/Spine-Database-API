@@ -3410,6 +3410,14 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.close()
             gc.collect()
 
+    def test_updating_none_entity_location_does_not_add_new_location(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="great_place")
+            db_map.add_entity(name="Puurtila", entity_class_name="great_place")
+            puurtila = db_map.entity(name="Puurtila", entity_class_name="great_place")
+            puurtila.update(name="Taipale", lat=None, lon=None, alt=None, shape_name=None, shape_blob=None)
+            self.assertEqual(db_map.find_entity_locations(), [])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

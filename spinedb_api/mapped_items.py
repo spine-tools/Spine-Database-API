@@ -287,7 +287,7 @@ class EntityItem(MappedItemBase):
                 return
             location["id"] = dict.__getitem__(existing_location_item, "id")
             existing_location_item.update(location)
-        else:
+        elif any(value is not None for value in location.values()):
             location = {key: value if value is not _unset else None for key, value in location.items()}
             added_location = self.db_map.add(location_table, entity_id=dict.__getitem__(self, "id"), **location)
             self._location_id = added_location["id"]
@@ -298,7 +298,7 @@ class EntityItem(MappedItemBase):
         for field in ("lat", "lon", "alt", "shape_name", "shape_blob"):
             if location_update[field] is _unset:
                 location_update[field] = location_item[field]
-            elif location_update[field] != location_update[field]:
+            elif location_update[field] != location_item[field]:
                 unequal_fields.add(field)
         return unequal_fields
 
