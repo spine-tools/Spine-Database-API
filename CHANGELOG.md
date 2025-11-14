@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.36.2] 
+
+### Changed
+
+- Committing to filtered databases has been disabled as we currently cannot guarantee 
+  that the operation will be successful.
+
 ## [0.36.1]
 
 ### Added
