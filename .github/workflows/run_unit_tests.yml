@@ -9,6 +9,8 @@ on:
       - "requirements.txt"
       - "pyproject.toml"
       - ".github/workflows/*.yml"
+    branches-ignore:
+      - "release"
 
 jobs:
   unit-tests:
