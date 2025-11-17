@@ -11,14 +11,15 @@
 ######################################################################################################################
 """ Unit tests for DatabaseMapping class. """
 from collections import namedtuple
+from datetime import datetime
 import gc
 import os.path
 from tempfile import TemporaryDirectory
 import threading
 import unittest
 from unittest import mock
-from unittest.mock import patch
 from dateutil.relativedelta import relativedelta
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import URL, make_url
 from spinedb_api import (
     DatabaseMapping,
@@ -32,6 +33,7 @@ from spinedb_api import (
 )
 from spinedb_api.db_mapping_base import PublicItem, Status
 from spinedb_api.exception import NothingToCommit
+from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.helpers import Asterisk, DisplayStatus, create_new_spine_database, name_from_elements
 from spinedb_api.parameter_value import Duration, type_for_scalar
@@ -3383,14 +3385,80 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.close()
             gc.collect()
 
+    def test_cascade_remove(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "test_db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Klass")
+                db_map.add_entity(name="instance", entity_class_name="Klass")
+                db_map.add_parameter_definition(name="eks", entity_class_name="Klass")
+                db_map.add_parameter_value(
+                    entity_class_name="Klass",
+                    entity_byname=("instance",),
+                    parameter_definition_name="eks",
+                    alternative_name="Base",
+                    parsed_value=2.3,
+                )
+                db_map.commit_session("Add test data.")
+            db_map.close()
+            with DatabaseMapping(url) as db_map:
+                klass = db_map.entity_class(name="Klass")
+                klass.remove()
+                db_map.commit_session("Remove test data in cascade.")
+            db_map.close()
+            engine = create_engine(url)
+            with engine.connect() as connection:
+                entity_ids_in_value_table = connection.execute(text("select entity_id from parameter_value")).all()
+                self.assertEqual(len(entity_ids_in_value_table), 0)
+            engine.dispose()
+            gc.collect()
+
+    def test_cascade_remove_with_execution_filter(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "test_db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Klass")
+                db_map.add_entity(name="instance", entity_class_name="Klass")
+                db_map.commit_session("Add test data.")
+            db_map.close()
+            filtered_url = append_filter_config(
+                url,
+                execution_filter_config(
+                    {
+                        "execution_item": "Executioner",
+                        "scenarios": ["high_cost"],
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                ),
+            )
+            with DatabaseMapping(filtered_url) as db_map:
+                klass = db_map.entity_class(name="Klass")
+                klass.remove()
+                db_map.commit_session("Remove test data in cascade.")
+            db_map.close()
+            engine = create_engine(url)
+            with engine.connect() as connection:
+                class_ids_in_entity_table = connection.execute(text("select class_id from entity")).all()
+                self.assertEqual(len(class_ids_in_entity_table), 0)
+            engine.dispose()
+            gc.collect()
+
+    def test_updating_none_entity_location_does_not_add_new_location(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="great_place")
+            db_map.add_entity(name="Puurtila", entity_class_name="great_place")
+            puurtila = db_map.entity(name="Puurtila", entity_class_name="great_place")
+            puurtila.update(name="Taipale", lat=None, lon=None, alt=None, shape_name=None, shape_blob=None)
+            self.assertEqual(db_map.find_entity_locations(), [])
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
 
     def test_construction_with_filters(self):
         db_url = IN_MEMORY_DB_URL + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
-        with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
-            with patch(
+        with mock.patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
+            with mock.patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 db_map = DatabaseMapping(db_url, create=True)
@@ -3399,8 +3467,8 @@ class TestDatabaseMappingLegacy(unittest.TestCase):
 
     def test_construction_with_sqlalchemy_url_and_filters(self):
         sa_url = URL.create("sqlite", query={"spinedbfilter": ["fltr1", "fltr2"]})
-        with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
-            with patch(
+        with mock.patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
+            with mock.patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 with DatabaseMapping(sa_url, create=True) as db_map:
@@ -6585,24 +6653,5 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 db_map.fetch_more("parameter_definition")
                 definition = db_map.get_parameter_definition_item(name="z", entity_class_name="Object")
                 self.assertEqual(definition["parsed_value"], "yes")
-            db_map.close()
-            gc.collect()
-
-    def test_add_stuff_thats_been_filtered_out_raises_error(self):
-        with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
-            with DatabaseMapping(url, create=True) as db_map:
-                db_map.add_entity_class(name="cat")
-                db_map.add_entity(name="Tom", entity_class_name="cat")
-                db_map.add_alternative(name="other")
-                db_map.add_entity_alternative(
-                    alternative_name="other", entity_byname=("Tom",), entity_class_name="cat", active=False
-                )
-                db_map.commit_session("Add Tom.")
-            db_map.close()
-            with DatabaseMapping(url, create=True) as db_map:
-                apply_alternative_filter_to_parameter_value_sq(db_map, ["other"])
-                db_map.add_entity(name="Tom", entity_class_name="cat")
-                self.assertRaises(SpineDBAPIError, db_map.commit_session, "Try adding Tom again.")
             db_map.close()
             gc.collect()

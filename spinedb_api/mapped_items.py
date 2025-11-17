@@ -160,7 +160,6 @@ class EntityItem(MappedItemBase):
         "shape_name": {"type": str, "value": "The name of the entity's shape.", "optional": True},
         "shape_blob": {"type": str, "value": "The shape as GEOJSON string.", "optional": True},
     }
-
     _defaults = {"description": None}
     unique_keys = (("entity_class_name", "name"), ("entity_class_name", "entity_byname"))
     required_key_combinations = (("name", "entity_byname"), ("entity_class_name", "class_id"))
@@ -198,6 +197,11 @@ class EntityItem(MappedItemBase):
         if not self._init_location and "commit_id" in kwargs:
             self._init_location = None
         super().__init__(*args, **kwargs)
+
+    def as_item_dict(self) -> dict:
+        if self["element_id_list"]:
+            return {key: self[key] for key in self.fields}
+        return {key: self[key] for key in self.fields if key != "entity_byname"}
 
     @classmethod
     def unique_values_for_item(cls, item):
@@ -287,7 +291,7 @@ class EntityItem(MappedItemBase):
                 return
             location["id"] = dict.__getitem__(existing_location_item, "id")
             existing_location_item.update(location)
-        else:
+        elif any(value is not None for value in location.values()):
             location = {key: value if value is not _unset else None for key, value in location.items()}
             added_location = self.db_map.add(location_table, entity_id=dict.__getitem__(self, "id"), **location)
             self._location_id = added_location["id"]
@@ -298,7 +302,7 @@ class EntityItem(MappedItemBase):
         for field in ("lat", "lon", "alt", "shape_name", "shape_blob"):
             if location_update[field] is _unset:
                 location_update[field] = location_item[field]
-            elif location_update[field] != location_update[field]:
+            elif location_update[field] != location_item[field]:
                 unequal_fields.add(field)
         return unequal_fields
 
