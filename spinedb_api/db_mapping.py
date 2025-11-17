@@ -15,6 +15,7 @@ This module defines the :class:`.DatabaseMapping` class, the main mean to commun
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
 :ref:`db_mapping_schema`.
 """
+from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import partialmethod
@@ -28,7 +29,7 @@ from alembic.environment import EnvironmentContext
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from alembic.util.exc import CommandError
-from sqlalchemy import MetaData, create_engine, inspect, text
+from sqlalchemy import MetaData, create_engine, desc, inspect, text
 from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.event import listen
 from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
@@ -39,7 +40,13 @@ from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, P
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .exception import NothingToCommit, NothingToRollback, SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
-from .filters.tools import apply_filter_stack, is_modifying_filter, load_filters, pop_filter_configs
+from .filters.tools import (
+    apply_filter_stack,
+    clear_filter_configs,
+    is_modifying_filter,
+    load_filters,
+    pop_filter_configs,
+)
 from .helpers import (
     Asterisk,
     _create_first_spine_database,
@@ -1112,10 +1119,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return self._do_commit_session(comment, apply_compatibility_transforms)
 
     def _do_commit_session(self, comment: str, apply_compatibility_transforms: bool) -> CompatibilityTransformations:
-        if self.db_url != "sqlite://" and any(
-            is_modifying_filter(filter_config) for filter_config in self.filter_configs
-        ):
-            raise SpineDBAPIError("Cannot commit to filtered database; data integrity cannot be guaranteed.")
+        if self.filter_configs and any(is_modifying_filter(config) for config in self.filter_configs):
+            return self._commit_to_unfiltered_db(comment)
         with self:
             dirty_items = self._dirty_items()
             if not dirty_items:
@@ -1148,6 +1153,78 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             self._session.commit()
             self._commit_count = self._query_commit_count()
         return transformation_info
+
+    def _commit_to_unfiltered_db(self, comment: str) -> CompatibilityTransformations:
+        unfiltered_url = clear_filter_configs(self.db_url)
+        with DatabaseMapping(unfiltered_url) as unfiltered_db_map:
+            added_items, updated_items, removed_items = self._collect_modified_items(unfiltered_db_map)
+            if added_items or updated_items or removed_items:
+                transformation_info = unfiltered_db_map.commit_session(comment)
+                commit_id = (
+                    unfiltered_db_map.query(unfiltered_db_map.commit_sq)
+                    .order_by(desc(unfiltered_db_map.commit_sq.c.date))
+                    .first()
+                    .id
+                )
+                for item, unfiltered_item in added_items:
+                    item.commit(commit_id)
+                    item["id"].resolve(unfiltered_item["id"].db_id)
+                for item in updated_items:
+                    item.commit(commit_id)
+                for item in removed_items:
+                    item.commit(commit_id)
+            else:
+                transformation_info = ([], [])
+        return transformation_info
+
+    def _collect_modified_items(
+        self, unfiltered_db_map: DatabaseMapping
+    ) -> tuple[list[MappedItemBase], list[MappedItemBase], list[MappedItemBase]]:
+        added_items = []
+        updated_items = []
+        removed_items = []
+        for item_type in self._sorted_item_types:
+            mapped_table = self._mapped_tables[item_type]
+            if not mapped_table:
+                continue
+            to_add, to_update, to_remove = self._muster_items_by_modified_status(mapped_table)
+            if not to_add and not to_update and not to_remove:
+                continue
+            unfiltered_db_map.fetch_all(item_type)
+            unfiltered_table = unfiltered_db_map._mapped_tables[item_type]
+            for removed_item in to_remove:
+                unfiltered_item = unfiltered_table.get(removed_item["id"].db_id)
+                unfiltered_db_map.remove(unfiltered_table, id=unfiltered_item["id"])
+            for added_item in to_add:
+                try:
+                    existing_item = unfiltered_table.find_item_by_unique_key(added_item)
+                    added_item.commit(existing_item.get("commit_id"))
+                    added_item["id"].resolve(existing_item["id"].db_id)
+                except SpineDBAPIError:
+                    checked_item = unfiltered_table.make_candidate_item(added_item.as_item_dict())
+                    existing_item = unfiltered_table.add_item(checked_item)
+                    added_items.append((added_item, existing_item))
+            for updated_item in to_update:
+                unfiltered_db_map.update(unfiltered_table, id=updated_item["id"].db_id, **updated_item.as_item_dict())
+            updated_items += to_update
+            removed_items += to_remove
+        return added_items, updated_items, removed_items
+
+    @staticmethod
+    def _muster_items_by_modified_status(
+        mapped_table: MappedTable,
+    ) -> tuple[list[MappedItemBase], list[MappedItemBase], list[MappedItemBase]]:
+        to_remove = []
+        to_update = []
+        to_add = []
+        for item in mapped_table.values():
+            if item.status == Status.to_remove:
+                to_remove.append(item)
+            elif item.status == Status.to_update:
+                to_update.append(item)
+            elif item.status == Status.to_add:
+                to_add.append(item)
+        return to_add, to_update, to_remove
 
     def rollback_session(self):
         """Discards all the changes from the in-memory mapping."""

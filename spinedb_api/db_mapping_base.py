@@ -682,6 +682,7 @@ class MappedItemBase(dict):
     fields: ClassVar[dict[str, FieldDict]] = {}
     """A dictionary mapping fields to a another dict mapping "type" to a Python type,
     "value" to a description of the value for the key, and "optional" to a bool."""
+    _fields_for_cloning: ClassVar[tuple[str, ...]] = ()
     _defaults: ClassVar[dict[str, Any]] = {}
     """A dictionary mapping fields to their default values."""
     unique_keys: ClassVar[tuple[tuple[str, str], ...]] = ()
@@ -744,6 +745,9 @@ class MappedItemBase(dict):
         self._backup: Optional[dict] = None
         self._referenced_value_cache = {}
         self.public_item = PublicItem(self)
+
+    def as_item_dict(self) -> dict:
+        return {key: self[key] for key in self.fields}
 
     def handle_refetch(self) -> None:
         """Called when an equivalent item is fetched from the DB.
@@ -1123,11 +1127,11 @@ class MappedItemBase(dict):
         """Returns whether this item is committed to the DB."""
         return self.status == Status.committed
 
-    def commit(self, commit_id) -> None:
+    def commit(self, commit_id: TempId | None) -> None:
         """Sets this item as committed with the given commit id."""
         self._status_when_committed = self.status
         self.status = Status.committed
-        if commit_id:
+        if commit_id is not None:
             self["commit_id"] = commit_id
 
     def __repr__(self):

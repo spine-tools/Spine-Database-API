@@ -160,7 +160,6 @@ class EntityItem(MappedItemBase):
         "shape_name": {"type": str, "value": "The name of the entity's shape.", "optional": True},
         "shape_blob": {"type": str, "value": "The shape as GEOJSON string.", "optional": True},
     }
-
     _defaults = {"description": None}
     unique_keys = (("entity_class_name", "name"), ("entity_class_name", "entity_byname"))
     required_key_combinations = (("name", "entity_byname"), ("entity_class_name", "class_id"))
@@ -198,6 +197,11 @@ class EntityItem(MappedItemBase):
         if not self._init_location and "commit_id" in kwargs:
             self._init_location = None
         super().__init__(*args, **kwargs)
+
+    def as_item_dict(self) -> dict:
+        if self["element_id_list"]:
+            return {key: self[key] for key in self.fields}
+        return {key: self[key] for key in self.fields if key != "entity_byname"}
 
     @classmethod
     def unique_values_for_item(cls, item):
