@@ -79,11 +79,14 @@ def with_field_metadata(
     return pyarrow.record_batch(record_batch.columns, schema=pyarrow.schema(new_fields))
 
 
-def load_field_metadata(field: pyarrow.Field) -> dict[str, Any] | None:
+def load_field_metadata(field: pyarrow.Field) -> Metadata | None:
     metadata = field.metadata
     if metadata is None:
         return None
-    return {key.decode(): json.loads(value) for key, value in metadata.items()}
+    try:
+        return {key.decode(): json.loads(value) for key, value in metadata.items()}
+    except json.JSONDecodeError:
+        return None
 
 
 def to_record_batch(loaded_value: list[ArrayAsDict]) -> pyarrow.RecordBatch:
