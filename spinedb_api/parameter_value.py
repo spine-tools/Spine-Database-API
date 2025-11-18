@@ -186,9 +186,9 @@ def to_database(parsed_value: Optional[Value | ParameterValue | dict]) -> tuple[
     if isinstance(parsed_value, datetime):
         return json.dumps(parsed_value.isoformat()).encode("UTF8"), DateTime.TYPE
     if isinstance(parsed_value, IndexedValue):
-        return json.dumps(to_list(parsed_value.as_arrow())).encode("UTF8"), parsed_value.TYPE
+        return to_json(to_list(parsed_value.as_arrow())).encode("UTF8"), parsed_value.TYPE
     if isinstance(parsed_value, pyarrow.RecordBatch):
-        return json.dumps(to_list(parsed_value)).encode(), TABLE_TYPE
+        return to_json(to_list(parsed_value)).encode("UTF8"), TABLE_TYPE
     if isinstance(parsed_value, dict):
         db_type = parsed_value.pop("type")
     else:

@@ -13,11 +13,13 @@
 
 import json
 from typing import Optional
+
+from .models import to_json
 from .parameter_value import RANK_1_TYPES, TABLE_TYPE, Map, from_dict, to_database, type_for_scalar
 from .value_support import JSONValue, load_db_value
 
 
-def dump_db_value(parsed_value: JSONValue) -> tuple[bytes, str]:
+def dump_db_value(parsed_value: JSONValue) -> tuple[bytes, str | None]:
     """
     Unparses a JSON object into a binary blob and type string.
 
@@ -37,9 +39,10 @@ def dump_db_value(parsed_value: JSONValue) -> tuple[bytes, str]:
         return to_database(value)
     if isinstance(parsed_value, list):
         value_type = TABLE_TYPE
+        db_value = to_json(parsed_value).encode("UTF8")
     else:
         value_type = type_for_scalar(parsed_value)
-    db_value = json.dumps(parsed_value).encode("UTF8")
+        db_value = json.dumps(parsed_value).encode("UTF8")
     return db_value, value_type
 
 
