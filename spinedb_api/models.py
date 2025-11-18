@@ -171,12 +171,16 @@ class TypeAdapterMixin:
     @model_validator(mode="after")
     def convert_to_final_type(self) -> Self:
         value_type = getattr(self, "value_type")
+
+        # NOTE: only required for types that are strings in JSON
+        if value_type not in ("date_time", "duration", "time_period"):
+            return self
+
         values = getattr(self, "values")
-        if value_type in ("date_time", "duration", "time_period"):
-            adapter = TypeAdapter(typename_map[value_type])
-            for i in range(len(values)):
-                value = values[i]
-                values[i] = adapter.validate_python(values[i]) if value is not None else None
+        adapter = TypeAdapter(typename_map[value_type])
+        for i in range(len(values)):
+            value = values[i]
+            values[i] = None if value is None else adapter.validate_python(value)
         return self
 
 
@@ -272,15 +276,6 @@ class ArrayIndex(TypeAdapterMixin):
     metadata: Metadata | None = None
     type: Literal["array_index"] = "array_index"
 
-    @model_validator(mode="after")
-    def convert_to_final_type(self) -> Self:
-        if self.value_type in ("date_time", "duration", "time_period"):
-            adapter = TypeAdapter(typename_map[self.value_type])
-            for i in range(len(self.values)):
-                value = self.values[i]
-                self.values[i] = adapter.validate_python(value) if value is not None else None
-        return self
-
 
 @dataclass(frozen=True)
 class Array(TypeAdapterMixin):
@@ -311,8 +306,8 @@ class AnyArray:
 
     @model_validator(mode="after")
     def convert_to_final_type(self) -> Self:
-        if len(self.values) != len(self.value_types):
-            raise ValueError("mismatching values and value_types")
+        if (values_len := len(self.values)) != (value_types_len := len(self.value_types)):
+            raise ValueError(f"mismatching lengths: {values_len=} != {value_types_len=}")
 
         for i in range(len(self.values)):
             val = self.values[i]
