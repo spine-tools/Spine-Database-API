@@ -18,6 +18,7 @@ from typing import Annotated, Literal, TypeAlias, TypedDict
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 from pydantic import (
     BeforeValidator,
     Field,
@@ -51,7 +52,7 @@ def validate_relativedelta(value: str | pd.DateOffset | timedelta | relativedelt
     match value:
         case relativedelta():
             return value
-        case str() | pd.DateOffset() | timedelta():
+        case str() | pd.DateOffset() | timedelta() | pa.MonthDayNano():
             return to_relativedelta(value)
         case _:
             raise ValueError(f"{value}: cannot coerce `{type(value)}` to `relativedelta`")
@@ -146,24 +147,37 @@ typename_map: dict[NullTypeName | TypeNames, type] = {
 }
 type_map: dict[type, TypeNames] = {
     str: "str",
+    pa.string(): "str",
     int: "int",
     np.int8: "int",
+    pa.int8(): "int",
     np.int16: "int",
+    pa.int16(): "int",
     np.int32: "int",
+    pa.int32(): "int",
     np.int64: "int",
+    pa.int64(): "int",
+    pa.null(): "float",  # NOTE: treat empty arrays as float array
     float: "float",
     np.float16: "float",
+    pa.float16(): "float",
     np.float32: "float",
+    pa.float32(): "float",
     np.float64: "float",
+    pa.float64(): "float",
     # np.float128: "float",  # not available on macos
     bool: "bool",
     np.bool: "bool",
+    pa.bool_(): "bool",
     datetime: "date_time",
     pd.Timestamp: "date_time",
+    pa.timestamp("us"): "date_time",
+    pa.timestamp("s"): "date_time",
     timedelta: "duration",
     pd.Timedelta: "duration",
     relativedelta: "duration",
     pd.DateOffset: "duration",
+    pa.month_day_nano_interval(): "duration",
 }
 
 
@@ -372,6 +386,60 @@ def dict_to_array(data: ArrayAsDict) -> AllArrays:
             raise ValueError(f"{data['type']}: unknown array type")
 
     return TypeAdapter(type_).validate_python(data)
+
+
+def arrow_to_array(
+    name: str,
+    arr: pa.RunEndEncodedArray | pa.DictionaryArray | pa.UnionArray | pa.Array,
+    metadata: Metadata | None = None,
+) -> AllArrays:
+    # NOTE: do not split common parts out of `data` below, it breaks
+    # type checking as ArrayAsDict
+    idx_t = "index" if arr.null_count > 0 else ""
+    match arr:
+        case pa.UnionArray():
+            values, value_types = zip(
+                *((i.as_py(), type_map[i.type.field(c.as_py()).type]) for c, i in zip(arr.type_codes, arr))
+            )
+            data: ArrayAsDict = {
+                "name": name,
+                "values": list(values),
+                "value_types": list(value_types),
+                "metadata": metadata,
+                "type": "any_array",
+            }
+            return dict_to_array(data)
+        case pa.RunEndEncodedArray():
+            data: ArrayAsDict = {
+                "name": name,
+                "run_end": arr.run_ends.to_pylist(),
+                "values": arr.values.to_pylist(),
+                "value_type": type_map[arr.values.type],
+                "metadata": metadata,
+                "type": f"run_end_{idx_t if idx_t else 'array'}",
+            }
+            return dict_to_array(data)
+        case pa.DictionaryArray():
+            data: ArrayAsDict = {
+                "name": name,
+                "values": arr.dictionary.to_pylist(),
+                "indices": arr.indices.to_pylist(),
+                "value_type": type_map[arr.dictionary.type],
+                "metadata": metadata,
+                "type": f"dict_encoded_{idx_t if idx_t else 'array'}",
+            }
+            return dict_to_array(data)
+        case pa.Array():
+            data: ArrayAsDict = {
+                "name": name,
+                "values": arr.to_pylist(),
+                "value_type": type_map[arr.type],
+                "metadata": metadata,
+                "type": f"array{'_'+idx_t if idx_t else ''}",
+            }
+            return dict_to_array(data)
+        case _:
+            raise ValueError
 
 
 if __name__ == "__main__":
