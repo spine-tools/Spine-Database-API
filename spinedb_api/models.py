@@ -62,11 +62,10 @@ def validate_relativedelta(value: str | pd.DateOffset | timedelta | relativedelt
 class TimePeriod(str):
     """Wrapper type necessary for data migration.
 
-    This is necessary to discriminate from regular strings during
-    during DB migration.  In the future if the migration script
-    doesn't need to be supported, this type can be removed, and the
-    `TimePeriod_` annotation below can just use `str`.  Something like
-    this:
+    This is necessary to discriminate from regular strings during DB
+    migration.  In the future if the migration script doesn't need to
+    be supported, this type can be removed, and the `TimePeriod_`
+    annotation below can just use `str`.  Something like this:
 
     .. sourcecode:: python
 
