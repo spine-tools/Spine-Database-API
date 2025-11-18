@@ -14,6 +14,7 @@
 from datetime import datetime
 import json
 import pickle
+import re
 import unittest
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
@@ -34,7 +35,6 @@ from spinedb_api.parameter_value import (
     TimeSeries,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
-    _month_day_nano_interval_to_iso_duration,
     convert_containers_to_maps,
     convert_leaf_maps_to_specialized_containers,
     convert_map_to_table,
@@ -1853,7 +1853,8 @@ class TestToDatabaseForRecordBatches:
         value_index_array = pyarrow.array([0], type=pyarrow.int32())
         value_array = pyarrow.UnionArray.from_dense(value_type_array, value_index_array, [int_array])
         record_batch = pyarrow.RecordBatch.from_arrays([value_array, value_array], ["Indexes", "Values"])
-        with pytest.raises(SpineDBAPIError, match="union array cannot be index"):
+        msg = re.escape("mixed types can only be a value (last) column")
+        with pytest.raises(SpineDBAPIError, match=msg):
             to_database(record_batch)
 
     def test_float(self):
@@ -1924,7 +1925,7 @@ class TestToDatabaseForRecordBatches:
         index_array = pyarrow.array([True, False])
         value_array = pyarrow.array([False, True])
         record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
-        with pytest.raises(SpineDBAPIError, match="boolean array cannot be index"):
+        with pytest.raises(SpineDBAPIError, match="index columns cannot be boolean"):
             to_database(record_batch)
 
 
@@ -1984,23 +1985,3 @@ class TestTypeForValue(unittest.TestCase):
             ("time_series", 1),
         )
         self.assertEqual(type_and_rank_for_value(Map(["a", "b"], [Map(["i"], [2.3]), 23.0])), ("map", 2))
-
-
-class TestMonthDayNanoIntervalToIsoDuration:
-    def test_seconds(self):
-        durations = ["PT0S", "PT23S", "PT120S", "PT145S", "PT7200S", "PT7310S", "PT86400S", "PT86460S"]
-        intervals = pyarrow.array([parse_duration(d) for d in durations])
-        converted = [_month_day_nano_interval_to_iso_duration(dt) for dt in intervals]
-        assert converted == ["P0D", "PT23S", "PT2M", "PT2M25S", "PT2H", "PT2H1M50S", "P1D", "P1DT1M"]
-
-    def test_days(self):
-        durations = ["P0D", "P12D", "P1DT4H"]
-        intervals = pyarrow.array([parse_duration(d) for d in durations])
-        converted = [_month_day_nano_interval_to_iso_duration(dt) for dt in intervals]
-        assert converted == ["P0D", "P12D", "P1DT4H"]
-
-    def test_months(self):
-        durations = ["P0M", "P5M", "P12M", "P17M"]
-        intervals = pyarrow.array([parse_duration(d) for d in durations])
-        converted = [_month_day_nano_interval_to_iso_duration(dt) for dt in intervals]
-        assert converted == ["P0D", "P5M", "P1Y", "P1Y5M"]
