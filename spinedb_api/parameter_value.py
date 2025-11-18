@@ -107,8 +107,8 @@ from .arrow_value import (
 from .compat.converters import parse_duration, to_duration
 from .exception import ParameterValueFormatError, SpineDBAPIError
 from .helpers import TimeSeriesMetadata, time_series_metadata
-from .models import NullTypeName, TypeNames
-from .value_support import JSONValue, load_db_value, to_union_array, validate_time_period
+from .models import Table, arrow_to_array, to_json
+from .value_support import load_db_value, to_union_array, validate_time_period
 
 TABLE_TYPE: Literal["table"] = "table"
 
@@ -2263,172 +2263,23 @@ def _python_type_to_arrow(python_type: Type) -> pyarrow.DataType:
     raise RuntimeError(f"unknown data type {python_type}")
 
 
-def to_list(loaded_value: pyarrow.RecordBatch) -> list[dict]:
-    arrays = []
+def to_list(loaded_value: pyarrow.RecordBatch) -> Table:
+    arrays: Table = []
+    msg_bool_arr = "index columns cannot be boolean"
     for i_column, (name, column) in enumerate(zip(loaded_value.column_names, loaded_value.columns)):
-        is_value_column = i_column == loaded_value.num_columns - 1
-        base_data = {
-            "name": name,
-        }
-        try:
-            metadata = load_field_metadata(loaded_value.field(i_column))
-        except JSONDecodeError:
-            pass
-        else:
-            if metadata is not None:
-                base_data["metadata"] = metadata
-        match column:
-            case pyarrow.RunEndEncodedArray():
-                arrays.append(
-                    {
-                        **base_data,
-                        "type": "run_end_array" if is_value_column else "run_end_index",
-                        "run_end": column.run_ends.to_pylist(),
-                        "values": _array_values_to_list(column.values, column.type.value_type),
-                        "value_type": _arrow_data_type_to_value_type(column.type.value_type),
-                    }
-                )
-            case pyarrow.DictionaryArray():
-                arrays.append(
-                    {
-                        **base_data,
-                        "type": "dict_encoded_array" if is_value_column else "dict_encoded_index",
-                        "indices": column.indices.to_pylist(),
-                        "values": _array_values_to_list(column.dictionary, column.type.value_type),
-                        "value_type": _arrow_data_type_to_value_type(column.type.value_type),
-                    }
-                )
-            case pyarrow.UnionArray():
-                if not is_value_column:
-                    raise SpineDBAPIError("union array cannot be index")
-                value_list, type_list = _union_array_values_to_list(column)
-                arrays.append(
-                    {
-                        **base_data,
-                        "type": "any_array",
-                        "values": value_list,
-                        "value_types": type_list,
-                    }
-                )
-            case pyarrow.TimestampArray():
-                arrays.append(
-                    {
-                        **base_data,
-                        "type": "array" if is_value_column else "array_index",
-                        "values": [t.isoformat() if t is not None else t for t in column.to_pylist()],
-                        "value_type": "date_time",
-                    }
-                )
-            case pyarrow.MonthDayNanoIntervalArray():
-                arrays.append(
-                    {
-                        **base_data,
-                        "type": "array" if is_value_column else "array_index",
-                        "values": [
-                            _month_day_nano_interval_to_iso_duration(dt) if dt.is_valid else None for dt in column
-                        ],
-                        "value_type": "duration",
-                    }
-                )
-            case _:
-                arrays.append(
-                    {
-                        **base_data,
-                        "type": "array" if is_value_column else "array_index",
-                        "values": column.to_pylist(),
-                        "value_type": _array_value_type(column, is_value_column),
-                    }
-                )
+        if not (is_value_column := i_column == (loaded_value.num_columns - 1)):
+            match column:
+                case pyarrow.UnionArray():
+                    raise SpineDBAPIError("mixed types can only be a value (last) column")
+                case pyarrow.RunEndEncodedArray():
+                    if column.values.type == pyarrow.bool_():
+                        raise SpineDBAPIError(msg_bool_arr)
+                case pyarrow.DictionaryArray():
+                    if column.dictionary.type == pyarrow.bool_():
+                        raise SpineDBAPIError(msg_bool_arr)
+                case pyarrow.Array():
+                    if column.type == pyarrow.bool_():
+                        raise SpineDBAPIError(msg_bool_arr)
+        metadata = load_field_metadata(loaded_value.field(i_column))
+        arrays.append(arrow_to_array(name, column, metadata))
     return arrays
-
-
-def _array_values_to_list(values: pyarrow.Array, value_type: pyarrow.DataType) -> list:
-    if pyarrow.types.is_timestamp(value_type):
-        return [t.isoformat() if t is not None else t for t in values.to_pylist()]
-    if pyarrow.types.is_interval(value_type):
-        return [_month_day_nano_interval_to_iso_duration(dt) if dt.is_valid else None for dt in values]
-    return values.to_pylist()
-
-
-def _arrow_data_type_to_value_type(data_type: pyarrow.DataType) -> TypeNames | NullTypeName:
-    if pyarrow.types.is_floating(data_type):
-        return "float"
-    if pyarrow.types.is_integer(data_type):
-        return "int"
-    if pyarrow.types.is_string(data_type):
-        return "str"
-    if pyarrow.types.is_timestamp(data_type):
-        return "date_time"
-    if pyarrow.types.is_interval(data_type):
-        return "duration"
-    if pyarrow.types.is_boolean(data_type):
-        return "bool"
-    if pyarrow.types.is_null(data_type):
-        return "null"
-    raise SpineDBAPIError(f"unknown Arrow data type {data_type}")
-
-
-def _union_array_values_to_list(column: pyarrow.UnionArray) -> tuple[list, list[TypeNames | NullTypeName]]:
-    values = []
-    types = []
-    for i, x in enumerate(column):
-        types.append(_arrow_data_type_to_value_type(x.type[x.type_code].type))
-        match x.value:
-            case pyarrow.MonthDayNanoIntervalScalar():
-                values.append(_month_day_nano_interval_to_iso_duration(x))
-            case _:
-                values.append(x.as_py())
-    return values, types
-
-
-_ZERO_DURATION = "P0D"
-
-
-def _month_day_nano_interval_to_iso_duration(dt: pyarrow.MonthDayNanoIntervalScalar) -> str:
-    duration = "P"
-    months, days, nanoseconds = dt.as_py()
-    years = months // 12
-    if years:
-        duration = duration + f"{years}Y"
-        months -= years * 12
-    if months:
-        duration = duration + f"{months}M"
-    if days:
-        duration = duration + f"{days}D"
-    if not nanoseconds:
-        return duration if duration != "P" else _ZERO_DURATION
-    duration = duration + "T"
-    seconds = nanoseconds // 1000000000
-    hours = seconds // 3600
-    if hours:
-        duration = duration + f"{hours}H"
-        seconds -= hours * 3600
-    minutes = seconds // 60
-    if minutes:
-        duration = duration + f"{minutes}M"
-        seconds -= minutes * 60
-    if seconds:
-        duration += f"{seconds}S"
-    return duration if duration != "PT" else _ZERO_DURATION
-
-
-def _array_value_type(column: pyarrow.Array, is_value_column: bool) -> str:
-    match column:
-        case pyarrow.FloatingPointArray():
-            return "float"
-        case pyarrow.IntegerArray():
-            return "int"
-        case pyarrow.StringArray() | pyarrow.LargeStringArray():
-            return "str"
-        case pyarrow.BooleanArray():
-            if not is_value_column:
-                raise SpineDBAPIError("boolean array cannot be index")
-            return "bool"
-        case pyarrow.MonthDayNanoIntervalArray():
-            if is_value_column:
-                raise SpineDBAPIError("duration array cannot be value")
-            return "duration"
-        case pyarrow.NullArray():
-            return "float"
-        case _:
-            raise SpineDBAPIError(f"unsupported column type {type(column).__name__}")
