@@ -336,14 +336,23 @@ AllArrays: TypeAlias = RunEndIndex | DictEncodedIndex | ArrayIndex | RunEndArray
 Table: TypeAlias = list[Annotated[AllArrays, Field(discriminator="type")]]
 
 
-def from_json(json_str: str, type_: type[Table | AllArrays] = Table):
+def from_json(json_str: str, type_: type[Table | AllArrays]):
     """Generic wrapper for JSON parsing."""
     return TypeAdapter(type_).validate_json(json_str)
 
 
-def from_dict(value: dict, type_: type[Table | AllArrays] = Table):
-    """Generic wrapper for converting from a dictionary."""
-    return TypeAdapter(type_).validate_python(value)
+def from_dict(value: list | dict):
+    """Generic wrapper for converting from a dictionary/list of dictionaries."""
+    match value:
+        case list():
+            return TypeAdapter(Table).validate_python(value)
+        case dict():
+            return TypeAdapter(AllArrays).validate_python(value)
+        case _:
+            raise ValueError(f"{type(value)}: unsupported type")
+
+
+from_list = from_dict
 
 
 def to_json(obj: Table | AllArrays) -> str:
