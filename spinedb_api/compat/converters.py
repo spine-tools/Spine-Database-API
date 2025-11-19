@@ -26,6 +26,7 @@ WEEK_PAT = re.compile(rf"{freq}W")
 
 def parse_duration(value: str) -> relativedelta:
     """Parse a ISO 8601 duration format string to a `relativedelta`."""
+    _value = value
     value = value.lstrip("P")
     if m0 := WEEK_PAT.match(value):
         weeks = m0.groups()[0]
@@ -51,6 +52,8 @@ def parse_duration(value: str) -> relativedelta:
         seconds = parse_num(m2.groups()[5])
         delta += relativedelta(hours=hours, minutes=minutes, seconds=seconds)
 
+    if delta == relativedelta():
+        raise ValueError(f"{_value!r}: unable to parse as duration")
     return delta
 
 
