@@ -455,6 +455,20 @@ def arrow_to_array(
             raise ValueError(f"{type(arr)}: column {name=} is an unsupported array type")
 
 
+def has_any_array(tbl: pa.RecordBatch | Table) -> bool:
+    """Utility to check if a parameter_value entry is a configuration."""
+    match tbl:
+        case pa.RecordBatch():
+            return any(pa.types.is_union(field.type) for field in tbl.schema)
+        case _:
+            return "any_array" in map(lambda col: col.type, tbl)
+
+
+def get_json_schema() -> dict:
+    """Generate JSON schema for serialisation."""
+    return TypeAdapter(Table).json_schema(mode="serialization")
+
+
 if __name__ == "__main__":
     from argparse import ArgumentParser
     import json
@@ -464,5 +478,5 @@ if __name__ == "__main__":
     parser.add_argument("json_file", help="Path of JSON schema file to write")
     opts = parser.parse_args()
 
-    schema = TypeAdapter(Table).json_schema(mode="serialization")
+    schema = get_json_schema()
     Path(opts.json_file).write_text(json.dumps(schema))
