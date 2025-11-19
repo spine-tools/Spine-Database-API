@@ -452,7 +452,7 @@ def arrow_to_array(
             }
             return dict_to_array(data)
         case _:
-            raise ValueError
+            raise ValueError(f"{type(arr)}: column {name=} is an unsupported array type")
 
 
 if __name__ == "__main__":
