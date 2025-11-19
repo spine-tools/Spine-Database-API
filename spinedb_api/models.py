@@ -145,6 +145,8 @@ typename_map: dict[NullTypeName | TypeNames, type] = {
     "null": NoneType,
 }
 type_map: dict[type, TypeNames | NullTypeName] = {
+    NoneType: "null",
+    pa.null(): "null",
     str: "str",
     pa.string(): "str",
     int: "int",
@@ -156,7 +158,6 @@ type_map: dict[type, TypeNames | NullTypeName] = {
     pa.int32(): "int",
     np.int64: "int",
     pa.int64(): "int",
-    pa.null(): "null",
     float: "float",
     np.float16: "float",
     pa.float16(): "float",
