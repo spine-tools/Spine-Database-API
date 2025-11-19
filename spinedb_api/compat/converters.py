@@ -80,7 +80,7 @@ def _normalise_delta(years=0, months=0, days=0, hours=0, minutes=0, seconds=0, m
     return res
 
 
-def _delta_as_dict(delta: relativedelta | pd.DateOffset | timedelta | pa.MonthDayNano) -> dict:
+def _delta_as_dict(delta: relativedelta | pd.DateOffset | timedelta | pa.MonthDayNano | str) -> dict:
     match delta:
         case pa.MonthDayNano():
             return _normalise_delta(months=delta.months, days=delta.days, nanoseconds=delta.nanoseconds)
@@ -88,6 +88,8 @@ def _delta_as_dict(delta: relativedelta | pd.DateOffset | timedelta | pa.MonthDa
             return _normalise_delta(days=delta.days, seconds=delta.seconds, microseconds=delta.microseconds)
         case relativedelta() | pd.DateOffset():
             return {k: v for k, v in vars(delta).items() if not k.startswith("_") and k.endswith("s") and v}
+        case str():
+            return _delta_as_dict(parse_duration(delta))
         case _:
             raise TypeError(f"{delta}: unknown type {type(delta)}")
 
@@ -103,11 +105,7 @@ def to_relativedelta(offset: str | pd.DateOffset | timedelta | pa.MonthDayNano) 
     Everyone should use this instead of trying to convert themselves.
 
     """
-    match offset:
-        case str():
-            return parse_duration(offset)
-        case _:
-            return relativedelta(**_delta_as_dict(offset))
+    return relativedelta(**_delta_as_dict(offset))
 
 
 def to_dateoffset(delta: relativedelta) -> pd.DateOffset:
@@ -129,7 +127,7 @@ _duration_abbrevs = {
 _ZERO_DURATION = "P0D"
 
 
-def to_duration(delta: relativedelta | pd.DateOffset | timedelta | pa.MonthDayNano) -> str:
+def to_duration(delta: relativedelta | pd.DateOffset | timedelta | pa.MonthDayNano | str) -> str:
     """Convert various compatible time offset objects to JSON string
     in "duration" format.
 
@@ -141,6 +139,9 @@ def to_duration(delta: relativedelta | pd.DateOffset | timedelta | pa.MonthDayNa
     Use this for any kind of serialisation.
 
     """
+    if isinstance(delta, str):
+        return delta
+
     kwargs = _delta_as_dict(delta)
     duration = "P"
     for unit, abbrev in _duration_abbrevs.items():
