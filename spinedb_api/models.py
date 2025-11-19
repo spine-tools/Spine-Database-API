@@ -394,7 +394,6 @@ def arrow_to_array(
 ) -> AllArrays:
     # NOTE: do not split common parts out of `data` below, it breaks
     # type checking as ArrayAsDict
-    idx_t = "index" if arr.null_count > 0 else ""
     match arr:
         case pa.UnionArray():
             values, value_types = zip(
@@ -409,23 +408,25 @@ def arrow_to_array(
             }
             return dict_to_array(data)
         case pa.RunEndEncodedArray():
+            suf = "array" if arr.values.null_count > 0 else "index"
             data: ArrayAsDict = {
                 "name": name,
                 "run_end": arr.run_ends.to_pylist(),
                 "values": arr.values.to_pylist(),
                 "value_type": type_map[arr.values.type],
                 "metadata": metadata,
-                "type": f"run_end_{idx_t if idx_t else 'array'}",
+                "type": f"run_end_{suf}",
             }
             return dict_to_array(data)
         case pa.DictionaryArray():
+            suf = "array" if arr.null_count > 0 else "index"
             data: ArrayAsDict = {
                 "name": name,
                 "values": arr.dictionary.to_pylist(),
                 "indices": arr.indices.to_pylist(),
                 "value_type": type_map[arr.dictionary.type],
                 "metadata": metadata,
-                "type": f"dict_encoded_{idx_t if idx_t else 'array'}",
+                "type": f"dict_encoded_{suf}",
             }
             return dict_to_array(data)
         case pa.Array():
@@ -438,7 +439,7 @@ def arrow_to_array(
                 # arrays as empty float arrays in Spine
                 "value_type": "float" if value_type == "null" else value_type,
                 "metadata": metadata,
-                "type": f"array{'_'+idx_t if idx_t else ''}",
+                "type": "array" if arr.null_count > 0 else "array_index",
             }
             return dict_to_array(data)
         case _:
