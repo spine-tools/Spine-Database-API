@@ -84,17 +84,33 @@ use :func:`.from_database`::
 from __future__ import annotations
 from collections.abc import Callable, Iterable, Sequence
 from copy import copy
+from dataclasses import dataclass
 from datetime import datetime
 from itertools import takewhile
 import json
 from json.decoder import JSONDecodeError
 import re
-from typing import Any, Literal, Optional, SupportsFloat, Type, TypeAlias, Union
+from typing import Any, ClassVar, Counter, Literal, Optional, SupportsFloat, Type, TypeAlias, Union
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import numpy.typing as nptyping
-from .exception import ParameterValueFormatError
+import pyarrow
+from pyarrow import compute
+from .arrow_value import (
+    load_field_metadata,
+    to_record_batch,
+    with_column_as_time_period,
+    with_column_as_time_stamps,
+    with_field_metadata,
+)
+from .compat.converters import parse_duration, to_duration
+from .exception import ParameterValueFormatError, SpineDBAPIError
+from .helpers import TimeSeriesMetadata, time_series_metadata
+from .models import Table, arrow_to_array, to_json
+from .value_support import load_db_value, to_union_array, validate_time_period
+
+TABLE_TYPE: Literal["table"] = "table"
 
 # Defaulting to seconds precision in numpy.
 NUMPY_DATETIME_DTYPE = "datetime64[s]"
@@ -106,6 +122,7 @@ TIME_SERIES_DEFAULT_RESOLUTION = "1h"
 # Default unit if resolution is given as a number instead of a string.
 _TIME_SERIES_PLAIN_INDEX_UNIT = "m"
 FLOAT_VALUE_TYPE = "float"
+INT_VALUE_TYPE = "int"
 BOOLEAN_VALUE_TYPE = "bool"
 STRING_VALUE_TYPE = "str"
 
@@ -116,7 +133,7 @@ ConflictResolutionCallable: TypeAlias = Callable[
 ]
 
 
-def from_database(value: bytes, type_: Optional[str]) -> Optional[Value]:
+def from_database(value: bytes, type_: Optional[str]) -> Optional[Value | ParameterValue]:
     """
     Converts a parameter value from the DB into a Python object.
 
@@ -127,17 +144,30 @@ def from_database(value: bytes, type_: Optional[str]) -> Optional[Value]:
     Returns:
         A Python object representing the value.
     """
-    parsed = load_db_value(value, type_)
+    parsed = load_db_value(value)
     if isinstance(parsed, dict):
-        return from_dict(parsed)
-    if isinstance(parsed, bool):
-        return parsed
-    if isinstance(parsed, SupportsFloat):
+        return from_dict(parsed, type_)
+    if type_ == TABLE_TYPE:
+        return to_record_batch(parsed)
+    if type_ == DateTime.TYPE:
+        return DateTime(parsed)
+    if type_ == Duration.TYPE:
+        return Duration(parse_duration(parsed))
+    if type_ == Array.TYPE:
+        return Array.from_arrow(to_record_batch(parsed))
+    if type_ == TimePattern.TYPE:
+        return TimePattern.from_arrow(to_record_batch(parsed))
+    if type_ == TimeSeries.TYPE:
+        return TimeSeriesVariableResolution.from_arrow(to_record_batch(parsed))
+    if type_ == Map.TYPE:
+        return Map.from_arrow(to_record_batch(parsed))
+    if isinstance(parsed, int) and type_ == FLOAT_VALUE_TYPE:
+        # json.dumps() writes floats without decimals as ints.
         return float(parsed)
     return parsed
 
 
-def to_database(parsed_value: Optional[Value]) -> tuple[bytes, Optional[str]]:
+def to_database(parsed_value: Optional[Value | ParameterValue | dict]) -> tuple[bytes, Optional[str]]:
     """
     Converts a Python object representing a parameter value into its DB representation.
 
@@ -147,10 +177,23 @@ def to_database(parsed_value: Optional[Value]) -> tuple[bytes, Optional[str]]:
     Returns:
         The value as a binary blob and its type string.
     """
-    if hasattr(parsed_value, "to_database"):
-        return parsed_value.to_database()
+    if isinstance(parsed_value, Duration):
+        return json.dumps(to_duration(parsed_value.value)).encode("UTF8"), parsed_value.TYPE
+    if isinstance(parsed_value, relativedelta):
+        return json.dumps(to_duration(parsed_value)).encode("UTF8"), Duration.TYPE
+    if isinstance(parsed_value, DateTime):
+        return json.dumps(parsed_value.value.isoformat()).encode("UTF8"), parsed_value.TYPE
+    if isinstance(parsed_value, datetime):
+        return json.dumps(parsed_value.isoformat()).encode("UTF8"), DateTime.TYPE
+    if isinstance(parsed_value, IndexedValue):
+        return to_json(to_list(parsed_value.as_arrow())).encode("UTF8"), parsed_value.TYPE
+    if isinstance(parsed_value, pyarrow.RecordBatch):
+        return to_json(to_list(parsed_value)).encode("UTF8"), TABLE_TYPE
+    if isinstance(parsed_value, dict):
+        db_type = parsed_value.pop("type")
+    else:
+        db_type = type_for_scalar(parsed_value)
     db_value = json.dumps(parsed_value).encode("UTF8")
-    db_type = type_for_scalar(parsed_value)
     return db_value, db_type
 
 
@@ -227,54 +270,6 @@ def relativedelta_to_duration(delta: relativedelta) -> str:
     return "0h"
 
 
-JSONValue = Union[bool, float, str, dict]
-
-
-def load_db_value(db_value: bytes, type_: Optional[str]) -> Optional[JSONValue]:
-    """
-    Parses a binary blob into a JSON object.
-
-    If the result is a dict, adds the "type" property to it.
-
-    :meta private:
-
-    Args:
-        db_value: The binary blob.
-        type_: The value type.
-
-    Returns:
-        The parsed parameter value.
-    """
-    if db_value is None:
-        return None
-    try:
-        parsed = json.loads(db_value)
-    except JSONDecodeError as err:
-        raise ParameterValueFormatError(f"Could not decode the value: {err}") from err
-    if isinstance(parsed, dict):
-        parsed["type"] = type_
-    return parsed
-
-
-def dump_db_value(parsed_value: JSONValue) -> tuple[bytes, str]:
-    """
-    Unparses a JSON object into a binary blob and type string.
-
-    If the given object is a dict, extracts the "type" property from it.
-
-    :meta private:
-
-    Args:
-        parsed_value: A JSON object, typically obtained by calling :func:`load_db_value`.
-
-    Returns:
-        database representation (value and type).
-    """
-    value_type = parsed_value["type"] if isinstance(parsed_value, dict) else type_for_scalar(parsed_value)
-    db_value = json.dumps(parsed_value).encode("UTF8")
-    return db_value, value_type
-
-
 def from_database_to_single_value(database_value: bytes, value_type: Optional[str]) -> Union[str, Optional[Value]]:
     """
     Same as :func:`from_database`, but in the case of indexed types returns just the type as a string.
@@ -293,43 +288,19 @@ def from_database_to_single_value(database_value: bytes, value_type: Optional[st
     return value_type
 
 
-def from_database_to_dimension_count(database_value: bytes, value_type: Optional[str]) -> int:
-    """
-    Counts the dimensions in a database representation of a parameter value (value and type).
-
-    :meta private:
-
-    Args:
-        database_value: the database value
-        value_type: the value type
-
-    Returns:
-        number of dimensions
-    """
-    if value_type in RANK_1_TYPES:
-        return 1
-    if value_type == Map.TYPE:
-        parsed = load_db_value(database_value, value_type)
-        if "rank" in parsed:
-            return parsed["rank"]
-        map_value = from_dict(parsed)
-        return map_dimensions(map_value)
-    return 0
-
-
-def from_dict(value: dict) -> Optional[Value]:
+def from_dict(value: dict, value_type: str) -> Optional[Value]:
     """
     Converts a dictionary representation of a parameter value into an encoded parameter value.
 
     :meta private:
 
     Args:
-        value: the value dictionary including the "type" key.
+        value: the value dictionary.
+        value_type: value's type
 
     Returns:
         the encoded parameter value.
     """
-    value_type = value["type"]
     try:
         if value_type == DateTime.TYPE:
             return _datetime_from_database(value["data"])
@@ -696,7 +667,7 @@ def _map_values_from_database(values_in_db: Iterable[Optional[Union[bool, float,
         return []
     values = []
     for value_in_db in values_in_db:
-        value = from_dict(value_in_db) if isinstance(value_in_db, dict) else value_in_db
+        value = from_dict(value_in_db, value_in_db["type"]) if isinstance(value_in_db, dict) else value_in_db
         if isinstance(value, int):
             value = float(value)
         elif value is not None and not isinstance(value, (float, bool, Duration, IndexedValue, str, DateTime)):
@@ -761,6 +732,15 @@ class ParameterValue:
         """
         return json.dumps(self.to_dict()).encode("UTF8"), self.TYPE
 
+    def as_arrow(self) -> Any:
+        """Returns an Apache Arrow compatible representation of the value."""
+        raise NotImplementedError()
+
+    @classmethod
+    def from_arrow(cls, arrow_value: pyarrow.RecordBatch | datetime | relativedelta) -> ParameterValue:
+        """Converts an Arrow value to legacy parameter value."""
+        return cls(arrow_value)
+
 
 class DateTime(ParameterValue):
     """A parameter value of type 'date_time'. A point in time."""
@@ -768,7 +748,7 @@ class DateTime(ParameterValue):
     VALUE_TYPE = "single value"
     TYPE = "date_time"
 
-    def __init__(self, value: Optional[Union[str, DateTime, datetime]] = None):
+    def __init__(self, value: Optional[Union[str, DateTime, datetime, pyarrow.TimestampScalar]] = None):
         """
         Args:
             The `date_time` value.
@@ -785,6 +765,8 @@ class DateTime(ParameterValue):
                     raise ParameterValueFormatError(f'Could not parse datetime from "{value}"') from error
         elif isinstance(value, DateTime):
             value = copy(value._value)
+        elif isinstance(value, pyarrow.TimestampScalar):
+            value = value.as_py()
         elif not isinstance(value, datetime):
             raise ParameterValueFormatError(f'"{type(value).__name__}" cannot be converted to DateTime.')
         self._value = value
@@ -819,6 +801,9 @@ class DateTime(ParameterValue):
     def value(self) -> datetime:
         return self._value
 
+    def as_arrow(self) -> datetime:
+        return self._value
+
 
 class Duration(ParameterValue):
     """
@@ -828,7 +813,7 @@ class Duration(ParameterValue):
     VALUE_TYPE = "single value"
     TYPE = "duration"
 
-    def __init__(self, value: Optional[Union[str, relativedelta, Duration]] = None):
+    def __init__(self, value: Optional[Union[str, relativedelta, Duration, pyarrow.MonthDayNanoIntervalScalar]] = None):
         """
         Args:
             value: the `duration` value.
@@ -841,6 +826,9 @@ class Duration(ParameterValue):
             value = copy(value._value)
         elif isinstance(value, relativedelta):
             value = value.normalized()
+        elif isinstance(value, pyarrow.MonthDayNanoIntervalScalar):
+            months, days, nanoseconds = value.as_py()
+            value = relativedelta(months=months, days=days, microseconds=nanoseconds // 1000)
         else:
             raise ParameterValueFormatError(f'Could not parse duration from "{value}"')
         self._value = value
@@ -870,8 +858,11 @@ class Duration(ParameterValue):
     def value(self) -> relativedelta:
         return self._value
 
+    def as_arrow(self) -> relativedelta:
+        return self._value
 
-ScalarValue = Union[bool, float, str, DateTime, Duration]
+
+ScalarValue = Union[bool, float, str, datetime, relativedelta]
 
 
 class _Indexes(np.ndarray):
@@ -1025,7 +1016,7 @@ class IndexedValue(ParameterValue):
         return self
 
 
-Value = Union[ScalarValue, IndexedValue]
+Value = Union[ScalarValue, pyarrow.RecordBatch]
 
 
 class Array(IndexedValue):
@@ -1035,7 +1026,7 @@ class Array(IndexedValue):
     TYPE = "array"
     DEFAULT_INDEX_NAME = "i"
 
-    def __init__(self, values: Sequence[ScalarValue], value_type: Optional[Type] = None, index_name: str = ""):
+    def __init__(self, values: Sequence[ArrayValue], value_type: Optional[Type] = None, index_name: str = ""):
         """
         Args:
             values: the array values.
@@ -1063,9 +1054,17 @@ class Array(IndexedValue):
         if not isinstance(other, Array):
             return NotImplemented
         try:
-            return np.array_equal(self._values, other._values, equal_nan=True) and self.index_name == other.index_name
+            return (
+                (self._values or self._value_type == other._value_type)
+                and np.array_equal(self._values, other._values, equal_nan=True)
+                and self.index_name == other.index_name
+            )
         except TypeError:
-            return np.array_equal(self._values, other._values) and self.index_name == other.index_name
+            return (
+                (self._values or self._value_type == other._value_type)
+                and np.array_equal(self._values, other._values)
+                and self.index_name == other.index_name
+            )
 
     def to_dict(self):
         try:
@@ -1086,6 +1085,30 @@ class Array(IndexedValue):
             value_dict["index_name"] = self.index_name
         return value_dict
 
+    def as_arrow(self) -> pyarrow.RecordBatch:
+        """Returns an Apache Arrow compatible representation of the value."""
+        indexes = pyarrow.array(range(1, len(self._values) + 1), type=pyarrow.int64())
+        array = pyarrow.array(
+            self._values if not issubclass(self._value_type, ParameterValue) else [x.as_arrow() for x in self._values]
+        )
+        return pyarrow.record_batch({self.index_name: indexes, "value": array})
+
+    @classmethod
+    def from_arrow(cls, arrow_value: pyarrow.RecordBatch) -> Array:
+        value_column_index = arrow_value.schema.get_field_index("value")
+        value_column = arrow_value[value_column_index]
+        index_name = arrow_value.column_names[0]
+        if len(value_column) == 0:
+            return cls([], value_type=_arrow_type_to_python(value_column.type), index_name=index_name)
+        if pyarrow.types.is_interval(arrow_value.schema.types[value_column_index]):
+            return cls(list(Duration(d) for d in value_column), index_name=index_name)
+        if pyarrow.types.is_timestamp(arrow_value.schema.types[value_column_index]):
+            return cls(list(DateTime(t) for t in value_column), index_name=index_name)
+        return cls(value_column.to_pylist(), index_name=index_name)
+
+
+ArrayValue: TypeAlias = float | bool | str | Duration | DateTime
+
 
 class _TimePatternIndexes(_Indexes):
     """An array of *checked* time pattern indexes."""
@@ -1104,35 +1127,7 @@ class _TimePatternIndexes(_Indexes):
         if not union_str:
             # We accept empty strings so we can add empty rows in the parameter value editor UI
             return
-        union_dlm = ","
-        intersection_dlm = ";"
-        range_dlm = "-"
-        regexp = r"(Y|M|D|WD|h|m|s)"
-        for intersection_str in union_str.split(union_dlm):
-            for interval_str in intersection_str.split(intersection_dlm):
-                m = re.match(regexp, interval_str)
-                if m is None:
-                    raise ParameterValueFormatError(
-                        f"Invalid interval {interval_str}, it should start with either Y, M, D, WD, h, m, or s."
-                    )
-                key = m.group(0)
-                lower_upper_str = interval_str[len(key) :]
-                lower_upper = lower_upper_str.split(range_dlm)
-                if len(lower_upper) != 2:
-                    raise ParameterValueFormatError(
-                        f"Invalid interval bounds {lower_upper_str}, it should be two integers separated by dash (-)."
-                    )
-                lower_str, upper_str = lower_upper
-                try:
-                    lower = int(lower_str)
-                except Exception as error:
-                    raise ParameterValueFormatError(f"Invalid lower bound {lower_str}, must be an integer.") from error
-                try:
-                    upper = int(upper_str)
-                except Exception as error:
-                    raise ParameterValueFormatError(f"Invalid upper bound {upper_str}, must be an integer.") from error
-                if lower > upper:
-                    raise ParameterValueFormatError(f"Lower bound {lower} can't be higher than upper bound {upper}.")
+        validate_time_period(union_str)
 
     def __array_finalize__(self, obj):
         """Checks indexes when building the array."""
@@ -1191,6 +1186,31 @@ class TimePattern(IndexedValue):
         if self.index_name != self.DEFAULT_INDEX_NAME:
             value_dict["index_name"] = self.index_name
         return value_dict
+
+    def as_arrow(self) -> pyarrow.RecordBatch:
+        values = pyarrow.array(self._values)
+        indexes = pyarrow.array(self._indexes)
+        record_batch = pyarrow.record_batch({self.index_name: indexes, "value": values})
+        return with_column_as_time_period(record_batch, 0)
+
+    @classmethod
+    def from_arrow(cls, arrow_value: pyarrow.RecordBatch) -> TimePattern:
+        value_column_index = arrow_value.schema.get_field_index("value")
+        for column_i in range(arrow_value.num_columns - 1):
+            try:
+                column_metadata = load_field_metadata(arrow_value.field(column_i))
+            except json.decoder.JSONDecodeError:
+                continue
+            if column_metadata is not None and column_metadata.get("format") == "time_period":
+                index_column_index = column_i
+                break
+        else:
+            raise RuntimeError("value's field metadata doesn't indicate that it contains a time period column")
+        return cls(
+            arrow_value[index_column_index].to_pylist(),
+            arrow_value[value_column_index],
+            index_name=arrow_value.column_names[index_column_index],
+        )
 
 
 class TimeSeries(IndexedValue):
@@ -1270,7 +1290,9 @@ class TimeSeriesFixedResolution(TimeSeries):
     other than having getters for their values.
     """
 
-    _memoized_indexes: dict[tuple[np.datetime64, tuple[relativedelta, ...], int], nptyping.NDArray[np.datetime64]] = {}
+    _memoized_indexes: ClassVar[
+        dict[tuple[np.datetime64, tuple[relativedelta, ...], int], nptyping.NDArray[np.datetime64]]
+    ] = {}
 
     def __init__(
         self,
@@ -1405,6 +1427,76 @@ class TimeSeriesFixedResolution(TimeSeries):
         if pos is not None:
             self._values[pos] = value
 
+    def as_arrow(self) -> pyarrow.RecordBatch:
+        values = pyarrow.array(self._values)
+        indexes = pyarrow.array(self.indexes, type=pyarrow.timestamp(NUMPY_DATETIME64_UNIT))
+        record_batch = pyarrow.record_batch({self.index_name: indexes, "value": values})
+        return with_column_as_time_stamps(record_batch, 0, ignore_year=self._ignore_year, repeat=self._repeat)
+
+    @classmethod
+    def from_arrow(cls, arrow_value: pyarrow.RecordBatch) -> TimeSeriesFixedResolution:
+        time_stamp_column_name, ignore_year, repeat = _find_column_with_time_series_metadata(arrow_value)
+        time_stamp_column = arrow_value[time_stamp_column_name]
+        intervals = compute.month_day_nano_interval_between(
+            time_stamp_column.slice(length=len(time_stamp_column) - 1), time_stamp_column.slice(offset=1)
+        )
+        resolution = _resolve_resolution(intervals)
+        return cls(
+            time_stamp_column[0].as_py(),
+            resolution,
+            arrow_value["value"],
+            ignore_year=ignore_year,
+            repeat=repeat,
+            index_name=time_stamp_column_name,
+        )
+
+
+def _resolve_resolution(intervals: pyarrow.MonthDayNanoIntervalArray) -> relativedelta | list[relativedelta]:
+    if intervals.value_counts() == 1:
+        months, days, nanoseconds = intervals[0].as_py()
+        return relativedelta(months=months, days=days, microseconds=nanoseconds // 1000)
+    interval_length = len(intervals)
+    pattern_length = 2
+    pattern = intervals.slice(0, pattern_length)
+    pattern_found = False
+    while not pattern_found:
+        sub_pattern_mismatch = False
+        for interval_i in range(pattern_length, interval_length, pattern_length):
+            for pattern_i in range(pattern_length):
+                sub_interval_i = interval_i + pattern_i
+                if sub_interval_i == interval_length:
+                    break
+                if intervals[interval_i + pattern_i] != pattern[pattern_i]:
+                    sub_pattern_mismatch = True
+                    break
+            if sub_pattern_mismatch:
+                pattern_length += 1
+                pattern = intervals.slice(0, pattern_length)
+                break
+        else:
+            pattern_found = True
+    resolution = []
+    for interval in pattern:
+        months, days, nanoseconds = interval.as_py()
+        resolution.append(relativedelta(months=months, days=days, microseconds=nanoseconds // 1000))
+    return resolution
+
+
+def _find_column_with_time_series_metadata(arrow_value: pyarrow.RecordBatch) -> tuple[str, bool, bool]:
+    for column_i in range(arrow_value.num_columns - 1):
+        try:
+            column_metadata = load_field_metadata(arrow_value.field(column_i))
+        except json.decoder.JSONDecodeError:
+            continue
+        if column_metadata and "ignore_year" in column_metadata and "repeat" in column_metadata:
+            time_stamp_column_name = arrow_value.column_names[column_i]
+            ignore_year = column_metadata["ignore_year"]
+            repeat = column_metadata["repeat"]
+            break
+    else:
+        raise RuntimeError("value's field metadata doesn't indicate that it contains a time stamp column")
+    return time_stamp_column_name, ignore_year, repeat
+
 
 class TimeSeriesVariableResolution(TimeSeries):
     """A parameter value of type 'time_series'.
@@ -1468,6 +1560,23 @@ class TimeSeriesVariableResolution(TimeSeries):
             value_dict["index_name"] = self.index_name
         return value_dict
 
+    def as_arrow(self) -> pyarrow.RecordBatch:
+        values = pyarrow.array(self._values)
+        indexes = pyarrow.array(self._indexes, type=pyarrow.timestamp(NUMPY_DATETIME64_UNIT))
+        record_batch = pyarrow.record_batch({self.index_name: indexes, "value": values})
+        return with_column_as_time_stamps(record_batch, 0, ignore_year=self._ignore_year, repeat=self._repeat)
+
+    @classmethod
+    def from_arrow(cls, arrow_value: pyarrow.RecordBatch) -> TimeSeriesVariableResolution:
+        time_stamp_column_name, ignore_year, repeat = _find_column_with_time_series_metadata(arrow_value)
+        return cls(
+            arrow_value[time_stamp_column_name].to_pylist(),
+            arrow_value["value"],
+            ignore_year=ignore_year,
+            repeat=repeat,
+            index_name=time_stamp_column_name,
+        )
+
 
 class Map(IndexedValue):
     """A parameter value of type 'map'. A mapping from key to value, where the values can be other instances
@@ -1481,7 +1590,7 @@ class Map(IndexedValue):
     def __init__(
         self,
         indexes: Sequence[MapIndex],
-        values: Sequence[Value],
+        values: Sequence[MapValue],
         index_type: Optional[Type] = None,
         index_name: str = "",
     ):
@@ -1538,9 +1647,116 @@ class Map(IndexedValue):
             value_dict["index_name"] = self.index_name
         return value_dict
 
+    def as_arrow(self) -> pyarrow.RecordBatch:
+        return map_as_arrow(self)
 
-MapIndex = Union[float, str, DateTime, Duration]
-MapIndexType = Union[Type[float], Type[str], Type[DateTime], Type[Duration]]
+    @classmethod
+    def from_arrow(cls, arrow_value: pyarrow.RecordBatch) -> Map:
+        if arrow_value.num_rows == 0:
+            return Map(
+                [],
+                [],
+                index_type=_arrow_type_to_python(arrow_value.column(0).type),
+                index_name=arrow_value.column_names[0],
+            )
+        map_value = _map_from_arrow(arrow_value)
+        for column_i in range(arrow_value.num_columns - 1):
+            try:
+                metadata = load_field_metadata(arrow_value.field(column_i))
+            except JSONDecodeError:
+                continue
+            if metadata and "ignore_year" in metadata and "repeat" in metadata:
+                map_value = convert_leaf_maps_to_specialized_containers(map_value, time_series_kwargs=metadata)
+                break
+        for column_i in range(arrow_value.num_columns - 1):
+            if pyarrow.types.is_integer(arrow_value.column(column_i).type):
+                map_value = convert_leaf_maps_to_specialized_containers(map_value)
+                break
+        return map_value
+
+
+def _map_from_arrow(arrow_value: pyarrow.RecordBatch) -> Map:
+    values_by_index_path = []
+    value_column = [_python_value_as_spine(x.as_py()) for x in arrow_value.column(arrow_value.num_columns - 1)]
+    for row_i in range(arrow_value.num_rows):
+        index_path = []
+        for column_i in range(arrow_value.num_columns - 1):
+            y = arrow_value.column(column_i)[row_i]
+            if y.is_valid:
+                index_path.append((arrow_value.column_names[column_i], _python_value_as_spine(y.as_py())))
+        values_by_index_path.append((index_path, value_column[row_i]))
+    root_dict = {}
+    for index_path, value in values_by_index_path:
+        root_index = index_path[0]
+        root_dict.setdefault(root_index, []).append(value if len(index_path) == 1 else (index_path[1:], value))
+    collected_dict = _crawl_map_dict_to_collect_all_dimensions(root_dict)
+    return _map_dict_to_map(collected_dict)
+
+
+def _crawl_map_dict_to_collect_all_dimensions(root_dict: dict) -> dict:
+    root_dict = _collect_nested_dimensions(root_dict)
+    for index, values in root_dict.items():
+        for i, value in enumerate(values):
+            if isinstance(value, dict):
+                new_value = _crawl_map_dict_to_collect_all_dimensions(value)
+                values[i] = new_value
+    return root_dict
+
+
+def _collect_nested_dimensions(root_dict: dict) -> dict:
+    new_root_dict = {}
+    for index, values in root_dict.items():
+        for value in values:
+            if not isinstance(value, tuple):
+                new_root_dict.setdefault(index, []).append(value)
+                continue
+            index_path, value = value
+            nested_index = index_path[0]
+            existing_values = new_root_dict.setdefault(index, [])
+            for existing_value in existing_values:
+                if isinstance(existing_value, dict):
+                    existing_index = next(iter(existing_value))
+                    if existing_index[0] == nested_index[0]:
+                        nested_dict = existing_value
+                        break
+            else:
+                nested_dict = {}
+                existing_values.append(nested_dict)
+            nested_dict.setdefault(nested_index, []).append(value if len(index_path) == 1 else (index_path[1:], value))
+    return new_root_dict
+
+
+def _map_dict_to_map(map_dict: dict) -> Map:
+    map_indexes = []
+    map_values = []
+    index_name = None
+    for (current_index_name, index), values in map_dict.items():
+        if index_name is None:
+            index_name = current_index_name
+        if current_index_name != index_name:
+            raise RuntimeError("logic error: index name must not change")
+        for value in values:
+            map_indexes.append(index)
+            if isinstance(value, dict):
+                map_values.append(_map_dict_to_map(value))
+            else:
+                map_values.append(value)
+    return Map(map_indexes, map_values, index_name=index_name)
+
+
+def _python_value_as_spine(x: Any) -> Any:
+    match x:
+        case pyarrow.lib.MonthDayNano():
+            return Duration(relativedelta(months=x.months, days=x.days, microseconds=x.nanoseconds // 1000))
+        case datetime():
+            return DateTime(x)
+        case _:
+            return x
+
+
+MapValue: TypeAlias = float | str | bool | Duration | IndexedValue
+MapIndex: TypeAlias = Union[float, str, DateTime, Duration]
+MapIndexType: TypeAlias = Union[Type[float], Type[str], Type[DateTime], Type[Duration]]
 _MAP_INDEX_TYPES = {
     STRING_VALUE_TYPE: str,
     DateTime.TYPE: DateTime,
@@ -1569,7 +1785,9 @@ def map_dimensions(map_: Map) -> int:
     return 1 + nested
 
 
-def convert_leaf_maps_to_specialized_containers(map_: Map) -> IndexedValue:
+def convert_leaf_maps_to_specialized_containers(
+    map_: Map, time_series_kwargs: Optional[dict[str, Any]] = None
+) -> IndexedValue:
     """
     Converts leafs to specialized containers.
 
@@ -1582,17 +1800,21 @@ def convert_leaf_maps_to_specialized_containers(map_: Map) -> IndexedValue:
 
     Args:
         map_: a map to process.
+        time_series_kwargs: additional keyword arguments passed to time series constructor
 
     Returns:
         a new map with leaves converted.
     """
-    converted_container = _try_convert_to_container(map_)
+    converted_container = _try_convert_to_time_series(map_, time_series_kwargs)
+    if converted_container is not None:
+        return converted_container
+    converted_container = _try_convert_to_array(map_)
     if converted_container is not None:
         return converted_container
     new_values = []
     for _, value in zip(map_.indexes, map_.values):
         if isinstance(value, Map):
-            converted = convert_leaf_maps_to_specialized_containers(value)
+            converted = convert_leaf_maps_to_specialized_containers(value, time_series_kwargs)
             new_values.append(converted)
         else:
             new_values.append(value)
@@ -1685,12 +1907,15 @@ def convert_map_to_dict(map_: Map) -> dict:
     return d
 
 
-def _try_convert_to_container(map_: Map) -> Optional[TimeSeriesVariableResolution]:
+def _try_convert_to_time_series(
+    map_: Map, time_series_kwargs: Optional[dict[str, Any]] = None
+) -> Optional[TimeSeriesVariableResolution]:
     """
-    Tries to convert a map to corresponding specialized container.
+    Tries to convert a map to time series.
 
     Args:
         map_: a map to convert
+        time_series_kwargs: keyword arguments passed to time series constructor
 
     Returns:
         converted Map or None if the map couldn't be converted
@@ -1704,7 +1929,175 @@ def _try_convert_to_container(map_: Map) -> Optional[TimeSeriesVariableResolutio
             return None
         stamps.append(index)
         values.append(value)
-    return TimeSeriesVariableResolution(stamps, values, False, False, index_name=map_.index_name)
+    if time_series_kwargs is None:
+        time_series_kwargs = {"ignore_year": False, "repeat": False}
+    return TimeSeriesVariableResolution(stamps, values, index_name=map_.index_name, **time_series_kwargs)
+
+
+def _try_convert_to_array(map_: Map) -> Array | None:
+    """
+    Tries to convert a map to array.
+
+    Args:
+        map_: a map to convert
+
+    Returns:
+        converted Map or None if the map couldn't be converted
+    """
+    if not map_:
+        return None
+    values = []
+    for i, (index, value) in enumerate(zip(map_.indexes, map_.values)):
+        if index != i:
+            return None
+        values.append(value)
+    return Array(values, index_name=map_.index_name)
+
+
+def map_as_arrow(map_: Map) -> pyarrow.RecordBatch:
+    header, index_rows, value_column, metadata_by_column_index = _map_as_table_for_arrow(map_)
+    _uniquefy_header_names(header)
+    return _table_to_record_batch(header, index_rows, value_column, metadata_by_column_index)
+
+
+@dataclass
+class _MapHeader:
+    name: str
+    type: Type
+
+
+def _map_as_table_for_arrow(
+    map_: Map,
+    header: Optional[list[_MapHeader]] = None,
+    index_rows: Optional[list[list]] = None,
+    base_index: Optional[list] = None,
+    value_column: Optional[list] = None,
+    metadata_by_column_index: Optional[dict[int, dict[str, Any]]] = None,
+) -> tuple[list[_MapHeader], list[list], list, dict[int, dict[str, Any]]]:
+    if value_column is None:
+        value_column = []
+    if header is None:
+        header = []
+    if base_index is None:
+        base_index = []
+    depth = len(base_index)
+    if depth == len(header):
+        header.append(_MapHeader(map_.index_name, map_.index_type))
+    elif map_.index_type != header[depth].type:
+        raise SpineDBAPIError("different index types at the same depth are not supported")
+    if index_rows is None:
+        index_rows = []
+    if metadata_by_column_index is None:
+        metadata_by_column_index = {}
+    for index, value in zip(map_.indexes, map_.values):
+        index_row = base_index + ([index.as_arrow()] if isinstance(index, ParameterValue) else [index])
+        if isinstance(value, Map):
+            _map_as_table_for_arrow(value, header, index_rows, index_row, value_column, metadata_by_column_index)
+        elif isinstance(value, IndexedValue):
+            _unroll_nested_indexed_value(value, header, index_rows, index_row, value_column, metadata_by_column_index)
+        else:
+            value_column.append(value)
+            index_rows.append(index_row)
+    return header, index_rows, value_column, metadata_by_column_index
+
+
+def _unroll_nested_indexed_value(
+    value: IndexedValue,
+    header: list[_MapHeader],
+    index_rows: list[list],
+    base_index: list,
+    value_column: list,
+    metadata_by_column_index: dict[int, dict[str, Any] | TimeSeriesMetadata],
+) -> None:
+    depth = len(base_index)
+    if depth == len(header):
+        match value:
+            case Array():
+                index_type = int
+            case TimeSeries():
+                index_type = np.datetime64
+            case _:
+                raise SpineDBAPIError("unsupported indexed value type")
+        header.append(_MapHeader(value.index_name, index_type))
+        index_i = depth
+    else:
+        for i, column_header in enumerate(header):
+            if value.index_name == column_header.name:
+                index_i = i
+                break
+        else:
+            index_i = depth
+        if index_i > len(base_index):
+            base_index = base_index + (index_i - len(base_index)) * [None]
+            depth = index_i
+    for x, y in zip(value.indexes, value.values):
+        value_column.append(y)
+        index = x.as_arrow() if isinstance(x, ParameterValue) else x
+        index_row = [base_index[i] if i != index_i else index for i in range(depth + 1)]
+        index_rows.append(index_row)
+    if isinstance(value, TimeSeries) and index_i not in metadata_by_column_index:
+        metadata_by_column_index[index_i] = time_series_metadata(value.ignore_year, value.repeat)
+
+
+def _table_to_record_batch(
+    header: list[_MapHeader], index_rows: list[list], value_column: list, metadata: dict[int, dict[str, Any]]
+) -> pyarrow.RecordBatch:
+    max_depth = len(header)
+    index_columns = [[] for _ in range(max_depth)]
+    for index_row in index_rows:
+        index_row = index_row + (max_depth - len(index_row)) * [None]
+        for column, index in zip(index_columns, index_row):
+            column.append(index)
+    arrays = {}
+    for i, (h, column) in enumerate(zip(header, index_columns)):
+        arrow_type = _python_type_to_arrow(h.type)
+        if i == len(index_columns) - 1:
+            arrays[h.name] = pyarrow.array(column, type=arrow_type)
+        else:
+            run_values = [column[0]]
+            run_ends = [1]
+            for x in column[1:]:
+                if x == run_values[-1]:
+                    run_ends[-1] = run_ends[-1] + 1
+                else:
+                    run_values.append(x)
+                    run_ends.append(run_ends[-1] + 1)
+            array_type = pyarrow.run_end_encoded(pyarrow.int64(), arrow_type)
+            arrays[h.name] = pyarrow.RunEndEncodedArray.from_arrays(run_ends, run_values, type=array_type)
+    arrays["value"] = _build_value_array(value_column)
+    record_batch = pyarrow.record_batch(arrays)
+    if metadata:
+        for column_i, field_metadata in metadata.items():
+            record_batch = with_field_metadata(field_metadata, record_batch, column_i)
+    return record_batch
+
+
+def _uniquefy_header_names(header: list[_MapHeader]):
+    for i, h in enumerate(header):
+        if h.name == Map.DEFAULT_INDEX_NAME:
+            h.name = f"col_{i + 1}"
+    names = Counter()
+    for h in header:
+        names[h.name] += 1
+    for name, count in names.items():
+        if count != 1:
+            clashing_headers = [h for h in header if h.name == name]
+            for i, h in clashing_headers:
+                h.name = h.name + f" ({i + 1})"
+
+
+def _build_value_array(value_column: list) -> pyarrow.Array:
+    arrow_values = []
+    if not value_column:
+        return pyarrow.array([], type=pyarrow.float64())
+    first_type = type(value_column[0])
+    if all(isinstance(y, first_type) for y in value_column[1:]):
+        return pyarrow.array(value_column)
+    for y in value_column:
+        if isinstance(y, ParameterValue):
+            y = y.as_arrow()
+        arrow_values.append(y)
+    return to_union_array(arrow_values)
 
 
 # Value types that are supported by spinedb_api
@@ -1721,7 +2114,7 @@ VALUE_TYPES: set[str] = {
 }
 
 RANK_1_TYPES: set[str] = {Array.TYPE, TimePattern.TYPE, TimeSeries.TYPE}
-NON_ZERO_RANK_TYPES: set[str] = RANK_1_TYPES | {Map.TYPE}
+NON_ZERO_RANK_TYPES: set[str] = RANK_1_TYPES | {Map.TYPE, TABLE_TYPE}
 
 
 def type_and_rank_to_fancy_type(value_type: str, rank: int) -> str:
@@ -1736,46 +2129,6 @@ def fancy_type_to_type_and_rank(fancy_type: str) -> tuple[str, int]:
     if fancy_type in RANK_1_TYPES:
         return fancy_type, 1
     return fancy_type, 0
-
-
-def join_value_and_type(db_value: bytes, db_type: Optional[str]) -> str:
-    """Joins database value and type into a string.
-    The resulting string is a JSON string.
-    In case of complex types (duration, date_time, time_series, time_pattern, array, map),
-    the type is just added as top-level key.
-
-    :meta private:
-
-    Args:
-        db_value: database value
-        db_type: value type
-
-    Returns:
-        parameter value as JSON with an additional ``type`` field.
-    """
-    try:
-        parsed = load_db_value(db_value, db_type)
-    except ParameterValueFormatError:
-        parsed = None
-    return json.dumps(parsed)
-
-
-def split_value_and_type(value_and_type: str) -> tuple[bytes, str]:
-    """Splits the given string into value and type.
-
-    :meta private:
-
-    Args:
-        value_and_type: a string joining value and type, as obtained by calling :func:`join_value_and_type`.
-
-    Returns:
-        database value and type.
-    """
-    try:
-        parsed = json.loads(value_and_type)
-    except (TypeError, json.JSONDecodeError):
-        parsed = value_and_type
-    return dump_db_value(parsed)
 
 
 def deep_copy_value(value: Optional[Value]) -> Optional[Value]:
@@ -1829,7 +2182,7 @@ def deep_copy_map(value: Map) -> Map:
     return Map(xs, ys, index_type=value.index_type, index_name=value.index_name)
 
 
-def type_for_value(value: Value) -> tuple[str, int]:
+def type_and_rank_for_value(value: Value) -> tuple[str, int]:
     """Declares value's database type and rank.
 
     Args:
@@ -1838,6 +2191,8 @@ def type_for_value(value: Value) -> tuple[str, int]:
     Returns:
         type and rank
     """
+    if isinstance(value, pyarrow.RecordBatch):
+        return TABLE_TYPE, value.num_columns - 1
     if isinstance(value, Map):
         return Map.TYPE, map_dimensions(value)
     if isinstance(value, ParameterValue):
@@ -1847,7 +2202,7 @@ def type_for_value(value: Value) -> tuple[str, int]:
     return type_for_scalar(value), 0
 
 
-def type_for_scalar(parsed_value: JSONValue) -> Optional[str]:
+def type_for_scalar(parsed_value: bool | float | int | str | datetime | relativedelta | None) -> Optional[str]:
     """Declares scalar value's database type.
 
     Args:
@@ -1858,15 +2213,73 @@ def type_for_scalar(parsed_value: JSONValue) -> Optional[str]:
     """
     if parsed_value is None:
         return None
-    if isinstance(parsed_value, dict):
-        return parsed_value["type"]
     if isinstance(parsed_value, bool):
         return BOOLEAN_VALUE_TYPE
-    if isinstance(parsed_value, SupportsFloat):
+    if isinstance(parsed_value, float):
         return FLOAT_VALUE_TYPE
+    if isinstance(parsed_value, int):
+        return INT_VALUE_TYPE
     if isinstance(parsed_value, str):
         return STRING_VALUE_TYPE
+    if isinstance(parsed_value, datetime):
+        return DateTime.TYPE
+    if isinstance(parsed_value, relativedelta):
+        return Duration.TYPE
     raise ParameterValueFormatError(f"Values of type {type(parsed_value).__name__} not supported.")
 
 
 UNPARSED_NULL_VALUE: bytes = to_database(None)[0]
+
+
+def _arrow_type_to_python(arrow_type: pyarrow.DataType) -> Type:
+    if (
+        pyarrow.types.is_floating(arrow_type)
+        or pyarrow.types.is_integer(arrow_type)
+        or pyarrow.types.is_null(arrow_type)
+    ):
+        return float
+    if pyarrow.types.is_string(arrow_type):
+        return str
+    if pyarrow.types.is_boolean(arrow_type):
+        return bool
+    if pyarrow.types.is_interval(arrow_type):
+        return relativedelta
+    raise RuntimeError(f"unknown Arrow type {arrow_type}")
+
+
+def _python_type_to_arrow(python_type: Type) -> pyarrow.DataType:
+    if python_type is float:
+        return pyarrow.float64()
+    if python_type is int:
+        return pyarrow.int64()
+    if python_type is str:
+        return pyarrow.string()
+    if python_type is bool:
+        return pyarrow.bool_()
+    if python_type is DateTime or python_type is np.datetime64:
+        return pyarrow.timestamp(NUMPY_DATETIME64_UNIT)
+    if python_type is Duration:
+        return pyarrow.month_day_nano_interval()
+    raise RuntimeError(f"unknown data type {python_type}")
+
+
+def to_list(loaded_value: pyarrow.RecordBatch) -> Table:
+    arrays: Table = []
+    msg_bool_arr = "index columns cannot be boolean"
+    for i_column, (name, column) in enumerate(zip(loaded_value.column_names, loaded_value.columns)):
+        if not (is_value_column := i_column == (loaded_value.num_columns - 1)):
+            match column:
+                case pyarrow.UnionArray():
+                    raise SpineDBAPIError("mixed types can only be a value (last) column")
+                case pyarrow.RunEndEncodedArray():
+                    if column.values.type == pyarrow.bool_():
+                        raise SpineDBAPIError(msg_bool_arr)
+                case pyarrow.DictionaryArray():
+                    if column.dictionary.type == pyarrow.bool_():
+                        raise SpineDBAPIError(msg_bool_arr)
+                case pyarrow.Array():
+                    if column.type == pyarrow.bool_():
+                        raise SpineDBAPIError(msg_bool_arr)
+        metadata = load_field_metadata(loaded_value.field(i_column))
+        arrays.append(arrow_to_array(name, column, metadata))
+    return arrays

@@ -3339,6 +3339,30 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             relationship = db_map.add_entity(entity_byname=("thing", "thing"), entity_class_name="Object__Object")
             self.assertEqual(relationship["name"], "thing__thing")
 
+    def test_update_parameter_value_from_float_to_duration(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="Object")
+            db_map.add_parameter_definition(entity_class_name="Object", name="Y")
+            db_map.add_entity(entity_class_name="Object", name="widget")
+            value_item = db_map.add_parameter_value(
+                entity_class_name="Object",
+                entity_byname=("widget",),
+                parameter_definition_name="Y",
+                alternative_name="Base",
+                parsed_value=2.3,
+            )
+            value, value_type = to_database(Duration("3 hours"))
+            value_item.update(value=value, type=value_type)
+            self.assertEqual(value_item["parsed_value"], Duration("3h"))
+            self.assertEqual(value_item["arrow_value"], relativedelta(hours=3))
+
+    def test_update_list_value_by_parsed_value(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_parameter_value_list(name="my list")
+            list_value = db_map.add_list_value(parameter_value_list_name="my list", parsed_value="original", index=0)
+            list_value.update(parsed_value="new")
+            self.assertEqual(list_value["parsed_value"], "new")
+
     def test_entity_class_with_id_that_replaces_a_removed_id_is_found_by_fetch_all(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")

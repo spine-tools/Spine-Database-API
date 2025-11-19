@@ -42,6 +42,7 @@ from spinedb_api.import_functions import (
     import_scenario_alternatives,
     import_scenarios,
 )
+from spinedb_api.incomplete_values import dump_db_value
 from spinedb_api.parameter_value import (
     Array,
     DateTime,
@@ -50,7 +51,6 @@ from spinedb_api.parameter_value import (
     TimePattern,
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
-    dump_db_value,
     from_database,
     to_database,
 )
@@ -1271,7 +1271,7 @@ class TestImportParameterValue(AssertSuccessTestCase):
                 alternative_name="Base",
             )
             self.assertTrue(value_item)
-            merged_value = Map(["T1", "T2", "T3", "T4"], [1.1, 1.2, 1.3, 1.4])
+            merged_value = Map(["T1", "T2", "T3", "T4"], [1.1, 1.2, 1.3, 1.4], index_name="col_1")
             self.assertEqual(value_item["parsed_value"], merged_value)
 
     def test_import_duplicate_object_parameter_value(self):
@@ -1576,8 +1576,18 @@ class TestImportParameterValue(AssertSuccessTestCase):
             self.assertEqual(value.entity_name, "aa")
 
             time_series = from_database(value.value, value.type)
-            expected_result = TimeSeriesFixedResolution(
-                "2000-01-01 00:00:00", "1h", [0.0, 1.0, 2.0, 4.0, 8.0, 0.0], False, False
+            expected_result = TimeSeriesVariableResolution(
+                [
+                    "2000-01-01 00:00:00",
+                    "2000-01-01 01:00:00",
+                    "2000-01-01 02:00:00",
+                    "2000-01-01 03:00:00",
+                    "2000-01-01 04:00:00",
+                    "2000-01-01 05:00:00",
+                ],
+                [0.0, 1.0, 2.0, 4.0, 8.0, 0.0],
+                False,
+                False,
             )
             self.assertEqual(time_series, expected_result)
 
@@ -2166,12 +2176,18 @@ class TestImportWithDatabaseValue:
                         db_map, [("Object", "widget", "X", to_database(value))], unparse_value=_identity
                     )
                 )
-                assert (
-                    db_map.parameter_value(
-                        entity_class_name="Object",
-                        entity_byname=("widget",),
-                        parameter_definition_name="X",
-                        alternative_name="Base",
-                    )["parsed_value"]
-                    == value
-                )
+                db_value = db_map.parameter_value(
+                    entity_class_name="Object",
+                    entity_byname=("widget",),
+                    parameter_definition_name="X",
+                    alternative_name="Base",
+                )["parsed_value"]
+                if isinstance(value, TimeSeriesFixedResolution):
+                    assert db_value == TimeSeriesVariableResolution(
+                        ["2025-09-02T12:00"], [2.3], ignore_year=True, repeat=False
+                    )
+                elif isinstance(value, Map):
+                    value.index_name = "col_1"
+                    assert db_value == value
+                else:
+                    assert db_value == value

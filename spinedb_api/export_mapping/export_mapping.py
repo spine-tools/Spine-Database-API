@@ -21,12 +21,12 @@ from sqlalchemy.engine import Row
 from sqlalchemy.orm import Query
 from sqlalchemy.sql.expression import CacheKey
 from .. import DatabaseMapping
+from ..incomplete_values import from_database_to_dimension_count
 from ..mapping import Mapping, Position, is_pivoted, is_regular, unflatten
 from ..parameter_value import (
     IndexedValue,
     convert_containers_to_maps,
     from_database,
-    from_database_to_dimension_count,
     from_database_to_single_value,
     type_for_scalar,
 )

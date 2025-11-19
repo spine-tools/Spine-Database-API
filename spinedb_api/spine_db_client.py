@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 from sqlalchemy.engine.url import URL
 from .server_client_helpers import ReceiveAllMixing, decode, encode
 
-client_version = 8
+client_version = 9
 
 
 class SpineDBClient(ReceiveAllMixing):

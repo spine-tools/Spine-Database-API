@@ -9,7 +9,7 @@ Create Date: 2024-01-12 09:55:08.934574
 from alembic import op
 import sqlalchemy as sa
 import sqlalchemy.orm
-from spinedb_api.compatibility import convert_tool_feature_method_to_active_by_default
+from spinedb_api.compat.compatibility_transformations import convert_tool_feature_method_to_active_by_default
 
 # revision identifiers, used by Alembic.
 revision = "8b0eff478bcb"

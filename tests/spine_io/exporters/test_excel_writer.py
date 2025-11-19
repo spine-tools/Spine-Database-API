@@ -145,8 +145,8 @@ class TestExcelWriter(AssertSuccessTestCase):
                 try:
                     self.assertEqual(workbook.sheetnames, ["Sheet1"])
                     expected = [
-                        ["z", "o1", "Base", "1d_map", "x", "T02", 1.1],
-                        ["z", "o1", "Base", "1d_map", "x", "T01", 1.2],
+                        ["z", "o1", "Base", "1d_map", "col_1", "T02", 1.1],
+                        ["z", "o1", "Base", "1d_map", "col_1", "T01", 1.2],
                     ]
                     self.check_sheet(workbook, "Sheet1", expected)
                 finally:

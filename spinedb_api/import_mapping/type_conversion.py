@@ -11,7 +11,7 @@
 ######################################################################################################################
 
 """ Type conversion functions. """
-
+import json
 import re
 from spinedb_api.helpers import string_to_bool
 from spinedb_api.parameter_value import DateTime, Duration, ParameterValueFormatError
@@ -27,7 +27,8 @@ def value_to_convert_spec(value):
             "float": FloatConvertSpec,
             "string": StringConvertSpec,
             "boolean": BooleanConvertSpec,
-        }.get(value)
+            "json": JSONConvertSpec,
+        }[value]
         return spec()
     if isinstance(value, dict):
         start_datetime = DateTime(value.get("start_datetime"))
@@ -78,7 +79,16 @@ class BooleanConvertSpec(ConvertSpec):
     RETURN_TYPE = bool
 
     def __call__(self, value):
-        return self.RETURN_TYPE(string_to_bool(str(value)))
+        return string_to_bool(str(value))
+
+class JSONObject:
+    def __init__(self, string: str):
+        self.json_string = string
+
+
+class JSONConvertSpec(ConvertSpec):
+    DISPLAY_NAME = "JSON"
+    RETURN_TYPE = JSONObject
 
 
 class IntegerSequenceDateTimeConvertSpec(ConvertSpec):

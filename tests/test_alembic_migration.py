@@ -20,7 +20,6 @@ from spinedb_api import (
     Map,
     SpineDBAPIError,
     TimePattern,
-    TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
 )
 
@@ -133,8 +132,15 @@ class TestMigrationFrom070a0eb89e88:
             entity_class_name="Widget", name="time_series_fixed_resolution"
         )
         assert time_series_fixed_resolution_definition["description"] == "Parameter with time series values."
-        assert time_series_fixed_resolution_definition["parsed_value"] == TimeSeriesFixedResolution(
-            "2020-04-22 00:00:00", "3h", [1.1, 2.2, 3.3], ignore_year=True, repeat=False
+        assert time_series_fixed_resolution_definition["parsed_value"] == TimeSeriesVariableResolution(
+            [
+                "2020-04-22 00:00:00",
+                "2020-04-22 03:00:00",
+                "2020-04-22 06:00:00",
+            ],
+            [1.1, 2.2, 3.3],
+            ignore_year=True,
+            repeat=False,
         )
         assert time_series_fixed_resolution_definition["parameter_value_list_name"] is None
         time_series_variable_resolution_definition = db_map.parameter_definition(
@@ -151,7 +157,9 @@ class TestMigrationFrom070a0eb89e88:
         map_definition = db_map.parameter_definition(entity_class_name="Widget", name="map")
         assert map_definition["description"] == "Parameter with map values."
         assert map_definition["parsed_value"] == Map(
-            ["A", "B"], [Map(["T00", "T01"], [1.1, 2.2]), Map(["T00", "T01"], [3.3, 4.4])]
+            ["A", "B"],
+            [Map(["T00", "T01"], [1.1, 2.2], index_name="col_2"), Map(["T00", "T01"], [3.3, 4.4], index_name="col_2")],
+            index_name="col_1",
         )
         assert map_definition["parameter_value_list_name"] is None
 
@@ -222,8 +230,14 @@ class TestMigrationFrom070a0eb89e88:
             entity_byname=("clock",),
             alternative_name="Base",
         )
-        assert time_series_fixed_resolution_value["parsed_value"] == TimeSeriesFixedResolution(
-            "2025-09-23 00:00:00", "6h", [-1.1, -2.2], ignore_year=False, repeat=False
+        assert time_series_fixed_resolution_value["parsed_value"] == TimeSeriesVariableResolution(
+            [
+                "2025-09-23T00:00:00",
+                "2025-09-23T06:00:00",
+            ],
+            [-1.1, -2.2],
+            ignore_year=False,
+            repeat=False,
         )
         time_series_variable_resolution_value = db_map.parameter_value(
             entity_class_name="Widget",
@@ -244,7 +258,9 @@ class TestMigrationFrom070a0eb89e88:
             alternative_name="Base",
         )
         assert map_value["parsed_value"] == Map(
-            ["A", "A", "B", "B"], [-1.1, Map(["a"], [-2.2]), -3.3, Map(["b"], [-4.4])]
+            ["A", "A", "B", "B"],
+            [-1.1, Map(["a"], [-2.2], index_name="col_2"), -3.3, Map(["b"], [-4.4], index_name="col_2")],
+            index_name="col_1",
         )
 
 

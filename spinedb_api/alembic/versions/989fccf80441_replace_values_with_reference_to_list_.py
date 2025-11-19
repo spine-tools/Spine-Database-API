@@ -12,7 +12,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.expression import bindparam
 from spinedb_api.exception import SpineIntegrityError
 from spinedb_api.helpers import group_concat
-from spinedb_api.parameter_value import ParameterValueFormatError, dump_db_value, from_database
+from spinedb_api.incomplete_values import dump_db_value
+from spinedb_api.parameter_value import ParameterValueFormatError, from_database
 
 # revision identifiers, used by Alembic.
 revision = "989fccf80441"

@@ -13,9 +13,10 @@
 This module defines functions, classes and other utilities
 that may be useful with :class:`.db_mapping.DatabaseMapping`.
 """
-from spinedb_api.db_mapping_base import PublicItem
-from spinedb_api.mapped_items import ParameterDefinitionItem
-from spinedb_api.parameter_value import UNPARSED_NULL_VALUE, Map, from_database_to_dimension_count, type_for_value
+from .db_mapping_base import PublicItem
+from .incomplete_values import from_database_to_dimension_count
+from .mapped_items import ParameterDefinitionItem
+from .parameter_value import UNPARSED_NULL_VALUE, Map, type_and_rank_for_value
 
 # Here goes stuff that depends on `database_mapping`, `mapped_items` etc.
 # and thus cannot go to `helpers` due to circular imports.
@@ -74,4 +75,4 @@ def is_parameter_type_valid(parameter_types, database_value, value, value_type):
             return True
         rank = from_database_to_dimension_count(database_value, value_type)
         return any(rank == type_and_rank[1] for type_and_rank in parameter_types if type_and_rank[0] == Map.TYPE)
-    return any(type_for_value(value) == type_and_rank for type_and_rank in parameter_types)
+    return any(type_and_rank_for_value(value) == type_and_rank for type_and_rank in parameter_types)
