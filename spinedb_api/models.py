@@ -144,7 +144,7 @@ typename_map: dict[NullTypeName | TypeNames, type] = {
     "time_period": TimePeriod,
     "null": NoneType,
 }
-type_map: dict[type, TypeNames] = {
+type_map: dict[type, TypeNames | NullTypeName] = {
     str: "str",
     pa.string(): "str",
     int: "int",
@@ -156,7 +156,7 @@ type_map: dict[type, TypeNames] = {
     pa.int32(): "int",
     np.int64: "int",
     pa.int64(): "int",
-    pa.null(): "float",  # NOTE: treat empty arrays as float array
+    pa.null(): "null",
     float: "float",
     np.float16: "float",
     pa.float16(): "float",
@@ -429,10 +429,14 @@ def arrow_to_array(
             }
             return dict_to_array(data)
         case pa.Array():
+            value_type = type_map[arr.type]
             data: ArrayAsDict = {
                 "name": name,
                 "values": arr.to_pylist(),
-                "value_type": type_map[arr.type],
+                # NOTE: an empty array is of null type:
+                # pa.array([]).type == pa.null(); treat empty pyarrow
+                # arrays as empty float arrays in Spine
+                "value_type": "float" if value_type == "null" else value_type,
                 "metadata": metadata,
                 "type": f"array{'_'+idx_t if idx_t else ''}",
             }
