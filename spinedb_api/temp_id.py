@@ -9,13 +9,14 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 from __future__ import annotations
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
+from spinedb_api.helpers import ItemType
 
 
 class TempId:
-    _next_id = {}
+    _next_id: ClassVar[dict[ItemType, int]] = {}
 
-    def __init__(self, id_: int, item_type: str, temp_id_lookup: dict[int, TempId]):
+    def __init__(self, id_: int, item_type: ItemType, temp_id_lookup: dict[int, TempId]):
         super().__init__()
         self._id = id_
         self._item_type = item_type
@@ -24,13 +25,13 @@ class TempId:
         self._temp_id_lookup[self._id] = self
 
     @staticmethod
-    def new_unique(item_type: str, temp_id_lookup: dict[int, TempId]) -> TempId:
+    def new_unique(item_type: ItemType, temp_id_lookup: dict[int, TempId]) -> TempId:
         id_ = TempId._next_id.get(item_type, -1)
         TempId._next_id[item_type] = id_ - 1
         return TempId(id_, item_type, temp_id_lookup)
 
     @property
-    def item_type(self) -> str:
+    def item_type(self) -> ItemType:
         return self._item_type
 
     @property

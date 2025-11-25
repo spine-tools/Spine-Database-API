@@ -11,19 +11,26 @@
 ######################################################################################################################
 
 """ Contains a base class for a data source readers used in importing. """
-
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from itertools import islice
-from typing import Any
+from typing import Any, ClassVar, Type
 from spinedb_api import DateTime, Duration, ParameterValueFormatError
 from spinedb_api.exception import InvalidMappingComponent, ReaderError
 from spinedb_api.import_mapping.generator import get_mapped_data, identity
+from spinedb_api.import_mapping.import_mapping import ImportMapping
 from spinedb_api.import_mapping.import_mapping_compat import parse_named_mapping_spec
 from spinedb_api.mapping import Position, parse_fixed_position_value
 
-TYPE_STRING_TO_CLASS = {"string": str, "datetime": DateTime, "duration": Duration, "float": float, "boolean": bool}
+TYPE_STRING_TO_CLASS: dict[str, Type] = {
+    "string": str,
+    "datetime": DateTime,
+    "duration": Duration,
+    "float": float,
+    "boolean": bool,
+}
 
-TYPE_CLASS_TO_STRING = {type_class: string for string, type_class in TYPE_STRING_TO_CLASS.items()}
+TYPE_CLASS_TO_STRING: dict[Type, str] = {type_class: string for string, type_class in TYPE_STRING_TO_CLASS.items()}
 
 
 @dataclass
@@ -35,11 +42,11 @@ class Reader:
     """A base class to read data."""
 
     # name of data source, ex: "Text/CSV"
-    DISPLAY_NAME = "unnamed source"
+    DISPLAY_NAME: ClassVar[str] = "unnamed source"
 
     # dict with option specification for source.
-    OPTIONS = {}
-    BASE_OPTIONS = {
+    OPTIONS: ClassVar[dict] = {}
+    BASE_OPTIONS: ClassVar[dict[str, dict[str, Any]]] = {
         "max_rows": {
             "type": int,
             "label": "Max rows",
@@ -51,24 +58,24 @@ class Reader:
     }
 
     # File extensions for modal widget that that returns action (OK, CANCEL) and source object
-    FILE_EXTENSIONS = NotImplemented
+    FILE_EXTENSIONS: ClassVar[str] = NotImplemented
 
-    def __init__(self, settings):
+    def __init__(self, settings: dict | None):
         """
         Args:
-            settings (dict, optional): connector specific settings or None
+            settings: connector specific settings or None
         """
 
-    def connect_to_source(self, source, **extras):
+    def connect_to_source(self, source: str, **extras) -> None:
         """Connects to source, ex: connecting to a database where source is a connection string.
 
         Args:
-            source (str): file path or URL to connect to
+            source: file path or URL to connect to
             **extras: additional source specific connection data
         """
         raise NotImplementedError()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Disconnect from connected source."""
         raise NotImplementedError()
 
@@ -76,10 +83,8 @@ class Reader:
         """Returns table names and properties."""
         raise NotImplementedError()
 
-    def get_data_iterator(self, table, options, max_rows=-1):
-        """
-        Returns a data iterator and data header.
-        """
+    def get_data_iterator(self, table: str, options: dict, max_rows: int = -1) -> tuple[Iterator[list], list[str]]:
+        """Returns a data iterator and data header."""
         raise NotImplementedError()
 
     def get_table_cell(self, table: str, row: int, column: int, options: dict) -> Any:
@@ -95,7 +100,7 @@ class Reader:
             raise ReaderError(f"{table} doesn't have column {column}")
 
     @staticmethod
-    def _resolve_max_rows(options, max_rows=-1):
+    def _resolve_max_rows(options: dict, max_rows: int = -1) -> int:
         options_max_rows = options.get("max_rows", -1)
         if options_max_rows == -1:
             return max_rows
@@ -103,7 +108,7 @@ class Reader:
             return options_max_rows
         return min(max_rows, options_max_rows)
 
-    def get_data(self, table, options, max_rows=-1, start=0):
+    def get_data(self, table: str, options: dict, max_rows: int = -1, start: int = 0) -> tuple[list, list[str]]:
         """
         Return data read from data source table in table. If max_rows is
         specified only that number of rows.
@@ -114,7 +119,12 @@ class Reader:
         data = list(data_iter)
         return data, header
 
-    def resolve_values_for_fixed_position_mappings(self, tables_mappings, table_options, reader_error_is_fatal):
+    def resolve_values_for_fixed_position_mappings(
+        self,
+        tables_mappings: dict[str, list[tuple[str, ImportMapping]]],
+        table_options: dict,
+        reader_error_is_fatal: bool,
+    ) -> dict[str, list[tuple[str, ImportMapping]]]:
         for table, named_mappings in tables_mappings.items():
             parsed_mappings = []
             for mapping_name, root_mapping in named_mappings:
@@ -139,30 +149,30 @@ class Reader:
 
     def get_mapped_data(
         self,
-        tables_mappings,
-        table_options,
-        table_column_convert_specs,
-        table_default_column_convert_fns,
-        table_row_convert_specs,
-        unparse_value=identity,
-        max_rows=-1,
-    ):
+        tables_mappings: dict[str, list[tuple[str, ImportMapping]]],
+        table_options: dict,
+        table_column_convert_specs: dict[str, dict],
+        table_default_column_convert_fns: dict[str, Callable[[Any], Any]],
+        table_row_convert_specs: dict[str, dict],
+        unparse_value: Callable[[Any], tuple[bytes, str]] = identity,
+        max_rows: int = -1,
+    ) -> tuple[dict[str, list], list[str | tuple[str, str]]]:
         """
         Reads all mappings in dict tables_mappings, where key is name of table
         and value is the mappings for that table.
 
         Args:
-            tables_mappings (dict): mapping from table name to list of import mappings
-            table_options (dict): mapping from table name to table-specific import options
-            table_column_convert_specs (dict): mapping from table name to column data type conversion settings
-            table_default_column_convert_fns (dict): mapping from table name to
+            tables_mappings: mapping from table name to list of import mappings
+            table_options: mapping from table name to table-specific import options
+            table_column_convert_specs: mapping from table name to column data type conversion settings
+            table_default_column_convert_fns: mapping from table name to
                 default column data type converter
-            table_row_convert_specs (dict): mapping from table name to row data type conversion settings
-            unparse_value (Callable): callable that converts imported values to database representation
-            max_rows (int): maximum number of source rows to map
+            table_row_convert_specs: mapping from table name to row data type conversion settings
+            unparse_value: callable that converts imported values to database representation
+            max_rows: maximum number of source rows to map
 
         Returns:
-            tuple: mapped data and a list of errors, if any
+            mapped data and a list of errors, if any
         """
         mapped_data = {}
         errors = []

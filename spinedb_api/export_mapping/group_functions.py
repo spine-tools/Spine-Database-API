@@ -9,26 +9,17 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Contains functions to group values in pivot tables with hidden columns or rows.
-
-"""
+""" Contains functions to group values in pivot tables with hidden columns or rows. """
+from typing import Any, ClassVar, Type
 import numpy as np
 
 
 class GroupFunction:
-    NAME = NotImplemented
-    DISPLAY_NAME = NotImplemented
+    NAME: ClassVar[str] = NotImplemented
+    DISPLAY_NAME: ClassVar[str] = NotImplemented
 
-    def __call__(self, items):
-        """Performs the grouping. Reduces the given list of items into a single value.
-
-        Args:
-            items (list or None)
-
-        Returns:
-            Any
-        """
+    def __call__(self, items: list | None) -> Any:
+        """Performs the grouping. Reduces the given list of items into a single value."""
         raise NotImplementedError
 
 
@@ -116,28 +107,36 @@ class NoGroup(GroupFunction):
         return items[0]
 
 
-_classes = (NoGroup, GroupSum, GroupMean, GroupMin, GroupMax, GroupConcat, GroupOneOrNone)
+_classes: tuple[Type[GroupFunction], ...] = (
+    NoGroup,
+    GroupSum,
+    GroupMean,
+    GroupMin,
+    GroupMax,
+    GroupConcat,
+    GroupOneOrNone,
+)
 
-GROUP_FUNCTION_DISPLAY_NAMES = [klass.DISPLAY_NAME for klass in _classes]
+GROUP_FUNCTION_DISPLAY_NAMES: list[str] = [klass.DISPLAY_NAME for klass in _classes]
 
 
-def group_function_name_from_display(display_name):
+def group_function_name_from_display(display_name: str) -> str:
     return {klass.DISPLAY_NAME: klass.NAME for klass in _classes}.get(display_name, NoGroup.NAME)
 
 
-def group_function_display_from_name(name):
+def group_function_display_from_name(name: str) -> str:
     return {klass.NAME: klass.DISPLAY_NAME for klass in _classes}.get(name, NoGroup.DISPLAY_NAME)
 
 
-def from_str(name):
+def from_str(name: str | None) -> GroupFunction:
     """
     Creates group function from name.
 
     Args:
-        name (str, NoneType): group function name or None if no aggregation wanted.
+        name: group function name or None if no aggregation wanted.
 
     Returns:
-        GroupFunction or NoneType
+        GroupFunction; NoGroup if no aggregation wanted
     """
     constructor = {klass.NAME: klass for klass in _classes}.get(name, NoGroup)
     return constructor()

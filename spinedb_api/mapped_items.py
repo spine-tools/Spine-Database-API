@@ -15,11 +15,11 @@ from contextlib import suppress
 import inspect
 from operator import itemgetter
 import re
-from typing import ClassVar, Optional, Union
+from typing import ClassVar, Literal, Optional, Type, Union
 from . import arrow_value
 from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable
 from .exception import SpineDBAPIError
-from .helpers import DisplayStatus, name_from_dimensions, name_from_elements
+from .helpers import DisplayStatus, ItemType, name_from_dimensions, name_from_elements
 from .parameter_value import (
     RANK_1_TYPES,
     UNPARSED_NULL_VALUE,
@@ -1448,13 +1448,17 @@ class EntityLocationItem(MappedItemBase):
     }
 
 
-ITEM_CLASSES = tuple(
+ITEM_CLASSES: tuple[Type[MappedItemBase], ...] = tuple(
     x for x in tuple(locals().values()) if inspect.isclass(x) and issubclass(x, MappedItemBase) and x != MappedItemBase
 )
-ITEM_CLASS_BY_TYPE = {klass.item_type: klass for klass in ITEM_CLASSES}
+ITEM_CLASS_BY_TYPE: dict[ItemType, Type[MappedItemBase]] = {klass.item_type: klass for klass in ITEM_CLASSES}
 
 
-def _byname_iter(item: Union[EntityClassItem, EntityItem], id_list_name: str, table: MappedTable) -> Iterator[str]:
+def _byname_iter(
+    item: Union[EntityClassItem, EntityItem],
+    id_list_name: Literal["dimension_id_list", "element_id_list"],
+    table: MappedTable,
+) -> Iterator[str]:
     id_list = item[id_list_name]
     if not id_list:
         yield item["name"]
