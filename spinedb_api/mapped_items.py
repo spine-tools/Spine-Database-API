@@ -676,7 +676,7 @@ class ParsedValueBase(MappedItemBase):
         merged, updated_fields = super().merge(other)
         if not merged:
             return merged, updated_fields
-        if self.value_key in merged:
+        if self.value_key in updated_fields:
             self._parsed_value = None
             self._arrow_value = None
         return merged, updated_fields

@@ -2183,13 +2183,18 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_parameter_definition_item(name="y", entity_class_name="Object")
             )
             self.assertIsNone(definition["default_value"])
+            self.assertIsNone(definition["parsed_value"])
             definition.update(parsed_value=2.3)
             self.assertEqual(definition["parsed_value"], 2.3)
+            value_blob, value_type = to_database(2.3)
+            self.assertEqual(definition["default_value"], value_blob)
+            self.assertEqual(definition["default_type"], value_type)
 
     def test_update_parameter_value_with_parsed_value(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="Object"))
             self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="z", entity_class_name="Object"))
             self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
             value_item = self._assert_success(
                 db_map.add_parameter_value_item(
@@ -2201,6 +2206,35 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
             )
             self.assertIsNone(value_item["parsed_value"])
+            value_item.update(parsed_value=2.3)
+            self.assertEqual(value_item["parsed_value"], 2.3)
+            value, value_type = to_database("original value")
+            with_uncached_parsed_value = db_map.add_parameter_value(
+                entity_class_name="Object",
+                parameter_definition_name="z",
+                entity_byname=("spoon",),
+                alternative_name="Base",
+                value=value,
+                type=value_type,
+            )
+            with_uncached_parsed_value.update(parsed_value=2.3)
+            self.assertEqual(with_uncached_parsed_value["parsed_value"], 2.3)
+
+    def test_update_parameter_value_with_parsed_value2(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Object",
+                    parameter_definition_name="y",
+                    entity_byname=("spoon",),
+                    alternative_name="Base",
+                    value=b"5.5",
+                    type="float",
+                )
+            )
             value_item.update(parsed_value=2.3)
             self.assertEqual(value_item["parsed_value"], 2.3)
 
