@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for DatabaseMapping class. """
+"""Unit tests for DatabaseMapping class."""
 from collections import namedtuple
 from datetime import datetime
 import gc
@@ -3484,6 +3484,16 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             puurtila = db_map.entity(name="Puurtila", entity_class_name="great_place")
             puurtila.update(name="Taipale", lat=None, lon=None, alt=None, shape_name=None, shape_blob=None)
             self.assertEqual(db_map.find_entity_locations(), [])
+
+    def test_unset_parameter_value_list_in_definition(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="amphibian")
+            lungs = db_map.add_parameter_definition(entity_class_name="amphibian", name="lungs")
+            db_map.add_parameter_value_list(name="states")
+            lungs.update(parameter_value_list_name="states")
+            self.assertEquals(lungs["parameter_value_list_name"], "states")
+            lungs.update(parameter_value_list_name=None)
+            self.assertIsNone(lungs["parameter_value_list_name"])
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
