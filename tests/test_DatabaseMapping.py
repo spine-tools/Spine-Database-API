@@ -3491,9 +3491,35 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             lungs = db_map.add_parameter_definition(entity_class_name="amphibian", name="lungs")
             db_map.add_parameter_value_list(name="states")
             lungs.update(parameter_value_list_name="states")
-            self.assertEquals(lungs["parameter_value_list_name"], "states")
+            self.assertEqual(lungs["parameter_value_list_name"], "states")
             lungs.update(parameter_value_list_name=None)
             self.assertIsNone(lungs["parameter_value_list_name"])
+
+    def test_changing_value_list_while_values_exist_is_disallowed(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="amphibian")
+            lungs = db_map.add_parameter_definition(entity_class_name="amphibian", name="lungs")
+            db_map.add_parameter_value_list(name="values1")
+            db_map.add_list_value(parameter_value_list_name="values1", parsed_value="yes", index=0)
+            values2 = db_map.add_parameter_value_list(name="values2")
+            db_map.add_list_value(parameter_value_list_name="values2", parsed_value="yes", index=0)
+            lungs.update(parameter_value_list_name="values1")
+            db_map.add_entity(entity_class_name="amphibian", name="frog")
+            db_map.add_parameter_value(
+                entity_class_name="amphibian",
+                entity_byname=("frog",),
+                parameter_definition_name="lungs",
+                alternative_name="Base",
+                parsed_value="yes",
+            )
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "^can't modify the parameter value list of a parameter that already has values$"
+            ):
+                lungs.update(parameter_value_list_name=values2["name"])
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "^can't modify the parameter value list of a parameter that already has values$"
+            ):
+                lungs.update(parameter_value_list_id=values2["id"])
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
