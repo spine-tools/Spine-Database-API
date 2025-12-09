@@ -676,7 +676,7 @@ class ParsedValueBase(MappedItemBase):
         merged, updated_fields = super().merge(other)
         if not merged:
             return merged, updated_fields
-        if self.value_key in merged:
+        if self.value_key in updated_fields:
             self._parsed_value = None
             self._arrow_value = None
         return merged, updated_fields
@@ -866,17 +866,10 @@ class ParameterDefinitionItem(ParameterItemBase):
         return d
 
     def merge(self, other):
-        other_parameter_value_list_id = other.get("parameter_value_list_id")
-        if (
-            other_parameter_value_list_id is not None
-            and other_parameter_value_list_id != self["parameter_value_list_id"]
-            and any(
-                x["parameter_definition_id"] == self["id"]
-                for x in self.db_map.mapped_table("parameter_value").valid_values()
-            )
-        ):
-            del other["parameter_value_list_id"]
-            raise SpineDBAPIError("can't modify the parameter value list of a parameter that already has values")
+        if "parameter_value_list_id" in other:
+            self._raise_if_update_invalidates_values("parameter_value_list_id", other["parameter_value_list_id"])
+        elif "parameter_value_list_name" in other:
+            self._raise_if_update_invalidates_values("parameter_value_list_name", other["parameter_value_list_name"])
         other_type_list = other.get("parameter_type_list")
         if other_type_list is not None and other_type_list != self.__getitem__("parameter_type_list"):
             try:
@@ -885,6 +878,13 @@ class ParameterDefinitionItem(ParameterItemBase):
                 del other["parameter_type_list"]
                 raise type_error
         return super().merge(other)
+
+    def _raise_if_update_invalidates_values(self, key: str, other_value: str | TempId) -> None:
+        if other_value != self[key] and any(
+            x["parameter_definition_id"] == self["id"]
+            for x in self.db_map.mapped_table("parameter_value").valid_values()
+        ):
+            raise SpineDBAPIError("can't modify the parameter value list of a parameter that already has values")
 
     def _make_new_type_items(self, new_type_list):
         new_types = set(new_type_list)

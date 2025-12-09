@@ -796,6 +796,13 @@ class MappedItemBase(dict):
         if not other:
             return None, set()
         merged = {**self.extended(), **other}
+        for id_field, fields in self._internal_fields.items():
+            source_fields = fields[0]
+            if len(source_fields) != 1:
+                continue
+            source_field = source_fields[0]
+            if source_field in other and self.fields[source_field].get("optional", False):
+                del merged[id_field]
         return merged, set(other)
 
     def _strip_equal_fields(self, other: dict) -> dict:

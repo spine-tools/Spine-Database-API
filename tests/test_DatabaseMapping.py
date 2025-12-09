@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for DatabaseMapping class. """
+"""Unit tests for DatabaseMapping class."""
 from collections import namedtuple
 from datetime import datetime
 import gc
@@ -2183,13 +2183,18 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_parameter_definition_item(name="y", entity_class_name="Object")
             )
             self.assertIsNone(definition["default_value"])
+            self.assertIsNone(definition["parsed_value"])
             definition.update(parsed_value=2.3)
             self.assertEqual(definition["parsed_value"], 2.3)
+            value_blob, value_type = to_database(2.3)
+            self.assertEqual(definition["default_value"], value_blob)
+            self.assertEqual(definition["default_type"], value_type)
 
     def test_update_parameter_value_with_parsed_value(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="Object"))
             self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="z", entity_class_name="Object"))
             self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
             value_item = self._assert_success(
                 db_map.add_parameter_value_item(
@@ -2201,6 +2206,35 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
             )
             self.assertIsNone(value_item["parsed_value"])
+            value_item.update(parsed_value=2.3)
+            self.assertEqual(value_item["parsed_value"], 2.3)
+            value, value_type = to_database("original value")
+            with_uncached_parsed_value = db_map.add_parameter_value(
+                entity_class_name="Object",
+                parameter_definition_name="z",
+                entity_byname=("spoon",),
+                alternative_name="Base",
+                value=value,
+                type=value_type,
+            )
+            with_uncached_parsed_value.update(parsed_value=2.3)
+            self.assertEqual(with_uncached_parsed_value["parsed_value"], 2.3)
+
+    def test_update_parameter_value_with_parsed_value2(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Object",
+                    parameter_definition_name="y",
+                    entity_byname=("spoon",),
+                    alternative_name="Base",
+                    value=b"5.5",
+                    type="float",
+                )
+            )
             value_item.update(parsed_value=2.3)
             self.assertEqual(value_item["parsed_value"], 2.3)
 
@@ -3450,6 +3484,42 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             puurtila = db_map.entity(name="Puurtila", entity_class_name="great_place")
             puurtila.update(name="Taipale", lat=None, lon=None, alt=None, shape_name=None, shape_blob=None)
             self.assertEqual(db_map.find_entity_locations(), [])
+
+    def test_unset_parameter_value_list_in_definition(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="amphibian")
+            lungs = db_map.add_parameter_definition(entity_class_name="amphibian", name="lungs")
+            db_map.add_parameter_value_list(name="states")
+            lungs.update(parameter_value_list_name="states")
+            self.assertEqual(lungs["parameter_value_list_name"], "states")
+            lungs.update(parameter_value_list_name=None)
+            self.assertIsNone(lungs["parameter_value_list_name"])
+
+    def test_changing_value_list_while_values_exist_is_disallowed(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="amphibian")
+            lungs = db_map.add_parameter_definition(entity_class_name="amphibian", name="lungs")
+            db_map.add_parameter_value_list(name="values1")
+            db_map.add_list_value(parameter_value_list_name="values1", parsed_value="yes", index=0)
+            values2 = db_map.add_parameter_value_list(name="values2")
+            db_map.add_list_value(parameter_value_list_name="values2", parsed_value="yes", index=0)
+            lungs.update(parameter_value_list_name="values1")
+            db_map.add_entity(entity_class_name="amphibian", name="frog")
+            db_map.add_parameter_value(
+                entity_class_name="amphibian",
+                entity_byname=("frog",),
+                parameter_definition_name="lungs",
+                alternative_name="Base",
+                parsed_value="yes",
+            )
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "^can't modify the parameter value list of a parameter that already has values$"
+            ):
+                lungs.update(parameter_value_list_name=values2["name"])
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "^can't modify the parameter value list of a parameter that already has values$"
+            ):
+                lungs.update(parameter_value_list_id=values2["id"])
 
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
