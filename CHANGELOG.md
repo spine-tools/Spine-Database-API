@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplified time period definitions in time patterns:
+  equal lower and upper bounds can now be combined, e.g `M8-8` can now be shortened to `M8`.
+
 ### Deprecated
 
 ### Removed

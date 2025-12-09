@@ -1090,6 +1090,8 @@ class Array(IndexedValue):
 class _TimePatternIndexes(_Indexes):
     """An array of *checked* time pattern indexes."""
 
+    _VALID_UNITS = re.compile(r"(Y|M|D|WD|h|m|s)")
+
     @staticmethod
     def _check_index(union_str: str) -> None:
         """
@@ -1107,10 +1109,9 @@ class _TimePatternIndexes(_Indexes):
         union_dlm = ","
         intersection_dlm = ";"
         range_dlm = "-"
-        regexp = r"(Y|M|D|WD|h|m|s)"
         for intersection_str in union_str.split(union_dlm):
             for interval_str in intersection_str.split(intersection_dlm):
-                m = re.match(regexp, interval_str)
+                m = _TimePatternIndexes._VALID_UNITS.match(interval_str)
                 if m is None:
                     raise ParameterValueFormatError(
                         f"Invalid interval {interval_str}, it should start with either Y, M, D, WD, h, m, or s."
@@ -1118,9 +1119,16 @@ class _TimePatternIndexes(_Indexes):
                 key = m.group(0)
                 lower_upper_str = interval_str[len(key) :]
                 lower_upper = lower_upper_str.split(range_dlm)
+                if len(lower_upper) == 1:
+                    value_str = lower_upper[0]
+                    try:
+                        int(value_str)
+                    except Exception as error:
+                        raise ParameterValueFormatError(f"Invalid value {value_str}, must be an integer.") from error
+                    continue
                 if len(lower_upper) != 2:
                     raise ParameterValueFormatError(
-                        f"Invalid interval bounds {lower_upper_str}, it should be two integers separated by dash (-)."
+                        f"Invalid interval bounds {lower_upper_str}, it should be one integer or two integers separated by dash (-)."
                     )
                 lower_str, upper_str = lower_upper
                 try:
