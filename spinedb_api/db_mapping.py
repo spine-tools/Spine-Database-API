@@ -986,9 +986,6 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         item_type = self.real_item_type(item_type)
         ids = set(ids)
-        if item_type == "alternative":
-            # Do not remove the Base alternative
-            ids.discard(1)
         if not ids:
             return [], []
         return self._modify_items(lambda x: self.remove_item(item_type, x, check=check), *ids, strict=strict)
