@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Tests for the parameter_value module. """
+"""Tests for the parameter_value module."""
 from datetime import datetime
 import json
 import pickle
@@ -1155,6 +1155,16 @@ class TestTimeSeriesFixedResolution:
         assert time_series.get_value(np.datetime64("2025-07-01T17:00")) == -3.3
         time_series.set_value(np.datetime64("2025-07-01T18:00"), -4.4)
         assert time_series.get_value(np.datetime64("2025-07-01T18:00")) == -4.4
+
+
+class TestTimePattern:
+    def test_period_with_lower_and_upper_bounds(self):
+        pattern = TimePattern(["M1-7", "M8-8", "M9-12"], [1.0, 1.0, 1.0])
+        assert pattern.indexes == ["M1-7", "M8-8", "M9-12"]
+
+    def test_period_with_single_value(self):
+        pattern = TimePattern(["M1-7", "M8", "M9-12"], [1.0, 1.0, 1.0])
+        assert pattern.indexes == ["M1-7", "M8", "M9-12"]
 
 
 class TestPickling(unittest.TestCase):
