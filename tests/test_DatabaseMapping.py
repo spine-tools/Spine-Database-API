@@ -3521,6 +3521,18 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             ):
                 lungs.update(parameter_value_list_id=values2["id"])
 
+    def test_adding_parameter_definition_with_duplicate_type_raises(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="sea_monster")
+            with self.assertRaisesRegex(SpineDBAPIError, "^entries in parameter_type_list must be unique$"):
+                db_map.add_parameter_definition(
+                    entity_class_name="sea_monster", name="reputation", parameter_type_list=("float", "float")
+                )
+            self.assertEqual(db_map.find_parameter_definitions(), [])
+            horror_factor = db_map.add_parameter_definition(entity_class_name="sea_monster", name="horror_factor")
+            with self.assertRaisesRegex(SpineDBAPIError, "^entries in parameter_type_list must be unique$"):
+                horror_factor.update(parameter_type_list=("str", "str"))
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
