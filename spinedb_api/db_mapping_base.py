@@ -775,6 +775,12 @@ class MappedItemBase(dict):
         d.update({key: self[key] for key in self._external_fields})
         return d
 
+    def resolve_extended(self) -> dict:
+        """Same as extended but with TempId resolved."""
+        d = self.resolve()
+        d.update({key: resolve(self[key]) for key in self._external_fields})
+        return d
+
     def _asdict(self) -> dict:
         """Returns a dict from this item's original fields."""
         return dict(self)
@@ -1260,6 +1266,9 @@ class PublicItem:
 
     def extended(self) -> dict:
         return self._mapped_item.extended()
+
+    def resolve_extended(self) -> dict:
+        return self._mapped_item.resolve_extended()
 
     def update(self, **kwargs) -> Optional[PublicItem]:
         mapped_table = self._mapped_item.db_map.mapped_table(self._mapped_item.item_type)
