@@ -3533,6 +3533,15 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             with self.assertRaisesRegex(SpineDBAPIError, "^entries in parameter_type_list must be unique$"):
                 horror_factor.update(parameter_type_list=("str", "str"))
 
+    def test_rollback_after_adding_purging_readding_and_updating_same_item(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_alternative(name="alt")
+            db_map.commit_session("Add alternative")
+            db_map.purge_items("alternative")
+            alternative = db_map.add_alternative(name="alt")
+            db_map.rollback_session()
+            self.assertTrue(alternative.is_valid())
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""

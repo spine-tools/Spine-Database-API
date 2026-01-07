@@ -512,13 +512,12 @@ class MappedTable(dict):
                 pass
 
     def _make_item(self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool) -> MappedItemBase:
-        if not isinstance(item, MappedItemBase):
-            item = self._db_map.make_item(self.item_type, **item)
-            try:
-                item.polish()
-            except SpineDBAPIError as error:
-                if not ignore_polishing_errors:
-                    raise error
+        item = self._db_map.make_item(self.item_type, **item)
+        try:
+            item.polish()
+        except SpineDBAPIError as error:
+            if not ignore_polishing_errors:
+                raise error
         return item
 
     def do_add_item(self, item: MappedItemBase) -> None:
@@ -530,7 +529,7 @@ class MappedTable(dict):
 
     def handle_fetched_item(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool]:
         """Called when an item is fetched from the DB. Returns a corresponding mapped item
-        and whether or not it is new (no equivalent item is found in the mapping currently)."""
+        and whether it is new (no equivalent item is found in the mapping currently)."""
         new_item = self._make_item(item, ignore_polishing_errors=True)
         try:
             existing_item = self._find_fully_qualified_item_by_unique_key(new_item, fetch=False)
@@ -552,6 +551,9 @@ class MappedTable(dict):
                 # but that is potentially complex operation (for e.g. large parameter values)
                 # so we take a shortcut here and assume that existing_item always contains modified data.
                 existing_item.status = Status.to_update
+                backup_item = item.copy()
+                backup_item["id"] = existing_item["id"]
+                existing_item.set_backup_item(backup_item)
         return existing_item, False
 
     def _same_item(self, mapped_item: MappedItemBase, db_item: dict) -> bool:
@@ -593,8 +595,9 @@ class MappedTable(dict):
         if errors:
             raise SpineDBAPIError("\n".join(errors))
 
-    def add_item(self, item: dict) -> MappedItemBase:
-        item = self._make_item(item, ignore_polishing_errors=False)
+    def add_item(self, item: dict | MappedItemBase) -> MappedItemBase:
+        if not isinstance(item, MappedItemBase):
+            item = self._make_item(item, ignore_polishing_errors=False)
         self.do_add_item(item)
         self.add_unique(item)
         item.become_referrer()
@@ -751,6 +754,9 @@ class MappedItemBase(dict):
     def backup(self) -> Optional[dict]:
         """Returns the committed version of this item."""
         return self._backup
+
+    def set_backup_item(self, item: dict) -> None:
+        self._backup = item
 
     @property
     def removed(self) -> bool:
