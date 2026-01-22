@@ -784,6 +784,7 @@ class MappedItemBase(dict):
     def resolve_extended(self) -> dict:
         """Same as extended but with TempId resolved."""
         d = self.resolve()
+        d.update({key: resolve(self[key]) for key in self.fields})
         d.update({key: resolve(self[key]) for key in self._external_fields})
         return d
 
