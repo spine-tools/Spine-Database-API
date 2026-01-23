@@ -5,23 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [unreleased]
-
-### Added
+## [0.36.3]
 
 ### Changed
 
+- It is again possible to commit to filtered databases.
 - Simplified time period definitions in time patterns:
   equal lower and upper bounds can now be combined, e.g `M8-8` can now be shortened to `M8`.
 - Removing the alternative at id 1 (the 'Base' alternative) is now allowed.
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
 
 ## [0.36.2] 
 
