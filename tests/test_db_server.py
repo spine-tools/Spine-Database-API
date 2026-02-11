@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for spine_db_server module. """
+"""Unit tests for spine_db_server module."""
 import os
 from tempfile import TemporaryDirectory
 import threading
@@ -200,7 +200,7 @@ class TestDBServer(unittest.TestCase):
             self.assertEqual(len(result_data), 5)
             self.assertEqual(result_data["alternatives"], [["Base", "Base alternative"]])
             self.assertEqual(result_data["entity_classes"], [["Object", [], None, None, True]])
-            self.assertEqual(result_data["parameter_definitions"], [["Object", "X", [None, None], None, None]])
+            self.assertEqual(result_data["parameter_definitions"], [["Object", "X", [None, None], None, None, None]])
             self.assertCountEqual(
                 result_data["entities"],
                 [

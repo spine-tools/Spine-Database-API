@@ -58,6 +58,7 @@ ParameterDefinition: TypeAlias = (
     | tuple[str, str, Any, str]
     | tuple[str, str, Any, str, str]
     | tuple[str, str, Any, str, str, str]
+    | tuple[str, str, Any, str, str, str, str]
 )
 SuperclassSubclass: TypeAlias = tuple[str, str]
 DisplayMode: TypeAlias = tuple[str] | tuple[str, str]
@@ -690,7 +691,15 @@ def _get_entity_groups_for_import(data: Iterable[EntityGroup]) -> Iterable[dict]
 def _get_parameter_definitions_for_import(
     data: Iterable[ParameterDefinition], unparse_value: UnparseCallable
 ) -> Iterator[dict]:
-    key = ("entity_class_name", "name", "default_value", "default_type", "parameter_value_list_name", "description")
+    key = (
+        "entity_class_name",
+        "name",
+        "default_value",
+        "default_type",
+        "parameter_value_list_name",
+        "description",
+        "parameter_group_name",
+    )
     for class_name, parameter_name, *optionals in data:
         if not optionals:
             yield dict(zip(key, (class_name, parameter_name)))
