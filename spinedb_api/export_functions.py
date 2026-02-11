@@ -236,6 +236,7 @@ def export_parameter_definitions(
             parse_value(x["default_value"], x["default_type"]),
             x["parameter_value_list_name"],
             x["description"],
+            x["parameter_group_name"],
         )
         for x in _get_items(db_map, "parameter_definition", ids)
     )

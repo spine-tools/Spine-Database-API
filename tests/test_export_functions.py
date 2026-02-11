@@ -171,7 +171,7 @@ class TestExportFunctions(AssertSuccessTestCase):
             expected_data = {
                 "alternatives": [("Base", "Base alternative")],
                 "entity_classes": [("Widget", (), None, None, True)],
-                "parameter_definitions": [("Widget", "q", None, None, None)],
+                "parameter_definitions": [("Widget", "q", None, None, None, None)],
                 "parameter_types": [("Widget", "q", "duration", 0)],
             }
             self.assertEqual(exported_data, expected_data)
@@ -309,9 +309,9 @@ class TestExportFunctions(AssertSuccessTestCase):
             self.assertEqual(
                 exported["parameter_definitions"],
                 [
-                    ("compound_class", "compound_parameter", None, None, None),
-                    ("object_class", "object_parameter", None, None, None),
-                    ("relationship_class", "relationship_parameter", None, None, None),
+                    ("compound_class", "compound_parameter", None, None, None, None),
+                    ("object_class", "object_parameter", None, None, None, None),
+                    ("relationship_class", "relationship_parameter", None, None, None, None),
                 ],
             )
             self.assertIn("entities", exported)
@@ -347,7 +347,3 @@ class TestExportFunctions(AssertSuccessTestCase):
                 exported["entity_class_display_modes"],
                 [("display_mode", "object_class", 1, DisplayStatus.hidden.name, None, None)],
             )
-
-
-if __name__ == "__main__":
-    unittest.main()

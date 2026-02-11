@@ -11,8 +11,8 @@
 ######################################################################################################################
 import pytest
 from spinedb_api import DatabaseMapping, SpineDBAPIError
-from spinedb_api.export_functions import export_parameter_groups
-from spinedb_api.import_functions import import_parameter_groups
+from spinedb_api.export_functions import export_data, export_parameter_groups
+from spinedb_api.import_functions import import_data, import_parameter_groups
 from spinedb_api.mapped_item_status import Status
 from tests.mock_helpers import assert_imports
 
@@ -139,9 +139,22 @@ def test_fetch_parameter_definitions_with_groups(tmp_path):
     with DatabaseMapping(url, create=True) as db_map:
         db_map.add_parameter_group(name="My group", color="010203", priority=5)
         db_map.add_entity_class(name="Widget")
-        db_map.add_parameter_definition(entity_class_name="Widget", name="Widget", parameter_group_name="My group")
+        db_map.add_parameter_definition(entity_class_name="Widget", name="price", parameter_group_name="My group")
         db_map.commit_session("Add test data.")
     with DatabaseMapping(url) as db_map:
         definitions = db_map.find_parameter_definitions()
         assert len(definitions) == 1
         assert definitions[0]["parameter_group_name"] == "My group"
+
+
+def test_parameter_group_is_included_in_definition_import_and_export():
+    with DatabaseMapping("sqlite://", create=True) as db_map:
+        db_map.add_parameter_group(name="My group", color="010203", priority=5)
+        db_map.add_entity_class(name="Widget")
+        db_map.add_parameter_definition(entity_class_name="Widget", name="price", parameter_group_name="My group")
+        data = export_data(db_map)
+    with DatabaseMapping("sqlite://", create=True) as db_map:
+        count = assert_imports(import_data(db_map, **data))
+        assert count == 3
+        price = db_map.parameter_definition(entity_class_name="Widget", name="price")
+        assert price["parameter_group_name"] == "My group"
