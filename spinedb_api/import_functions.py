@@ -20,7 +20,7 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import suppress
 from typing import Any, Optional, TypeAlias
 from . import DatabaseMapping, SpineDBAPIError
-from .helpers import ItemType, _parse_metadata
+from .helpers import DisplayStatus, ItemType, _parse_metadata
 from .parameter_value import (
     ConflictResolution,
     ConflictResolutionCallable,
@@ -61,7 +61,12 @@ ParameterDefinition: TypeAlias = (
 )
 SuperclassSubclass: TypeAlias = tuple[str, str]
 DisplayMode: TypeAlias = tuple[str] | tuple[str, str]
-EntityClassDisplayMode: TypeAlias = tuple[str, str, int]
+EntityClassDisplayMode: TypeAlias = (
+    tuple[str, str, int]
+    | tuple[str, str, int, DisplayStatus]
+    | tuple[str, str, int, DisplayStatus, str]
+    | tuple[str, str, int, DisplayStatus, str, str]
+)
 Metadata: TypeAlias = tuple[str, str]
 EntityMetadata: TypeAlias = tuple[str, Sequence[str], str, str]
 ParameterValueMetadata: TypeAlias = tuple[str, Sequence[str], str, str, str, str]
