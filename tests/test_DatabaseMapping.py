@@ -1325,11 +1325,6 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 value_list = db_map.get_parameter_value_list_item(name="yes_no")
                 value_list.remove()
                 new_value_list = self._assert_success(db_map.add_parameter_value_list_item(name="yes_no"))
-                self._assert_success(
-                    db_map.add_list_value_item(
-                        parameter_value_list_name="yes_no", index=0, value=value, type=value_type
-                    )
-                )
                 db_map.commit_session("Readd value list.")
                 self.assertIsNone(new_value_list.mapped_item.replaced_item_waiting_for_removal)
                 list_values = db_map.get_list_value_items()
@@ -1593,6 +1588,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     "parameter_type_list": (),
                     "default_type": None,
                     "default_value": None,
+                    "parameter_group_id": None,
                     "list_value_id": None,
                     "parameter_value_list_id": None,
                 },
@@ -3619,6 +3615,7 @@ class TestDatabaseMappingLegacy(unittest.TestCase):
             "list_value_id",
             "commit_id",
             "parameter_value_list_id",
+            "parameter_group_id",
         ]
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.assertEqual(len(db_map.parameter_definition_sq.c), len(columns))
@@ -5277,6 +5274,7 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
                     "list_value_id": None,
                     "name": "my_parameter",
                     "parameter_value_list_id": 1,
+                    "parameter_group_id": None,
                 },
             )
 

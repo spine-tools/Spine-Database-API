@@ -304,15 +304,13 @@ class DatabaseMappingBase:
         chunk = self._get_next_chunk(mapped_table.item_type, offset, limit, **kwargs)
         if not chunk:
             return []
-        is_db_dirty = self._get_commit_count() != real_commit_count
-        if is_db_dirty:
-            # We need to fetch the most recent references because their ids might have changed in the DB
-            item_type = mapped_table.item_type
-            for ref_type in ref_types:
-                if ref_type != item_type:
-                    self.do_fetch_all(self._mapped_tables[ref_type], commit_count=real_commit_count)
+        for ref_type in ref_types:
+            if ref_type != mapped_table.item_type and self._fetched.get(ref_type, -1) != real_commit_count:
+                # We need to fetch the most recent references because their ids might have changed in the DB
+                self.do_fetch_all(self._mapped_tables[ref_type], commit_count=real_commit_count)
         items = []
         new_items = []
+        is_db_dirty = self._get_commit_count() != real_commit_count
         # Add items first
         for x in chunk:
             item, fresh = mapped_table.handle_fetched_item(x, not is_db_dirty)
@@ -478,9 +476,7 @@ class MappedTable(dict):
         candidate_item.resolve_internal_fields(skip_keys=tuple(original_item.keys()))
         candidate_item.check_mutability()
         candidate_item.polish()
-        first_invalid_key = candidate_item.first_invalid_key()
-        if first_invalid_key:
-            raise SpineDBAPIError(f"invalid {first_invalid_key} for {self.item_type}")
+        candidate_item.validate_keys()
         for key, value in candidate_item.unique_values_for_item(candidate_item):
             empty = {k for k, v in zip(key, value) if v == ""}
             if empty:
@@ -667,12 +663,9 @@ class MappedItemBase(dict):
     required_key_combinations: ClassVar[tuple[tuple[str, ...], ...]] = ()
     """Tuple containing tuples of required keys and their possible alternatives."""
     _references: ClassVar[dict[str, ItemType]] = {}
-    """A dictionary mapping source fields to reference item type.
-    Used to access external fields.
-    """
-    _weak_references: ClassVar[dict[str, str]] = {}
-    """A dictionary mapping source field, to a tuple of reference item type.
-    Used to access external fields that may be None."""
+    """A dictionary mapping source fields to reference item type. Used to access external fields."""
+    _weak_references: ClassVar[dict[str, ItemType]] = {}
+    """A dictionary mapping source field to reference item type. Used to access external fields that may be None."""
     _soft_references: ClassVar[set[str]] = set()
     """A set of reference source fields that are OK to have no external field value."""
     _external_fields: ClassVar[dict[str, tuple[str, str]]] = {}
@@ -845,14 +838,13 @@ class MappedItemBase(dict):
             return db_item
         return self
 
-    def first_invalid_key(self) -> str:
-        """Goes through the ``_references`` class attribute and returns the key of the first reference
+    def validate_keys(self) -> None:
+        """Goes through the ``_references`` class attribute and raises at the key of the first reference
         that cannot be resolved.
-
-        Returns:
-            str or None: unresolved reference's key if any.
         """
-        return next((src_key for src_key, ref in self._resolve_refs() if not ref), None)
+        invalid_key = next((src_key for src_key, ref in self._resolve_refs() if not ref), None)
+        if invalid_key is not None:
+            raise SpineDBAPIError(f"invalid {invalid_key} for {self.item_type}")
 
     def _resolve_refs(self) -> Iterator[tuple[str, Optional[MappedItemBase]]]:
         """Goes through the ``_references`` class attribute and tries to resolve them.

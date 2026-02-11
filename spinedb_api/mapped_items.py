@@ -19,7 +19,7 @@ from typing import ClassVar, Literal, Optional, Type, Union
 from . import arrow_value
 from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable
 from .exception import SpineDBAPIError
-from .helpers import DisplayStatus, ItemType, name_from_dimensions, name_from_elements
+from .helpers import COLOR_RE, DisplayStatus, ItemType, name_from_dimensions, name_from_elements
 from .parameter_value import (
     RANK_1_TYPES,
     UNPARSED_NULL_VALUE,
@@ -607,17 +607,12 @@ class EntityClassDisplayModeItem(MappedItemBase):
         "display_mode_id": (("display_mode_name",), "id"),
     }
 
-    COLOR_RE = re.compile("[a-fA-F0-9]{6}")
-
-    def first_invalid_key(self):
-        error = super().first_invalid_key()
-        if error:
-            return error
+    def validate_keys(self):
+        super().validate_keys()
         for color_field in ("display_font_color", "display_background_color"):
             if (color := self[color_field]) is not None:
-                if self.COLOR_RE.match(color) is None:
-                    return color_field
-        return None
+                if COLOR_RE.match(color) is None:
+                    raise SpineDBAPIError(f"invalid {color_field} for {self.item_type}")
 
 
 class ParsedValueBase(MappedItemBase):
@@ -647,15 +642,11 @@ class ParsedValueBase(MappedItemBase):
         """Returns True if parsed_value property has been used."""
         return self._parsed_value is not None
 
-    def first_invalid_key(self):
-        invalid_key = super().first_invalid_key()
-        if invalid_key is not None:
-            return invalid_key
+    def validate_keys(self):
+        super().validate_keys()
         value = self[self.value_key]
-        if value is not None:
-            if value != UNPARSED_NULL_VALUE and self[self.type_key] is None:
-                return self.type_key
-        return None
+        if value is not None and value != UNPARSED_NULL_VALUE and self[self.type_key] is None:
+            raise SpineDBAPIError(f"invalid {self.type_key} for {self.item_type}")
 
     def _make_parsed_value(self):
         try:
@@ -774,6 +765,7 @@ class ParameterDefinitionItem(ParameterItemBase):
     fields = {
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "name": {"type": str, "value": "The parameter name."},
+        "parameter_group_name": {"type": str, "value": "The name of the group of the parameter.", "optional": True},
         "parameter_type_list": {"type": tuple, "value": "List of valid value types.", "optional": True},
         "default_value": {"type": bytes, "value": "The default value's database representation.", "optional": True},
         "default_type": {"type": str, "value": "The default value's type.", "optional": True},
@@ -785,30 +777,44 @@ class ParameterDefinitionItem(ParameterItemBase):
         },
         "description": {"type": str, "value": "The parameter description.", "optional": True},
     }
-    _defaults = {"description": None, "default_value": None, "default_type": None, "parameter_value_list_id": None}
+    _defaults = {
+        "parameter_group_id": None,
+        "description": None,
+        "default_value": None,
+        "default_type": None,
+        "parameter_value_list_id": None,
+    }
     unique_keys = (("entity_class_name", "name"),)
     required_key_combinations = (("entity_class_name", "entity_class_id"), ("name",))
-    _references = {"entity_class_id": "entity_class", "parameter_value_list_id": "parameter_value_list"}
+    _references = {
+        "entity_class_id": "entity_class",
+        "parameter_group_id": "parameter_group",
+        "parameter_value_list_id": "parameter_value_list",
+    }
     _weak_references = {"list_value_id": "list_value"}
-    _soft_references = {"parameter_value_list_id"}
+    _soft_references = {"parameter_group_id", "parameter_value_list_id"}
     _external_fields = {
         "entity_class_name": ("entity_class_id", "name"),
         "dimension_id_list": ("entity_class_id", "dimension_id_list"),
         "dimension_name_list": ("entity_class_id", "dimension_name_list"),
+        "parameter_group_name": ("parameter_group_id", "name"),
         "parameter_value_list_name": ("parameter_value_list_id", "name"),
     }
     _alt_references = {
         ("entity_class_name",): ("entity_class", ("name",)),
+        ("parameter_group_name",): ("parameter_group", ("name",)),
         ("parameter_value_list_name",): ("parameter_value_list", ("name",)),
     }
     _internal_fields = {
         "entity_class_id": (("entity_class_name",), "id"),
+        "parameter_group_id": (("parameter_group_name",), "id"),
         "parameter_value_list_id": (("parameter_value_list_name",), "id"),
     }
     fields_not_requiring_cascade_update = {
         "description",
         "parameter_type_list",
-        "default_value" "default_type",
+        "default_value",
+        "default_type",
         "parsed_value",
     }
 
@@ -1004,19 +1010,44 @@ class ParameterTypeItem(MappedItemBase):
         ),
     }
 
-    def first_invalid_key(self):
-        invalid_key = super().first_invalid_key()
-        if invalid_key is not None:
-            return invalid_key
+    def validate_keys(self):
+        super().validate_keys()
         value_type = self["type"]
         if value_type not in VALUE_TYPES:
-            return "type"
+            raise SpineDBAPIError(f"invalid type for {self.item_type}")
         rank = self["rank"]
         if value_type == Map.TYPE:
-            return "rank" if rank < 1 else None
+            if rank < 1:
+                raise SpineDBAPIError(f"invalid rank for {self.item_type}")
+            return
         if value_type in RANK_1_TYPES:
-            return "rank" if rank != 1 else None
-        return "rank" if rank != 0 else None
+            if rank != 1:
+                raise SpineDBAPIError(f"invalid rank for {self.item_type}")
+            return
+        if rank != 0:
+            raise SpineDBAPIError(f"invalid rank for {self.item_type}")
+
+
+class ParameterGroupItem(MappedItemBase):
+    item_type = "parameter_group"
+    fields = {
+        "name": {"type": str, "value": "The parameter group name."},
+        "color": {"type": str, "value": "Group's color as HEX."},
+        "priority": {"type": int, "value": "Group's priority."},
+    }
+    unique_keys = (("name",),)
+    required_key_combinations = (
+        ("name",),
+        ("color",),
+        ("priority",),
+    )
+
+    def validate_keys(self):
+        super().validate_keys()
+        color_field = "color"
+        if (color := self[color_field]) is not None:
+            if COLOR_RE.match(color) is None:
+                raise SpineDBAPIError(f"invalid {color_field} for {self.item_type}")
 
 
 class ParameterValueItem(ParameterItemBase):
@@ -1059,6 +1090,8 @@ class ParameterValueItem(ParameterItemBase):
         "element_id_list": ("entity_id", "element_id_list"),
         "element_name_list": ("entity_id", "element_name_list"),
         "alternative_name": ("alternative_id", "name"),
+        "parameter_group_id": ("parameter_definition_id", "parameter_group_id"),
+        "parameter_group_name": ("parameter_definition_id", "parameter_group_name"),
     }
     _alt_references = {
         ("entity_class_name",): ("entity_class", ("name",)),

@@ -39,6 +39,7 @@ class TestMigrationFrom070a0eb89e88:
             self._assert_entities(db_map)
             self._assert_parameter_definitions(db_map)
             self._assert_parameter_values(db_map)
+            self._assert_parameter_groups(db_map)
 
     @staticmethod
     def _assert_alternatives(db_map):
@@ -100,35 +101,43 @@ class TestMigrationFrom070a0eb89e88:
         assert float_definition["description"] == "Parameter with float values."
         assert float_definition["parsed_value"] == 2.3
         assert float_definition["parameter_value_list_name"] is None
+        assert float_definition["parameter_group_name"] is None
         null_definition = db_map.parameter_definition(entity_class_name="Widget", name="none")
         assert null_definition["description"] == "Parameter with no values."
         assert null_definition["parsed_value"] is None
         assert null_definition["parameter_value_list_name"] is None
+        assert null_definition["parameter_group_name"] is None
         value_list_definition = db_map.parameter_definition(entity_class_name="Widget", name="value_list")
         assert value_list_definition["description"] == "Parameter with list values."
         assert value_list_definition["parsed_value"] == "red"
         assert value_list_definition["parameter_value_list_name"] == "Enumeration"
+        assert value_list_definition["parameter_group_name"] is None
         string_definition = db_map.parameter_definition(entity_class_name="Widget", name="string")
         assert string_definition["description"] == "Parameter with string values."
         assert string_definition["parsed_value"] == "a default string"
         assert string_definition["parameter_value_list_name"] is None
+        assert string_definition["parameter_group_name"] is None
         boolean_definition = db_map.parameter_definition(entity_class_name="Widget", name="boolean")
         assert boolean_definition["description"] == "Parameter with boolean values."
         assert isinstance(boolean_definition["parsed_value"], bool)
         assert boolean_definition["parsed_value"]
         assert boolean_definition["parameter_value_list_name"] is None
+        assert boolean_definition["parameter_group_name"] is None
         date_time_definition = db_map.parameter_definition(entity_class_name="Widget", name="date_time")
         assert date_time_definition["description"] == "Parameter with datetime values."
         assert date_time_definition["parsed_value"] == DateTime("2020-04-22T14:20:00")
         assert date_time_definition["parameter_value_list_name"] is None
+        assert date_time_definition["parameter_group_name"] is None
         duration_definition = db_map.parameter_definition(entity_class_name="Widget", name="duration")
         assert duration_definition["description"] == "Parameter with duration values."
         assert duration_definition["parsed_value"] == Duration("5h")
         assert duration_definition["parameter_value_list_name"] is None
+        assert duration_definition["parameter_group_name"] is None
         time_pattern_definition = db_map.parameter_definition(entity_class_name="Widget", name="time_pattern")
         assert time_pattern_definition["description"] == "Parameter with time pattern values."
         assert time_pattern_definition["parsed_value"] == TimePattern(["D1-7"], [1.1])
         assert time_pattern_definition["parameter_value_list_name"] is None
+        assert time_pattern_definition["parameter_group_name"] is None
         time_series_fixed_resolution_definition = db_map.parameter_definition(
             entity_class_name="Widget", name="time_series_fixed_resolution"
         )
@@ -137,6 +146,7 @@ class TestMigrationFrom070a0eb89e88:
             "2020-04-22 00:00:00", "3h", [1.1, 2.2, 3.3], ignore_year=True, repeat=False
         )
         assert time_series_fixed_resolution_definition["parameter_value_list_name"] is None
+        assert time_series_fixed_resolution_definition["parameter_group_name"] is None
         time_series_variable_resolution_definition = db_map.parameter_definition(
             entity_class_name="Widget", name="time_series_variable_resolution"
         )
@@ -148,12 +158,14 @@ class TestMigrationFrom070a0eb89e88:
             repeat=True,
         )
         assert time_series_variable_resolution_definition["parameter_value_list_name"] is None
+        assert time_series_variable_resolution_definition["parameter_group_name"] is None
         map_definition = db_map.parameter_definition(entity_class_name="Widget", name="map")
         assert map_definition["description"] == "Parameter with map values."
         assert map_definition["parsed_value"] == Map(
             ["A", "B"], [Map(["T00", "T01"], [1.1, 2.2]), Map(["T00", "T01"], [3.3, 4.4])]
         )
         assert map_definition["parameter_value_list_name"] is None
+        assert map_definition["parameter_group_name"] is None
 
     @staticmethod
     def _assert_parameter_values(db_map):
@@ -247,6 +259,11 @@ class TestMigrationFrom070a0eb89e88:
             ["A", "A", "B", "B"], [-1.1, Map(["a"], [-2.2]), -3.3, Map(["b"], [-4.4])]
         )
 
+    @staticmethod
+    def _assert_parameter_groups(db_map):
+        parameter_groups = db_map.find_parameter_groups()
+        assert parameter_groups == []
+
 
 class TestMigrationFrom39e860a11b05:
     # This revision includes object groups, alternatives and scenarios that were not present in 070a0eb89e88.
@@ -264,6 +281,7 @@ class TestMigrationFrom39e860a11b05:
             self._assert_entity_groups(db_map)
             self._assert_parameter_definitions(db_map)
             self._assert_parameter_values(db_map)
+            self._assert_parameter_groups(db_map)
 
     @staticmethod
     def _assert_alternatives(db_map):
@@ -329,14 +347,17 @@ class TestMigrationFrom39e860a11b05:
         assert price["description"] is None
         assert price["parsed_value"] is None
         assert price["parameter_value_list_name"] is None
+        assert price["parameter_group_name"] is None
         link_strength = db_map.parameter_definition(entity_class_name="Chain", name="link_strength")
         assert link_strength["description"] is None
         assert link_strength["parsed_value"] == Array([1.1, 2.2])
         assert link_strength["parameter_value_list_name"] is None
+        assert link_strength["parameter_group_name"] is None
         yield_time = db_map.parameter_definition(entity_class_name="Chain", name="yield_time")
         assert yield_time["description"] is None
         assert yield_time["parsed_value"] == Array([Duration("2h"), Duration("3h")])
         assert yield_time["parameter_value_list_name"] is None
+        assert yield_time["parameter_group_name"] is None
 
     @staticmethod
     def _assert_parameter_values(db_map):
@@ -392,6 +413,10 @@ class TestMigrationFrom39e860a11b05:
         )
         assert yield_time["parsed_value"] == Array([Duration("2M"), Duration("3M")])
 
+    @staticmethod
+    def _assert_parameter_groups(db_map):
+        assert db_map.find_parameter_groups() == []
+
 
 class TestMigrationFrom989fccf80441:
     # This revision includes tool feature methods that have been superseded by entity alternatives.
@@ -408,6 +433,7 @@ class TestMigrationFrom989fccf80441:
             self._assert_parameter_definitions(db_map)
             self._assert_parameter_values(db_map)
             self._assert_entity_alternatives(db_map)
+            self._assert_parameter_groups(db_map)
 
     @staticmethod
     def _assert_alternatives(db_map):
@@ -476,10 +502,12 @@ class TestMigrationFrom989fccf80441:
         assert widget_is_active["description"] is None
         assert widget_is_active["parsed_value"] is None
         assert widget_is_active["parameter_value_list_name"] == "Booleans"
+        assert widget_is_active["parameter_group_name"] is None
         gadget_is_active = db_map.parameter_definition(entity_class_name="Gadget", name="is_active")
         assert gadget_is_active["description"] is None
         assert gadget_is_active["parsed_value"] is None
         assert gadget_is_active["parameter_value_list_name"] == "YesNo"
+        assert gadget_is_active["parameter_group_name"] is None
 
     @staticmethod
     def _assert_parameter_values(db_map):
@@ -532,3 +560,7 @@ class TestMigrationFrom989fccf80441:
         assert db_map.entity_alternative(
             alternative_name="inverted_activities", entity_class_name="Gadget", entity_byname=("no_active",)
         )["active"]
+
+    @staticmethod
+    def _assert_parameter_groups(db_map):
+        assert db_map.find_parameter_groups() == []
