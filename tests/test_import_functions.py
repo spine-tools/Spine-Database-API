@@ -21,6 +21,7 @@ from spinedb_api.import_functions import (
     import_entities,
     import_entity_class_display_modes,
     import_entity_classes,
+    import_entity_metadata,
     import_metadata,
     import_object_classes,
     import_object_metadata,
@@ -31,6 +32,7 @@ from spinedb_api.import_functions import (
     import_parameter_definitions,
     import_parameter_types,
     import_parameter_value_lists,
+    import_parameter_value_metadata,
     import_parameter_values,
     import_relationship_classes,
     import_relationship_metadata,
@@ -1985,6 +1987,50 @@ class TestImportEntityMetadata(AssertSuccessTestCase):
             self.assertIn(("co-author", "Charly"), metadata)
             self.assertIn(("age", "17"), metadata)
 
+    def test_import_entity_metadata_using_entity_name(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_entity_classes(db_map, [("Widget",)]))
+            self._assert_imports(import_entities(db_map, [("Widget", "button")]))
+            self._assert_imports(import_metadata(db_map, [("date", "2026-02-12")]))
+            count = self._assert_imports(import_entity_metadata(db_map, [("Widget", "button", "date", "2026-02-12")]))
+            self.assertEqual(count, 1)
+            entity_metadata = db_map.find_entity_metadata_items()
+            self.assertEqual(len(entity_metadata), 1)
+            self.assertEqual(entity_metadata[0]["entity_byname"], ("button",))
+            self.assertEqual(entity_metadata[0]["metadata_name"], "date")
+            self.assertEqual(entity_metadata[0]["metadata_value"], "2026-02-12")
+
+    def test_import_entity_metadata_using_entity_byname(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_entity_classes(db_map, [("Widget",)]))
+            self._assert_imports(import_entities(db_map, [("Widget", "button")]))
+            self._assert_imports(import_metadata(db_map, [("date", "2026-02-12")]))
+            count = self._assert_imports(
+                import_entity_metadata(db_map, [("Widget", ("button",), "date", "2026-02-12")])
+            )
+            self.assertEqual(count, 1)
+            entity_metadata = db_map.find_entity_metadata_items()
+            self.assertEqual(len(entity_metadata), 1)
+            self.assertEqual(entity_metadata[0]["entity_byname"], ("button",))
+            self.assertEqual(entity_metadata[0]["metadata_name"], "date")
+            self.assertEqual(entity_metadata[0]["metadata_value"], "2026-02-12")
+
+    def test_import_entity_metadata_creates_new_metadata_on_the_fly(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_entity_classes(db_map, [("Widget",)]))
+            self._assert_imports(import_entities(db_map, [("Widget", "button")]))
+            count = self._assert_imports(import_entity_metadata(db_map, [("Widget", "button", "date", "2026-02-12")]))
+            self.assertEqual(count, 2)
+            metadata = db_map.find_metadata_items()
+            self.assertEqual(len(metadata), 1)
+            self.assertEqual(metadata[0]["name"], "date")
+            self.assertEqual(metadata[0]["value"], "2026-02-12")
+            entity_metadata = db_map.find_entity_metadata_items()
+            self.assertEqual(len(entity_metadata), 1)
+            self.assertEqual(entity_metadata[0]["entity_byname"], ("button",))
+            self.assertEqual(entity_metadata[0]["metadata_name"], "date")
+            self.assertEqual(entity_metadata[0]["metadata_value"], "2026-02-12")
+
 
 class TestImportParameterValueMetadata(AssertSuccessTestCase):
     def _import_metadata(self, db_map):
@@ -2091,6 +2137,87 @@ class TestImportParameterValueMetadata(AssertSuccessTestCase):
                     "commit_id": 2,
                 },
             )
+
+    def test_import_parameter_value_metadata(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_entity_classes(db_map, [("Widget",)]))
+            self._assert_imports(import_parameter_definitions(db_map, [("Widget", "color")]))
+            self._assert_imports(import_entities(db_map, [("Widget", "button")]))
+            self._assert_imports(import_parameter_values(db_map, [("Widget", "button", "color", "red", "Base")]))
+            self._assert_imports(import_metadata(db_map, [("date", "2026-02-12")]))
+            count = self._assert_imports(
+                import_parameter_value_metadata(db_map, [("Widget", "button", "color", "date", "2026-02-12", "Base")])
+            )
+            self.assertEqual(count, 1)
+            value_metadata = db_map.find_parameter_value_metadata_items()
+            self.assertEqual(len(value_metadata), 1)
+            self.assertEqual(value_metadata[0]["entity_byname"], ("button",))
+            self.assertEqual(value_metadata[0]["parameter_definition_name"], "color")
+            self.assertEqual(value_metadata[0]["alternative_name"], "Base")
+            self.assertEqual(value_metadata[0]["metadata_name"], "date")
+            self.assertEqual(value_metadata[0]["metadata_value"], "2026-02-12")
+
+    def test_import_parameter_value_metadata_with_import_alternative(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_entity_classes(db_map, [("Widget",)]))
+            self._assert_imports(import_parameter_definitions(db_map, [("Widget", "color")]))
+            self._assert_imports(import_entities(db_map, [("Widget", "button")]))
+            self._assert_imports(import_parameter_values(db_map, [("Widget", "button", "color", "red")]))
+            self._assert_imports(import_metadata(db_map, [("date", "2026-02-12")]))
+            count = self._assert_imports(
+                import_parameter_value_metadata(db_map, [("Widget", "button", "color", "date", "2026-02-12")])
+            )
+            self.assertEqual(count, 1)
+            value_metadata = db_map.find_parameter_value_metadata_items()
+            self.assertEqual(len(value_metadata), 1)
+            self.assertEqual(value_metadata[0]["entity_byname"], ("button",))
+            self.assertEqual(value_metadata[0]["parameter_definition_name"], "color")
+            self.assertEqual(value_metadata[0]["alternative_name"], "Base")
+            self.assertEqual(value_metadata[0]["metadata_name"], "date")
+            self.assertEqual(value_metadata[0]["metadata_value"], "2026-02-12")
+
+    def test_import_parameter_value_metadata_with_entity_byname(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_entity_classes(db_map, [("Widget",)]))
+            self._assert_imports(import_parameter_definitions(db_map, [("Widget", "color")]))
+            self._assert_imports(import_entities(db_map, [("Widget", "button")]))
+            self._assert_imports(import_parameter_values(db_map, [("Widget", "button", "color", "red", "Base")]))
+            self._assert_imports(import_metadata(db_map, [("date", "2026-02-12")]))
+            count = self._assert_imports(
+                import_parameter_value_metadata(
+                    db_map, [("Widget", ("button",), "color", "date", "2026-02-12", "Base")]
+                )
+            )
+            self.assertEqual(count, 1)
+            value_metadata = db_map.find_parameter_value_metadata_items()
+            self.assertEqual(len(value_metadata), 1)
+            self.assertEqual(value_metadata[0]["entity_byname"], ("button",))
+            self.assertEqual(value_metadata[0]["parameter_definition_name"], "color")
+            self.assertEqual(value_metadata[0]["alternative_name"], "Base")
+            self.assertEqual(value_metadata[0]["metadata_name"], "date")
+            self.assertEqual(value_metadata[0]["metadata_value"], "2026-02-12")
+
+    def test_import_parameter_value_metadata_creates_metadata_on_the_fly(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_imports(import_entity_classes(db_map, [("Widget",)]))
+            self._assert_imports(import_parameter_definitions(db_map, [("Widget", "color")]))
+            self._assert_imports(import_entities(db_map, [("Widget", "button")]))
+            self._assert_imports(import_parameter_values(db_map, [("Widget", "button", "color", "red", "Base")]))
+            count = self._assert_imports(
+                import_parameter_value_metadata(db_map, [("Widget", "button", "color", "date", "2026-02-12", "Base")])
+            )
+            self.assertEqual(count, 2)
+            metadata = db_map.find_metadata_items()
+            self.assertEqual(len(metadata), 1)
+            self.assertEqual(metadata[0]["name"], "date")
+            self.assertEqual(metadata[0]["value"], "2026-02-12")
+            value_metadata = db_map.find_parameter_value_metadata_items()
+            self.assertEqual(len(value_metadata), 1)
+            self.assertEqual(value_metadata[0]["entity_byname"], ("button",))
+            self.assertEqual(value_metadata[0]["parameter_definition_name"], "color")
+            self.assertEqual(value_metadata[0]["alternative_name"], "Base")
+            self.assertEqual(value_metadata[0]["metadata_name"], "date")
+            self.assertEqual(value_metadata[0]["metadata_value"], "2026-02-12")
 
 
 class TestImportEntityClassDisplayMode(AssertSuccessTestCase):

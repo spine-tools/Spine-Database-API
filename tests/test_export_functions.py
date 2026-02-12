@@ -35,9 +35,120 @@ from spinedb_api import (
     import_scenario_alternatives,
     import_scenarios,
 )
-from spinedb_api.export_functions import export_parameter_types, export_parameter_values
+from spinedb_api.export_functions import (
+    export_entity_metadata,
+    export_metadata,
+    export_parameter_types,
+    export_parameter_value_metadata,
+    export_parameter_values,
+)
 from spinedb_api.helpers import DisplayStatus
 from tests.mock_helpers import AssertSuccessTestCase
+
+
+class TestExportMetadata:
+    def test_name_and_value_exported_correctly(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="source", value="https://www.example.com/data")
+            data = export_metadata(db_map)
+            assert data == [("source", "https://www.example.com/data")]
+
+    def test_export_using_id(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="source", value="https://www.example.com/data")
+            author = db_map.add_metadata(name="author", value="Garfield")
+            data = export_metadata(db_map, [author["id"]])
+            assert data == [("author", "Garfield")]
+
+
+class TestExportEntityMetadata:
+    def test_data_exported_correctly(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="author", value="Garfield")
+            db_map.add_entity_class(name="Widget")
+            db_map.add_entity(entity_class_name="Widget", name="button")
+            db_map.add_entity_metadata(
+                entity_class_name="Widget", entity_byname=("button",), metadata_name="author", metadata_value="Garfield"
+            )
+            data = export_entity_metadata(db_map)
+            assert data == [("Widget", ("button",), "author", "Garfield")]
+
+    def test_export_using_id(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="author", value="Garfield")
+            db_map.add_metadata(name="source", value="https://www.example.com/data")
+            db_map.add_entity_class(name="Widget")
+            db_map.add_entity(entity_class_name="Widget", name="button")
+            db_map.add_entity_metadata(
+                entity_class_name="Widget",
+                entity_byname=("button",),
+                metadata_name="source",
+                metadata_value="https://www.example.com/data",
+            )
+            button_author = db_map.add_entity_metadata(
+                entity_class_name="Widget", entity_byname=("button",), metadata_name="author", metadata_value="Garfield"
+            )
+            data = export_entity_metadata(db_map, [button_author["id"]])
+            assert data == [("Widget", ("button",), "author", "Garfield")]
+
+
+class TestExportParameterValueMetadata:
+    def test_data_exported_correctly(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="author", value="Garfield")
+            db_map.add_entity_class(name="Widget")
+            db_map.add_parameter_definition(entity_class_name="Widget", name="color")
+            db_map.add_entity(entity_class_name="Widget", name="button")
+            db_map.add_parameter_value(
+                entity_class_name="Widget",
+                entity_byname=("button",),
+                parameter_definition_name="color",
+                alternative_name="Base",
+                parsed_value="space brown",
+            )
+            db_map.add_parameter_value_metadata(
+                entity_class_name="Widget",
+                entity_byname=("button",),
+                parameter_definition_name="color",
+                alternative_name="Base",
+                metadata_name="author",
+                metadata_value="Garfield",
+            )
+            data = export_parameter_value_metadata(db_map)
+            assert data == [("Widget", ("button",), "color", "author", "Garfield", "Base")]
+
+    def test_export_using_ids(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="source", value="https://www.example.com/data")
+            db_map.add_metadata(name="author", value="Garfield")
+            db_map.add_entity_class(name="Widget")
+            db_map.add_parameter_definition(entity_class_name="Widget", name="color")
+            db_map.add_entity(entity_class_name="Widget", name="button")
+            db_map.add_parameter_value(
+                entity_class_name="Widget",
+                entity_byname=("button",),
+                parameter_definition_name="color",
+                alternative_name="Base",
+                parsed_value="space brown",
+            )
+            db_map.add_parameter_value_metadata(
+                entity_class_name="Widget",
+                entity_byname=("button",),
+                parameter_definition_name="color",
+                alternative_name="Base",
+                metadata_name="source",
+                metadata_value="https://www.example.com/data",
+            )
+            color_author = db_map.add_parameter_value_metadata(
+                entity_class_name="Widget",
+                entity_byname=("button",),
+                parameter_definition_name="color",
+                alternative_name="Base",
+                metadata_name="author",
+                metadata_value="Garfield",
+            )
+            data = export_parameter_value_metadata(db_map, ids=[color_author["id"]])
+            assert data == [("Widget", ("button",), "color", "author", "Garfield", "Base")]
 
 
 class TestExportFunctions(AssertSuccessTestCase):

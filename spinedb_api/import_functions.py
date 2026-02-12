@@ -20,7 +20,7 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import suppress
 from typing import Any, Optional, TypeAlias
 from . import DatabaseMapping, SpineDBAPIError
-from .helpers import DisplayStatus, ItemType
+from .helpers import DisplayStatusValue, ItemType
 from .parameter_value import (
     ConflictResolution,
     ConflictResolutionCallable,
@@ -31,8 +31,8 @@ from .parameter_value import (
 )
 
 UnparseCallable: TypeAlias = Callable[[Value], tuple[bytes, Optional[str]]]
-Alternative: TypeAlias = tuple[str] | tuple[str, str]
-Scenario: TypeAlias = tuple[str] | tuple[str, bool] | tuple[str, bool, str]
+Alternative: TypeAlias = str | tuple[str] | tuple[str, str]
+Scenario: TypeAlias = str | tuple[str] | tuple[str, bool] | tuple[str, bool, str]
 ScenarioAlternative: TypeAlias = tuple[str, str] | tuple[str, str, str]
 Location: TypeAlias = tuple[float, float, float, str, str]
 Entity: TypeAlias = (
@@ -43,7 +43,9 @@ Entity: TypeAlias = (
 EntityAlternative: TypeAlias = tuple[str, str | Sequence[str], str, bool]
 EntityGroup: TypeAlias = tuple[str, str, str]
 EntityClass: TypeAlias = (
-    tuple[str, Sequence[str]]
+    str
+    | tuple[str]
+    | tuple[str, Sequence[str]]
     | tuple[str, Sequence[str], str]
     | tuple[str, Sequence[str], str, int]
     | tuple[str, Sequence[str], str, int, bool]
@@ -61,12 +63,12 @@ ParameterDefinition: TypeAlias = (
     | tuple[str, str, Any, str, str, str, str]
 )
 SuperclassSubclass: TypeAlias = tuple[str, str]
-DisplayMode: TypeAlias = tuple[str] | tuple[str, str]
+DisplayMode: TypeAlias = str | tuple[str] | tuple[str, DisplayStatusValue]
 EntityClassDisplayMode: TypeAlias = (
     tuple[str, str, int]
-    | tuple[str, str, int, DisplayStatus]
-    | tuple[str, str, int, DisplayStatus, str]
-    | tuple[str, str, int, DisplayStatus, str, str]
+    | tuple[str, str, int, DisplayStatusValue]
+    | tuple[str, str, int, DisplayStatusValue, str]
+    | tuple[str, str, int, DisplayStatusValue, str, str]
 )
 Metadata: TypeAlias = tuple[str, str]
 EntityMetadata: TypeAlias = tuple[str, str | Sequence[str], str, str]
@@ -553,6 +555,34 @@ def import_metadata(db_map: DatabaseMapping, data: Iterable[Metadata]) -> tuple[
         tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, metadata=data)
+
+
+def import_entity_metadata(db_map: DatabaseMapping, data: Iterable[EntityMetadata]) -> tuple[int, list[str]]:
+    """Imports metadata into a Spine database using a standard format.
+
+    Args:
+        db_map: database mapping
+        data: tuples of (entity class name, entity (by)name, metadata name, metadata value)
+
+    Returns:
+        tuple of (number of items imported, list of errors)
+    """
+    return import_data(db_map, entity_metadata=data)
+
+
+def import_parameter_value_metadata(
+    db_map: DatabaseMapping, data: Iterable[ParameterValueMetadata]
+) -> tuple[int, list[str]]:
+    """Imports metadata into a Spine database using a standard format.
+
+    Args:
+        db_map: database mapping
+        data: tuples of (entity class name, entity (by)name, parameter_name, metadata name, metadata value, [alternative name])
+
+    Returns:
+        tuple of (number of items imported, list of errors)
+    """
+    return import_data(db_map, parameter_value_metadata=data)
 
 
 def import_object_classes(db_map, data):

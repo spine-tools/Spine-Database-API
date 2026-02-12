@@ -574,7 +574,7 @@ class EntityClassDisplayModeItem(MappedItemBase):
         "entity_class_name": {"type": str, "value": "The entity class name."},
         "display_mode_name": {"type": int, "value": "The display mode name."},
         "display_order": {"type": int, "value": "The display order."},
-        "display_status": {"type": str, "value": "The display status."},
+        "display_status": {"type": str, "value": "The display status; one of 'visible', 'hidden' or 'greyed_out'."},
         "display_font_color": {"type": str, "value": "The color of the font.", "optional": True},
         "display_background_color": {"type": str, "value": "The  color of the background.", "optional": True},
     }

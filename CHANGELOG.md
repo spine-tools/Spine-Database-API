@@ -13,10 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Any parameter definition can belong to a single group.
   Parameter groups are meant to gather connected parameters together.
   As such, they are meant for visual cue only and do not have any other semantic meaning.
+- Added the missing `import_entity_metadata()` and `import_parameter_value_metadata()`.
+  Note, that the semantics of metadata imports have changed, see the Changed section below.
+- Added missing `export_metadata()`, `export_entity_metadata()` and `export_parameter_value_metadata()` functions
+  to `export_functions` module.
 
 ### Changed
 
-- `import_metadata()` and `import_*_metadata()` functions now works like all other import functions:
+- **Breaking change**: `import_metadata()` and `import_*_metadata()` functions now work like all other import functions:
   metadata is entered as separate name and value fields.
   *JSON metadata blobs are not supported anymore.*
   For example, this does *not* work anymore:

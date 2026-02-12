@@ -954,6 +954,9 @@ def string_to_bool(string: str) -> bool:
     raise ValueError(string)
 
 
+DisplayStatusValue: TypeAlias = Literal["visible", "hidden", "greyed_out"]
+
+
 @enum.unique
 class DisplayStatus(enum.Enum):
     """Custom enum for entity class display status."""

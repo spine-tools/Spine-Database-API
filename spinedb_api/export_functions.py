@@ -24,11 +24,14 @@ from .import_functions import (
     EntityClass,
     EntityClassDisplayMode,
     EntityGroup,
+    EntityMetadata,
+    Metadata,
     ParameterDefinition,
     ParameterGroup,
     ParameterType,
     ParameterValue,
     ParameterValueList,
+    ParameterValueMetadata,
     Scenario,
     ScenarioAlternative,
     SuperclassSubclass,
@@ -57,6 +60,9 @@ def export_data(
     scenario_ids: Ids = Asterisk,
     scenario_alternative_ids: Ids = Asterisk,
     entity_alternative_ids: Ids = Asterisk,
+    metadata_ids: Ids = Asterisk,
+    entity_metadata_ids: Ids = Asterisk,
+    parameter_value_metadata_ids: Ids = Asterisk,
     parse_value: ParseCallable = from_database,
 ) -> dict[str, list]:
     """
@@ -81,6 +87,9 @@ def export_data(
         scenario_ids: If given, only exports scenarios with these ids
         scenario_alternative_ids: If given, only exports scenario alternatives with these ids
         entity_alternative_ids: If given, only exports entity alternatives with these ids
+        metadata_ids: If given, only exports metadata items with these ids.
+        entity_metadata_ids: If given, only exports entity metadata items with these ids.
+        parameter_value_metadata_ids: If given, only exports parameter value metadata items with these ids.
         parse_value: Callable to parse value blobs from database
 
     Returns:
@@ -106,6 +115,9 @@ def export_data(
         "alternatives": export_alternatives(db_map, alternative_ids),
         "scenarios": export_scenarios(db_map, scenario_ids),
         "scenario_alternatives": export_scenario_alternatives(db_map, scenario_alternative_ids),
+        "metadata": export_metadata(db_map, metadata_ids),
+        "entity_metadata": export_entity_metadata(db_map, entity_metadata_ids),
+        "parameter_value_metadata": export_parameter_value_metadata(db_map, parameter_value_metadata_ids),
     }
     return {key: value for key, value in data.items() if value}
 
@@ -282,4 +294,33 @@ def export_scenario_alternatives(db_map: DatabaseMapping, ids: Ids = Asterisk) -
             for x in _get_items(db_map, "scenario_alternative", ids)
         ),
         key=itemgetter(0),
+    )
+
+
+def export_metadata(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[Metadata]:
+    return sorted(((x["name"], x["value"]) for x in _get_items(db_map, "metadata", ids)))
+
+
+def export_entity_metadata(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[EntityMetadata]:
+    return sorted(
+        (
+            (x["entity_class_name"], x["entity_byname"], x["metadata_name"], x["metadata_value"])
+            for x in _get_items(db_map, "entity_metadata", ids)
+        )
+    )
+
+
+def export_parameter_value_metadata(db_map: DatabaseMapping, ids: Ids = Asterisk) -> list[ParameterValueMetadata]:
+    return sorted(
+        (
+            (
+                x["entity_class_name"],
+                x["entity_byname"],
+                x["parameter_definition_name"],
+                x["metadata_name"],
+                x["metadata_value"],
+                x["alternative_name"],
+            )
+            for x in _get_items(db_map, "parameter_value_metadata", ids)
+        )
     )
