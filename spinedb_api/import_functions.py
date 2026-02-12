@@ -20,7 +20,7 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import suppress
 from typing import Any, Optional, TypeAlias
 from . import DatabaseMapping, SpineDBAPIError
-from .helpers import DisplayStatus, ItemType, _parse_metadata
+from .helpers import DisplayStatus, ItemType
 from .parameter_value import (
     ConflictResolution,
     ConflictResolutionCallable,
@@ -69,8 +69,10 @@ EntityClassDisplayMode: TypeAlias = (
     | tuple[str, str, int, DisplayStatus, str, str]
 )
 Metadata: TypeAlias = tuple[str, str]
-EntityMetadata: TypeAlias = tuple[str, Sequence[str], str, str]
-ParameterValueMetadata: TypeAlias = tuple[str, Sequence[str], str, str, str, str]
+EntityMetadata: TypeAlias = tuple[str, str | Sequence[str], str, str]
+ParameterValueMetadata: TypeAlias = (
+    tuple[str, str | Sequence[str], str, str, str] | tuple[str, str | Sequence[str], str, str, str, str]
+)
 
 
 def import_data(
@@ -294,12 +296,12 @@ def get_data_for_import(
     if metadata:
         yield ("metadata", _get_metadata_for_import(metadata))
     if entity_metadata:
-        yield ("metadata", _get_metadata_for_import((ent_metadata[2] for ent_metadata in entity_metadata)))
+        yield ("metadata", _get_metadata_for_import(((item[2], item[3]) for item in entity_metadata)))
         yield ("entity_metadata", _get_entity_metadata_for_import(entity_metadata))
     if parameter_value_metadata:
         yield (
             "metadata",
-            _get_metadata_for_import((pval_metadata[3] for pval_metadata in parameter_value_metadata)),
+            _get_metadata_for_import(((item[3], item[4]) for item in parameter_value_metadata)),
         )
         yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     if object_metadata:  # Legacy
@@ -856,17 +858,15 @@ def _get_parameter_groups_for_import(data: Iterable[ParameterGroup]) -> Iterator
 
 def _get_metadata_for_import(data: Iterable[Metadata]) -> Iterator[dict]:
     for metadata in data:
-        for name, value in _parse_metadata(metadata):
-            yield {"name": name, "value": value}
+        yield {"name": metadata[0], "value": metadata[1]}
 
 
 def _get_entity_metadata_for_import(data: Iterable[EntityMetadata]) -> Iterator[dict]:
     key = ("entity_class_name", "entity_byname", "metadata_name", "metadata_value")
-    for class_name, entity_byname, metadata in data:
+    for class_name, entity_byname, metadata_name, metadata_value in data:
         if isinstance(entity_byname, str):
             entity_byname = (entity_byname,)
-        for name, value in _parse_metadata(metadata):
-            yield dict(zip(key, (class_name, entity_byname, name, value)))
+        yield dict(zip(key, (class_name, entity_byname, metadata_name, metadata_value)))
 
 
 def _get_parameter_value_metadata_for_import(
@@ -880,12 +880,13 @@ def _get_parameter_value_metadata_for_import(
         "metadata_value",
         "alternative_name",
     )
-    for class_name, entity_byname, parameter_name, metadata, *optionals in data:
+    for class_name, entity_byname, parameter_name, metadata_name, metadata_value, *optionals in data:
         if isinstance(entity_byname, str):
             entity_byname = (entity_byname,)
         alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
-        for name, value in _parse_metadata(metadata):
-            yield dict(zip(key, (class_name, entity_byname, parameter_name, name, value, alternative_name)))
+        yield dict(
+            zip(key, (class_name, entity_byname, parameter_name, metadata_name, metadata_value, alternative_name))
+        )
 
 
 # Legacy

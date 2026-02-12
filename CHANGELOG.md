@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `import_metadata()` and `import_*_metadata()` functions now works like all other import functions:
+  metadata is entered as separate name and value fields.
+  *JSON metadata blobs are not supported anymore.*
+  For example, this does *not* work anymore:
+
+  ```python
+  import_metadata(['{"author": "Sorbus Aucuparia"}'])
+  ```
+
+  The above should be replaced by this:
+
+  ```python
+  import_metadata([("author", "Sorbus Aucuparia")])
+  ```
+
 ### Deprecated
 
 ### Removed

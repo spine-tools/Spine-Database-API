@@ -1875,7 +1875,7 @@ class TestImportMetadata(AssertSuccessTestCase):
     def test_import_metadata(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             count = self._assert_imports(
-                import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 90}'])
+                import_metadata(db_map, [("name", "John"), ("age", "17"), ("name", "Charly"), ("age", "90")])
             )
             self.assertEqual(count, 4)
             db_map.commit_session("test")
@@ -1889,7 +1889,7 @@ class TestImportMetadata(AssertSuccessTestCase):
     def test_import_metadata_with_duplicate_entry(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             count = self._assert_imports(
-                import_metadata(db_map, ['{"name": "John", "age": 17}', '{"name": "Charly", "age": 17}'])
+                import_metadata(db_map, [("name", "John"), ("age", "17"), ("name", "Charly"), ("age", "17")])
             )
             self.assertEqual(count, 3)
             db_map.commit_session("test")
@@ -1901,36 +1901,24 @@ class TestImportMetadata(AssertSuccessTestCase):
 
     def test_import_metadata_with_nested_dict(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            count = self._assert_imports(
-                import_metadata(db_map, ['{"name": "John", "info": {"age": 17, "city": "LA"}}'])
-            )
+            count = self._assert_imports(import_metadata(db_map, [("name", "John"), ("age", "17"), ("city", "LA")]))
+            self.assertEqual(count, 3)
             db_map.commit_session("test")
             metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
-            self.assertEqual(count, 2)
-            self.assertEqual(len(metadata), 2)
+            self.assertEqual(len(metadata), 3)
             self.assertIn(("name", "John"), metadata)
-            self.assertIn(("info", "{'age': 17, 'city': 'LA'}"), metadata)
+            self.assertIn(("age", "17"), metadata)
+            self.assertIn(("city", "LA"), metadata)
 
     def test_import_metadata_with_nested_list(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            count = self._assert_imports(
-                import_metadata(db_map, ['{"contributors": [{"name": "John"}, {"name": "Charly"}]}'])
-            )
+            count = self._assert_imports(import_metadata(db_map, [("contributor", "John"), ("contributor", "Charly")]))
             db_map.commit_session("test")
             metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
             self.assertEqual(count, 2)
             self.assertEqual(len(metadata), 2)
-            self.assertIn(("contributors", "{'name': 'John'}"), metadata)
-            self.assertIn(("contributors", "{'name': 'Charly'}"), metadata)
-
-    def test_import_unformatted_metadata(self):
-        with DatabaseMapping("sqlite://", create=True) as db_map:
-            count = self._assert_imports(import_metadata(db_map, ["not a JSON object"]))
-            db_map.commit_session("test")
-            metadata = [(x.name, x.value) for x in db_map.query(db_map.metadata_sq)]
-            self.assertEqual(count, 1)
-            self.assertEqual(len(metadata), 1)
-            self.assertIn(("unnamed", "not a JSON object"), metadata)
+            self.assertIn(("contributor", "John"), metadata)
+            self.assertIn(("contributor", "Charly"), metadata)
 
 
 class TestImportEntityMetadata(AssertSuccessTestCase):
@@ -1946,7 +1934,7 @@ class TestImportEntityMetadata(AssertSuccessTestCase):
             import_relationship_parameter_values(db_map, [("rel_cls1", ("object1", "object2"), "param2", "value2")])
         )
         self._assert_imports(
-            import_metadata(db_map, ['{"co-author": "John", "age": 17}', '{"co-author": "Charly", "age": 90}'])
+            import_metadata(db_map, [("co-author", "John"), ("age", "17"), ("co-author", "Charly"), ("age", "90")])
         )
 
     def test_import_object_metadata(self):
@@ -1956,8 +1944,10 @@ class TestImportEntityMetadata(AssertSuccessTestCase):
                 import_object_metadata(
                     db_map,
                     [
-                        ("object_class1", "object1", '{"co-author": "John", "age": 90}'),
-                        ("object_class1", "object1", '{"co-author": "Charly", "age": 17}'),
+                        ("object_class1", "object1", "co-author", "John"),
+                        ("object_class1", "object1", "age", "90"),
+                        ("object_class1", "object1", "co-author", "Charly"),
+                        ("object_class1", "object1", "age", "17"),
                     ],
                 )
             )
@@ -1979,8 +1969,10 @@ class TestImportEntityMetadata(AssertSuccessTestCase):
                 import_relationship_metadata(
                     db_map,
                     [
-                        ("rel_cls1", ("object1", "object2"), '{"co-author": "John", "age": 90}'),
-                        ("rel_cls1", ("object1", "object2"), '{"co-author": "Charly", "age": 17}'),
+                        ("rel_cls1", ("object1", "object2"), "co-author", "John"),
+                        ("rel_cls1", ("object1", "object2"), "age", "90"),
+                        ("rel_cls1", ("object1", "object2"), "co-author", "Charly"),
+                        ("rel_cls1", ("object1", "object2"), "age", "17"),
                     ],
                 )
             )
@@ -1996,7 +1988,7 @@ class TestImportEntityMetadata(AssertSuccessTestCase):
 
 class TestImportParameterValueMetadata(AssertSuccessTestCase):
     def _import_metadata(self, db_map):
-        self._assert_imports(import_metadata(db_map, ['{"co-author": "John", "age": 17}']))
+        self._assert_imports(import_metadata(db_map, [("co-author", "John"), ("age", "17")]))
 
     def test_import_object_parameter_value_metadata(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
@@ -2007,7 +1999,11 @@ class TestImportParameterValueMetadata(AssertSuccessTestCase):
             self._assert_imports(import_object_parameter_values(db_map, [("object_class", "object", "param", "value")]))
             count = self._assert_imports(
                 import_object_parameter_value_metadata(
-                    db_map, [("object_class", "object", "param", '{"co-author": "John", "age": 17}')]
+                    db_map,
+                    [
+                        ("object_class", "object", "param", "co-author", "John"),
+                        ("object_class", "object", "param", "age", "17"),
+                    ],
                 )
             )
             self.assertEqual(count, 2)
@@ -2056,7 +2052,11 @@ class TestImportParameterValueMetadata(AssertSuccessTestCase):
             )
             count = self._assert_imports(
                 import_relationship_parameter_value_metadata(
-                    db_map, (("relationship_class", ("object",), "param", '{"co-author": "John", "age": 17}'),)
+                    db_map,
+                    (
+                        ("relationship_class", ("object",), "param", "co-author", "John"),
+                        ("relationship_class", ("object",), "param", "age", "17"),
+                    ),
                 )
             )
             self.assertEqual(count, 2)

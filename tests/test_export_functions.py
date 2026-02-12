@@ -12,7 +12,6 @@
 """Unit tests for export_functions."""
 import pathlib
 from tempfile import TemporaryDirectory
-import unittest
 from spinedb_api import (
     DatabaseMapping,
     export_alternatives,

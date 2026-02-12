@@ -4795,7 +4795,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
 
     def test_add_metadata_that_exists_does_not_add_it(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, _ = db_map.add_items("metadata", {"name": "title", "value": "My metadata."}, strict=False)
             self.assertEqual(items, [])
@@ -4807,7 +4807,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("fish",))
             import_functions.import_objects(db_map, (("fish", "leviathan"),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.add_items("entity_metadata", {"entity_id": 1, "metadata_id": 1}, strict=False)
             self.assertEqual(errors, [])
@@ -4834,7 +4834,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_object_class", "my_object"),))
             import_functions.import_relationship_classes(db_map, (("my_relationship_class", ("my_object_class",)),))
             import_functions.import_relationships(db_map, (("my_relationship_class", ("my_object",)),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.add_items("entity_metadata", {"entity_id": 2, "metadata_id": 1}, strict=False)
             self.assertEqual(errors, [])
@@ -4891,7 +4891,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("fish",))
             import_functions.import_objects(db_map, (("fish", "leviathan"),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.add_ext_entity_metadata(
                 {"entity_id": 1, "metadata_name": "title", "metadata_value": "My metadata."}, strict=False
@@ -4923,7 +4923,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("fish", "leviathan"),))
             import_functions.import_object_parameters(db_map, (("fish", "paranormality"),))
             import_functions.import_object_parameter_values(db_map, (("fish", "leviathan", "paranormality", 3.9),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.add_items(
                 "parameter_value_metadata", {"parameter_value_id": 1, "metadata_id": 1}, strict=False
@@ -4992,7 +4992,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("fish", "leviathan"),))
             import_functions.import_object_parameters(db_map, (("fish", "paranormality"),))
             import_functions.import_object_parameter_values(db_map, (("fish", "leviathan", "paranormality", 3.9),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.add_ext_parameter_value_metadata(
                 {"parameter_value_id": 1, "metadata_name": "title", "metadata_value": "My metadata."}, strict=False
@@ -5329,8 +5329,8 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             db_map.commit_session("Add test data")
             items, errors = db_map.update_ext_entity_metadata(
                 {"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}
@@ -5354,12 +5354,12 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))
             import_functions.import_objects(db_map, (("my_class", "my_object"), ("my_class", "extra_object")))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}', '{"key 2": "metadata value 2"}'))
+            import_functions.import_metadata(db_map, [("title", "My metadata."), ("key 2", "metadata value 2")])
             import_functions.import_object_metadata(
                 db_map,
                 (
-                    ("my_class", "my_object", '{"title": "My metadata."}'),
-                    ("my_class", "extra_object", '{"key 2": "metadata value 2"}'),
+                    ("my_class", "my_object", "title", "My metadata."),
+                    ("my_class", "extra_object", "key 2", "metadata value 2"),
                 ),
             )
             db_map.commit_session("Add test data")
@@ -5389,12 +5389,12 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))
             import_functions.import_objects(db_map, (("my_class", "object_1"), ("my_class", "object_2")))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             import_functions.import_object_metadata(
                 db_map,
                 (
-                    ("my_class", "object_1", '{"title": "My metadata."}'),
-                    ("my_class", "object_2", '{"title": "My metadata."}'),
+                    ("my_class", "object_1", "title", "My metadata."),
+                    ("my_class", "object_2", "title", "My metadata."),
                 ),
             )
             db_map.commit_session("Add test data")
@@ -5427,9 +5427,9 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data")
             items, errors = db_map.update_ext_parameter_value_metadata(
@@ -5457,10 +5457,10 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data")
             items, errors = db_map.update_ext_parameter_value_metadata(
@@ -5491,7 +5491,7 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
 
     def test_update_metadata(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.update_items("metadata", *({"id": 1, "name": "author", "value": "Prof. T. Est"},))
             ids = {x.resolve()["id"] for x in items}
@@ -5732,10 +5732,10 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data.")
             metadata = db_map.query(db_map.metadata_sq).all()
@@ -5752,8 +5752,8 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             db_map.commit_session("Add test data.")
             entity_metadata = db_map.query(db_map.entity_metadata_sq).all()
             self.assertEqual(len(entity_metadata), 1)
@@ -5770,14 +5770,12 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             self._assert_imports(
-                import_functions.import_object_metadata(
-                    db_map, (("my_class", "my_object", '{"title": "My metadata."}'),)
-                )
+                import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             )
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data.")
             entity_metadata = db_map.query(db_map.entity_metadata_sq).all()
@@ -5794,10 +5792,10 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data.")
             parameter_value_metadata = db_map.query(db_map.parameter_value_metadata_sq).all()
@@ -5812,8 +5810,8 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             db_map.commit_session("Add test data.")
             db_map.remove_items("object", 1)
             db_map.remove_unused_metadata()
@@ -5828,9 +5826,9 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_object_class", "my_object"),))
             import_functions.import_relationship_classes(db_map, (("my_class", ("my_object_class",)),))
             import_functions.import_relationships(db_map, (("my_class", ("my_object",)),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             import_functions.import_relationship_metadata(
-                db_map, (("my_class", ("my_object",), '{"title": "My metadata."}'),)
+                db_map, (("my_class", ("my_object",), "title", "My metadata."),)
             )
             db_map.commit_session("Add test data.")
             db_map.remove_items("relationship", 2)
@@ -5846,9 +5844,9 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data.")
             db_map.remove_items("parameter_value", 1)
