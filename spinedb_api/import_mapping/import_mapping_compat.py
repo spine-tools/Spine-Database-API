@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Functions for creating import mappings from dicts. """
+"""Functions for creating import mappings from dicts."""
 from ..mapping import to_dict as import_mapping_to_dict
 from .import_mapping import (
     AlternativeMapping,
@@ -20,7 +20,8 @@ from .import_mapping import (
     EntityClassMapping,
     EntityGroupMapping,
     EntityMapping,
-    EntityMetadataMapping,
+    EntityMetadataNameMapping,
+    EntityMetadataValueMapping,
     ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
     IndexNameMapping,
@@ -32,7 +33,8 @@ from .import_mapping import (
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     ParameterValueMapping,
-    ParameterValueMetadataMapping,
+    ParameterValueMetadataNameMapping,
+    ParameterValueMetadataValueMapping,
     ParameterValueTypeMapping,
     Position,
     ScenarioAlternativeMapping,
@@ -129,15 +131,14 @@ def _scenario_alternative_mapping_from_dict(map_dict):
 
 def _object_class_mapping_from_dict(map_dict):
     name = map_dict.get("name")
-    objects = map_dict.get("objects", map_dict.get("object"))
+    entities = map_dict.get("objects", map_dict.get("object"))
     object_metadata = map_dict.get("object_metadata", None)
     parameters = map_dict.get("parameters")
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
     root_mapping = EntityClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    object_mapping = root_mapping.child = EntityMapping(*_pos_and_val(objects))
-    object_metadata_mapping = object_mapping.child = EntityMetadataMapping(*_pos_and_val(object_metadata))
-    object_metadata_mapping.child = parameter_mapping_from_dict(parameters)
+    entity_mapping = root_mapping.child = EntityMapping(*_pos_and_val(entities))
+    entity_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
 
 
@@ -162,7 +163,6 @@ def _relationship_class_mapping_from_dict(map_dict):
     object_classes = map_dict.get("object_classes")
     if object_classes is None:
         object_classes = [None]
-    relationship_metadata = map_dict.get("relationship_metadata")
     parameters = map_dict.get("parameters")
     import_entities = map_dict.get("import_objects", False)
     skip_columns = map_dict.get("skip_columns", [])
@@ -179,8 +179,7 @@ def _relationship_class_mapping_from_dict(map_dict):
         object_mapping = ElementMapping(*_pos_and_val(obj), import_entities=import_entities)
         parent_mapping.child = object_mapping
         parent_mapping = object_mapping
-    relationship_metadata_mapping = parent_mapping.child = EntityMetadataMapping(*_pos_and_val(relationship_metadata))
-    relationship_metadata_mapping.child = parameter_mapping_from_dict(parameters)
+    parent_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
 
 
@@ -201,13 +200,9 @@ def parameter_mapping_from_dict(map_dict):
         value_list_mapping.child = parameter_default_value_mapping_from_dict(default_value_dict)
         return param_def_mapping
     alternative_name = map_dict.get("alternative_name")
-    parameter_value_metadata = map_dict.get("parameter_value_metadata")
     alt_mapping = AlternativeMapping(*_pos_and_val(alternative_name))
     alt_mapping.child = param_def_mapping
-    param_def_mapping.child = param_val_metadata_mapping = ParameterValueMetadataMapping(
-        *_pos_and_val(parameter_value_metadata)
-    )
-    param_val_metadata_mapping.child = parameter_value_mapping_from_dict(map_dict.get("value"))
+    param_def_mapping.child = parameter_value_mapping_from_dict(map_dict.get("value"))
     return alt_mapping
 
 

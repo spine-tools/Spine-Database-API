@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Unit tests for import Mappings. """
+"""Unit tests for import Mappings."""
 import unittest
 from unittest.mock import Mock
 from spinedb_api.exception import InvalidMapping
@@ -220,14 +220,14 @@ class TestImportMappingIO(unittest.TestCase):
         mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
         d = mapping_to_dict(mapping)
         types = [m["map_type"] for m in d]
-        expected = ["EntityClass", "Entity", "EntityMetadata"]
+        expected = ["EntityClass", "Entity"]
         self.assertEqual(types, expected)
 
     def test_relationship_class_mapping(self):
         mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
         d = mapping_to_dict(mapping)
         types = [m["map_type"] for m in d]
-        expected = ["EntityClass", "Dimension", "Entity", "Element", "EntityMetadata"]
+        expected = ["EntityClass", "Dimension", "Entity", "Element"]
         self.assertEqual(types, expected)
 
     def test_object_group_mapping(self):
@@ -291,10 +291,8 @@ class TestImportMappingLegacy(unittest.TestCase):
         expected = [
             {"map_type": "EntityClass", "position": 0},
             {"map_type": "Entity", "position": 1},
-            {"map_type": "EntityMetadata", "position": "hidden"},
             {"map_type": "Alternative", "position": "hidden"},
             {"map_type": "ParameterDefinition", "position": 2},
-            {"map_type": "ParameterValueMetadata", "position": "hidden"},
             {"map_type": "ParameterValue", "position": 3},
         ]
         self.assertEqual(out, expected)
@@ -306,7 +304,6 @@ class TestImportMappingLegacy(unittest.TestCase):
         expected = [
             {"map_type": "EntityClass", "position": 0},
             {"map_type": "Entity", "position": 1},
-            {"map_type": "EntityMetadata", "position": "hidden"},
         ]
         self.assertEqual(out, expected)
 
@@ -317,7 +314,6 @@ class TestImportMappingLegacy(unittest.TestCase):
         expected = [
             {"map_type": "EntityClass", "position": "hidden", "value": "cls"},
             {"map_type": "Entity", "position": "hidden", "value": "obj"},
-            {"map_type": "EntityMetadata", "position": "hidden"},
         ]
         self.assertEqual(out, expected)
 
@@ -338,10 +334,8 @@ class TestImportMappingLegacy(unittest.TestCase):
             {"map_type": "Entity", "position": "hidden"},
             {"map_type": "Element", "position": 0},
             {"map_type": "Element", "position": 1},
-            {"map_type": "EntityMetadata", "position": "hidden"},
             {"map_type": "Alternative", "position": "hidden"},
             {"map_type": "ParameterDefinition", "position": "hidden", "value": "pname"},
-            {"map_type": "ParameterValueMetadata", "position": "hidden"},
             {"map_type": "ParameterValue", "position": 2},
         ]
         self.assertEqual(out, expected)
@@ -362,7 +356,6 @@ class TestImportMappingLegacy(unittest.TestCase):
             {"map_type": "Entity", "position": "hidden"},
             {"map_type": "Element", "position": "hidden", "value": "obj"},
             {"map_type": "Element", "position": 0},
-            {"map_type": "EntityMetadata", "position": "hidden"},
         ]
         self.assertEqual(out, expected)
 
@@ -385,10 +378,8 @@ class TestImportMappingLegacy(unittest.TestCase):
             {"map_type": "Dimension", "position": "hidden"},
             {"map_type": "Entity", "position": "hidden"},
             {"map_type": "Element", "position": "hidden"},
-            {"map_type": "EntityMetadata", "position": "hidden"},
             {"map_type": "Alternative", "position": "hidden"},
             {"map_type": "ParameterDefinition", "position": "hidden", "value": "pname"},
-            {"map_type": "ParameterValueMetadata", "position": "hidden"},
             {"map_type": "ParameterValueType", "position": "hidden", "value": "array"},
             {"map_type": "IndexName", "position": "hidden"},
             {"map_type": "ParameterValueIndex", "position": "hidden", "value": "dim"},
@@ -609,7 +600,7 @@ class TestMappingIsValid(unittest.TestCase):
 
     def test_valid_object_parameter_value_mapping(self):
         cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
-        object_mapping = cls_mapping.flatten()[-2]
+        object_mapping = cls_mapping.flatten()[1]
         cls_mapping.flatten()[-1].child = alternative_mapping = parameter_mapping_from_dict(
             {"map_type": "ParameterValue"}
         )
@@ -712,7 +703,7 @@ class TestMappingIsValid(unittest.TestCase):
     def test_valid_relationship_parameter_value_mapping(self):
         cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})
         obj_cls_mapping = cls_mapping.child
-        object_mapping = cls_mapping.flatten()[-2]
+        object_mapping = cls_mapping.flatten()[-1]
         cls_mapping.flatten()[-1].child = alternative_mapping = parameter_mapping_from_dict(
             {"map_type": "ParameterValue"}
         )
@@ -2123,7 +2114,3 @@ class TestDefaultMappings(unittest.TestCase):
             root = default_import_mapping(map_type)
             flattened = root.flatten()
             self.assertTrue(all(m.position == Position.hidden for m in flattened))
-
-
-if __name__ == "__main__":
-    unittest.main()

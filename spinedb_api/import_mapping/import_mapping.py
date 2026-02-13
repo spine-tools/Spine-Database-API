@@ -9,10 +9,10 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Contains import mappings for database items such as entities, entity classes and parameter values. """
-
+"""Contains import mappings for database items such as entities, entity classes and parameter values."""
+from collections.abc import Iterable
 from enum import Enum, auto, unique
-from typing import ClassVar
+from typing import Any, ClassVar
 from spinedb_api.exception import InvalidMapping, InvalidMappingComponent
 from spinedb_api.mapping import Mapping, Position, is_pivoted, parse_fixed_position_value, unflatten
 
@@ -24,6 +24,8 @@ class ImportKey(Enum):
     ENTITY_NAME = auto()
     GROUP_NAME = auto()
     MEMBER_NAME = auto()
+    METADATA_NAME = auto()
+    METADATA_VALUE = auto()
     PARAMETER_NAME = auto()
     PARAMETER_DEFINITION = auto()
     PARAMETER_DEFINITION_EXTRAS = auto()
@@ -31,14 +33,16 @@ class ImportKey(Enum):
     PARAMETER_DEFAULT_VALUE_INDEXES = auto()
     PARAMETER_VALUES = auto()
     PARAMETER_VALUE_INDEXES = auto()
-    PARAMETER_VALUE_METADATA = auto()
+    PARAMETER_VALUE_METADATA_NAME = auto()
+    PARAMETER_VALUE_METADATA_VALUE = auto()
     DIMENSION_NAMES = auto()
     ELEMENT_NAMES = auto()
     ALTERNATIVE_NAME = auto()
     SCENARIO_NAME = auto()
     SCENARIO_ALTERNATIVE = auto()
     PARAMETER_VALUE_LIST_NAME = auto()
-    ENTITY_METADATA = auto()
+    ENTITY_METADATA_NAME = auto()
+    ENTITY_METADATA_VALUE = auto()
 
     def __str__(self):
         name = {
@@ -47,15 +51,21 @@ class ImportKey(Enum):
             self.ENTITY_NAME.value: "Entity names",
             self.GROUP_NAME.value: "Group names",
             self.MEMBER_NAME.value: "Member names",
+            self.METADATA_NAME: "Metadata names",
+            self.METADATA_VALUE: "Metadata values",
             self.PARAMETER_NAME.value: "Parameter names",
             self.PARAMETER_DEFINITION.value: "Parameter names",
             self.PARAMETER_DEFAULT_VALUE_INDEXES.value: "Parameter indexes",
             self.PARAMETER_VALUE_INDEXES.value: "Parameter indexes",
+            self.PARAMETER_VALUE_METADATA_NAME.value: "Metadata names",
+            self.PARAMETER_VALUE_METADATA_VALUE.value: "Metadata values",
             self.DIMENSION_NAMES.value: "Dimension names",
             self.ELEMENT_NAMES.value: "Element names",
             self.PARAMETER_VALUE_LIST_NAME.value: "Parameter value lists",
             self.SCENARIO_NAME.value: "Scenario names",
             self.SCENARIO_ALTERNATIVE.value: "Alternative names",
+            self.ENTITY_METADATA_NAME.value: "Metadata names",
+            self.ENTITY_METADATA_VALUE: "Metadata values",
         }.get(self.value)
         if name is not None:
             return name
@@ -89,15 +99,21 @@ class ImportMapping(Mapping):
 
     ignorable: ClassVar[bool] = False
 
-    def __init__(self, position, value=None, skip_columns=None, read_start_row=0, filter_re=""):
+    def __init__(
+        self,
+        position: int | str | Position,
+        value: Any = None,
+        skip_columns: Iterable[int] | None = None,
+        read_start_row: int = 0,
+        filter_re: str = "",
+    ):
         """
         Args:
-            position (int or Position): what to map in the source table
-            value (Any, optional): fixed value
-            skip_columns (Iterable of int, optional): index of columns that should be skipped;
-                useful when source is pivoted
-            read_start_row (int): at which source row importing should start
-            filter_re (str): regular expression for filtering
+            position: what to map in the source table
+            value: fixed value
+            skip_columns: index of columns that should be skipped; useful when source is pivoted
+            read_start_row: at which source row importing should start
+            filter_re: regular expression for filtering
         """
         super().__init__(position, value, filter_re)
         self._skip_columns = None
@@ -431,13 +447,23 @@ class EntityMapping(ImportMapping):
         mapped_data.setdefault("entities", {})[entity_class_name, entity_name] = None
 
 
-class EntityMetadataMapping(ImportMapping):
-    """Maps entity metadata.
+class EntityMetadataNameMapping(ImportMapping):
+    """Maps entity metadata names."""
 
-    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping` and :class:`EntityMapping` as parents.
+    MAP_TYPE = "EntityMetadataName"
+    ignorable = True
+
+    def _import_row(self, source_data, state, mapped_data):
+        state[ImportKey.ENTITY_METADATA_NAME] = source_data
+
+
+class EntityMetadataValueMapping(ImportMapping):
+    """Maps entity metadata names.
+
+    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping`, :class:`EntityMapping` and :class:`EntityMetadataValueMapping` as parent.
     """
 
-    MAP_TYPE = "EntityMetadata"
+    MAP_TYPE = "EntityMetadataValue"
     ignorable = True
 
     def _import_row(self, source_data, state, mapped_data):
@@ -446,8 +472,11 @@ class EntityMetadataMapping(ImportMapping):
             entity_byname = state[ImportKey.ELEMENT_NAMES]
         else:
             entity_byname = (state[ImportKey.ENTITY_NAME],)
-        entity_metadata = state[ImportKey.ENTITY_METADATA] = source_data
-        mapped_data.setdefault("entity_metadata", {})[entity_class_name, entity_byname, entity_metadata] = None
+        metadata_name = state[ImportKey.ENTITY_METADATA_NAME]
+        metadata_value = state[ImportKey.ENTITY_METADATA_VALUE] = source_data
+        mapped_data.setdefault("entity_metadata", {})[
+            entity_class_name, entity_byname, metadata_name, metadata_value
+        ] = None
 
 
 class EntityGroupMapping(ImportEntitiesMixin, ImportMapping):
@@ -541,6 +570,29 @@ class ElementMapping(ImportEntitiesMixin, ImportMapping):
             mapped_data.setdefault("entities", {})[entity_class_name, tuple(element_names)] = None
             raise KeyFix(ImportKey.ELEMENT_NAMES)
         raise KeyError(ImportKey.ELEMENT_NAMES)
+
+
+class MetadataNameMapping(ImportMapping):
+    """Maps metadata names."""
+
+    MAP_TYPE = "MetadataName"
+
+    def _import_row(self, source_data, state, mapped_data):
+        state[ImportKey.METADATA_NAME] = str(source_data)
+
+
+class MetadataValueMapping(ImportMapping):
+    """Maps metadata values.
+
+    Cannot be used as the topmost mapping; must have a metadata name mapping as one of parents.
+    """
+
+    MAP_TYPE = "MetadataValue"
+
+    def _import_row(self, source_data, state, mapped_data):
+        metadata_name = state[ImportKey.METADATA_NAME]
+        metadata_value = state[ImportKey.METADATA_VALUE] = str(source_data)
+        mapped_data.setdefault("metadata", []).append((metadata_name, metadata_value))
 
 
 class ParameterDefinitionMapping(ImportMapping):
@@ -745,14 +797,24 @@ class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
         mapped_data.setdefault("parameter_values", []).append(parameter_value)
 
 
-class ParameterValueMetadataMapping(ImportMapping):
-    """Maps relationship metadata.
+class ParameterValueMetadataNameMapping(ImportMapping):
+    """Maps parameter value metadata names."""
+
+    MAP_TYPE = "ParameterValueMetadataName"
+    ignorable = True
+
+    def _import_row(self, source_data, state, mapped_data):
+        state[ImportKey.PARAMETER_VALUE_METADATA_NAME] = str(source_data)
+
+
+class ParameterValueMetadataValueMapping(ImportMapping):
+    """Maps parameter value metadata values.
 
     Cannot be used as the topmost mapping; must have a :class:`ParameterValueMapping` or
-    a :class:`ParameterValueTypeMapping` as parent.
+    a :class:`ParameterValueTypeMapping` and :class:`ParameterValueMetadataName` as parents.
     """
 
-    MAP_TYPE = "ParameterValueMetadata"
+    MAP_TYPE = "ParameterValueMetadataValue"
     ignorable = True
 
     def _import_row(self, source_data, state, mapped_data):
@@ -763,9 +825,10 @@ class ParameterValueMetadataMapping(ImportMapping):
             entity_byname = (state[ImportKey.ENTITY_NAME],)
         parameter_name = state[ImportKey.PARAMETER_NAME]
         alternative_name = state[ImportKey.ALTERNATIVE_NAME]
-        parameter_metadata = state[ImportKey.PARAMETER_VALUE_METADATA] = source_data
+        metadata_name = state[ImportKey.PARAMETER_VALUE_METADATA_NAME]
+        metadata_value = state[ImportKey.PARAMETER_VALUE_METADATA_VALUE] = str(source_data)
         mapped_data.setdefault("parameter_value_metadata", {})[
-            entity_class_name, entity_byname, parameter_name, parameter_metadata, alternative_name
+            entity_class_name, entity_byname, parameter_name, metadata_name, metadata_value, alternative_name
         ] = None
 
 
@@ -915,36 +978,25 @@ class ScenarioBeforeAlternativeMapping(ImportMapping):
         scen_alt.append(alternative)
 
 
-class ToolMapping(ImportMapping):
-    """Maps tools.
-
-    Can be used as the topmost mapping.
-    """
-
-    MAP_TYPE = "Tool"
-
-    def _import_row(self, source_data, state, mapped_data):
-        tool = state[ImportKey.TOOL_NAME] = str(source_data)
-        if self.child is None:
-            mapped_data.setdefault("tools", set()).add(tool)
-
-
-def default_import_mapping(map_type):
+def default_import_mapping(map_type: str) -> ImportMapping:
     """Creates default mappings for given map type.
 
     Args:
-        map_type (str): map type
+        map_type: map type
 
     Returns:
-        ImportMapping: root mapping of desired type
+        root mapping of desired type
     """
     make_root_mapping = {
-        "EntityClass": _default_entity_class_mapping,
-        "Alternative": _default_alternative_mapping,
-        "Scenario": _default_scenario_mapping,
-        "ScenarioAlternative": _default_scenario_alternative_mapping,
-        "EntityGroup": _default_entity_group_mapping,
-        "ParameterValueList": _default_parameter_value_list_mapping,
+        EntityClassMapping.MAP_TYPE: _default_entity_class_mapping,
+        AlternativeMapping.MAP_TYPE: _default_alternative_mapping,
+        ScenarioMapping.MAP_TYPE: _default_scenario_mapping,
+        ScenarioAlternativeMapping.MAP_TYPE: _default_scenario_alternative_mapping,
+        EntityGroupMapping.MAP_TYPE: _default_entity_group_mapping,
+        ParameterValueListMapping.MAP_TYPE: _default_parameter_value_list_mapping,
+        MetadataNameMapping.MAP_TYPE: _default_metadata_mapping,
+        EntityMetadataNameMapping.MAP_TYPE: _default_entity_metadata_mapping,
+        ParameterValueMetadataNameMapping.MAP_TYPE: _default_parameter_value_metadata_mapping,
     }[map_type]
     return make_root_mapping()
 
@@ -956,8 +1008,7 @@ def _default_entity_class_mapping():
         EntityClassMapping: root mapping
     """
     root_mapping = EntityClassMapping(Position.hidden)
-    entity_mapping = root_mapping.child = EntityMapping(Position.hidden)
-    entity_mapping.child = EntityMetadataMapping(Position.hidden)
+    root_mapping.child = EntityMapping(Position.hidden)
     return root_mapping
 
 
@@ -1015,6 +1066,34 @@ def _default_parameter_value_list_mapping():
     return root_mapping
 
 
+def _default_metadata_mapping() -> MetadataNameMapping:
+    root_mapping = MetadataNameMapping(Position.hidden)
+    root_mapping.child = MetadataValueMapping(Position.hidden)
+    return root_mapping
+
+
+def _default_entity_metadata_mapping() -> EntityClassMapping:
+    mappings = [
+        EntityClassMapping(Position.hidden),
+        EntityMapping(Position.hidden),
+        EntityMetadataNameMapping(Position.hidden),
+        EntityMetadataValueMapping(Position.hidden),
+    ]
+    return unflatten(mappings)
+
+
+def _default_parameter_value_metadata_mapping() -> EntityClassMapping:
+    mappings = [
+        EntityClassMapping(Position.hidden),
+        EntityMapping(Position.hidden),
+        ParameterDefinitionMapping(Position.hidden),
+        AlternativeMapping(Position.hidden),
+        ParameterValueMetadataNameMapping(Position.hidden),
+        ParameterValueMetadataValueMapping(Position.hidden),
+    ]
+    return unflatten(mappings)
+
+
 def from_dict(serialized):
     """
     Deserializes mappings.
@@ -1030,7 +1109,8 @@ def from_dict(serialized):
         for klass in (
             EntityClassMapping,
             EntityMapping,
-            EntityMetadataMapping,
+            EntityMetadataNameMapping,
+            EntityMetadataValueMapping,
             EntityGroupMapping,
             DimensionMapping,
             ElementMapping,
@@ -1044,45 +1124,42 @@ def from_dict(serialized):
             ExpandedParameterDefaultValueMapping,
             ParameterValueMapping,
             ParameterValueTypeMapping,
-            ParameterValueMetadataMapping,
+            ParameterValueMetadataNameMapping,
+            ParameterValueMetadataValueMapping,
             IndexNameMapping,
             ParameterValueIndexMapping,
             ExpandedParameterValueMapping,
             ParameterValueListMapping,
             ParameterValueListValueMapping,
+            MetadataNameMapping,
+            MetadataValueMapping,
             AlternativeMapping,
             ScenarioMapping,
             ScenarioAlternativeMapping,
             ScenarioBeforeAlternativeMapping,
-            ToolMapping,
-            # FIXME
-            # FeatureEntityClassMapping,
-            # FeatureParameterDefinitionMapping,
-            # ToolFeatureEntityClassMapping,
-            # ToolFeatureParameterDefinitionMapping,
-            # ToolFeatureRequiredFlagMapping,
-            # ToolFeatureMethodEntityClassMapping,
-            # ToolFeatureMethodParameterDefinitionMapping,
-            # ToolFeatureMethodMethodMapping,
         )
     }
     legacy_mappings = {
         "ParameterIndex": ParameterValueIndexMapping,
         "ObjectClass": EntityClassMapping,
         "Object": EntityMapping,
-        "ObjectMetadata": EntityMetadataMapping,
         "ObjectGroup": EntityGroupMapping,
         "RelationshipClass": EntityClassMapping,
         "RelationshipClassObjectClass": DimensionMapping,
         "Relationship": EntityMapping,
         "RelationshipObject": ElementMapping,
-        "RelationshipMetadata": EntityMetadataMapping,
     }
     mappings.update(legacy_mappings)
     flattened = []
     for mapping_dict in serialized:
-        if mapping_dict["map_type"] == "ScenarioActiveFlag":
-            # We don't have active flag mapping anymore.
+        if mapping_dict["map_type"] in {
+            "EntityMetadata",
+            "ObjectMetadata",
+            "RelationshipMetadata",
+            "ParameterValueMetadata",
+            "ScenarioActiveFlag",
+        }:
+            # We don't have JSON blob metadata nor active flag mappings anymore.
             continue
         position = mapping_dict["position"]
         value = mapping_dict.get("value")
