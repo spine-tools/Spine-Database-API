@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Contains export mappings for database items such as entities, entity classes and parameter values."""
+"""Contains export mappings for database items such as entities, entity classes and parameter values."""
 from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import suppress
@@ -1254,6 +1254,106 @@ class ScenarioDescriptionMapping(_DescriptionMappingBase):
     MAP_TYPE = "ScenarioDescription"
 
 
+class MetadataNameMapping(ExportMapping):
+    """Maps metadata names."""
+
+    MAP_TYPE = "MetadataName"
+    name_field = "metadata_name"
+    id_field = "metadata_id"
+
+    def build_query_columns(self, db_map, columns):
+        columns += [
+            db_map.metadata_sq.c.id.label("metadata_id"),
+            db_map.metadata_sq.c.name.label("metadata_name"),
+            db_map.metadata_sq.c.value.label("metadata_value"),
+        ]
+
+
+class MetadataValueMapping(ExportMapping):
+    """Maps metadata values.
+
+    Cannot be used as the topmost mapping; must have a :class:`MetadataNameMapping` as parent.
+    """
+
+    MAP_TYPE = "MetadataValue"
+    name_field = "metadata_value"
+    id_field = "metadata_value"
+
+
+class EntityMetadataNameMapping(ExportMapping):
+    """Maps entity metadata names.
+
+    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping` and :class:`EntityMapping` as parents.
+    """
+
+    MAP_TYPE = "EntityMetadataName"
+    name_field = "entity_metadata_name"
+    id_field = "entity_metadata_id"
+
+    def build_query_columns(self, db_map, columns):
+        columns += [
+            db_map.ext_entity_metadata_sq.c.id.label("entity_metadata_id"),
+            db_map.ext_entity_metadata_sq.c.metadata_name.label("entity_metadata_name"),
+            db_map.ext_entity_metadata_sq.c.metadata_value.label("entity_metadata_value"),
+        ]
+
+    def filter_query(self, db_map, query):
+        return query.outerjoin(
+            db_map.ext_entity_metadata_sq,
+            db_map.ext_entity_metadata_sq.c.entity_id == db_map.wide_entity_sq.c.id,
+        )
+
+
+class EntityMetadataValueMapping(ExportMapping):
+    """Maps entity metadata values.
+
+    Cannot be used as the topmost mapping; must have :class:`EntityMetadataNameMapping` as a parent.
+    """
+
+    MAP_TYPE = "EntityMetadataValue"
+    name_field = "entity_metadata_value"
+    id_field = "entity_metadata_value"
+
+
+class ParameterValueMetadataNameMapping(ExportMapping):
+    """Maps parameter value metadata names.
+
+    Cannot be used as the topmost mapping; must have :class:`ParameterDefinitionMapping` as a parent.
+    """
+
+    MAP_TYPE = "ParameterValueMetadataName"
+    name_field = "parameter_value_metadata_name"
+    id_field = "parameter_value_metadata_id"
+
+    def build_query_columns(self, db_map, columns):
+        columns += [
+            db_map.ext_parameter_value_metadata_sq.c.id.label("parameter_value_metadata_id"),
+            db_map.ext_parameter_value_metadata_sq.c.metadata_name.label("parameter_value_metadata_name"),
+            db_map.ext_parameter_value_metadata_sq.c.metadata_value.label("parameter_value_metadata_value"),
+        ]
+
+    def filter_query(self, db_map, query):
+        return query.filter(
+            and_(
+                db_map.parameter_value_sq.c.entity_id == db_map.wide_entity_sq.c.id,
+                db_map.parameter_value_sq.c.parameter_definition_id == db_map.parameter_definition_sq.c.id,
+                db_map.parameter_value_sq.c.alternative_id == db_map.alternative_sq.c.id,
+                db_map.ext_parameter_value_metadata_sq.c.parameter_value_id == db_map.parameter_value_sq.c.id,
+            )
+        )
+
+
+class ParameterValueMetadataValueMapping(ExportMapping):
+    """Maps parameter value metadata values.
+
+    Cannot be used as the topmost mapping; must have :class:`ParameterValueMetadataNameMapping` as a parent.
+    """
+
+    MAP_TYPE = "ParameterValueMetadataValue"
+    name_field = "parameter_value_metadata_value"
+    id_field = "parameter_value_metadata_value"
+
+
 class _FilteredQuery:
     """Helper class to define non-standard query filters."""
 
@@ -1388,6 +1488,10 @@ def from_dict(serialized):
             EntityGroupMapping,
             EntityGroupEntityMapping,
             EntityMapping,
+            EntityMetadataNameMapping,
+            EntityMetadataValueMapping,
+            MetadataNameMapping,
+            MetadataValueMapping,
             ParameterDefaultValueIndexMapping,
             ParameterDefaultValueMapping,
             ParameterDefaultValueTypeMapping,
@@ -1396,6 +1500,8 @@ def from_dict(serialized):
             ParameterValueListMapping,
             ParameterValueListValueMapping,
             ParameterValueMapping,
+            ParameterValueMetadataNameMapping,
+            ParameterValueMetadataValueMapping,
             ParameterValueTypeMapping,
             ScenarioBeforeAlternativeMapping,
             ScenarioDescriptionMapping,

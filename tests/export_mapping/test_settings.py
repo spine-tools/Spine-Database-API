@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for export settings. """
+"""Unit tests for export settings."""
 
 import unittest
 import numpy
@@ -32,9 +32,13 @@ from spinedb_api.export_mapping.export_mapping import (
     ElementMapping,
     EntityClassMapping,
     EntityMapping,
+    EntityMetadataNameMapping,
+    EntityMetadataValueMapping,
     ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
     IndexNameMapping,
+    MetadataNameMapping,
+    MetadataValueMapping,
     ParameterDefaultValueIndexMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueTypeMapping,
@@ -47,9 +51,13 @@ from spinedb_api.export_mapping.settings import (
     entity_dimension_parameter_default_value_export,
     entity_dimension_parameter_value_export,
     entity_export,
+    entity_metadata_export,
     entity_parameter_default_value_export,
     entity_parameter_value_export,
+    metadata_export,
+    parameter_value_metadata_export,
     set_entity_dimensions,
+    set_entity_elements,
     set_parameter_default_value_dimensions,
     set_parameter_dimensions,
 )
@@ -170,6 +178,106 @@ class TestEntityElementParameterExport(AssertSuccessTestCase):
             self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
 
 
+class TestMetadataExport:
+    def test_metadata_is_exported(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="temporal", value="lat: 2.3; lon: -23.0")
+            db_map.commit_session("Add test data.")
+            root_mapping = metadata_export(0, 1)
+            expected = [
+                ["temporal", "lat: 2.3; lon: -23.0"],
+            ]
+            assert list(rows(root_mapping, db_map, {})) == expected
+
+
+class TestEntityMetadataExport:
+    def test_metadata_is_exported(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="sources", value="https://example.com")
+            db_map.add_metadata(name="created", value="2026-02-14")
+            db_map.add_entity_class(name="Widget")
+            db_map.add_entity(entity_class_name="Widget", name="of_anon_source")
+            db_map.add_entity(entity_class_name="Widget", name="sourced")
+            db_map.add_entity(entity_class_name="Widget", name="created")
+            db_map.add_entity_metadata(
+                entity_class_name="Widget",
+                entity_byname=("sourced",),
+                metadata_name="sources",
+                metadata_value="https://example.com",
+            )
+            db_map.add_entity_metadata(
+                entity_class_name="Widget",
+                entity_byname=("created",),
+                metadata_name="created",
+                metadata_value="2026-02-14",
+            )
+            db_map.commit_session("Add test data.")
+            root_mapping = entity_metadata_export(0, 1, None, 2, 3)
+            expected = [
+                ["Widget", "sourced", "sources", "https://example.com"],
+                ["Widget", "created", "created", "2026-02-14"],
+            ]
+            test_case = unittest.TestCase()
+            test_case.assertCountEqual(list(rows(root_mapping, db_map, {})), expected)
+
+
+class TestParameterValueMetadataExport:
+    def test_metadata_is_exported(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_metadata(name="sources", value="https://example.com")
+            db_map.add_metadata(name="created", value="2026-02-14")
+            db_map.add_entity_class(name="Widget")
+            db_map.add_entity(entity_class_name="Widget", name="button")
+            db_map.add_entity(entity_class_name="Widget", name="checkbox")
+            db_map.add_entity(entity_class_name="Widget", name="table")
+            db_map.add_parameter_definition(entity_class_name="Widget", name="focus_policy")
+            db_map.add_parameter_value(
+                entity_class_name="Widget",
+                entity_byname=("button",),
+                parameter_definition_name="focus_policy",
+                alternative_name="Base",
+                parsed_value="skip_focus",
+            )
+            db_map.add_parameter_value(
+                entity_class_name="Widget",
+                entity_byname=("checkbox",),
+                parameter_definition_name="focus_policy",
+                alternative_name="Base",
+                parsed_value="strong_focus",
+            )
+            db_map.add_parameter_value(
+                entity_class_name="Widget",
+                entity_byname=("table",),
+                parameter_definition_name="focus_policy",
+                alternative_name="Base",
+                parsed_value="inhuman_focus",
+            )
+            db_map.add_parameter_value_metadata(
+                entity_class_name="Widget",
+                entity_byname=("checkbox",),
+                parameter_definition_name="focus_policy",
+                alternative_name="Base",
+                metadata_name="created",
+                metadata_value="2026-02-14",
+            )
+            db_map.add_parameter_value_metadata(
+                entity_class_name="Widget",
+                entity_byname=("table",),
+                parameter_definition_name="focus_policy",
+                alternative_name="Base",
+                metadata_name="sources",
+                metadata_value="https://example.com",
+            )
+            db_map.commit_session("Add test data.")
+            root_mapping = parameter_value_metadata_export(0, 1, None, 2, 3, 4, 5)
+            expected = [
+                ["Widget", "checkbox", "focus_policy", "Base", "created", "2026-02-14"],
+                ["Widget", "table", "focus_policy", "Base", "sources", "https://example.com"],
+            ]
+            test_case = unittest.TestCase()
+            test_case.assertCountEqual(list(rows(root_mapping, db_map, {})), expected)
+
+
 class TestSetEntityDimensions(unittest.TestCase):
     def test_change_dimensions_from_zero_to_one(self):
         mapping = entity_export(0, 1)
@@ -240,6 +348,37 @@ class TestSetEntityDimensions(unittest.TestCase):
         )
         positions = [mapping.position for mapping in flattened]
         self.assertEqual(positions, [0, 2, 1, 4])
+
+
+class TestSetEntityElements:
+    def test_set_elements_from_zero_to_one(self):
+        root_mapping = entity_metadata_export(0, 1, None, 2, 3)
+        set_entity_elements(root_mapping, 1)
+        assert [type(mapping) for mapping in root_mapping.flatten()] == [
+            EntityClassMapping,
+            EntityMapping,
+            ElementMapping,
+            EntityMetadataNameMapping,
+            EntityMetadataValueMapping,
+        ]
+        assert [mapping.position for mapping in root_mapping.flatten()] == [0, 1, Position.hidden, 2, 3]
+
+    def test_set_elements_from_one_to_zero(self):
+        root_mapping = entity_metadata_export(0, 1, [2], 3, 4)
+        set_entity_elements(root_mapping, 0)
+        assert [type(mapping) for mapping in root_mapping.flatten()] == [
+            EntityClassMapping,
+            EntityMapping,
+            EntityMetadataNameMapping,
+            EntityMetadataValueMapping,
+        ]
+        assert [mapping.position for mapping in root_mapping.flatten()] == [0, 1, 3, 4]
+
+    def test_mapping_without_entities_is_unaffected(self):
+        root_mapping = metadata_export(0, 1)
+        set_entity_elements(root_mapping, 1)
+        assert [type(mapping) for mapping in root_mapping.flatten()] == [MetadataNameMapping, MetadataValueMapping]
+        assert [mapping.position for mapping in root_mapping.flatten()] == [0, 1]
 
 
 class TestSetParameterDimensions(unittest.TestCase):
@@ -332,7 +471,3 @@ class TestSetParameterDimensions(unittest.TestCase):
         ]
         for expected_type, mapping in zip(expected_types, reversed(root_mapping.flatten())):
             self.assertIsInstance(mapping, expected_type)
-
-
-if __name__ == "__main__":
-    unittest.main()

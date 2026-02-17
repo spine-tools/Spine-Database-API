@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Contains convenience functions to set up different database export schemes. """
+"""Contains convenience functions to set up different database export schemes."""
 from itertools import takewhile
 from ..mapping import unflatten
 from .export_mapping import (
@@ -22,9 +22,14 @@ from .export_mapping import (
     EntityGroupEntityMapping,
     EntityGroupMapping,
     EntityMapping,
+    EntityMetadataNameMapping,
+    EntityMetadataValueMapping,
     ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
+    ExportMapping,
     IndexNameMapping,
+    MetadataNameMapping,
+    MetadataValueMapping,
     ParameterDefaultValueIndexMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueTypeMapping,
@@ -33,10 +38,11 @@ from .export_mapping import (
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     ParameterValueMapping,
+    ParameterValueMetadataNameMapping,
+    ParameterValueMetadataValueMapping,
     ParameterValueTypeMapping,
     Position,
     ScenarioAlternativeMapping,
-    ScenarioBeforeAlternativeMapping,
     ScenarioDescriptionMapping,
     ScenarioMapping,
 )
@@ -298,6 +304,20 @@ def set_entity_dimensions(entity_mapping, dimensions):
     unflatten(mapping_list)
 
 
+def set_entity_elements(root_mapping: ExportMapping, dimensions: int) -> None:
+    """
+    Modifies given entity mapping's number of elements in place.
+
+    Args:
+        root_mapping: an entity mapping
+        dimensions: number of dimensions
+    """
+    mapping_list = root_mapping.flatten()
+    if any(isinstance(m, EntityMapping) for m in mapping_list):
+        mapping_list = _change_amount_of_consecutive_mappings(mapping_list, EntityMapping, ElementMapping, dimensions)
+    unflatten(mapping_list)
+
+
 def alternative_export(alternative_position=Position.hidden, alternative_description_position=Position.hidden):
     """
     Sets up export mappings for exporting alternatives.
@@ -364,6 +384,50 @@ def parameter_value_list_export(value_list_position=Position.hidden, value_list_
     value_mapping = ParameterValueListValueMapping(value_list_value_position)
     value_list_mapping.child = value_mapping
     return value_list_mapping
+
+
+def metadata_export(
+    name_position: int | Position = Position.hidden, value_position: int | Position = Position.hidden
+) -> MetadataNameMapping:
+    return unflatten([MetadataNameMapping(name_position), MetadataValueMapping(value_position)])
+
+
+def entity_metadata_export(
+    entity_class_position: int | Position = Position.hidden,
+    entity_position: int | Position = Position.hidden,
+    element_positions: list[int | Position] | None = None,
+    metadata_name_position: int | Position = Position.hidden,
+    metadata_value_position: int | Position = Position.hidden,
+) -> EntityClassMapping:
+    if element_positions is None:
+        element_positions = []
+    entity_class = EntityClassMapping(entity_class_position)
+    entity = entity_class.child = EntityMapping(entity_position)
+    last_element = _generate_dimensions(entity, ElementMapping, element_positions)
+    metadata_name = last_element.child = EntityMetadataNameMapping(metadata_name_position)
+    metadata_name.child = EntityMetadataValueMapping(metadata_value_position)
+    return entity_class
+
+
+def parameter_value_metadata_export(
+    entity_class_position: int | Position = Position.hidden,
+    entity_position: int | Position = Position.hidden,
+    element_positions: list[int | Position] | None = None,
+    definition_position: int | Position = Position.hidden,
+    alternative_position: int | Position = Position.hidden,
+    metadata_name_position: int | Position = Position.hidden,
+    metadata_value_position: int | Position = Position.hidden,
+) -> EntityClassMapping:
+    if element_positions is None:
+        element_positions = []
+    entity_class = EntityClassMapping(entity_class_position)
+    entity = entity_class.child = EntityMapping(entity_position)
+    last_element = _generate_dimensions(entity, ElementMapping, element_positions)
+    parameter_definition = last_element.child = ParameterDefinitionMapping(definition_position)
+    alternative = parameter_definition.child = AlternativeMapping(alternative_position)
+    metadata_name = alternative.child = ParameterValueMetadataNameMapping(metadata_name_position)
+    metadata_name.child = ParameterValueMetadataValueMapping(metadata_value_position)
+    return entity_class
 
 
 def set_parameter_dimensions(mapping, dimensions):
