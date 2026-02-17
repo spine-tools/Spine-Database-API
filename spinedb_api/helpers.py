@@ -168,27 +168,6 @@ def compile_group_concat_mysql(element, compiler, **kw):
     )
 
 
-def _parse_metadata_fallback(metadata: Any) -> Iterator[tuple[str, str]]:
-    yield ("unnamed", str(metadata))
-
-
-def _parse_metadata(metadata: str) -> Iterator[tuple[str, str]]:
-    try:
-        parsed = json.loads(metadata)
-    except json.decoder.JSONDecodeError:
-        yield from _parse_metadata_fallback(metadata)
-        return
-    if not isinstance(parsed, dict):
-        yield from _parse_metadata_fallback(metadata)
-        return
-    for key, value in parsed.items():
-        if isinstance(value, list):
-            for val in value:
-                yield (key, str(val))
-            continue
-        yield (key, str(value))
-
-
 def _is_head(db_url: str | URL, upgrade=False) -> bool:
     """Check whether the database at db_url is at the head revision."""
     engine = create_engine(db_url, future=True)
@@ -973,6 +952,9 @@ def string_to_bool(string: str) -> bool:
     if string in _FALSES:
         return False
     raise ValueError(string)
+
+
+DisplayStatusValue: TypeAlias = Literal["visible", "hidden", "greyed_out"]
 
 
 @enum.unique

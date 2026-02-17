@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains unit tests for the generator module. """
+"""Contains unit tests for the generator module."""
 import unittest
 from spinedb_api import Array, DateTime, Duration, Map
 from spinedb_api.import_mapping.generator import get_mapped_data
@@ -1078,6 +1078,100 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
+    def test_import_metadata(self):
+        header = ["title", "date", "source"]
+        data_source = iter(
+            [
+                ["Regenerative SMRs", "2026-02-31", "https://truenews.com"],
+                ["Expanding circular AI-smart grids", "2026-01-01", "https://bedtimestories.com"],
+                ["Biodiverse capacity factors in ESMs", "2026-02-14", "https://knownsecrets.com"],
+            ]
+        )
+        mappings = [
+            [
+                {"map_type": "MetadataName", "position": "header"},
+                {"map_type": "MetadataValue", "position": "hidden"},
+            ]
+        ]
+        mapped_data, errors = get_mapped_data(data_source, mappings, header)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "metadata": [
+                    ("title", "Regenerative SMRs"),
+                    ("title", "Expanding circular AI-smart grids"),
+                    ("title", "Biodiverse capacity factors in ESMs"),
+                    ("date", "2026-02-31"),
+                    ("date", "2026-01-01"),
+                    ("date", "2026-02-14"),
+                    ("source", "https://truenews.com"),
+                    ("source", "https://bedtimestories.com"),
+                    ("source", "https://knownsecrets.com"),
+                ]
+            },
+        )
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_import_entity_metadata(self):
+        header = ["Class", "Entity", "Created", "Keywords"]
+        data_source = iter([["cat", "Garfield", "1976", "laziness, gluttony"], ["cat", "Tom", "1940", "rivalry"]])
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": 0},
+                {"map_type": "Entity", "position": 1},
+                {"map_type": "EntityMetadataName", "position": "header"},
+                {"map_type": "EntityMetadataValue", "position": "hidden"},
+            ]
+        ]
+        mapped_data, errors = get_mapped_data(data_source, mappings, header)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entities": [("cat", "Garfield"), ("cat", "Tom")],
+                "entity_classes": [("cat",)],
+                "entity_metadata": [
+                    ("cat", ("Garfield",), "Created", "1976"),
+                    ("cat", ("Garfield",), "Keywords", "laziness, gluttony"),
+                    ("cat", ("Tom",), "Created", "1940"),
+                    ("cat", ("Tom",), "Keywords", "rivalry"),
+                ],
+            },
+        )
+
+    def test_import_parameter_value_metadata(self):
+        header = ["Class", "Entity", "Parameter", "Alternative", "Tools", "Licences"]
+        data_source = iter(
+            [
+                ["cat", "Garfield", "weight", "Base", "Harrison-Stetson 1.0", "Public domain"],
+                ["cat", "Tom", "weight", "Base", "Harrison-Stetson 0.9", "Public domain"],
+            ]
+        )
+
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": 0},
+                {"map_type": "Entity", "position": 1},
+                {"map_type": "Alternative", "position": 3},
+                {"map_type": "ParameterDefinition", "position": 2},
+                {"map_type": "ParameterValueMetadataName", "position": "header"},
+                {"map_type": "ParameterValueMetadataValue", "position": "hidden"},
+            ]
+        ]
+        mapped_data, errors = get_mapped_data(data_source, mappings, header)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base"},
+                "entities": [("cat", "Garfield"), ("cat", "Tom")],
+                "entity_classes": [("cat",)],
+                "parameter_definitions": [("cat", "weight")],
+                "parameter_value_metadata": [
+                    ("cat", ("Garfield",), "weight", "Tools", "Harrison-Stetson 1.0", "Base"),
+                    ("cat", ("Garfield",), "weight", "Licences", "Public domain", "Base"),
+                    ("cat", ("Tom",), "weight", "Tools", "Harrison-Stetson 0.9", "Base"),
+                    ("cat", ("Tom",), "weight", "Licences", "Public domain", "Base"),
+                ],
+            },
+        )

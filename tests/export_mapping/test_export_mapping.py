@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for export mappings. """
+"""Unit tests for export mappings."""
 
 import unittest
 from spinedb_api import (
@@ -1666,7 +1666,3 @@ class TestExportMapping(AssertSuccessTestCase):
                     ["Gadget", "spoon", "Base", "1d_map", "a", 1.2],
                 ],
             )
-
-
-if __name__ == "__main__":
-    unittest.main()

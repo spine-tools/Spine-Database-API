@@ -20,7 +20,7 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import suppress
 from typing import Any, Optional, TypeAlias
 from . import DatabaseMapping, SpineDBAPIError
-from .helpers import DisplayStatus, ItemType, _parse_metadata
+from .helpers import DisplayStatusValue, ItemType
 from .parameter_value import (
     ConflictResolution,
     ConflictResolutionCallable,
@@ -31,8 +31,8 @@ from .parameter_value import (
 )
 
 UnparseCallable: TypeAlias = Callable[[Value], tuple[bytes, Optional[str]]]
-Alternative: TypeAlias = tuple[str] | tuple[str, str]
-Scenario: TypeAlias = tuple[str] | tuple[str, bool] | tuple[str, bool, str]
+Alternative: TypeAlias = str | tuple[str] | tuple[str, str]
+Scenario: TypeAlias = str | tuple[str] | tuple[str, bool] | tuple[str, bool, str]
 ScenarioAlternative: TypeAlias = tuple[str, str] | tuple[str, str, str]
 Location: TypeAlias = tuple[float, float, float, str, str]
 Entity: TypeAlias = (
@@ -43,7 +43,9 @@ Entity: TypeAlias = (
 EntityAlternative: TypeAlias = tuple[str, str | Sequence[str], str, bool]
 EntityGroup: TypeAlias = tuple[str, str, str]
 EntityClass: TypeAlias = (
-    tuple[str, Sequence[str]]
+    str
+    | tuple[str]
+    | tuple[str, Sequence[str]]
     | tuple[str, Sequence[str], str]
     | tuple[str, Sequence[str], str, int]
     | tuple[str, Sequence[str], str, int, bool]
@@ -61,16 +63,18 @@ ParameterDefinition: TypeAlias = (
     | tuple[str, str, Any, str, str, str, str]
 )
 SuperclassSubclass: TypeAlias = tuple[str, str]
-DisplayMode: TypeAlias = tuple[str] | tuple[str, str]
+DisplayMode: TypeAlias = str | tuple[str] | tuple[str, DisplayStatusValue]
 EntityClassDisplayMode: TypeAlias = (
     tuple[str, str, int]
-    | tuple[str, str, int, DisplayStatus]
-    | tuple[str, str, int, DisplayStatus, str]
-    | tuple[str, str, int, DisplayStatus, str, str]
+    | tuple[str, str, int, DisplayStatusValue]
+    | tuple[str, str, int, DisplayStatusValue, str]
+    | tuple[str, str, int, DisplayStatusValue, str, str]
 )
 Metadata: TypeAlias = tuple[str, str]
-EntityMetadata: TypeAlias = tuple[str, Sequence[str], str, str]
-ParameterValueMetadata: TypeAlias = tuple[str, Sequence[str], str, str, str, str]
+EntityMetadata: TypeAlias = tuple[str, str | Sequence[str], str, str]
+ParameterValueMetadata: TypeAlias = (
+    tuple[str, str | Sequence[str], str, str, str] | tuple[str, str | Sequence[str], str, str, str, str]
+)
 
 
 def import_data(
@@ -294,12 +298,12 @@ def get_data_for_import(
     if metadata:
         yield ("metadata", _get_metadata_for_import(metadata))
     if entity_metadata:
-        yield ("metadata", _get_metadata_for_import((ent_metadata[2] for ent_metadata in entity_metadata)))
+        yield ("metadata", _get_metadata_for_import(((item[2], item[3]) for item in entity_metadata)))
         yield ("entity_metadata", _get_entity_metadata_for_import(entity_metadata))
     if parameter_value_metadata:
         yield (
             "metadata",
-            _get_metadata_for_import((pval_metadata[3] for pval_metadata in parameter_value_metadata)),
+            _get_metadata_for_import(((item[3], item[4]) for item in parameter_value_metadata)),
         )
         yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     if object_metadata:  # Legacy
@@ -551,6 +555,34 @@ def import_metadata(db_map: DatabaseMapping, data: Iterable[Metadata]) -> tuple[
         tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, metadata=data)
+
+
+def import_entity_metadata(db_map: DatabaseMapping, data: Iterable[EntityMetadata]) -> tuple[int, list[str]]:
+    """Imports metadata into a Spine database using a standard format.
+
+    Args:
+        db_map: database mapping
+        data: tuples of (entity class name, entity (by)name, metadata name, metadata value)
+
+    Returns:
+        tuple of (number of items imported, list of errors)
+    """
+    return import_data(db_map, entity_metadata=data)
+
+
+def import_parameter_value_metadata(
+    db_map: DatabaseMapping, data: Iterable[ParameterValueMetadata]
+) -> tuple[int, list[str]]:
+    """Imports metadata into a Spine database using a standard format.
+
+    Args:
+        db_map: database mapping
+        data: tuples of (entity class name, entity (by)name, parameter_name, metadata name, metadata value, [alternative name])
+
+    Returns:
+        tuple of (number of items imported, list of errors)
+    """
+    return import_data(db_map, parameter_value_metadata=data)
 
 
 def import_object_classes(db_map, data):
@@ -856,17 +888,15 @@ def _get_parameter_groups_for_import(data: Iterable[ParameterGroup]) -> Iterator
 
 def _get_metadata_for_import(data: Iterable[Metadata]) -> Iterator[dict]:
     for metadata in data:
-        for name, value in _parse_metadata(metadata):
-            yield {"name": name, "value": value}
+        yield {"name": metadata[0], "value": metadata[1]}
 
 
 def _get_entity_metadata_for_import(data: Iterable[EntityMetadata]) -> Iterator[dict]:
     key = ("entity_class_name", "entity_byname", "metadata_name", "metadata_value")
-    for class_name, entity_byname, metadata in data:
+    for class_name, entity_byname, metadata_name, metadata_value in data:
         if isinstance(entity_byname, str):
             entity_byname = (entity_byname,)
-        for name, value in _parse_metadata(metadata):
-            yield dict(zip(key, (class_name, entity_byname, name, value)))
+        yield dict(zip(key, (class_name, entity_byname, metadata_name, metadata_value)))
 
 
 def _get_parameter_value_metadata_for_import(
@@ -880,12 +910,13 @@ def _get_parameter_value_metadata_for_import(
         "metadata_value",
         "alternative_name",
     )
-    for class_name, entity_byname, parameter_name, metadata, *optionals in data:
+    for class_name, entity_byname, parameter_name, metadata_name, metadata_value, *optionals in data:
         if isinstance(entity_byname, str):
             entity_byname = (entity_byname,)
         alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
-        for name, value in _parse_metadata(metadata):
-            yield dict(zip(key, (class_name, entity_byname, parameter_name, name, value, alternative_name)))
+        yield dict(
+            zip(key, (class_name, entity_byname, parameter_name, metadata_name, metadata_value, alternative_name))
+        )
 
 
 # Legacy
