@@ -168,7 +168,7 @@ def _create_import_alternative(db_map: DatabaseMapping, state: _ExecutionFilterS
     timestamp = state.timestamp
     sep = "__" if scenarios else ""
     db_map._import_alternative_name = alt_name = f"{'_'.join(scenarios)}{sep}{execution_item}@{timestamp}"
-    db_map.add_alternative(name=alt_name)
+    db_map.get_or_add_by_type("alternative", name=alt_name)
     for scen_name in scenarios:
         scen = db_map.get_or_add_by_type("scenario", name=scen_name)
         rank = len(scen["sorted_scenario_alternatives"]) + 1  # ranks are 1-based
