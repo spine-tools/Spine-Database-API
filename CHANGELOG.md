@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Note, that the semantics of metadata imports have changed, see the Changed section below.
 - Added missing `export_metadata()`, `export_entity_metadata()` and `export_parameter_value_metadata()` functions
   to `export_functions` module.
+- A new experimental module `spinedb_api.scenario_recipes` contains functions to support complex scenario generation
+  from sets of alternatives.
 
 ### Changed
 
