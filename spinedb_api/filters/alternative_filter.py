@@ -21,8 +21,6 @@ from sqlalchemy import Integer, and_, cast, func, literal, or_, select, union_al
 from ..exception import SpineDBAPIError
 from .query_utils import filter_by_active_elements
 
-__all__ = ("alternative_filter_config",)
-
 ALTERNATIVE_FILTER_TYPE = "alternative_filter"
 ALTERNATIVE_FILTER_SHORTHAND_TAG = "alternatives"
 
@@ -30,6 +28,8 @@ ALTERNATIVE_FILTER_SHORTHAND_TAG = "alternatives"
 def apply_alternative_filter_to_parameter_value_sq(db_map, alternatives):
     """
     Replaces parameter value subquery properties in ``db_map`` such that they return only values of given alternatives.
+
+    :meta private:
 
     Args:
         db_map (DatabaseMapping): a database map to alter
@@ -69,6 +69,8 @@ def alternative_filter_from_dict(db_map, config):
     """
     Applies alternative filter to given database map.
 
+    :meta private:
+
     Args:
         db_map (DatabaseMapping): target database map
         config (dict): alternative filter configuration
@@ -79,6 +81,8 @@ def alternative_filter_from_dict(db_map, config):
 def alternative_filter_config_to_shorthand(config):
     """
     Makes a shorthand string from alternative filter configuration.
+
+    :meta private:
 
     Args:
         config (dict): alternative filter configuration
@@ -96,6 +100,8 @@ def alternative_names_from_dict(config):
     """
     Returns alternatives' names from filter config.
 
+    :meta private:
+
     Args:
         config (dict): alternative filter configuration
 
@@ -110,6 +116,8 @@ def alternative_names_from_dict(config):
 def alternative_filter_shorthand_to_config(shorthand):
     """
     Makes configuration dictionary out of a shorthand string.
+
+    :meta private:
 
     Args:
         shorthand (str): a shorthand string
