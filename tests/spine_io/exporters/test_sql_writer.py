@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for SQL writer. """
+"""Unit tests for SQL writer."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -194,12 +194,12 @@ class TestSqlWriter(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(db_map, ("oc",)))
                 self._assert_imports(import_objects(db_map, (("oc", "o1"), ("oc", "q1"))))
                 db_map.commit_session("Add test data.")
-                root_mapping1 = entity_export(Position.table_name, 0)
-                root_mapping1.child.header = "objects"
-                root_mapping1.child.filter_re = "o1"
-                root_mapping2 = entity_export(Position.table_name, 0)
-                root_mapping2.child.header = "objects"
-                root_mapping2.child.filter_re = "q1"
+                root_mapping1 = entity_export(Position.table_name, Position.hidden, 0)
+                root_mapping1.child.child.header = "objects"
+                root_mapping1.child.child.filter_re = "o1"
+                root_mapping2 = entity_export(Position.table_name, Position.hidden, 0)
+                root_mapping2.child.child.header = "objects"
+                root_mapping2.child.child.filter_re = "q1"
                 out_path = Path(temp_dir, "out.sqlite")
                 writer = SqlWriter(str(out_path), overwrite_existing=True)
                 write(db_map, writer, root_mapping1)
@@ -236,7 +236,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                     metadata.create_all(out_engine)
                     out_connection.execute(object_table.insert(), {"objects": "initial_object"})
                 out_engine.dispose()
-                root_mapping = entity_export(Position.table_name, 0)
+                root_mapping = entity_export(Position.table_name, Position.hidden, 0)
                 root_mapping.child.header = "objects"
                 writer = SqlWriter(str(out_path), overwrite_existing=False)
                 write(db_map, writer, root_mapping)
@@ -257,7 +257,3 @@ class TestSqlWriter(AssertSuccessTestCase):
                         self.assertEqual(row, expected)
                     session.close()
                 engine.dispose()
-
-
-if __name__ == "__main__":
-    unittest.main()

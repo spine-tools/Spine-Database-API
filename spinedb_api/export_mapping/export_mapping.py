@@ -1228,30 +1228,54 @@ class ScenarioBeforeAlternativeMapping(ExportMapping):
         return isinstance(parent, ScenarioAlternativeMapping)
 
 
-class _DescriptionMappingBase(ExportMapping):
-    """Maps descriptions."""
-
-    MAP_TYPE = "Description"
-    name_field = "description"
-    id_field = "description"
-
-
-class AlternativeDescriptionMapping(_DescriptionMappingBase):
+class AlternativeDescriptionMapping(ExportMapping):
     """Maps alternative descriptions.
 
     Cannot be used as the topmost mapping; must have :class:`AlternativeMapping` as parent.
     """
 
     MAP_TYPE = "AlternativeDescription"
+    name_field = "description"
+    id_field = "description"
 
 
-class ScenarioDescriptionMapping(_DescriptionMappingBase):
+class ScenarioDescriptionMapping(ExportMapping):
     """Maps scenario descriptions.
 
     Cannot be used as the topmost mapping; must have :class:`ScenarioMapping` as parent.
     """
 
     MAP_TYPE = "ScenarioDescription"
+    name_field = "description"
+    id_field = "description"
+
+
+class EntityClassDescriptionMapping(ExportMapping):
+    """Maps entity class descriptions.
+
+    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping` as parent.
+    """
+
+    MAP_TYPE = "EntityClassDescription"
+    name_field = "entity_class_description"
+    id_field = "entity_class_description"
+
+    def build_query_columns(self, db_map, columns):
+        columns.append(db_map.wide_entity_class_sq.c.description.label("entity_class_description"))
+
+
+class EntityDescriptionMapping(ExportMapping):
+    """Maps entity descriptions.
+
+    Cannot be used as the topmost mapping; must have :class:`EntityMapping` as parent.
+    """
+
+    MAP_TYPE = "EntityDescription"
+    name_field = "entity_description"
+    id_field = "entity_description"
+
+    def build_query_columns(self, db_map, columns):
+        columns.append(db_map.wide_entity_sq.c.description.label("entity_description"))
 
 
 class MetadataNameMapping(ExportMapping):
@@ -1484,9 +1508,11 @@ def from_dict(serialized):
             ExpandedParameterValueMapping,
             FixedValueMapping,
             IndexNameMapping,
+            EntityClassDescriptionMapping,
             EntityClassMapping,
             EntityGroupMapping,
             EntityGroupEntityMapping,
+            EntityDescriptionMapping,
             EntityMapping,
             EntityMetadataNameMapping,
             EntityMetadataValueMapping,

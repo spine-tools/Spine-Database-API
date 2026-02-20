@@ -621,7 +621,9 @@ class TestExportMapping(AssertSuccessTestCase):
             import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
             import_relationships(db_map, (("rc", ("o1", "O")), ("rc", ("o2", "O"))))
             db_map.commit_session("Add test data.")
-            mappings = entity_export(0, Position.table_name, [1, 2], [Position.table_name, 3])
+            mappings = entity_export(
+                0, Position.hidden, Position.table_name, Position.hidden, [1, 2], [Position.table_name, 3]
+            )
             tables = {}
             for title, title_key in titles(mappings, db_map):
                 tables[title] = list(rows(mappings, db_map, {}, title_key))

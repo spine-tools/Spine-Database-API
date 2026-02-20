@@ -18,7 +18,9 @@ from .export_mapping import (
     DefaultValueIndexNameMapping,
     DimensionMapping,
     ElementMapping,
+    EntityClassDescriptionMapping,
     EntityClassMapping,
+    EntityDescriptionMapping,
     EntityGroupEntityMapping,
     EntityGroupMapping,
     EntityMapping,
@@ -71,97 +73,103 @@ def entity_group_export(
 
 
 def entity_export(
-    entity_class_position=Position.hidden,
-    entity_position=Position.hidden,
-    dimension_positions=None,
-    element_positions=None,
-):
+    entity_class_position: Position | int = Position.hidden,
+    entity_class_description_position: Position | int = Position.hidden,
+    entity_position: Position | int = Position.hidden,
+    entity_description_position: Position | int = Position.hidden,
+    dimension_positions: list[Position | int] | None = None,
+    element_positions: list[Position | int] | None = None,
+) -> EntityClassMapping:
     """
     Sets up export items for exporting entities without parameters.
 
     Args:
-        entity_class_position (int or Position): position of entity classes in a table
-        entity_position (int or Position): position of entities in a table
-        dimension_positions (Iterable, optional): positions of dimension in a table
-        element_positions (Iterable, optional): positions of element in a table
+        entity_class_position: position of entity classes in a table
+        entity_class_description_position: position of entity class description.
+        entity_position: position of entities in a table
+        entity_description_position: position of entity description.
+        dimension_positions: positions of dimension in a table
+        element_positions: positions of element in a table
 
     Returns:
-        ExportMapping: root mapping
+        root mapping
     """
     if dimension_positions is None:
         dimension_positions = []
     if element_positions is None:
         element_positions = []
     entity_class = EntityClassMapping(entity_class_position)
-    dimension = _generate_dimensions(entity_class, DimensionMapping, dimension_positions)
-    entity = EntityMapping(entity_position)
-    dimension.child = entity
-    _generate_dimensions(entity, ElementMapping, element_positions)
+    entity_class_description = entity_class.child = EntityClassDescriptionMapping(entity_class_description_position)
+    entity_class_description.set_ignorable(True)
+    dimension = _generate_dimensions(entity_class_description, DimensionMapping, dimension_positions)
+    entity = dimension.child = EntityMapping(entity_position)
+    entity_description = entity.child = EntityDescriptionMapping(entity_description_position)
+    entity_description.set_ignorable(True)
+    _generate_dimensions(entity_description, ElementMapping, element_positions)
     return entity_class
 
 
 def entity_parameter_default_value_export(
-    entity_class_position=Position.hidden,
-    definition_position=Position.hidden,
-    value_type_position=Position.hidden,
-    value_position=Position.hidden,
-    index_name_positions=None,
-    index_positions=None,
-):
+    entity_class_position: Position | int = Position.hidden,
+    definition_position: Position | int = Position.hidden,
+    value_type_position: Position | int = Position.hidden,
+    value_position: Position | int = Position.hidden,
+    index_name_positions: list[Position | int] | None = None,
+    index_positions: list[Position | int] | None = None,
+) -> EntityClassMapping:
     """
     Sets up export mappings for exporting entity classes and default parameter values.
 
     Args:
-        entity_class_position (int or Position): position of relationship classes
-        definition_position (int or Position): position of parameter definitions
-        value_type_position (int or Position): position of parameter value types
-        value_position (int or Position): position of parameter values
-        index_name_positions (list of int, optional): positions of index names
-        index_positions (list of int, optional): positions of parameter indexes
+        entity_class_position: position of relationship classes
+        definition_position: position of parameter definitions
+        value_type_position: position of parameter value types
+        value_position: position of parameter values
+        index_name_positions: positions of index names
+        index_positions: positions of parameter indexes
 
     Returns:
-        ExportMapping: root mapping
+        root mapping
     """
     entity_class = EntityClassMapping(entity_class_position)
-    definition = ParameterDefinitionMapping(definition_position)
+    definition = entity_class.child = ParameterDefinitionMapping(definition_position)
     _generate_default_value_mappings(
         definition, value_type_position, value_position, index_name_positions, index_positions
     )
-    entity_class.child = definition
     return entity_class
 
 
 def entity_parameter_value_export(
-    entity_class_position=Position.hidden,
-    definition_position=Position.hidden,
-    value_list_position=Position.hidden,
-    entity_position=Position.hidden,
-    dimension_positions=None,
-    element_positions=None,
-    alternative_position=Position.hidden,
-    value_type_position=Position.hidden,
-    value_position=Position.hidden,
-    index_name_positions=None,
-    index_positions=None,
-):
+    entity_class_position: Position | int = Position.hidden,
+    definition_position: Position | int = Position.hidden,
+    value_list_position: Position | int = Position.hidden,
+    entity_position: Position | int = Position.hidden,
+    dimension_positions: list[Position | int] | None = None,
+    element_positions: list[Position | int] | None = None,
+    alternative_position: Position | int = Position.hidden,
+    value_type_position: Position | int = Position.hidden,
+    value_position: Position | int = Position.hidden,
+    index_name_positions: list[Position | int] | None = None,
+    index_positions: list[Position | int] | None = None,
+) -> EntityClassMapping:
     """
     Sets up export mappings for exporting entities and parameter values.
 
     Args:
-        entity_class_position (int or Position): position of entity classes
-        definition_position (int or Position): position of parameter definitions
-        value_list_position (int or Position): position of parameter value lists
-        entity_position (int or Position): position of entities
-        dimension_positions (list of int, optional): positions of dimensions
-        element_positions (list of int, optional): positions of elements
-        alternative_position (int or Position): positions of alternatives
-        value_type_position (int or Position): position of parameter value types
-        value_position (int or Position): position of parameter values
-        index_name_positions (list of int, optional): positions of index names
-        index_positions (list of int, optional): positions of parameter indexes
+        entity_class_position: position of entity classes
+        definition_position: position of parameter definitions
+        value_list_position: position of parameter value lists
+        entity_position: position of entities
+        dimension_positions: positions of dimensions
+        element_positions: positions of elements
+        alternative_position: positions of alternatives
+        value_type_position: position of parameter value types
+        value_position: position of parameter values
+        index_name_positions: positions of index names
+        index_positions: positions of parameter indexes
 
     Returns:
-        ExportMapping: root mapping
+        root mapping
     """
     if dimension_positions is None:
         dimension_positions = []
@@ -169,13 +177,10 @@ def entity_parameter_value_export(
         element_positions = []
     entity_class = EntityClassMapping(entity_class_position)
     dimension = _generate_dimensions(entity_class, DimensionMapping, dimension_positions)
-    value_list = ParameterValueListMapping(value_list_position)
+    definition = dimension.child = ParameterDefinitionMapping(definition_position)
+    value_list = definition.child = ParameterValueListMapping(value_list_position)
     value_list.set_ignorable(True)
-    definition = ParameterDefinitionMapping(definition_position)
-    dimension.child = definition
-    relationship = EntityMapping(entity_position)
-    definition.child = value_list
-    value_list.child = relationship
+    relationship = value_list.child = EntityMapping(entity_position)
     element = _generate_dimensions(relationship, ElementMapping, element_positions)
     _generate_parameter_value_mappings(
         element,
@@ -228,40 +233,39 @@ def entity_dimension_parameter_default_value_export(
 
 
 def entity_dimension_parameter_value_export(
-    entity_class_position=Position.hidden,
-    definition_position=Position.hidden,
-    value_list_position=Position.hidden,
-    entity_position=Position.hidden,
-    dimension_positions=None,
-    element_positions=None,
-    alternative_position=Position.hidden,
-    value_type_position=Position.hidden,
-    value_position=Position.hidden,
-    index_name_positions=None,
-    index_positions=None,
-    highlight_position=0,
-):
+    entity_class_position: Position | int = Position.hidden,
+    definition_position: Position | int = Position.hidden,
+    value_list_position: Position | int = Position.hidden,
+    entity_position: Position | int = Position.hidden,
+    dimension_positions: list[Position | int] | None = None,
+    element_positions: list[Position | int] | None = None,
+    alternative_position: Position | int = Position.hidden,
+    value_type_position: Position | int = Position.hidden,
+    value_position: Position | int = Position.hidden,
+    index_name_positions: list[Position | int] | None = None,
+    index_positions: list[Position | int] | None = None,
+    highlight_position: int | None = 0,
+) -> EntityClassMapping:
     """
     Sets up export mappings for exporting entities and element parameter values.
 
     Args:
-        entity_class_position (int or Position): position of entity classes
-        definition_position (int or Position): position of parameter definitions
-        value_list_position (int or Position): position of parameter value lists
-        entity_position (int or Position): position of relationships
-        dimension_positions (list of int, optional): positions of object classes
-        element_positions (list of int, optional): positions of objects
-        alternative_position (int or Position): positions of alternatives
-        value_type_position (int or Position): position of parameter value types
-        value_position (int or Position): position of parameter values
-        index_name_positions (list of int, optional): positions of index names
-        index_positions (list of int, optional): positions of parameter indexes
-        highlight_position (int): selected dimension position
+        entity_class_position: position of entity classes
+        definition_position: position of parameter definitions
+        value_list_position: position of parameter value lists
+        entity_position: position of relationships
+        dimension_positions: positions of object classes
+        element_positions: positions of objects
+        alternative_position: positions of alternatives
+        value_type_position: position of parameter value types
+        value_position: position of parameter values
+        index_name_positions: positions of index names
+        index_positions: positions of parameter indexes
+        highlight_position: selected dimension position
 
     Returns:
-        ExportMapping: root mapping
+        root mapping
     """
-    # TODO fix dimension highlighting
     if dimension_positions is None:
         dimension_positions = []
     if element_positions is None:
@@ -287,20 +291,32 @@ def entity_dimension_parameter_value_export(
     return entity_class
 
 
-def set_entity_dimensions(entity_mapping, dimensions):
+def set_entity_dimensions(entity_mapping: EntityClassMapping, dimensions: int) -> None:
     """
     Modifies given entity mapping's dimensions.
 
     Args:
-        entity_mapping (ExportMapping): an entity mapping
-        dimensions (int): number of dimensions
+        entity_mapping: an entity mapping
+        dimensions: number of dimensions
     """
     mapping_list = entity_mapping.flatten()
+    dimension_parent_class = (
+        EntityClassDescriptionMapping
+        if any(isinstance(mapping, EntityDescriptionMapping) for mapping in mapping_list)
+        else EntityClassMapping
+    )
     mapping_list = _change_amount_of_consecutive_mappings(
-        mapping_list, EntityClassMapping, DimensionMapping, dimensions
+        mapping_list, dimension_parent_class, DimensionMapping, dimensions
     )
     if any(isinstance(m, EntityMapping) for m in mapping_list):
-        mapping_list = _change_amount_of_consecutive_mappings(mapping_list, EntityMapping, ElementMapping, dimensions)
+        element_parent_class = (
+            EntityDescriptionMapping
+            if any(isinstance(mapping, EntityDescriptionMapping) for mapping in mapping_list)
+            else EntityMapping
+        )
+        mapping_list = _change_amount_of_consecutive_mappings(
+            mapping_list, element_parent_class, ElementMapping, dimensions
+        )
     unflatten(mapping_list)
 
 

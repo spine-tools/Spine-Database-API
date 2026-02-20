@@ -10,14 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 import pytest
-from spinedb_api import DatabaseMapping, SpineDBAPIError
+from spinedb_api import SpineDBAPIError
 import spinedb_api.scenario_recipes as recipes
-
-
-@pytest.fixture
-def db_map():
-    with DatabaseMapping("sqlite://", create=True) as db_map:
-        yield db_map
 
 
 class TestDuplicateScenario:
