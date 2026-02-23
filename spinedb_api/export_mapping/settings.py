@@ -35,6 +35,7 @@ from .export_mapping import (
     ParameterDefaultValueIndexMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueTypeMapping,
+    ParameterDefinitionDescriptionMapping,
     ParameterDefinitionMapping,
     ParameterValueIndexMapping,
     ParameterValueListMapping,
@@ -112,6 +113,7 @@ def entity_export(
 def entity_parameter_default_value_export(
     entity_class_position: Position | int = Position.hidden,
     definition_position: Position | int = Position.hidden,
+    definition_description_position: Position | int = Position.hidden,
     value_type_position: Position | int = Position.hidden,
     value_position: Position | int = Position.hidden,
     index_name_positions: list[Position | int] | None = None,
@@ -123,6 +125,7 @@ def entity_parameter_default_value_export(
     Args:
         entity_class_position: position of relationship classes
         definition_position: position of parameter definitions
+        definition_description_position: position of parameter definition descriptions
         value_type_position: position of parameter value types
         value_position: position of parameter values
         index_name_positions: positions of index names
@@ -133,8 +136,10 @@ def entity_parameter_default_value_export(
     """
     entity_class = EntityClassMapping(entity_class_position)
     definition = entity_class.child = ParameterDefinitionMapping(definition_position)
+    description = definition.child = ParameterDefinitionDescriptionMapping(definition_description_position)
+    description.set_ignorable(True)
     _generate_default_value_mappings(
-        definition, value_type_position, value_position, index_name_positions, index_positions
+        description, value_type_position, value_position, index_name_positions, index_positions
     )
     return entity_class
 
@@ -194,30 +199,30 @@ def entity_parameter_value_export(
 
 
 def entity_dimension_parameter_default_value_export(
-    entity_class_position=Position.hidden,
-    definition_position=Position.hidden,
-    dimension_positions=None,
-    value_type_position=Position.hidden,
-    value_position=Position.hidden,
-    index_name_positions=None,
-    index_positions=None,
-    highlight_position=0,
-):
+    entity_class_position: Position | int = Position.hidden,
+    definition_position: Position | int = Position.hidden,
+    dimension_positions: list[Position | int] | None = None,
+    value_type_position: Position | int = Position.hidden,
+    value_position: Position | int = Position.hidden,
+    index_name_positions: list[Position | int] | None = None,
+    index_positions: list[Position | int] | None = None,
+    highlight_position: int | None = 0,
+) -> EntityClassMapping:
     """
     Sets up export mappings for exporting entity classes but with default dimension parameter values.
 
     Args:
-        entity_class_position (int or Position): position of entity classes
-        definition_position (int or Position): position of parameter definitions
-        dimension_positions (list of int, optional): positions of dimensions
-        value_type_position (int or Position): position of parameter value types
-        value_position (int or Position): position of parameter values
-        index_name_positions (list of int, optional): positions of index names
-        index_positions (list of int, optional): positions of parameter indexes
-        highlight_position (int): selected dimension
+        entity_class_position: position of entity classes
+        definition_position: position of parameter definitions
+        dimension_positions: positions of dimensions
+        value_type_position: position of parameter value types
+        value_position: position of parameter values
+        index_name_positions: positions of index names
+        index_positions: positions of parameter indexes
+        highlight_position: selected dimension
 
     Returns:
-        ExportMapping: root mapping
+        root mapping
     """
     root_mapping = unflatten(
         [

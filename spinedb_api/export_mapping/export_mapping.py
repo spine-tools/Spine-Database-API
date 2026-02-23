@@ -1278,6 +1278,20 @@ class EntityDescriptionMapping(ExportMapping):
         columns.append(db_map.wide_entity_sq.c.description.label("entity_description"))
 
 
+class ParameterDefinitionDescriptionMapping(ExportMapping):
+    """Maps parameter definition descriptions.
+
+    Cannot be used as the topmost mapping; must have :class:`ParameterDefinitionMapping` as parent.
+    """
+
+    MAP_TYPE = "ParameterDefinitionDescription"
+    name_field = "parameter_definition_description"
+    id_field = "parameter_definition_description"
+
+    def build_query_columns(self, db_map, columns):
+        columns.append(db_map.parameter_definition_sq.c.description.label("parameter_definition_description"))
+
+
 class MetadataNameMapping(ExportMapping):
     """Maps metadata names."""
 
@@ -1486,15 +1500,15 @@ def find_my_buddy(mapping, buddies):
     return None
 
 
-def from_dict(serialized):
+def from_dict(serialized: list[dict]) -> ExportMapping:
     """
     Deserializes mappings.
 
     Args:
-        serialized (list): serialized mappings
+        serialized: serialized mappings
 
     Returns:
-        ExportMapping: root mapping
+        root mapping
     """
     mappings = {
         klass.MAP_TYPE: klass
@@ -1521,6 +1535,7 @@ def from_dict(serialized):
             ParameterDefaultValueIndexMapping,
             ParameterDefaultValueMapping,
             ParameterDefaultValueTypeMapping,
+            ParameterDefinitionDescriptionMapping,
             ParameterDefinitionMapping,
             ParameterValueIndexMapping,
             ParameterValueListMapping,

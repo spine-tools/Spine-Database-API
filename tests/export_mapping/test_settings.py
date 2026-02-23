@@ -17,10 +17,6 @@ from spinedb_api import (
     DatabaseMapping,
     Map,
     TimeSeriesFixedResolution,
-    import_object_classes,
-    import_object_parameters,
-    import_relationship_classes,
-    import_relationship_parameters,
 )
 from spinedb_api.export_mapping import rows
 from spinedb_api.export_mapping.export_mapping import (
@@ -60,7 +56,6 @@ from spinedb_api.export_mapping.settings import (
     set_parameter_default_value_dimensions,
     set_parameter_dimensions,
 )
-from tests.mock_helpers import AssertSuccessTestCase
 
 
 class TestEntityExport:
@@ -119,6 +114,22 @@ class TestEntityParameterDefaultValueExport:
         ]
         assert list(rows(root_mapping, db_map, {})) == expected
 
+    def test_export_parameter_description(self, db_map):
+        db_map.add_entity_class(name="cat")
+        db_map.add_parameter_definition(
+            entity_class_name="cat", name="weight", description="Measure of cat's mass.", parsed_value=2.3
+        )
+        db_map.commit_session("Add test cat.")
+        root_mapping = entity_parameter_default_value_export(
+            entity_class_position=0,
+            definition_position=1,
+            definition_description_position=2,
+        )
+        expected = [
+            ["cat", "weight", "Measure of cat's mass."],
+        ]
+        assert list(rows(root_mapping, db_map, {})) == expected
+
 
 class TestEntityParameterValueExport:
     def test_export_with_indexed_parameter_values(self, db_map):
@@ -161,30 +172,28 @@ class TestEntityParameterValueExport:
         assert list(rows(root_mapping, db_map, {})) == expected
 
 
-class TestEntityDimensionParameterDefaultValueExport(AssertSuccessTestCase):
-    def test_export_with_two_dimensions(self):
-        with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_imports(import_object_classes(db_map, ("oc1", "oc2")))
-            self._assert_imports(
-                import_object_parameters(
-                    db_map, (("oc1", "p11", 2.3), ("oc1", "p12", 5.0), ("oc2", "p21", "shouldn't show"))
-                )
-            )
-            self._assert_imports(import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),)))
-            self._assert_imports(import_relationship_parameters(db_map, (("rc", "rc_p", "dummy"),)))
-            db_map.commit_session("Add test data.")
-            root_mapping = entity_dimension_parameter_default_value_export(
-                entity_class_position=0,
-                definition_position=1,
-                dimension_positions=[2, 3],
-                value_position=4,
-                value_type_position=5,
-                index_name_positions=None,
-                index_positions=None,
-                highlight_position=0,
-            )
-            expected = [["rc", "p11", "oc1", "oc2", 2.3, "float"], ["rc", "p12", "oc1", "oc2", 5.0, "float"]]
-            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
+class TestEntityDimensionParameterDefaultValueExport:
+    def test_export_with_two_dimensions(self, db_map):
+        db_map.add_entity_class(name="oc1")
+        db_map.add_entity_class(name="oc2")
+        db_map.add_parameter_definition(entity_class_name="oc1", name="p11", parsed_value=2.3)
+        db_map.add_parameter_definition(entity_class_name="oc1", name="p12", parsed_value=5.0)
+        db_map.add_parameter_definition(entity_class_name="oc2", name="p21", parsed_value="shouldn't show")
+        db_map.add_entity_class(name="rc", dimension_name_list=("oc1", "oc2"))
+        db_map.add_parameter_definition(entity_class_name="rc", name="rc_p", parsed_value="dummy")
+        db_map.commit_session("Add test data.")
+        root_mapping = entity_dimension_parameter_default_value_export(
+            entity_class_position=0,
+            definition_position=1,
+            dimension_positions=[2, 3],
+            value_position=4,
+            value_type_position=5,
+            index_name_positions=None,
+            index_positions=None,
+            highlight_position=0,
+        )
+        expected = [["rc", "p11", "oc1", "oc2", 2.3, "float"], ["rc", "p12", "oc1", "oc2", 5.0, "float"]]
+        assert list(rows(root_mapping, db_map, {})) == expected
 
 
 class TestEntityDimensionParameterExport:
