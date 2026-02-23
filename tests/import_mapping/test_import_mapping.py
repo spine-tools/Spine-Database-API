@@ -1697,12 +1697,14 @@ class TestMappingIntegration(unittest.TestCase):
             "before_alternative_name": 2,
         }
         out, errors = get_mapped_data(data, [mapping], data_header)
-        expected = {}
-        expected["scenario_alternatives"] = [
-            ["scenario_A", "alternative1", "second_alternative"],
-            ["scenario_A", "second_alternative", "last_one"],
-            ["scenario_B", "last_one", ""],
-        ]
+        expected = {
+            "scenarios": {("scenario_A",), ("scenario_B",)},
+            "scenario_alternatives": [
+                ["scenario_A", "alternative1", "second_alternative"],
+                ["scenario_A", "second_alternative", "last_one"],
+                ["scenario_B", "last_one", ""],
+            ],
+        }
         self.assertFalse(errors)
         self.assertEqual(out, expected)
 
@@ -1711,12 +1713,14 @@ class TestMappingIntegration(unittest.TestCase):
         data = iter(input_data)
         mappings = [{"map_type": "Scenario", "position": -1}, {"map_type": "ScenarioAlternative", "position": "hidden"}]
         out, errors = get_mapped_data(data, [mappings])
-        expected = {}
-        expected["scenario_alternatives"] = [
-            ["scenario_A", "first_alternative"],
-            ["scenario_A", "second_alternative"],
-            ["scenario_B", "Base"],
-        ]
+        expected = {
+            "scenarios": {("scenario_A",), ("scenario_B",)},
+            "scenario_alternatives": [
+                ["scenario_A", "first_alternative"],
+                ["scenario_A", "second_alternative"],
+                ["scenario_B", "Base"],
+            ],
+        }
         self.assertFalse(errors)
         self.assertEqual(out, expected)
 

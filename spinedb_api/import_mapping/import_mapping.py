@@ -960,8 +960,7 @@ class ScenarioMapping(ImportMapping):
     def _import_row(self, source_data, state, mapped_data):
         scenario = str(source_data)
         state[ImportKey.SCENARIO_NAME] = scenario
-        if self._child is None:
-            mapped_data.setdefault("scenarios", set()).add((scenario,))
+        mapped_data.setdefault("scenarios", set()).add((scenario,))
 
 
 class ScenarioAlternativeMapping(ImportMapping):
@@ -993,6 +992,24 @@ class ScenarioBeforeAlternativeMapping(ImportMapping):
         scen_alt = state[ImportKey.SCENARIO_ALTERNATIVE]
         alternative = str(source_data)
         scen_alt.append(alternative)
+
+
+class ScenarioDescriptionMapping(ImportMapping):
+    """Maps scenario descriptions.
+
+    Cannot be used as the topmost mapping; must have a :class:`ScenarioMapping` as parent.
+    """
+
+    MAP_TYPE = "ScenarioDescription"
+    ignorable: ClassVar[bool] = True
+
+    def _import_row(self, source_data, state, mapped_data):
+        description = str(source_data)
+        if description:
+            scenario = state[ImportKey.SCENARIO_NAME]
+            scenario_data = mapped_data["scenarios"]
+            scenario_data.discard((scenario,))
+            scenario_data.add((scenario, description))
 
 
 def default_import_mapping(map_type: str) -> ImportMapping:
@@ -1040,21 +1057,22 @@ def _default_alternative_mapping() -> AlternativeMapping:
     return root_mapping
 
 
-def _default_scenario_mapping():
+def _default_scenario_mapping() -> ScenarioMapping:
     """Creates default scenario mappings.
 
     Returns:
-        ScenarioMapping: root mapping
+        root mapping
     """
     root_mapping = ScenarioMapping(Position.hidden)
+    root_mapping.child = ScenarioDescriptionMapping(Position.hidden)
     return root_mapping
 
 
-def _default_scenario_alternative_mapping():
+def _default_scenario_alternative_mapping() -> ScenarioMapping:
     """Creates default scenario alternative mappings.
 
     Returns:
-        ScenarioAlternativeMapping: root mapping
+        root mapping
     """
     root_mapping = ScenarioMapping(Position.hidden)
     root_mapping.child = ScenarioAlternativeMapping(Position.hidden)
@@ -1156,6 +1174,7 @@ def from_dict(serialized):
             ScenarioMapping,
             ScenarioAlternativeMapping,
             ScenarioBeforeAlternativeMapping,
+            ScenarioDescriptionMapping,
         )
     }
     legacy_mappings = {

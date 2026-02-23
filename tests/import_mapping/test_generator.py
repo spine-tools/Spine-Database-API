@@ -976,7 +976,10 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(
             mapped_data,
-            {"scenario_alternatives": [["Scenario1", "Base"], ["Scenario1", "fixed_prices"]]},
+            {
+                "scenarios": {("Scenario1",)},
+                "scenario_alternatives": [["Scenario1", "Base"], ["Scenario1", "fixed_prices"]],
+            },
         )
 
     def test_leaf_mapping_with_position_on_row_is_still_considered_as_pivoted(self):
@@ -1001,13 +1004,14 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
+                "scenarios": {("Scenario1",), ("Scenario2",)},
                 "scenario_alternatives": [
                     ["Scenario1", "Base"],
                     ["Scenario1", "alt1"],
                     ["Scenario2", "Base"],
                     ["Scenario2", "alt1"],
                     ["Scenario2", "alt2"],
-                ]
+                ],
             },
         )
 
@@ -1201,6 +1205,33 @@ class TestGetMappedData(unittest.TestCase):
                     "alt2",
                     ("duplicate", "Overridden description."),
                     ("duplicate", "Overriding description."),
+                },
+            },
+        )
+
+    def test_import_scenarios_with_descriptions(self):
+        header = ["Scenario", "Description"]
+        data_source = iter(
+            [
+                ["scen1", "First scenario."],
+                ["scen2", None],
+                ["duplicate", "Possible description no. 1."],
+                ["duplicate", "Possible description no. 2."],
+            ]
+        )
+        flattened = default_import_mapping("Scenario").flatten()
+        flattened[0].position = 0
+        flattened[1].position = 1
+        mapped_data, errors = get_mapped_data(data_source, [to_dict(unflatten(flattened))], header)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "scenarios": {
+                    ("scen1", "First scenario."),
+                    ("scen2",),
+                    ("duplicate", "Possible description no. 1."),
+                    ("duplicate", "Possible description no. 2."),
                 },
             },
         )
