@@ -20,8 +20,6 @@ from .import_mapping import (
     EntityClassMapping,
     EntityGroupMapping,
     EntityMapping,
-    EntityMetadataNameMapping,
-    EntityMetadataValueMapping,
     ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
     IndexNameMapping,
@@ -33,8 +31,6 @@ from .import_mapping import (
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     ParameterValueMapping,
-    ParameterValueMetadataNameMapping,
-    ParameterValueMetadataValueMapping,
     ParameterValueTypeMapping,
     Position,
     ScenarioAlternativeMapping,
@@ -132,7 +128,6 @@ def _scenario_alternative_mapping_from_dict(map_dict):
 def _object_class_mapping_from_dict(map_dict):
     name = map_dict.get("name")
     entities = map_dict.get("objects", map_dict.get("object"))
-    object_metadata = map_dict.get("object_metadata", None)
     parameters = map_dict.get("parameters")
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)

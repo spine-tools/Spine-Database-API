@@ -906,7 +906,6 @@ class ParameterValueListValueMapping(ImportMapping):
     """Maps parameter value list values.
 
     Cannot be used as the topmost mapping; must have a :class:`ParameterValueListMapping` as parent.
-
     """
 
     MAP_TYPE = "ParameterValueListValue"
@@ -930,6 +929,24 @@ class AlternativeMapping(ImportMapping):
     def _import_row(self, source_data, state, mapped_data):
         alternative = state[ImportKey.ALTERNATIVE_NAME] = str(source_data)
         mapped_data.setdefault("alternatives", set()).add(alternative)
+
+
+class AlternativeDescriptionMapping(ImportMapping):
+    """Maps alternative descriptions.
+
+    Cannot be used as the topmost mapping; must have a :class:`AlternativeMapping` as parent.
+    """
+
+    MAP_TYPE = "AlternativeDescription"
+    ignorable = True
+
+    def _import_row(self, source_data, state, mapped_data):
+        description = str(source_data)
+        if description:
+            alternative = state[ImportKey.ALTERNATIVE_NAME]
+            alternative_data = mapped_data["alternatives"]
+            alternative_data.discard(alternative)
+            alternative_data.add((alternative, description))
 
 
 class ScenarioMapping(ImportMapping):
@@ -1012,13 +1029,14 @@ def _default_entity_class_mapping():
     return root_mapping
 
 
-def _default_alternative_mapping():
+def _default_alternative_mapping() -> AlternativeMapping:
     """Creates default alternative mappings.
 
     Returns:
-        AlternativeMapping: root mapping
+        root mapping
     """
     root_mapping = AlternativeMapping(Position.hidden)
+    root_mapping.child = AlternativeDescriptionMapping(Position.hidden)
     return root_mapping
 
 
@@ -1134,6 +1152,7 @@ def from_dict(serialized):
             MetadataNameMapping,
             MetadataValueMapping,
             AlternativeMapping,
+            AlternativeDescriptionMapping,
             ScenarioMapping,
             ScenarioAlternativeMapping,
             ScenarioBeforeAlternativeMapping,

@@ -14,7 +14,9 @@
 import unittest
 from spinedb_api import Array, DateTime, Duration, Map
 from spinedb_api.import_mapping.generator import get_mapped_data
+from spinedb_api.import_mapping.import_mapping import default_import_mapping
 from spinedb_api.import_mapping.type_conversion import value_to_convert_spec
+from spinedb_api.mapping import to_dict, unflatten
 
 
 class TestGetMappedData(unittest.TestCase):
@@ -1173,5 +1175,32 @@ class TestGetMappedData(unittest.TestCase):
                     ("cat", ("Tom",), "weight", "Tools", "Harrison-Stetson 0.9", "Base"),
                     ("cat", ("Tom",), "weight", "Licences", "Public domain", "Base"),
                 ],
+            },
+        )
+
+    def test_import_alternatives_with_descriptions(self):
+        header = ["Alternative", "Description"]
+        data_source = iter(
+            [
+                ["alt1", "First alternative."],
+                ["alt2", None],
+                ["duplicate", "Overridden description."],
+                ["duplicate", "Overriding description."],
+            ]
+        )
+        flattened = default_import_mapping("Alternative").flatten()
+        flattened[0].position = 0
+        flattened[1].position = 1
+        mapped_data, errors = get_mapped_data(data_source, [to_dict(unflatten(flattened))], header)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {
+                    ("alt1", "First alternative."),
+                    "alt2",
+                    ("duplicate", "Overridden description."),
+                    ("duplicate", "Overriding description."),
+                },
             },
         )
