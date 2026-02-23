@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for gdx writer. """
+"""Unit tests for gdx writer."""
 import math
 from pathlib import Path
 import sys
@@ -56,8 +56,8 @@ class TestGdxWriter(AssertSuccessTestCase):
             self._assert_imports(import_object_classes(db_map, ("oc",)))
             self._assert_imports(import_objects(db_map, (("oc", "o1"),)))
             db_map.commit_session("Add test data.")
-            root_mapping = entity_export(Position.table_name, 0)
-            root_mapping.child.header = "*"
+            root_mapping = entity_export(Position.table_name, Position.hidden, 0)
+            root_mapping.child.child.header = "*"
             with TemporaryDirectory() as temp_dir:
                 file_path = Path(temp_dir, "test_write_single_object_class_and_object.gdx")
                 writer = GdxWriter(str(file_path), self._gams_dir)
@@ -77,7 +77,12 @@ class TestGdxWriter(AssertSuccessTestCase):
             self._assert_imports(import_relationships(db_map, (("rel", ("o1", "o2")),)))
             db_map.commit_session("Add test data.")
             root_mapping = entity_export(
-                Position.table_name, Position.hidden, [Position.header, Position.header], [0, 1]
+                Position.table_name,
+                Position.hidden,
+                Position.hidden,
+                Position.hidden,
+                [Position.header, Position.header],
+                [0, 1],
             )
             with TemporaryDirectory() as temp_dir:
                 file_path = Path(temp_dir, "test_write_2D_relationship.gdx")
@@ -179,7 +184,7 @@ class TestGdxWriter(AssertSuccessTestCase):
             self._assert_imports(import_objects(db_map, (("oc1", "o"), ("oc2", "p"))))
             self._assert_imports(db_map.commit_session("Add test data."))
             root_mapping = entity_export(entity_class_position=Position.table_name, entity_position=0)
-            root_mapping.child.header = "*"
+            root_mapping.child.child.header = "*"
             with TemporaryDirectory() as temp_dir:
                 file_path = Path(temp_dir, "test_two_tables.gdx")
                 writer = GdxWriter(str(file_path), self._gams_dir)
@@ -203,12 +208,12 @@ class TestGdxWriter(AssertSuccessTestCase):
                 [FixedValueMapping(Position.table_name, value="set_X")] + entity_export(entity_position=0).flatten()
             )
             root_mapping1.child.filter_re = "oc1"
-            root_mapping1.child.child.header = "*"
+            root_mapping1.child.child.child.header = "*"
             root_mapping2 = unflatten(
                 [FixedValueMapping(Position.table_name, value="set_X")] + entity_export(entity_position=0).flatten()
             )
             root_mapping2.child.filter_re = "oc2"
-            root_mapping2.child.child.header = "*"
+            root_mapping2.child.child.child.header = "*"
             with TemporaryDirectory() as temp_dir:
                 file_path = Path(temp_dir, "test_two_tables.gdx")
                 writer = GdxWriter(str(file_path), self._gams_dir)
@@ -317,7 +322,3 @@ class TestGdxWriter(AssertSuccessTestCase):
                     self.assertEqual(gams_parameter[("o1", "infinity")], math.inf)
                     self.assertEqual(gams_parameter[("o1", "negative_infinity")], -math.inf)
                     self.assertTrue(math.isnan(gams_parameter[("o1", "nan")]))
-
-
-if __name__ == "__main__":
-    unittest.main()

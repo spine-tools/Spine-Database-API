@@ -1228,30 +1228,68 @@ class ScenarioBeforeAlternativeMapping(ExportMapping):
         return isinstance(parent, ScenarioAlternativeMapping)
 
 
-class _DescriptionMappingBase(ExportMapping):
-    """Maps descriptions."""
-
-    MAP_TYPE = "Description"
-    name_field = "description"
-    id_field = "description"
-
-
-class AlternativeDescriptionMapping(_DescriptionMappingBase):
+class AlternativeDescriptionMapping(ExportMapping):
     """Maps alternative descriptions.
 
     Cannot be used as the topmost mapping; must have :class:`AlternativeMapping` as parent.
     """
 
     MAP_TYPE = "AlternativeDescription"
+    name_field = "description"
+    id_field = "description"
 
 
-class ScenarioDescriptionMapping(_DescriptionMappingBase):
+class ScenarioDescriptionMapping(ExportMapping):
     """Maps scenario descriptions.
 
     Cannot be used as the topmost mapping; must have :class:`ScenarioMapping` as parent.
     """
 
     MAP_TYPE = "ScenarioDescription"
+    name_field = "description"
+    id_field = "description"
+
+
+class EntityClassDescriptionMapping(ExportMapping):
+    """Maps entity class descriptions.
+
+    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping` as parent.
+    """
+
+    MAP_TYPE = "EntityClassDescription"
+    name_field = "entity_class_description"
+    id_field = "entity_class_description"
+
+    def build_query_columns(self, db_map, columns):
+        columns.append(db_map.wide_entity_class_sq.c.description.label("entity_class_description"))
+
+
+class EntityDescriptionMapping(ExportMapping):
+    """Maps entity descriptions.
+
+    Cannot be used as the topmost mapping; must have :class:`EntityMapping` as parent.
+    """
+
+    MAP_TYPE = "EntityDescription"
+    name_field = "entity_description"
+    id_field = "entity_description"
+
+    def build_query_columns(self, db_map, columns):
+        columns.append(db_map.wide_entity_sq.c.description.label("entity_description"))
+
+
+class ParameterDefinitionDescriptionMapping(ExportMapping):
+    """Maps parameter definition descriptions.
+
+    Cannot be used as the topmost mapping; must have :class:`ParameterDefinitionMapping` as parent.
+    """
+
+    MAP_TYPE = "ParameterDefinitionDescription"
+    name_field = "parameter_definition_description"
+    id_field = "parameter_definition_description"
+
+    def build_query_columns(self, db_map, columns):
+        columns.append(db_map.parameter_definition_sq.c.description.label("parameter_definition_description"))
 
 
 class MetadataNameMapping(ExportMapping):
@@ -1462,15 +1500,15 @@ def find_my_buddy(mapping, buddies):
     return None
 
 
-def from_dict(serialized):
+def from_dict(serialized: list[dict]) -> ExportMapping:
     """
     Deserializes mappings.
 
     Args:
-        serialized (list): serialized mappings
+        serialized: serialized mappings
 
     Returns:
-        ExportMapping: root mapping
+        root mapping
     """
     mappings = {
         klass.MAP_TYPE: klass
@@ -1484,9 +1522,11 @@ def from_dict(serialized):
             ExpandedParameterValueMapping,
             FixedValueMapping,
             IndexNameMapping,
+            EntityClassDescriptionMapping,
             EntityClassMapping,
             EntityGroupMapping,
             EntityGroupEntityMapping,
+            EntityDescriptionMapping,
             EntityMapping,
             EntityMetadataNameMapping,
             EntityMetadataValueMapping,
@@ -1495,6 +1535,7 @@ def from_dict(serialized):
             ParameterDefaultValueIndexMapping,
             ParameterDefaultValueMapping,
             ParameterDefaultValueTypeMapping,
+            ParameterDefinitionDescriptionMapping,
             ParameterDefinitionMapping,
             ParameterValueIndexMapping,
             ParameterValueListMapping,

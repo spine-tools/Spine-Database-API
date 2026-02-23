@@ -15,22 +15,17 @@ import unittest
 import numpy
 from spinedb_api import (
     DatabaseMapping,
+    Map,
     TimeSeriesFixedResolution,
-    import_object_classes,
-    import_object_parameter_values,
-    import_object_parameters,
-    import_objects,
-    import_relationship_classes,
-    import_relationship_parameter_values,
-    import_relationship_parameters,
-    import_relationships,
 )
 from spinedb_api.export_mapping import rows
 from spinedb_api.export_mapping.export_mapping import (
     DefaultValueIndexNameMapping,
     DimensionMapping,
     ElementMapping,
+    EntityClassDescriptionMapping,
     EntityClassMapping,
+    EntityDescriptionMapping,
     EntityMapping,
     EntityMetadataNameMapping,
     EntityMetadataValueMapping,
@@ -61,121 +56,215 @@ from spinedb_api.export_mapping.settings import (
     set_parameter_default_value_dimensions,
     set_parameter_dimensions,
 )
-from tests.mock_helpers import AssertSuccessTestCase
 
 
-class TestEntityParameterExport(AssertSuccessTestCase):
-    def test_export_with_parameter_values(self):
-        with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_imports(import_object_classes(db_map, ("oc1", "oc2")))
-            self._assert_imports(import_objects(db_map, (("oc1", "o1"), ("oc2", "o2"), ("oc2", "o3"))))
-            self._assert_imports(import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),)))
-            self._assert_imports(import_relationship_parameters(db_map, (("rc", "p"),)))
-            self._assert_imports(import_relationships(db_map, (("rc", ("o1", "o2")), ("rc", ("o1", "o3")))))
-            self._assert_imports(
-                import_relationship_parameter_values(
-                    db_map,
-                    (
-                        (
-                            "rc",
-                            ("o1", "o2"),
-                            "p",
-                            TimeSeriesFixedResolution("2022-06-22T11:00", "1h", [-1.1, -2.2], False, False),
-                        ),
-                        (
-                            "rc",
-                            ("o1", "o3"),
-                            "p",
-                            TimeSeriesFixedResolution("2022-06-22T11:00", "1h", [-3.3, -4.4], False, False),
-                        ),
-                    ),
-                )
-            )
-            db_map.commit_session("Add test data.")
-            root_mapping = entity_parameter_value_export(
-                element_positions=[-1, -2],
-                value_position=-3,
-                index_name_positions=[Position.hidden],
-                index_positions=[0],
-            )
-            expected = [
-                [None, "o1", "o1"],
-                [None, "o2", "o3"],
-                [numpy.datetime64("2022-06-22T11:00:00"), -1.1, -3.3],
-                [numpy.datetime64("2022-06-22T12:00:00"), -2.2, -4.4],
-            ]
-            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
+class TestEntityExport:
+    def test_export_class_description(self, db_map):
+        db_map.add_entity_class(name="cat", description="A feline creature.")
+        db_map.commit_session("Add test cat.")
+        root_mapping = entity_export(entity_class_position=0, entity_class_description_position=1)
+        entity_mapping = next(iter(mapping for mapping in root_mapping.flatten() if isinstance(mapping, EntityMapping)))
+        entity_mapping.set_ignorable(True)
+        expected = [["cat", "A feline creature."]]
+        assert list(rows(root_mapping, db_map, {})) == expected
+
+    def test_export_entity_description(self, db_map):
+        db_map.add_entity_class(name="cat")
+        db_map.add_entity(
+            entity_class_name="cat", name="Garfield", description="A ball of fur that'll empty the fridge."
+        )
+        db_map.commit_session("Add test cat.")
+        root_mapping = entity_export(entity_class_position=0, entity_position=1, entity_description_position=2)
+        expected = [["cat", "Garfield", "A ball of fur that'll empty the fridge."]]
+        assert list(rows(root_mapping, db_map, {})) == expected
+
+    def test_export_dimensions_and_elements(self, db_map):
+        db_map.add_entity_class(name="cat")
+        db_map.add_entity(entity_class_name="cat", name="Garfield")
+        db_map.add_entity_class(name="mouse")
+        db_map.add_entity(entity_class_name="mouse", name="Mickey")
+        db_map.add_entity_class(dimension_name_list=("mouse", "cat"))
+        db_map.add_entity(entity_class_name="mouse__cat", entity_byname=("Mickey", "Garfield"))
+        db_map.commit_session("Add test cat.")
+        root_mapping = entity_export(
+            entity_class_position=0, dimension_positions=[1, 2], entity_position=3, element_positions=[4, 5]
+        )
+        expected = [["mouse__cat", "mouse", "cat", "Mickey__Garfield", "Mickey", "Garfield"]]
+        assert list(rows(root_mapping, db_map, {})) == expected
 
 
-class TestEntityClassDimensionParameterDefaultValueExport(AssertSuccessTestCase):
-    def test_export_with_two_dimensions(self):
-        with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_imports(import_object_classes(db_map, ("oc1", "oc2")))
-            self._assert_imports(
-                import_object_parameters(
-                    db_map, (("oc1", "p11", 2.3), ("oc1", "p12", 5.0), ("oc2", "p21", "shouldn't show"))
-                )
-            )
-            self._assert_imports(import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),)))
-            self._assert_imports(import_relationship_parameters(db_map, (("rc", "rc_p", "dummy"),)))
-            db_map.commit_session("Add test data.")
-            root_mapping = entity_dimension_parameter_default_value_export(
-                entity_class_position=0,
-                definition_position=1,
-                dimension_positions=[2, 3],
-                value_position=4,
-                value_type_position=5,
-                index_name_positions=None,
-                index_positions=None,
-                highlight_position=0,
-            )
-            expected = [["rc", "p11", "oc1", "oc2", 2.3, "float"], ["rc", "p12", "oc1", "oc2", 5.0, "float"]]
-            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
+class TestEntityParameterDefaultValueExport:
+    def test_export_indexed_default_value(self, db_map):
+        db_map.add_entity_class(name="cat")
+        db_map.add_parameter_definition(
+            entity_class_name="cat", name="laziness", parsed_value=Map(["Mon", "Wed"], [2.3, 3.2], index_name="weekday")
+        )
+        db_map.commit_session("Add test cat.")
+        root_mapping = entity_parameter_default_value_export(
+            entity_class_position=0,
+            definition_position=1,
+            value_type_position=2,
+            value_position=3,
+            index_name_positions=[4],
+            index_positions=[5],
+        )
+        expected = [
+            ["cat", "laziness", "1d_map", 2.3, "weekday", numpy.str_("Mon")],
+            ["cat", "laziness", "1d_map", 3.2, "weekday", numpy.str_("Wed")],
+        ]
+        assert list(rows(root_mapping, db_map, {})) == expected
+
+    def test_export_parameter_description(self, db_map):
+        db_map.add_entity_class(name="cat")
+        db_map.add_parameter_definition(
+            entity_class_name="cat", name="weight", description="Measure of cat's mass.", parsed_value=2.3
+        )
+        db_map.commit_session("Add test cat.")
+        root_mapping = entity_parameter_default_value_export(
+            entity_class_position=0,
+            definition_position=1,
+            definition_description_position=2,
+        )
+        expected = [
+            ["cat", "weight", "Measure of cat's mass."],
+        ]
+        assert list(rows(root_mapping, db_map, {})) == expected
 
 
-class TestEntityElementParameterExport(AssertSuccessTestCase):
-    def test_export_with_two_dimensions(self):
-        with DatabaseMapping("sqlite://", create=True) as db_map:
-            self._assert_imports(import_object_classes(db_map, ("oc1", "oc2")))
-            self._assert_imports(import_object_parameters(db_map, (("oc1", "p11"), ("oc1", "p12"), ("oc2", "p21"))))
-            self._assert_imports(import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"))))
-            self._assert_imports(
-                import_object_parameter_values(
-                    db_map,
-                    (
-                        ("oc1", "o11", "p11", 2.3),
-                        ("oc1", "o12", "p11", -2.3),
-                        ("oc1", "o12", "p12", -5.0),
-                        ("oc2", "o21", "p21", "shouldn't show"),
-                    ),
-                )
-            )
-            self._assert_imports(import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),)))
-            self._assert_imports(import_relationship_parameters(db_map, (("rc", "rc_p"),)))
-            self._assert_imports(import_relationships(db_map, (("rc", ("o11", "o21")), ("rc", ("o12", "o21")))))
-            self._assert_imports(
-                import_relationship_parameter_values(db_map, (("rc", ("o11", "o21"), "rc_p", "dummy"),))
-            )
-            db_map.commit_session("Add test data.")
-            root_mapping = entity_dimension_parameter_value_export(
-                entity_class_position=0,
-                definition_position=1,
-                value_list_position=Position.hidden,
-                entity_position=2,
-                dimension_positions=[3, 4],
-                element_positions=[5, 6],
-                alternative_position=7,
-                value_type_position=8,
-                value_position=9,
-                highlight_position=0,
-            )
-            set_entity_dimensions(root_mapping, 2)
-            expected = [
-                ["rc", "p11", "o11__o21", "oc1", "oc2", "o11", "o21", "Base", "float", 2.3],
-                ["rc", "p11", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "float", -2.3],
-                ["rc", "p12", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "float", -5.0],
-            ]
-            self.assertEqual(list(rows(root_mapping, db_map, {})), expected)
+class TestEntityParameterValueExport:
+    def test_export_with_indexed_parameter_values(self, db_map):
+        db_map.add_entity_class(name="oc1")
+        db_map.add_entity_class(name="oc2")
+        db_map.add_entity(entity_class_name="oc1", name="o1")
+        db_map.add_entity(entity_class_name="oc2", name="o2")
+        db_map.add_entity(entity_class_name="oc2", name="o3")
+        db_map.add_entity_class(name="rc", dimension_name_list=("oc1", "oc2"))
+        db_map.add_parameter_definition(entity_class_name="rc", name="p")
+        db_map.add_entity(entity_class_name="rc", entity_byname=("o1", "o2"))
+        db_map.add_entity(entity_class_name="rc", entity_byname=("o1", "o3"))
+        db_map.add_parameter_value(
+            entity_class_name="rc",
+            entity_byname=("o1", "o2"),
+            parameter_definition_name="p",
+            alternative_name="Base",
+            parsed_value=TimeSeriesFixedResolution("2022-06-22T11:00", "1h", [-1.1, -2.2], False, False),
+        )
+        db_map.add_parameter_value(
+            entity_class_name="rc",
+            entity_byname=("o1", "o3"),
+            parameter_definition_name="p",
+            alternative_name="Base",
+            parsed_value=TimeSeriesFixedResolution("2022-06-22T11:00", "1h", [-3.3, -4.4], False, False),
+        )
+        db_map.commit_session("Add test data.")
+        root_mapping = entity_parameter_value_export(
+            element_positions=[-1, -2],
+            value_position=-3,
+            index_name_positions=[Position.hidden],
+            index_positions=[0],
+        )
+        expected = [
+            [None, "o1", "o1"],
+            [None, "o2", "o3"],
+            [numpy.datetime64("2022-06-22T11:00:00"), -1.1, -3.3],
+            [numpy.datetime64("2022-06-22T12:00:00"), -2.2, -4.4],
+        ]
+        assert list(rows(root_mapping, db_map, {})) == expected
+
+
+class TestEntityDimensionParameterDefaultValueExport:
+    def test_export_with_two_dimensions(self, db_map):
+        db_map.add_entity_class(name="oc1")
+        db_map.add_entity_class(name="oc2")
+        db_map.add_parameter_definition(entity_class_name="oc1", name="p11", parsed_value=2.3)
+        db_map.add_parameter_definition(entity_class_name="oc1", name="p12", parsed_value=5.0)
+        db_map.add_parameter_definition(entity_class_name="oc2", name="p21", parsed_value="shouldn't show")
+        db_map.add_entity_class(name="rc", dimension_name_list=("oc1", "oc2"))
+        db_map.add_parameter_definition(entity_class_name="rc", name="rc_p", parsed_value="dummy")
+        db_map.commit_session("Add test data.")
+        root_mapping = entity_dimension_parameter_default_value_export(
+            entity_class_position=0,
+            definition_position=1,
+            dimension_positions=[2, 3],
+            value_position=4,
+            value_type_position=5,
+            index_name_positions=None,
+            index_positions=None,
+            highlight_position=0,
+        )
+        expected = [["rc", "p11", "oc1", "oc2", 2.3, "float"], ["rc", "p12", "oc1", "oc2", 5.0, "float"]]
+        assert list(rows(root_mapping, db_map, {})) == expected
+
+
+class TestEntityDimensionParameterExport:
+    def test_export_with_two_dimensions(self, db_map):
+        db_map.add_entity_class(name="oc1")
+        db_map.add_entity_class(name="oc2")
+        db_map.add_parameter_definition(entity_class_name="oc1", name="p11")
+        db_map.add_parameter_definition(entity_class_name="oc1", name="p12")
+        db_map.add_parameter_definition(entity_class_name="oc2", name="p21")
+        db_map.add_entity(entity_class_name="oc1", name="o11")
+        db_map.add_entity(entity_class_name="oc1", name="o12")
+        db_map.add_entity(entity_class_name="oc2", name="o21")
+        db_map.add_parameter_value(
+            entity_class_name="oc1",
+            entity_byname=("o11",),
+            parameter_definition_name="p11",
+            alternative_name="Base",
+            parsed_value=2.3,
+        )
+        db_map.add_parameter_value(
+            entity_class_name="oc1",
+            entity_byname=("o12",),
+            parameter_definition_name="p11",
+            alternative_name="Base",
+            parsed_value=-2.3,
+        )
+        db_map.add_parameter_value(
+            entity_class_name="oc1",
+            entity_byname=("o12",),
+            parameter_definition_name="p12",
+            alternative_name="Base",
+            parsed_value=-5.0,
+        )
+        db_map.add_parameter_value(
+            entity_class_name="oc2",
+            entity_byname=("o21",),
+            parameter_definition_name="p21",
+            alternative_name="Base",
+            parsed_value="shouldn't show",
+        )
+        db_map.add_entity_class(name="rc", dimension_name_list=("oc1", "oc2"))
+        db_map.add_parameter_definition(entity_class_name="rc", name="rc_p")
+        db_map.add_entity(entity_class_name="rc", entity_byname=("o11", "o21"))
+        db_map.add_entity(entity_class_name="rc", entity_byname=("o12", "o21"))
+        db_map.add_parameter_value(
+            entity_class_name="rc",
+            entity_byname=("o11", "o21"),
+            parameter_definition_name="rc_p",
+            alternative_name="Base",
+            parsed_value="dummy",
+        )
+        db_map.commit_session("Add test data.")
+        root_mapping = entity_dimension_parameter_value_export(
+            entity_class_position=0,
+            definition_position=1,
+            value_list_position=Position.hidden,
+            entity_position=2,
+            dimension_positions=[3, 4],
+            element_positions=[5, 6],
+            alternative_position=7,
+            value_type_position=8,
+            value_position=9,
+            highlight_position=0,
+        )
+        set_entity_dimensions(root_mapping, 2)
+        expected = [
+            ["rc", "p11", "o11__o21", "oc1", "oc2", "o11", "o21", "Base", "float", 2.3],
+            ["rc", "p11", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "float", -2.3],
+            ["rc", "p12", "o12__o21", "oc1", "oc2", "o12", "o21", "Base", "float", -5.0],
+        ]
+        assert list(rows(root_mapping, db_map, {})) == expected
 
 
 class TestMetadataExport:
@@ -280,74 +369,82 @@ class TestParameterValueMetadataExport:
 
 class TestSetEntityDimensions(unittest.TestCase):
     def test_change_dimensions_from_zero_to_one(self):
-        mapping = entity_export(0, 1)
-        self.assertEqual(mapping.count_mappings(), 2)
-        set_entity_dimensions(mapping, 1)
+        mapping = entity_export(0, Position.hidden, 1)
         self.assertEqual(mapping.count_mappings(), 4)
+        set_entity_dimensions(mapping, 1)
+        self.assertEqual(mapping.count_mappings(), 6)
         flattened = mapping.flatten()
         classes = [type(mapping) for mapping in flattened]
         self.assertEqual(
             classes,
             [
                 EntityClassMapping,
+                EntityClassDescriptionMapping,
                 DimensionMapping,
                 EntityMapping,
+                EntityDescriptionMapping,
                 ElementMapping,
             ],
+        )
+        positions = [mapping.position for mapping in flattened]
+        self.assertEqual(positions, [0, Position.hidden, Position.hidden, 1, Position.hidden, Position.hidden])
+
+    def test_change_dimension_from_one_to_zero(self):
+        mapping = entity_export(0, Position.hidden, 1, Position.hidden, [2], [3])
+        self.assertEqual(mapping.count_mappings(), 6)
+        set_entity_dimensions(mapping, 0)
+        self.assertEqual(mapping.count_mappings(), 4)
+        flattened = mapping.flatten()
+        classes = [type(mapping) for mapping in flattened]
+        self.assertEqual(
+            classes, [EntityClassMapping, EntityClassDescriptionMapping, EntityMapping, EntityDescriptionMapping]
         )
         positions = [mapping.position for mapping in flattened]
         self.assertEqual(positions, [0, Position.hidden, 1, Position.hidden])
 
-    def test_change_dimension_from_one_to_zero(self):
-        mapping = entity_export(0, 1, [2], [3])
-        self.assertEqual(mapping.count_mappings(), 4)
-        set_entity_dimensions(mapping, 0)
-        self.assertEqual(mapping.count_mappings(), 2)
-        flattened = mapping.flatten()
-        classes = [type(mapping) for mapping in flattened]
-        self.assertEqual(classes, [EntityClassMapping, EntityMapping])
-        positions = [mapping.position for mapping in flattened]
-        self.assertEqual(positions, [0, 1])
-
     def test_increase_dimensions(self):
-        mapping = entity_export(0, 1, [2], [3])
-        self.assertEqual(mapping.count_mappings(), 4)
-        set_entity_dimensions(mapping, 2)
+        mapping = entity_export(0, Position.hidden, 1, Position.hidden, [2], [3])
         self.assertEqual(mapping.count_mappings(), 6)
+        set_entity_dimensions(mapping, 2)
+        self.assertEqual(mapping.count_mappings(), 8)
         flattened = mapping.flatten()
         classes = [type(mapping) for mapping in flattened]
         self.assertEqual(
             classes,
             [
                 EntityClassMapping,
+                EntityClassDescriptionMapping,
                 DimensionMapping,
                 DimensionMapping,
                 EntityMapping,
+                EntityDescriptionMapping,
                 ElementMapping,
                 ElementMapping,
             ],
         )
         positions = [mapping.position for mapping in flattened]
-        self.assertEqual(positions, [0, 2, Position.hidden, 1, 3, Position.hidden])
+        self.assertEqual(positions, [0, Position.hidden, 2, Position.hidden, 1, Position.hidden, 3, Position.hidden])
 
     def test_decrease_dimensions(self):
-        mapping = entity_export(0, 1, [2, 3], [4, 5])
-        self.assertEqual(mapping.count_mappings(), 6)
+        mapping = entity_export(0, Position.hidden, 1, Position.hidden, [2, 3], [4, 5])
+        self.assertEqual(mapping.count_mappings(), 8)
         set_entity_dimensions(mapping, 1)
-        self.assertEqual(mapping.count_mappings(), 4)
+        self.assertEqual(mapping.count_mappings(), 6)
         flattened = mapping.flatten()
         classes = [type(mapping) for mapping in flattened]
         self.assertEqual(
             classes,
             [
                 EntityClassMapping,
+                EntityClassDescriptionMapping,
                 DimensionMapping,
                 EntityMapping,
+                EntityDescriptionMapping,
                 ElementMapping,
             ],
         )
         positions = [mapping.position for mapping in flattened]
-        self.assertEqual(positions, [0, 2, 1, 4])
+        self.assertEqual(positions, [0, Position.hidden, 2, 1, Position.hidden, 4])
 
 
 class TestSetEntityElements:

@@ -621,7 +621,9 @@ class TestExportMapping(AssertSuccessTestCase):
             import_relationship_classes(db_map, (("rc", ("oc1", "oc2")),))
             import_relationships(db_map, (("rc", ("o1", "O")), ("rc", ("o2", "O"))))
             db_map.commit_session("Add test data.")
-            mappings = entity_export(0, Position.table_name, [1, 2], [Position.table_name, 3])
+            mappings = entity_export(
+                0, Position.hidden, Position.table_name, Position.hidden, [1, 2], [Position.table_name, 3]
+            )
             tables = {}
             for title, title_key in titles(mappings, db_map):
                 tables[title] = list(rows(mappings, db_map, {}, title_key))
@@ -1298,7 +1300,7 @@ class TestExportMapping(AssertSuccessTestCase):
             )
             db_map.commit_session("Add test data.")
             mapping = entity_parameter_default_value_export(
-                0, 1, Position.hidden, 4, [Position.header, Position.header], [2, 3]
+                0, 1, Position.hidden, Position.hidden, 4, [Position.header, Position.header], [2, 3]
             )
             expected = [["", "", "idx1", "idx2", ""], ["oc", "p", "A", "b", 2.3]]
             self.assertEqual(list(rows(mapping, db_map, {})), expected)
@@ -1316,7 +1318,7 @@ class TestExportMapping(AssertSuccessTestCase):
             import_object_classes(db_map, ("oc1", "oc2", "oc3"))
             import_object_parameters(db_map, (("oc1", "p11", 3.14), ("oc2", "p21", 14.3), ("oc2", "p22", -1.0)))
             db_map.commit_session("Add test data.")
-            root_mapping = entity_parameter_default_value_export(0, 1, 2, 3, None, None)
+            root_mapping = entity_parameter_default_value_export(0, 1, Position.hidden, 2, 3, None, None)
             expected = [
                 ["oc1", "p11", "float", 3.14],
                 ["oc2", "p21", "float", 14.3],
@@ -1342,7 +1344,9 @@ class TestExportMapping(AssertSuccessTestCase):
             import_object_classes(db_map, ("oc",))
             import_object_parameters(db_map, (("oc", "p", Map(["A"], [Map(["b"], [2.3])])),))
             db_map.commit_session("Add test data.")
-            mapping = entity_parameter_default_value_export(0, 1, Position.hidden, 3, [Position.hidden], [2])
+            mapping = entity_parameter_default_value_export(
+                0, 1, Position.hidden, Position.hidden, 3, [Position.hidden], [2]
+            )
             expected = [["oc", "p", "A", "map"]]
             self.assertEqual(list(rows(mapping, db_map, {})), expected)
 
@@ -1364,7 +1368,7 @@ class TestExportMapping(AssertSuccessTestCase):
             import_object_classes(db_map, ("oc",))
             import_object_parameters(db_map, (("oc", "p", Map(["A"], [2.3])),))
             db_map.commit_session("Add test data.")
-            mapping = entity_parameter_default_value_export(0, 1, Position.hidden, 2, None, None)
+            mapping = entity_parameter_default_value_export(0, 1, Position.hidden, Position.hidden, 2, None, None)
             expected = [["oc", "p", "map"]]
             self.assertEqual(list(rows(mapping, db_map, {})), expected)
 

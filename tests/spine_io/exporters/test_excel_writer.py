@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for Excel writer. """
+"""Unit tests for Excel writer."""
 from itertools import zip_longest
 import os.path
 from tempfile import TemporaryDirectory
@@ -27,7 +27,7 @@ class TestExcelWriter(AssertSuccessTestCase):
     def test_write_empty_database(self):
         with TemporaryDirectory() as temp_dir:
             with DatabaseMapping("sqlite://", create=True) as db_map:
-                root_mapping = entity_export(0, 1)
+                root_mapping = entity_export(0, Position.hidden, 1)
                 path = os.path.join(temp_dir, "test.xlsx")
                 writer = ExcelWriter(path)
                 write(db_map, writer, root_mapping)
@@ -43,7 +43,7 @@ class TestExcelWriter(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(db_map, ("oc",)))
                 self._assert_imports(import_objects(db_map, (("oc", "o1"),)))
                 db_map.commit_session("Add test data.")
-                root_mapping = entity_export(0, 1)
+                root_mapping = entity_export(0, Position.hidden, 1)
                 path = os.path.join(temp_dir, "test.xlsx")
                 writer = ExcelWriter(path)
                 write(db_map, writer, root_mapping)
@@ -59,7 +59,7 @@ class TestExcelWriter(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(db_map, ("Sheet1",)))
                 self._assert_imports(import_objects(db_map, (("Sheet1", "o1"), ("Sheet1", "o2"))))
                 db_map.commit_session("Add test data.")
-                root_mapping = entity_export(Position.table_name, 0)
+                root_mapping = entity_export(Position.table_name, Position.hidden, 0)
                 path = os.path.join(temp_dir, "test.xlsx")
                 writer = ExcelWriter(path)
                 write(db_map, writer, root_mapping)
@@ -75,7 +75,7 @@ class TestExcelWriter(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(db_map, ("oc1", ("oc2"))))
                 self._assert_imports(import_objects(db_map, (("oc1", "o11"), ("oc1", "o12"), ("oc2", "o21"))))
                 db_map.commit_session("Add test data.")
-                root_mapping = entity_export(Position.table_name, 1)
+                root_mapping = entity_export(Position.table_name, Position.hidden, 1)
                 path = os.path.join(temp_dir, "test.xlsx")
                 writer = ExcelWriter(path)
                 write(db_map, writer, root_mapping)
@@ -93,8 +93,8 @@ class TestExcelWriter(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(db_map, ("oc",)))
                 self._assert_imports(import_objects(db_map, (("oc", "o1"),)))
                 db_map.commit_session("Add test data.")
-                root_mapping1 = entity_export(0, 1)
-                root_mapping2 = entity_export(0, 1)
+                root_mapping1 = entity_export(0, Position.hidden, 1)
+                root_mapping2 = entity_export(0, Position.hidden, 1)
                 path = os.path.join(temp_dir, "test.xlsx")
                 writer = ExcelWriter(path)
                 write(db_map, writer, root_mapping1, root_mapping2)
@@ -110,8 +110,8 @@ class TestExcelWriter(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(db_map, ("oc",)))
                 self._assert_imports(import_objects(db_map, (("oc", "o1"),)))
                 db_map.commit_session("Add test data.")
-                root_mapping1 = entity_export(Position.table_name, 0)
-                root_mapping2 = entity_export(Position.table_name, 0)
+                root_mapping1 = entity_export(Position.table_name, Position.hidden, 0)
+                root_mapping2 = entity_export(Position.table_name, Position.hidden, 0)
                 path = os.path.join(temp_dir, "test.xlsx")
                 writer = ExcelWriter(path)
                 write(db_map, writer, root_mapping1, root_mapping2)

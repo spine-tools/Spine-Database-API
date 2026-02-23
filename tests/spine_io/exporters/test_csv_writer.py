@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for csv writer. """
+"""Unit tests for csv writer."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -25,7 +25,7 @@ class TestCsvWriter(AssertSuccessTestCase):
     def test_write_empty_database(self):
         with TemporaryDirectory() as temp_dir:
             with DatabaseMapping("sqlite://", create=True) as db_map:
-                root_mapping = entity_export(0, 1)
+                root_mapping = entity_export(0, Position.hidden, 1)
                 out_path = Path(temp_dir, "out.csv")
                 writer = CsvWriter(out_path.parent, out_path.name)
                 write(db_map, writer, root_mapping)
@@ -39,7 +39,7 @@ class TestCsvWriter(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(db_map, ("oc",)))
                 self._assert_imports(import_objects(db_map, (("oc", "o1"),)))
                 db_map.commit_session("Add test data.")
-                root_mapping = entity_export(0, 1)
+                root_mapping = entity_export(0, Position.hidden, 1)
                 out_path = Path(temp_dir, "out.csv")
                 writer = CsvWriter(out_path.parent, out_path.name)
                 write(db_map, writer, root_mapping)
@@ -53,7 +53,7 @@ class TestCsvWriter(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(db_map, ("oc1", "oc2")))
                 self._assert_imports(import_objects(db_map, (("oc1", "o1"), ("oc2", "o2"))))
                 db_map.commit_session("Add test data.")
-                root_mapping = entity_export(Position.table_name, 0)
+                root_mapping = entity_export(Position.table_name, Position.hidden, 0)
                 out_path = Path(temp_dir, "out.csv")
                 writer = CsvWriter(out_path.parent, out_path.name)
                 write(db_map, writer, root_mapping)
@@ -77,8 +77,8 @@ class TestCsvWriter(AssertSuccessTestCase):
                 self._assert_imports(import_object_classes(db_map, ("oc",)))
                 self._assert_imports(import_objects(db_map, (("oc", "o1"),)))
                 db_map.commit_session("Add test data.")
-                root_mapping1 = entity_export(0, 1)
-                root_mapping2 = entity_export(0, 1)
+                root_mapping1 = entity_export(0, Position.hidden, 1)
+                root_mapping2 = entity_export(0, Position.hidden, 1)
                 out_path = Path(temp_dir, "out.csv")
                 writer = CsvWriter(out_path.parent, out_path.name)
                 write(db_map, writer, root_mapping1, root_mapping2)
