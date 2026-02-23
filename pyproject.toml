@@ -33,12 +33,12 @@ dependencies = [
 Repository = "https://github.com/spine-tools/Spine-Database-API"
 
 [build-system]
-requires = ["setuptools>=64", "setuptools_scm[toml]>=6.2", "wheel", "build"]
+requires = ["setuptools>=80", "setuptools_scm>=8", "wheel", "build"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 write_to = "spinedb_api/version.py"
-version_scheme = "release-branch-semver"
+version_scheme = "guess-next-dev"
 
 [tool.setuptools]
 zip-safe = false
