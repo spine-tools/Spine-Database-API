@@ -401,7 +401,7 @@ def import_parameter_definitions(
 
     Args:
         db_map: database mapping
-        data: tuples of (class name, parameter name, [default value], [default type], [parameter value list name], [description])
+        data: tuples of (class name, parameter name, [default value], [parameter value list name], [description], [parameter group name])
         unparse_value: function to parse parameter values
 
     Returns:
