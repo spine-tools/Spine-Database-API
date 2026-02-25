@@ -16,7 +16,6 @@ using ``import_functions.import_data()``
 """
 from collections.abc import Callable
 from copy import deepcopy
-from operator import itemgetter
 from typing import Any, Optional
 from ..exception import ParameterValueFormatError
 from ..helpers import string_to_bool
@@ -295,23 +294,31 @@ def _unpivot_rows(
     return unpivoted_rows, pivoted_pos, non_pivoted_pos, unpivoted_column_pos
 
 
-def _make_entity_classes(mapped_data):
-    rows = mapped_data.get("entity_classes")
-    if rows is None:
+def _make_entity_classes(mapped_data: dict) -> None:
+    try:
+        rows = mapped_data.pop("entity_classes")
+    except KeyError:
         return
-    rows = [(class_name, tuple(dimension_names)) for class_name, dimension_names in rows.items()]
-    rows.sort(key=itemgetter(1))
-    mapped_data["entity_classes"] = final_rows = []
-    for class_name, dimension_names in rows:
-        row = (class_name, tuple(dimension_names)) if dimension_names else (class_name,)
-        final_rows.append(row)
+    final_rows = []
+    for name, record in rows.items():
+        item = [name, record.dimensions]
+        if record.description:
+            item.append(record.description)
+        final_rows.append(item)
+    if final_rows:
+        mapped_data["entity_classes"] = final_rows
 
 
 def _make_entities(mapped_data):
-    rows = mapped_data.get("entities")
-    if rows is None:
+    try:
+        rows = mapped_data.pop("entities")
+    except KeyError:
         return
-    mapped_data["entities"] = list(rows)
+    final_rows = []
+    for (class_name, name), record in rows.items():
+        final_rows.append((class_name, name if not record.elements else record.elements))
+    if final_rows:
+        mapped_data["entities"] = final_rows
 
 
 def _make_entity_alternatives(mapped_data, errors):

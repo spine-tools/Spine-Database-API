@@ -11,17 +11,18 @@
 ######################################################################################################################
 """Contains import mappings for database items such as entities, entity classes and parameter values."""
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 from enum import Enum, auto, unique
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypeAlias
 from spinedb_api.exception import InvalidMapping, InvalidMappingComponent
 from spinedb_api.mapping import Mapping, Position, is_pivoted, parse_fixed_position_value, unflatten
 
 
 @unique
 class ImportKey(Enum):
-    DIMENSION_COUNT = auto()
     ENTITY_CLASS_NAME = auto()
     ENTITY_NAME = auto()
+    ELEMENT_NAMES = auto()
     GROUP_NAME = auto()
     MEMBER_NAME = auto()
     METADATA_NAME = auto()
@@ -35,8 +36,6 @@ class ImportKey(Enum):
     PARAMETER_VALUE_INDEXES = auto()
     PARAMETER_VALUE_METADATA_NAME = auto()
     PARAMETER_VALUE_METADATA_VALUE = auto()
-    DIMENSION_NAMES = auto()
-    ELEMENT_NAMES = auto()
     ALTERNATIVE_NAME = auto()
     SCENARIO_NAME = auto()
     SCENARIO_ALTERNATIVE = auto()
@@ -59,8 +58,6 @@ class ImportKey(Enum):
             self.PARAMETER_VALUE_INDEXES.value: "Parameter indexes",
             self.PARAMETER_VALUE_METADATA_NAME.value: "Metadata names",
             self.PARAMETER_VALUE_METADATA_VALUE.value: "Metadata values",
-            self.DIMENSION_NAMES.value: "Dimension names",
-            self.ELEMENT_NAMES.value: "Element names",
             self.PARAMETER_VALUE_LIST_NAME.value: "Parameter value lists",
             self.SCENARIO_NAME.value: "Scenario names",
             self.SCENARIO_ALTERNATIVE.value: "Alternative names",
@@ -72,8 +69,8 @@ class ImportKey(Enum):
         return super().__str__()
 
 
-class KeyFix(Exception):
-    """Opposite of KeyError"""
+State: TypeAlias = dict[ImportKey, Any]
+SemiMappedData: TypeAlias = dict[str, Any]
 
 
 def check_validity(root_mapping):
@@ -302,12 +299,6 @@ class ImportMapping(Mapping):
                     msg = f"Required key '{key}' is invalid"
                     error = InvalidMappingComponent(msg, self.rank, key)
                     errors.append(error)
-            except KeyFix as fix:
-                indexes = set()
-                for key in fix.args:
-                    indexes |= {k for k, err in enumerate(errors) if err.key == key}
-                for k in sorted(indexes, reverse=True):
-                    errors.pop(k)
         if self.child is not None:
             self.child.import_row(source_row, state, mapped_data, errors=errors)
 
@@ -406,6 +397,12 @@ class IndexedValueMixin:
         return mapping
 
 
+@dataclass
+class EntityClassRecord:
+    dimensions: list[str] = field(default_factory=list)
+    description: str | None = None
+
+
 class EntityClassMapping(ImportMapping):
     """Maps entity classes.
 
@@ -415,14 +412,30 @@ class EntityClassMapping(ImportMapping):
     MAP_TYPE = "EntityClass"
 
     def _import_row(self, source_data, state, mapped_data):
-        dim_count = len([m for m in self.flatten() if isinstance(m, DimensionMapping)])
-        state[ImportKey.DIMENSION_COUNT] = dim_count
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME] = str(source_data)
-        dimension_names = state[ImportKey.DIMENSION_NAMES] = []
         entity_classes = mapped_data.setdefault("entity_classes", {})
-        entity_classes[entity_class_name] = dimension_names
-        if dim_count:
-            raise KeyError(ImportKey.DIMENSION_NAMES)
+        entity_classes[entity_class_name] = EntityClassRecord()
+
+
+class EntityClassDescriptionMapping(ImportMapping):
+    """Maps entity class descriptions.
+
+    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityClassMapping`.
+    """
+
+    MAP_TYPE = "EntityClassDescription"
+    ignorable = True
+
+    def _import_row(self, source_data, state, mapped_data):
+        description = str(source_data)
+        if description:
+            entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+            mapped_data["entity_classes"][entity_class_name].description = description
+
+
+@dataclass
+class EntityRecord:
+    elements: list[str] = field(default_factory=list)
 
 
 class EntityMapping(ImportMapping):
@@ -433,18 +446,12 @@ class EntityMapping(ImportMapping):
 
     MAP_TYPE = "Entity"
 
-    def import_row(self, source_row, state, mapped_data, errors=None):
-        state[ImportKey.ELEMENT_NAMES] = ()
-        super().import_row(source_row, state, mapped_data, errors=errors)
-
     def _import_row(self, source_data, state, mapped_data):
-        if state[ImportKey.DIMENSION_COUNT]:
+        if self.position == Position.hidden and isinstance(self._child, ElementMapping):
             return
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
         entity_name = state[ImportKey.ENTITY_NAME] = str(source_data)
-        if isinstance(self.child, EntityGroupMapping):
-            raise KeyError(ImportKey.MEMBER_NAME)
-        mapped_data.setdefault("entities", {})[entity_class_name, entity_name] = None
+        mapped_data.setdefault("entities", {})[entity_class_name, entity_name] = EntityRecord()
 
 
 class EntityMetadataNameMapping(ImportMapping):
@@ -468,10 +475,7 @@ class EntityMetadataValueMapping(ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
-        if state[ImportKey.DIMENSION_COUNT]:
-            entity_byname = state[ImportKey.ELEMENT_NAMES]
-        else:
-            entity_byname = (state[ImportKey.ENTITY_NAME],)
+        entity_byname = _byname_from_mapped_data(entity_class_name, state, mapped_data)
         metadata_name = state[ImportKey.ENTITY_METADATA_NAME]
         metadata_value = state[ImportKey.ENTITY_METADATA_VALUE] = source_data
         mapped_data.setdefault("entity_metadata", {})[
@@ -489,16 +493,16 @@ class EntityGroupMapping(ImportEntitiesMixin, ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
-        group_name = state.get(ImportKey.ENTITY_NAME)
-        if group_name is None:
-            raise KeyError(ImportKey.GROUP_NAME)
+        group_name = state[ImportKey.ENTITY_NAME]
         member_name = str(source_data)
         mapped_data.setdefault("entity_groups", set()).add((entity_class_name, group_name, member_name))
         if self.import_entities:
-            entities = mapped_data.setdefault("entities", {})
-            entities[entity_class_name, group_name] = None
-            entities[entity_class_name, member_name] = None
-        raise KeyFix(ImportKey.MEMBER_NAME)
+            mapped_data["entities"][entity_class_name, member_name] = EntityRecord()
+        else:
+            try:
+                del mapped_data["entities"][entity_class_name, group_name]
+            except KeyError:
+                pass
 
 
 class EntityAlternativeActivityMapping(ImportMapping):
@@ -512,13 +516,10 @@ class EntityAlternativeActivityMapping(ImportMapping):
     ignorable = True
 
     def _import_row(self, source_data, state, mapped_data):
-        if source_data is None or source_data == "":
+        if source_data == "":
             return
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
-        if state[ImportKey.DIMENSION_COUNT]:
-            entity_byname = state[ImportKey.ELEMENT_NAMES]
-        else:
-            entity_byname = (state[ImportKey.ENTITY_NAME],)
+        entity_byname = _byname_from_mapped_data(entity_class_name, state, mapped_data)
         alternative_name = state[ImportKey.ALTERNATIVE_NAME]
         mapped_data.setdefault("entity_alternatives", {})[
             entity_class_name, entity_byname, alternative_name, source_data
@@ -534,42 +535,48 @@ class DimensionMapping(ImportMapping):
     MAP_TYPE = "Dimension"
 
     def _import_row(self, source_data, state, mapped_data):
-        if ImportKey.ENTITY_CLASS_NAME not in state:
-            raise KeyError(ImportKey.ENTITY_CLASS_NAME)
-        dimension_names = state[ImportKey.DIMENSION_NAMES]
-        if len(dimension_names) == state[ImportKey.DIMENSION_COUNT]:
-            return
         dimension_name = str(source_data)
-        dimension_names.append(dimension_name)
-        if len(dimension_names) == state[ImportKey.DIMENSION_COUNT]:
-            raise KeyFix(ImportKey.DIMENSION_NAMES)
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        mapped_data["entity_classes"][entity_class_name].dimensions.append(dimension_name)
 
 
 class ElementMapping(ImportEntitiesMixin, ImportMapping):
     """Maps elements.
 
-    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping` and :class:`EntityMapping`
+    Cannot be used as the topmost mapping; must have :class:`DimensionMapping` and :class:`EntityMapping`
     as parents.
     """
 
     MAP_TYPE = "Element"
 
     def _import_row(self, source_data, state, mapped_data):
-        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
-        dimension_names = state[ImportKey.DIMENSION_NAMES]
-        if len(dimension_names) != state[ImportKey.DIMENSION_COUNT]:
-            raise KeyError(ImportKey.DIMENSION_NAMES)
         element_name = str(source_data)
-        element_names = state[ImportKey.ELEMENT_NAMES] = state[ImportKey.ELEMENT_NAMES] + (element_name,)
+        if isinstance(self._child, ElementMapping):
+            element_names = state.setdefault(ImportKey.ELEMENT_NAMES, [])
+            element_names.append(element_name)
+            return
+        element_names = state.pop(ImportKey.ELEMENT_NAMES, [])
+        element_names.append(element_name)
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        if ImportKey.ENTITY_NAME in state:
+            entity_name = state[ImportKey.ENTITY_NAME]
+            record = mapped_data["entities"][entity_class_name, entity_name]
+            if all(name == existing_name for name, existing_name in zip(element_names, record.elements)):
+                return
+            del state[ImportKey.ENTITY_NAME]
+        record = EntityRecord(element_names)
+        byname = tuple(record.elements)
+        mapped_data.setdefault("entities", {})[entity_class_name, byname] = record
+        state[ImportKey.ENTITY_NAME] = byname
         if self.import_entities:
-            k = len(element_names) - 1
-            dimension_name = dimension_names[k]
-            mapped_data.setdefault("entity_classes", {}).update({dimension_name: ()})
-            mapped_data.setdefault("entities", {})[dimension_name, element_name] = None
-        if len(element_names) == state[ImportKey.DIMENSION_COUNT]:
-            mapped_data.setdefault("entities", {})[entity_class_name, tuple(element_names)] = None
-            raise KeyFix(ImportKey.ELEMENT_NAMES)
-        raise KeyError(ImportKey.ELEMENT_NAMES)
+            mapped_entities = mapped_data.setdefault("entities", {})
+            mapped_classes = mapped_data["entity_classes"]
+            class_record = mapped_classes[entity_class_name]
+            for element_name, dimension_name in zip(element_names, class_record.dimensions):
+                if dimension_name not in mapped_classes:
+                    mapped_classes[dimension_name] = EntityClassRecord()
+                if (dimension_name, element_name) not in mapped_entities:
+                    mapped_entities[dimension_name, element_name] = EntityRecord()
 
 
 class MetadataNameMapping(ImportMapping):
@@ -682,12 +689,13 @@ class IndexNameMappingBase(ImportMapping):
         super().__init__(*args, **kwargs)
         self._id = None
 
-    def _value_key(self, state):
+    @staticmethod
+    def _value_key(state: State, mapped_data: SemiMappedData) -> tuple:
         raise NotImplementedError()
 
     def _import_row(self, source_data, state, mapped_data):
         values = state[self._STATE_KEY]
-        value = values[self._value_key(state)]
+        value = values[self._value_key(state, mapped_data)]
         if self._id is None:
             self._id = 0
             current = self
@@ -709,7 +717,8 @@ class DefaultValueIndexNameMapping(IndexNameMappingBase):
     MAP_TYPE = "DefaultValueIndexName"
     _STATE_KEY = ImportKey.PARAMETER_DEFAULT_VALUES
 
-    def _value_key(self, state):
+    @staticmethod
+    def _value_key(state, mapped_data):
         return _default_value_key(state)
 
 
@@ -766,7 +775,7 @@ class ParameterValueMapping(ImportMapping):
         value = source_data
         if value == "":
             return
-        entity_class_name, entity_byname, parameter_name, alternative_name = _parameter_value_key(state)
+        entity_class_name, entity_byname, parameter_name, alternative_name = _parameter_value_key(state, mapped_data)
         parameter_value = [entity_class_name, entity_byname, parameter_name, value]
         if alternative_name is not None:
             parameter_value.append(alternative_name)
@@ -780,7 +789,7 @@ class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
         if ImportKey.PARAMETER_NAME not in state:
             # Don't catch errors here, this one's invisible
             return
-        key = _parameter_value_key(state)
+        key = _parameter_value_key(state, mapped_data)
         values = state.setdefault(ImportKey.PARAMETER_VALUES, {})
         if key in values:
             return
@@ -819,10 +828,7 @@ class ParameterValueMetadataValueMapping(ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
-        if state[ImportKey.DIMENSION_COUNT]:
-            entity_byname = state[ImportKey.ELEMENT_NAMES]
-        else:
-            entity_byname = (state[ImportKey.ENTITY_NAME],)
+        entity_byname = _byname_from_mapped_data(entity_class_name, state, mapped_data)
         parameter_name = state[ImportKey.PARAMETER_NAME]
         alternative_name = state[ImportKey.ALTERNATIVE_NAME]
         metadata_name = state[ImportKey.PARAMETER_VALUE_METADATA_NAME]
@@ -856,8 +862,9 @@ class IndexNameMapping(IndexNameMappingBase):
     MAP_TYPE = "IndexName"
     _STATE_KEY = ImportKey.PARAMETER_VALUES
 
-    def _value_key(self, state):
-        return _parameter_value_key(state)
+    @staticmethod
+    def _value_key(state, mapped_data):
+        return _parameter_value_key(state, mapped_data)
 
 
 class ExpandedParameterValueMapping(ImportMapping):
@@ -874,7 +881,7 @@ class ExpandedParameterValueMapping(ImportMapping):
 
     def _import_row(self, source_data, state, mapped_data):
         values = state.setdefault(ImportKey.PARAMETER_VALUES, {})
-        value = values[_parameter_value_key(state)]
+        value = values[_parameter_value_key(state, mapped_data)]
         data = value.setdefault("data", [])
         if value["type"] == "array":
             data.append(source_data)
@@ -1035,14 +1042,15 @@ def default_import_mapping(map_type: str) -> ImportMapping:
     return make_root_mapping()
 
 
-def _default_entity_class_mapping():
+def _default_entity_class_mapping() -> EntityClassMapping:
     """Creates default entity class mappings.
 
     Returns:
-        EntityClassMapping: root mapping
+        root mapping
     """
     root_mapping = EntityClassMapping(Position.hidden)
-    root_mapping.child = EntityMapping(Position.hidden)
+    description_mapping = root_mapping.child = EntityClassDescriptionMapping(Position.hidden)
+    description_mapping.child = EntityMapping(Position.hidden)
     return root_mapping
 
 
@@ -1144,6 +1152,7 @@ def from_dict(serialized):
         klass.MAP_TYPE: klass
         for klass in (
             EntityClassMapping,
+            EntityClassDescriptionMapping,
             EntityMapping,
             EntityMetadataNameMapping,
             EntityMetadataValueMapping,
@@ -1220,35 +1229,35 @@ def from_dict(serialized):
     return unflatten(flattened)
 
 
-def _parameter_value_key(state):
+def _parameter_value_key(state: State, mapped_data: SemiMappedData) -> tuple[str, tuple[str, ...], str, str]:
     """Creates parameter value's key from current state.
 
     Args:
-        state (dict): import state
+        state: import state
 
     Returns:
-        tuple of str: class name, entity byname, parameter name, and alternative name
+        class name, entity byname, parameter name, and alternative name
     """
     entity_class_name = state.get(ImportKey.ENTITY_CLASS_NAME)
-    if state.get(ImportKey.DIMENSION_COUNT):
-        element_names = state[ImportKey.ELEMENT_NAMES]
-        if len(element_names) != state[ImportKey.DIMENSION_COUNT]:
-            raise KeyError(ImportKey.ELEMENT_NAMES)
-        entity_byname = element_names
-    else:
-        entity_byname = state[ImportKey.ENTITY_NAME]
+    entity_byname = _byname_from_mapped_data(entity_class_name, state, mapped_data)
     parameter_name = state[ImportKey.PARAMETER_NAME]
     alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
     return entity_class_name, entity_byname, parameter_name, alternative_name
 
 
-def _default_value_key(state):
+def _default_value_key(state: State) -> tuple[str, str]:
     """Creates parameter default value's key from current state.
 
     Args:
-        state (dict): import state
+        state: import state
 
     Returns:
-        tuple of str: class name and parameter name
+        class name and parameter name
     """
     return state[ImportKey.ENTITY_CLASS_NAME], state[ImportKey.PARAMETER_NAME]
+
+
+def _byname_from_mapped_data(entity_class_name: str, state: State, mapped_data: SemiMappedData) -> tuple[str, ...]:
+    entity_name = state[ImportKey.ENTITY_NAME]
+    entity_record = mapped_data["entities"][entity_class_name, entity_name]
+    return tuple(entity_record.elements) if entity_record.elements else (entity_name,)

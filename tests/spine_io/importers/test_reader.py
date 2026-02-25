@@ -58,7 +58,7 @@ class TestReader(unittest.TestCase):
             table_row_convert_specs,
         )
         self.assertEqual(errors, [])
-        self.assertEqual(mapped_data, {"entity_classes": [("A",)], "entities": [("A", "b")]})
+        self.assertEqual(mapped_data, {"entity_classes": [["A", []]], "entities": [("A", "b")]})
 
     def test_resolve_values_for_fixed_position_mappings(self):
         reader = Reader(None)
@@ -126,7 +126,3 @@ class TestReader(unittest.TestCase):
         )
         self.assertEqual(errors, ["this is expected"])
         self.assertEqual(mapped_data, {})
-
-
-if __name__ == "__main__":
-    unittest.main()
