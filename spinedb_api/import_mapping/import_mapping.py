@@ -436,6 +436,7 @@ class EntityClassDescriptionMapping(ImportMapping):
 @dataclass
 class EntityRecord:
     elements: list[str] = field(default_factory=list)
+    description: str | None = None
 
 
 class EntityMapping(ImportMapping):
@@ -452,6 +453,23 @@ class EntityMapping(ImportMapping):
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
         entity_name = state[ImportKey.ENTITY_NAME] = str(source_data)
         mapped_data.setdefault("entities", {})[entity_class_name, entity_name] = EntityRecord()
+
+
+class EntityDescriptionMapping(ImportMapping):
+    """Maps entity descriptions.
+
+    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityMapping` or :class:`ElementMapping`.
+    """
+
+    MAP_TYPE = "EntityDescription"
+    ignorable = True
+
+    def _import_row(self, source_data, state, mapped_data):
+        description = str(source_data)
+        if description:
+            entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+            entity_name = state[ImportKey.ENTITY_NAME]
+            mapped_data["entities"][entity_class_name, entity_name].description = description
 
 
 class EntityMetadataNameMapping(ImportMapping):
@@ -1050,7 +1068,8 @@ def _default_entity_class_mapping() -> EntityClassMapping:
     """
     root_mapping = EntityClassMapping(Position.hidden)
     description_mapping = root_mapping.child = EntityClassDescriptionMapping(Position.hidden)
-    description_mapping.child = EntityMapping(Position.hidden)
+    entity_mapping = description_mapping.child = EntityMapping(Position.hidden)
+    entity_mapping.child = EntityDescriptionMapping(Position.hidden)
     return root_mapping
 
 
@@ -1154,6 +1173,7 @@ def from_dict(serialized):
             EntityClassMapping,
             EntityClassDescriptionMapping,
             EntityMapping,
+            EntityDescriptionMapping,
             EntityMetadataNameMapping,
             EntityMetadataValueMapping,
             EntityGroupMapping,

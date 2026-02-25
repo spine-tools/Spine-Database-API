@@ -72,7 +72,7 @@ class TestGetMappedData(unittest.TestCase):
                 "entity_classes": [["Object", []]],
                 "parameter_values": [["Object", ("data",), "Parameter", Map(["T1", "T2"], [5.0, 99.0]), "Base"]],
                 "parameter_definitions": [("Object", "Parameter")],
-                "entities": [("Object", "data")],
+                "entities": [["Object", "data"]],
             },
         )
 
@@ -104,7 +104,7 @@ class TestGetMappedData(unittest.TestCase):
                 "entity_classes": [["Object", []]],
                 "parameter_values": [["Object", ("data",), "Parameter", Map(["T1", "T2"], [5.0, 99.0]), "Base"]],
                 "parameter_definitions": [("Object", "Parameter")],
-                "entities": [("Object", "data")],
+                "entities": [["Object", "data"]],
             },
         )
 
@@ -135,7 +135,7 @@ class TestGetMappedData(unittest.TestCase):
                 "entity_classes": [["klass", []]],
                 "parameter_values": [["klass", ("kloss",), "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
                 "parameter_definitions": [("klass", "Parameter_2")],
-                "entities": [("klass", "kloss")],
+                "entities": [["klass", "kloss"]],
             },
         )
 
@@ -189,7 +189,7 @@ class TestGetMappedData(unittest.TestCase):
                 "entity_classes": [["o", []]],
                 "parameter_definitions": [("o", "parameter_name")],
                 "parameter_values": [],
-                "entities": [("o", "o1")],
+                "entities": [["o", "o1"]],
             },
         )
 
@@ -224,13 +224,13 @@ class TestGetMappedData(unittest.TestCase):
                 "alternatives": {"base"},
                 "entity_classes": [["o_to_q", ["o", "q"]], ["o", []], ["q", []]],
                 "entities": [
-                    ("o_to_q", ["o1", "q1"]),
-                    ("o", "o1"),
-                    ("q", "q1"),
-                    ("o_to_q", ["o2", "q2"]),
-                    ("o", "o2"),
-                    ("q", "q2"),
-                    ("o_to_q", ["o1", "q2"]),
+                    ["o_to_q", ["o1", "q1"]],
+                    ["o", "o1"],
+                    ["q", "q1"],
+                    ["o_to_q", ["o2", "q2"]],
+                    ["o", "o2"],
+                    ["q", "q2"],
+                    ["o_to_q", ["o1", "q2"]],
                 ],
                 "parameter_definitions": [("o_to_q", "param")],
                 "parameter_values": [
@@ -269,7 +269,7 @@ class TestGetMappedData(unittest.TestCase):
                 "entity_classes": [["klass", []]],
                 "parameter_values": [["klass", ("kloss",), "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
                 "parameter_definitions": [("klass", "Parameter_2")],
-                "entities": [("klass", "kloss")],
+                "entities": [["klass", "kloss"]],
             },
         )
 
@@ -297,7 +297,7 @@ class TestGetMappedData(unittest.TestCase):
                 "entity_classes": [["klass", []]],
                 "parameter_values": [["klass", ("kloss",), "Parameter_2", Map(["T1", "T2"], ["2.3", "23.0"])]],
                 "parameter_definitions": [("klass", "Parameter_2")],
-                "entities": [("klass", "kloss")],
+                "entities": [["klass", "kloss"]],
             },
         )
 
@@ -327,7 +327,7 @@ class TestGetMappedData(unittest.TestCase):
                 "entity_classes": [["klass", []]],
                 "parameter_values": [["klass", ("kloss",), "Parameter_2", Map(["T1", "T2"], [2.3, 23.0])]],
                 "parameter_definitions": [("klass", "Parameter_2")],
-                "entities": [("klass", "kloss")],
+                "entities": [["klass", "kloss"]],
             },
         )
 
@@ -363,7 +363,7 @@ class TestGetMappedData(unittest.TestCase):
                     ["class", ("object_2",), "param", Array([2.3, -2.3]), "Base"],
                 ],
                 "parameter_definitions": [("class", "param")],
-                "entities": [("class", "object_1"), ("class", "object_2")],
+                "entities": [["class", "object_1"], ["class", "object_2"]],
             },
         )
 
@@ -399,7 +399,7 @@ class TestGetMappedData(unittest.TestCase):
                     ["Gadget", ("object_2",), "data", Array([2.3, -2.3]), "Base"],
                 ],
                 "parameter_definitions": [("Gadget", "data")],
-                "entities": [("Gadget", "object_1"), ("Gadget", "object_2")],
+                "entities": [["Gadget", "object_1"], ["Gadget", "object_2"]],
             },
         )
 
@@ -436,7 +436,7 @@ class TestGetMappedData(unittest.TestCase):
                     ["Data", ("d2",), "parameter2", 2.3, "Base"],
                 ],
                 "parameter_definitions": [("Data", "parameter1"), ("Data", "parameter2")],
-                "entities": [("Data", "d1"), ("Data", "d2")],
+                "entities": [["Data", "d1"], ["Data", "d2"]],
             },
         )
 
@@ -498,10 +498,10 @@ class TestGetMappedData(unittest.TestCase):
             {
                 "alternatives": {"Base"},
                 "entities": [
-                    ("unit__node__node", ["Dyson sphere", "Gamma Ceti", "Ring world"]),
-                    ("unit", "Dyson sphere"),
-                    ("node", "Gamma Ceti"),
-                    ("node", "Ring world"),
+                    ["unit__node__node", ["Dyson sphere", "Gamma Ceti", "Ring world"]],
+                    ["unit", "Dyson sphere"],
+                    ["node", "Gamma Ceti"],
+                    ["node", "Ring world"],
                 ],
                 "entity_classes": [["unit__node__node", ["unit", "node", "node"]], ["unit", []], ["node", []]],
                 "parameter_definitions": [("unit__node__node", "flow")],
@@ -534,7 +534,7 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                "entities": [("Generator", "MyHydroGenerator")],
+                "entities": [["Generator", "MyHydroGenerator"]],
                 "entity_classes": [["Generator", []]],
                 "parameter_definitions": [("Generator", "Type")],
                 "parameter_values": [["Generator", ("MyHydroGenerator",), "Type", "Hydro"]],
@@ -583,18 +583,18 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "entities": [
-                    ("connection__node__node", ["A1", "B1", "C1"]),
-                    ("connection", "A1"),
-                    ("node", "B1"),
-                    ("node", "C1"),
-                    ("connection__node__node", ["A2", "B2", "C2"]),
-                    ("connection", "A2"),
-                    ("node", "B2"),
-                    ("node", "C2"),
-                    ("connection__node__node", ["A3", "B3", "C3"]),
-                    ("connection", "A3"),
-                    ("node", "B3"),
-                    ("node", "C3"),
+                    ["connection__node__node", ["A1", "B1", "C1"]],
+                    ["connection", "A1"],
+                    ["node", "B1"],
+                    ["node", "C1"],
+                    ["connection__node__node", ["A2", "B2", "C2"]],
+                    ["connection", "A2"],
+                    ["node", "B2"],
+                    ["node", "C2"],
+                    ["connection__node__node", ["A3", "B3", "C3"]],
+                    ["connection", "A3"],
+                    ["node", "B3"],
+                    ["node", "C3"],
                 ],
                 "entity_classes": [
                     ["connection__node__node", ["connection", "node", "node"]],
@@ -679,8 +679,8 @@ class TestGetMappedData(unittest.TestCase):
                 "alternatives": {"Base"},
                 "entity_classes": [["Object", []]],
                 "entities": [
-                    ("Object", "o1"),
-                    ("Object", "o2"),
+                    ["Object", "o1"],
+                    ["Object", "o2"],
                 ],
                 "parameter_definitions": [("Object", "t")],
                 "parameter_values": [
@@ -714,8 +714,8 @@ class TestGetMappedData(unittest.TestCase):
                 "alternatives": {"Base"},
                 "entity_classes": [["Object", []]],
                 "entities": [
-                    ("Object", "o1"),
-                    ("Object", "o2"),
+                    ["Object", "o1"],
+                    ["Object", "o2"],
                 ],
                 "parameter_definitions": [("Object", "t")],
                 "parameter_values": [
@@ -788,7 +788,7 @@ class TestGetMappedData(unittest.TestCase):
                 "alternatives": {"Base", "alt1", "alt2"},
                 "entity_classes": [["Object", []]],
                 "entities": [
-                    ("Object", "o1"),
+                    ["Object", "o1"],
                 ],
                 "entity_alternatives": [("Object", ("o1",), "Base", True), ("Object", ("o1",), "alt1", False)],
             },
@@ -815,7 +815,7 @@ class TestGetMappedData(unittest.TestCase):
                 "alternatives": {"Base", "alt1", "alt2"},
                 "entity_classes": [["Object", []]],
                 "entities": [
-                    ("Object", "o1"),
+                    ["Object", "o1"],
                 ],
                 "entity_alternatives": [("Object", ("o1",), "Base", True), ("Object", ("o1",), "alt1", False)],
             },
@@ -842,7 +842,7 @@ class TestGetMappedData(unittest.TestCase):
                 "alternatives": {"Base", "alt1", "alt2"},
                 "entity_classes": [["Object", []]],
                 "entities": [
-                    ("Object", "o1"),
+                    ["Object", "o1"],
                 ],
                 "entity_alternatives": [("Object", ("o1",), "Base", True), ("Object", ("o1",), "alt1", False)],
             },
@@ -875,7 +875,7 @@ class TestGetMappedData(unittest.TestCase):
                 "alternatives": {"Base"},
                 "entity_classes": [["Object", []]],
                 "entities": [
-                    ("Object", "o1"),
+                    ["Object", "o1"],
                 ],
                 "entity_alternatives": [],
             },
@@ -906,11 +906,11 @@ class TestGetMappedData(unittest.TestCase):
                 "alternatives": {"Base", "alt1"},
                 "entity_classes": [["Widget__Gadget", ["Widget", "Gadget"]], ["Widget", []], ["Gadget", []]],
                 "entities": [
-                    ("Widget__Gadget", ["o1", "p1"]),
-                    ("Widget", "o1"),
-                    ("Gadget", "p1"),
-                    ("Widget__Gadget", ["o1", "p2"]),
-                    ("Gadget", "p2"),
+                    ["Widget__Gadget", ["o1", "p1"]],
+                    ["Widget", "o1"],
+                    ["Gadget", "p1"],
+                    ["Widget__Gadget", ["o1", "p2"]],
+                    ["Gadget", "p2"],
                 ],
                 "entity_alternatives": [
                     ("Widget__Gadget", ("o1", "p1"), "Base", True),
@@ -1039,7 +1039,7 @@ class TestGetMappedData(unittest.TestCase):
                 "entity_classes": [
                     ["Widget", []],
                 ],
-                "entities": [("Widget", "gadget")],
+                "entities": [["Widget", "gadget"]],
             },
         )
 
@@ -1073,7 +1073,7 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"Succeed", "Fail"},
-                "entities": [("unit", "Wind_plant")],
+                "entities": [["unit", "Wind_plant"]],
                 "entity_alternatives": [("unit", ("Wind_plant",), "Succeed", True)],
                 "entity_classes": [["unit", []]],
                 "parameter_definitions": [("unit", "existing")],
@@ -1134,7 +1134,7 @@ class TestGetMappedData(unittest.TestCase):
         self.assertEqual(
             mapped_data,
             {
-                "entities": [("cat", "Garfield"), ("cat", "Tom")],
+                "entities": [["cat", "Garfield"], ["cat", "Tom"]],
                 "entity_classes": [["cat", []]],
                 "entity_metadata": [
                     ("cat", ("Garfield",), "Created", "1976"),
@@ -1170,7 +1170,7 @@ class TestGetMappedData(unittest.TestCase):
             mapped_data,
             {
                 "alternatives": {"Base"},
-                "entities": [("cat", "Garfield"), ("cat", "Tom")],
+                "entities": [["cat", "Garfield"], ["cat", "Tom"]],
                 "entity_classes": [["cat", []]],
                 "parameter_definitions": [("cat", "weight")],
                 "parameter_value_metadata": [
@@ -1268,12 +1268,79 @@ class TestGetMappedData(unittest.TestCase):
                     ["direction", []],
                 ],
                 "entities": [
-                    ("unit", "coal_plant"),
-                    ("node", "southern_hemisphere"),
-                    ("node", "northern_hemisphere"),
-                    ("model", "all_year_round"),
-                    ("direction", "up"),
-                    ("direction", "down"),
+                    ["unit", "coal_plant"],
+                    ["node", "southern_hemisphere"],
+                    ["node", "northern_hemisphere"],
+                    ["model", "all_year_round"],
+                    ["direction", "up"],
+                    ["direction", "down"],
+                ],
+            },
+        )
+
+    def test_import_entities_with_description(self):
+        header = ["Class", "Entity", "Description"]
+        data_source = iter(
+            [
+                ["unit", "coal_plant", "Where coal is sacrificed to please the gods of Power."],
+                ["direction", "up", None],
+                ["direction", "down", ""],
+            ]
+        )
+        flattened = default_import_mapping("EntityClass").flatten()
+        flattened[0].position = 0
+        flattened[2].position = 1
+        flattened[3].position = 2
+        mapped_data, errors = get_mapped_data(data_source, [to_dict(unflatten(flattened))], header)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entity_classes": [
+                    ["unit", []],
+                    ["direction", []],
+                ],
+                "entities": [
+                    ["unit", "coal_plant", "Where coal is sacrificed to please the gods of Power."],
+                    ["direction", "up"],
+                    ["direction", "down"],
+                ],
+            },
+        )
+
+    def test_import_multidimensional_entities_with_descriptions(self):
+        header = ["Widget", "Gadget", "Description"]
+        data_source = iter(
+            [
+                ["check_box", "mobile_phone", "A cozy relationship."],
+            ]
+        )
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Widget__Gadget"},
+                {"map_type": "Dimension", "position": "hidden", "value": "Widget"},
+                {"map_type": "Dimension", "position": "hidden", "value": "Gadget"},
+                {"map_type": "EntityClassDescription", "position": "hidden"},
+                {"map_type": "Entity", "position": "hidden", "value": "relationship"},
+                {"map_type": "Element", "position": 0, "import_objects": True},
+                {"map_type": "Element", "position": 1, "import_objects": True},
+                {"map_type": "EntityDescription", "position": 2},
+            ]
+        ]
+        mapped_data, errors = get_mapped_data(data_source, mappings, header)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entity_classes": [
+                    ["Widget__Gadget", ["Widget", "Gadget"]],
+                    ["Widget", []],
+                    ["Gadget", []],
+                ],
+                "entities": [
+                    ["Widget__Gadget", ["check_box", "mobile_phone"], "A cozy relationship."],
+                    ["Widget", "check_box"],
+                    ["Gadget", "mobile_phone"],
                 ],
             },
         )

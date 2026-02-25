@@ -316,7 +316,10 @@ def _make_entities(mapped_data):
         return
     final_rows = []
     for (class_name, name), record in rows.items():
-        final_rows.append((class_name, name if not record.elements else record.elements))
+        item = [class_name, name if not record.elements else record.elements]
+        if record.description:
+            item.append(record.description)
+        final_rows.append(item)
     if final_rows:
         mapped_data["entities"] = final_rows
 
