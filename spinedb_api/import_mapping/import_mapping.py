@@ -10,10 +10,11 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Contains import mappings for database items such as entities, entity classes and parameter values."""
+from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum, auto, unique
-from typing import Any, ClassVar, TypeAlias
+from typing import Any, ClassVar, Generic, Type, TypeAlias, TypeVar
 from spinedb_api.exception import InvalidMapping, InvalidMappingComponent
 from spinedb_api.mapping import Mapping, Position, is_pivoted, parse_fixed_position_value, unflatten
 
@@ -28,12 +29,12 @@ class ImportKey(Enum):
     METADATA_NAME = auto()
     METADATA_VALUE = auto()
     PARAMETER_NAME = auto()
-    PARAMETER_DEFINITION = auto()
-    PARAMETER_DEFINITION_EXTRAS = auto()
-    PARAMETER_DEFAULT_VALUES = auto()
+    PARAMETER_DEFAULT_VALUE_RECORD = auto()
     PARAMETER_DEFAULT_VALUE_INDEXES = auto()
-    PARAMETER_VALUES = auto()
+    PARAMETER_DEFAULT_VALUE_INDEX_NAMES = auto()
+    PARAMETER_VALUE_RECORD = auto()
     PARAMETER_VALUE_INDEXES = auto()
+    PARAMETER_VALUE_INDEX_NAMES = auto()
     PARAMETER_VALUE_METADATA_NAME = auto()
     PARAMETER_VALUE_METADATA_VALUE = auto()
     ALTERNATIVE_NAME = auto()
@@ -53,7 +54,6 @@ class ImportKey(Enum):
             self.METADATA_NAME: "Metadata names",
             self.METADATA_VALUE: "Metadata values",
             self.PARAMETER_NAME.value: "Parameter names",
-            self.PARAMETER_DEFINITION.value: "Parameter names",
             self.PARAMETER_DEFAULT_VALUE_INDEXES.value: "Parameter indexes",
             self.PARAMETER_VALUE_INDEXES.value: "Parameter indexes",
             self.PARAMETER_VALUE_METADATA_NAME.value: "Metadata names",
@@ -73,21 +73,19 @@ State: TypeAlias = dict[ImportKey, Any]
 SemiMappedData: TypeAlias = dict[str, Any]
 
 
-def check_validity(root_mapping):
-    class _DummySourceRow:
-        def __getitem__(self, key):
-            return "true"
-
+def check_validity(root_mapping: ImportMapping) -> list[InvalidMappingComponent]:
     errors = []
     for rank, mapping in enumerate(root_mapping.flatten()):
-        if mapping.position != Position.fixed:
-            continue
-        try:
-            parse_fixed_position_value(mapping.value)
-        except InvalidMapping as error:
-            errors.append(InvalidMappingComponent(str(error), rank))
-    source_row = _DummySourceRow()
-    root_mapping.import_row(source_row, {}, {}, errors)
+        if mapping.position == Position.fixed:
+            try:
+                parse_fixed_position_value(mapping.value)
+            except InvalidMapping as error:
+                errors.append(InvalidMappingComponent(str(error), rank))
+        elif mapping.position != Position.hidden or mapping.value is not None:
+            try:
+                mapping.check_validity()
+            except InvalidMappingComponent as error:
+                errors.append(error)
     return errors
 
 
@@ -176,6 +174,9 @@ class ImportMapping(Mapping):
             msg = f'Column ref {self.position + 1} is out of range for the source table "{table_name}"'
             return msg
         return ""
+
+    def check_validity(self) -> None:
+        return
 
     def polish(self, table_name, source_header, mapping_name, column_count=0, for_preview=False):
         """Polishes the mapping before an import operation.
@@ -396,6 +397,21 @@ class IndexedValueMixin:
         mapping = cls(position, value, skip_columns, read_start_row, filter_re, compress, options)
         return mapping
 
+    def _make_value_record(self, value_type: str) -> ValueRecord:
+        match value_type:
+            case "array":
+                return ArrayValueRecord()
+            case "map":
+                return MapValueRecord(compress=self.compress)
+            case "time_series":
+                return TimeSeriesValueRecord(
+                    ignore_year=self.options.get("ignore_year", False), repeat=self.options.get("repeat", False)
+                )
+            case "time_pattern":
+                return TimePatternValueRecord()
+            case _:
+                raise InvalidMapping(f"unknown value type '{value_type}'")
+
 
 @dataclass
 class EntityClassRecord:
@@ -404,10 +420,7 @@ class EntityClassRecord:
 
 
 class EntityClassMapping(ImportMapping):
-    """Maps entity classes.
-
-    Can be used as the topmost mapping.
-    """
+    """Maps entity classes."""
 
     MAP_TYPE = "EntityClass"
 
@@ -417,11 +430,51 @@ class EntityClassMapping(ImportMapping):
         entity_classes[entity_class_name] = EntityClassRecord()
 
 
-class EntityClassDescriptionMapping(ImportMapping):
-    """Maps entity class descriptions.
+def _require_parent(mapping: ImportMapping, parent_type: Type[ImportMapping]) -> None:
+    parent = mapping.parent
+    while parent is not None:
+        if isinstance(parent, parent_type):
+            if parent.position == Position.hidden and parent.value is None:
+                raise InvalidMappingComponent(
+                    f"{mapping.MAP_TYPE} requires {parent_type.MAP_TYPE} with position or constant value", mapping.rank
+                )
+            return
+        parent = parent.parent
+    raise InvalidMappingComponent(f"{mapping.MAP_TYPE} requires {parent_type.MAP_TYPE} as parent", mapping.rank)
 
-    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityClassMapping`.
-    """
+
+def _require_one_of_parents(mapping: ImportMapping, parent_types: tuple[Type[ImportMapping], ...]) -> None:
+    parent = mapping.parent
+    while parent is not None:
+        if isinstance(parent, parent_types) and (parent.position != Position.hidden or parent.value is not None):
+            return
+        parent = parent.parent
+    display_types = " or ".join(m.MAP_TYPE for m in parent_types)
+    raise InvalidMappingComponent(f"{mapping.MAP_TYPE} requires {display_types} as parent", mapping.rank)
+
+
+def _require_enough_parents(mapping: ImportMapping, parent_type: Type[ImportMapping]) -> None:
+    n_same_parent_type = 1
+    parent = mapping.parent
+    while parent is not None:
+        if isinstance(parent, type(mapping)):
+            n_same_parent_type += 1
+        parent = parent.parent
+    n_required_parent_type = 0
+    parent = mapping.parent
+    while parent is not None:
+        if isinstance(parent, parent_type):
+            n_required_parent_type += 1
+            if n_required_parent_type == n_same_parent_type:
+                return
+        parent = parent.parent
+    raise InvalidMappingComponent(
+        f"the number of {mapping.MAP_TYPE} and {parent_type.MAP_TYPE} mappings do not match", mapping.rank
+    )
+
+
+class EntityClassDescriptionMapping(ImportMapping):
+    """Maps entity class descriptions."""
 
     MAP_TYPE = "EntityClassDescription"
     ignorable = True
@@ -432,6 +485,9 @@ class EntityClassDescriptionMapping(ImportMapping):
             entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
             mapped_data["entity_classes"][entity_class_name].description = description
 
+    def check_validity(self) -> None:
+        _require_parent(self, EntityClassMapping)
+
 
 @dataclass
 class EntityRecord:
@@ -440,10 +496,7 @@ class EntityRecord:
 
 
 class EntityMapping(ImportMapping):
-    """Maps entities.
-
-    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityClassMapping`.
-    """
+    """Maps entities."""
 
     MAP_TYPE = "Entity"
 
@@ -454,12 +507,12 @@ class EntityMapping(ImportMapping):
         entity_name = state[ImportKey.ENTITY_NAME] = str(source_data)
         mapped_data.setdefault("entities", {})[entity_class_name, entity_name] = EntityRecord()
 
+    def check_validity(self) -> None:
+        _require_parent(self, EntityClassMapping)
+
 
 class EntityDescriptionMapping(ImportMapping):
-    """Maps entity descriptions.
-
-    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityMapping` or :class:`ElementMapping`.
-    """
+    """Maps entity descriptions."""
 
     MAP_TYPE = "EntityDescription"
     ignorable = True
@@ -470,6 +523,9 @@ class EntityDescriptionMapping(ImportMapping):
             entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
             entity_name = state[ImportKey.ENTITY_NAME]
             mapped_data["entities"][entity_class_name, entity_name].description = description
+
+    def check_validity(self) -> None:
+        _require_parent(self, EntityMapping)
 
 
 class EntityMetadataNameMapping(ImportMapping):
@@ -483,10 +539,7 @@ class EntityMetadataNameMapping(ImportMapping):
 
 
 class EntityMetadataValueMapping(ImportMapping):
-    """Maps entity metadata names.
-
-    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping`, :class:`EntityMapping` and :class:`EntityMetadataValueMapping` as parent.
-    """
+    """Maps entity metadata names."""
 
     MAP_TYPE = "EntityMetadataValue"
     ignorable = True
@@ -500,12 +553,12 @@ class EntityMetadataValueMapping(ImportMapping):
             entity_class_name, entity_byname, metadata_name, metadata_value
         ] = None
 
+    def check_validity(self) -> None:
+        _require_parent(self, EntityMetadataNameMapping)
+
 
 class EntityGroupMapping(ImportEntitiesMixin, ImportMapping):
-    """Maps entity groups.
-
-    Cannot be used as the topmost mapping; must have :class:`EntityClassMapping` and :class:`EntityMapping` as parents.
-    """
+    """Maps entity groups."""
 
     MAP_TYPE = "EntityGroup"
 
@@ -522,13 +575,12 @@ class EntityGroupMapping(ImportEntitiesMixin, ImportMapping):
             except KeyError:
                 pass
 
+    def check_validity(self) -> None:
+        _require_parent(self, EntityMapping)
+
 
 class EntityAlternativeActivityMapping(ImportMapping):
-    """Maps activity flags for entity alternative.
-
-    Cannot be used as the topmost mapping; must have :class:`EntityMapping` or :class:`ElementMapping`,
-    and :class:`AlternativeMapping` as parents.
-    """
+    """Maps activity flags for entity alternative."""
 
     MAP_TYPE = "EntityAlternativeActivity"
     ignorable = True
@@ -543,12 +595,13 @@ class EntityAlternativeActivityMapping(ImportMapping):
             entity_class_name, entity_byname, alternative_name, source_data
         ] = None
 
+    def check_validity(self) -> None:
+        _require_parent(self, EntityMapping)
+        _require_parent(self, AlternativeMapping)
+
 
 class DimensionMapping(ImportMapping):
-    """Maps dimensions.
-
-    Cannot be used as the topmost mapping; one of the parents must be :class:`EntityClassMapping`.
-    """
+    """Maps dimensions."""
 
     MAP_TYPE = "Dimension"
 
@@ -557,13 +610,12 @@ class DimensionMapping(ImportMapping):
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
         mapped_data["entity_classes"][entity_class_name].dimensions.append(dimension_name)
 
+    def check_validity(self) -> None:
+        _require_parent(self, EntityClassMapping)
+
 
 class ElementMapping(ImportEntitiesMixin, ImportMapping):
-    """Maps elements.
-
-    Cannot be used as the topmost mapping; must have :class:`DimensionMapping` and :class:`EntityMapping`
-    as parents.
-    """
+    """Maps elements."""
 
     MAP_TYPE = "Element"
 
@@ -596,6 +648,9 @@ class ElementMapping(ImportEntitiesMixin, ImportMapping):
                 if (dimension_name, element_name) not in mapped_entities:
                     mapped_entities[dimension_name, element_name] = EntityRecord()
 
+    def check_validity(self) -> None:
+        _require_enough_parents(self, DimensionMapping)
+
 
 class MetadataNameMapping(ImportMapping):
     """Maps metadata names."""
@@ -607,10 +662,7 @@ class MetadataNameMapping(ImportMapping):
 
 
 class MetadataValueMapping(ImportMapping):
-    """Maps metadata values.
-
-    Cannot be used as the topmost mapping; must have a metadata name mapping as one of parents.
-    """
+    """Maps metadata values."""
 
     MAP_TYPE = "MetadataValue"
 
@@ -619,30 +671,88 @@ class MetadataValueMapping(ImportMapping):
         metadata_value = state[ImportKey.METADATA_VALUE] = str(source_data)
         mapped_data.setdefault("metadata", []).append((metadata_name, metadata_value))
 
+    def check_validity(self) -> None:
+        _require_parent(self, MetadataNameMapping)
+
+
+T = TypeVar("T")
+
+
+@dataclass
+class ValueRecord(Generic[T]):
+    index_names: list[str] = field(default_factory=list)
+    indexes: list[list] = field(default_factory=list)
+    values: list[T] = field(default_factory=list)
+
+    def has_value(self) -> bool:
+        return bool(self.values)
+
+
+@dataclass
+class ArrayValueRecord(ValueRecord[Any]):
+    pass
+
+
+@dataclass
+class TimePatternValueRecord(ValueRecord[float]):
+    pass
+
+
+@dataclass
+class MapValueRecord(ValueRecord[Any]):
+    compress: bool = False
+
+
+@dataclass
+class TimeSeriesValueRecord(ValueRecord[float]):
+    ignore_year: bool = False
+    repeat: bool = False
+    indexes: list = field(default_factory=list)
+
+
+@dataclass
+class ParameterDefinitionRecord:
+    value_list_name: str | None = None
+    default_value: ValueRecord | None = None
+    description: str | None = None
+
 
 class ParameterDefinitionMapping(ImportMapping):
-    """Maps parameter definitions.
-
-    Cannot be used as the topmost mapping; must have an entity class mapping as one of parents.
-    """
+    """Maps parameter definitions."""
 
     MAP_TYPE = "ParameterDefinition"
 
     def _import_row(self, source_data, state, mapped_data):
         entity_class_name = state.get(ImportKey.ENTITY_CLASS_NAME)
         parameter_name = state[ImportKey.PARAMETER_NAME] = str(source_data)
-        definition_extras = state[ImportKey.PARAMETER_DEFINITION_EXTRAS] = []
-        parameter_definition_key = state[ImportKey.PARAMETER_DEFINITION] = entity_class_name, parameter_name
-        default_values = state.get(ImportKey.PARAMETER_DEFAULT_VALUES)
-        if default_values is None or parameter_definition_key not in default_values:
-            mapped_data.setdefault("parameter_definitions", {})[parameter_definition_key] = definition_extras
+        parameter_definition_key = entity_class_name, parameter_name
+        definitions = mapped_data.setdefault("parameter_definitions", {})
+        if parameter_definition_key not in definitions:
+            definitions[parameter_definition_key] = ParameterDefinitionRecord()
+
+    def check_validity(self) -> None:
+        _require_parent(self, EntityClassMapping)
+
+
+class ParameterDefinitionDescriptionMapping(ImportMapping):
+    """Maps parameter definition descriptions."""
+
+    MAP_TYPE = "ParameterDefinitionDescription"
+    ignorable = True
+
+    def _import_row(self, source_data, state, mapped_data):
+        description = str(source_data)
+        if description:
+            entity_class_name = state.get(ImportKey.ENTITY_CLASS_NAME)
+            parameter_name = state[ImportKey.PARAMETER_NAME]
+            mapped_data["parameter_definitions"][entity_class_name, parameter_name].description = description
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterDefinitionMapping)
 
 
 class ParameterTypeMapping(ImportMapping):
-    """Maps parameter types.
-
-    Cannot be used as the topmost mapping; must have a parameter definition mapping as one of parents.
-    """
+    """Maps parameter types."""
 
     MAP_TYPE = "ParameterType"
 
@@ -654,12 +764,12 @@ class ParameterTypeMapping(ImportMapping):
         parameter = state[ImportKey.PARAMETER_NAME]
         mapped_data.setdefault("parameter_types", []).append((entity_class, parameter, parameter_type))
 
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterDefinitionMapping)
+
 
 class ParameterDefaultValueMapping(ImportMapping):
-    """Maps scalar (non-indexed) default values
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
-    """
+    """Maps scalar (non-indexed) default values."""
 
     MAP_TYPE = "ParameterDefaultValue"
 
@@ -667,91 +777,62 @@ class ParameterDefaultValueMapping(ImportMapping):
         default_value = source_data
         if default_value == "":
             return
-        parameter_definition_extras = state[ImportKey.PARAMETER_DEFINITION_EXTRAS]
-        parameter_definition_extras.append(default_value)
-        value_list_name = state.get(ImportKey.PARAMETER_VALUE_LIST_NAME)
-        if value_list_name is not None:
-            parameter_definition_extras.append(value_list_name)
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        parameter_name = state[ImportKey.PARAMETER_NAME]
+        mapped_data["parameter_definitions"][entity_class_name, parameter_name].default_value = default_value
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterDefinitionMapping)
 
 
 class ParameterDefaultValueTypeMapping(IndexedValueMixin, ImportMapping):
+    """Maps indexed default values."""
+
     MAP_TYPE = "ParameterDefaultValueType"
 
     def _import_row(self, source_data, state, mapped_data):
-        parameter_definition = state.get(ImportKey.PARAMETER_DEFINITION)
-        if parameter_definition is None:
-            # Don't catch errors here, this one's invisible
+        entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+        parameter_name = state[ImportKey.PARAMETER_NAME]
+        key = (entity_class_name, parameter_name)
+        definition_record = mapped_data["parameter_definitions"][key]
+        if definition_record.default_value is not None:
+            state[ImportKey.PARAMETER_DEFAULT_VALUE_RECORD] = definition_record.default_value
             return
-        default_values = state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUES, {})
-        if parameter_definition in default_values:
-            return
-        value_type = str(source_data)
-        default_value = default_values[parameter_definition] = {"type": value_type}
-        if self.compress and value_type == "map":
-            default_value["compress"] = self.compress
-        if self.options and value_type == "time_series":
-            default_value["options"] = self.options
-        parameter_definition_extras = state[ImportKey.PARAMETER_DEFINITION_EXTRAS]
-        parameter_definition_extras.append(default_value)
-        value_list_name = state.get(ImportKey.PARAMETER_VALUE_LIST_NAME)
-        if value_list_name is not None:
-            parameter_definition_extras.append(value_list_name)
+        record = self._make_value_record(source_data)
+        definition_record.default_value = record
+        state[ImportKey.PARAMETER_DEFAULT_VALUE_RECORD] = record
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterDefinitionMapping)
 
 
-class IndexNameMappingBase(ImportMapping):
-    """Base class for index name mappings."""
-
-    _STATE_KEY = NotImplemented
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._id = None
-
-    @staticmethod
-    def _value_key(state: State, mapped_data: SemiMappedData) -> tuple:
-        raise NotImplementedError()
-
-    def _import_row(self, source_data, state, mapped_data):
-        values = state[self._STATE_KEY]
-        value = values[self._value_key(state, mapped_data)]
-        if self._id is None:
-            self._id = 0
-            current = self
-            while True:
-                if current.parent is None:
-                    break
-                current = current.parent
-                if isinstance(current, type(self)):
-                    self._id += 1
-        value.setdefault("index_names", {})[self._id] = source_data
-
-
-class DefaultValueIndexNameMapping(IndexNameMappingBase):
-    """Maps default value index names.
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterDefaultValueTypeMapping` as parent.
-    """
+class DefaultValueIndexNameMapping(ImportMapping):
+    """Maps default value index names."""
 
     MAP_TYPE = "DefaultValueIndexName"
-    _STATE_KEY = ImportKey.PARAMETER_DEFAULT_VALUES
 
-    @staticmethod
-    def _value_key(state, mapped_data):
-        return _default_value_key(state)
+    def _import_row(self, source_data, state, mapped_data):
+        if ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES in state:
+            i = len(state[ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES])
+            state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUE_INDEX_NAMES, {})[i] = str(source_data)
+        else:
+            state[ImportKey.PARAMETER_DEFAULT_VALUE_INDEX_NAMES] = {0: str(source_data)}
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterDefaultValueTypeMapping)
 
 
 class ParameterDefaultValueIndexMapping(ImportMapping):
-    """Maps default value indexes.
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
-    """
+    """Maps default value indexes."""
 
     MAP_TYPE = "ParameterDefaultValueIndex"
 
     def _import_row(self, source_data, state, mapped_data):
-        _ = state[ImportKey.PARAMETER_NAME]
-        index = source_data
-        state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES, []).append(index)
+        state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES, []).append(source_data)
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterDefaultValueTypeMapping)
+        _require_enough_parents(self, DefaultValueIndexNameMapping)
 
 
 class ExpandedParameterDefaultValueMapping(ImportMapping):
@@ -759,69 +840,90 @@ class ExpandedParameterDefaultValueMapping(ImportMapping):
 
     Whenever this mapping is a child of :class:`ParameterDefaultValueIndexMapping`, it maps individual values of
     indexed parameters.
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping` as parent.
     """
 
     MAP_TYPE = "ExpandedDefaultValue"
 
     def _import_row(self, source_data, state, mapped_data):
-        values = state.setdefault(ImportKey.PARAMETER_DEFAULT_VALUES, {})
-        value = values[_default_value_key(state)]
-        val = source_data
-        data = value.setdefault("data", [])
-        if value["type"] == "array":
-            data.append(val)
-            return
-        indexes = state.pop(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES)
-        data.append(indexes + [val])
+        record = state[ImportKey.PARAMETER_DEFAULT_VALUE_RECORD]
+        record.values.append(source_data)
+        try:
+            record.indexes.append(state.pop(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES))
+        except KeyError:
+            pass
+        try:
+            index_names = state.pop(ImportKey.PARAMETER_DEFAULT_VALUE_INDEX_NAMES)
+        except KeyError:
+            pass
+        else:
+            if record.indexes:
+                n_indexes = len(record.indexes[-1])
+                if n_indexes == len(index_names):
+                    record.index_names = list(index_names.values())
+                else:
+                    name_list = []
+                    for i in range(n_indexes):
+                        name_list.append(index_names.get(i))
+                    record.index_names = name_list
+            else:
+                # Arrays
+                record.index_names = [index_names[0]]
 
     def _skip_row(self, state):
-        state.pop(ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES, None)
+        try:
+            del state[ImportKey.PARAMETER_DEFAULT_VALUE_INDEXES]
+        except KeyError:
+            pass
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterDefaultValueTypeMapping)
 
 
 class ParameterValueMapping(ImportMapping):
-    """Maps scalar (non-indexed) parameter values.
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
-    an :class:`AlternativeMapping` as parents.
-    """
+    """Maps scalar (non-indexed) parameter values."""
 
     MAP_TYPE = "ParameterValue"
 
     def _import_row(self, source_data, state, mapped_data):
-        value = source_data
-        if value == "":
+        if source_data == "":
             return
-        entity_class_name, entity_byname, parameter_name, alternative_name = _parameter_value_key(state, mapped_data)
-        parameter_value = [entity_class_name, entity_byname, parameter_name, value]
-        if alternative_name is not None:
-            parameter_value.append(alternative_name)
-        mapped_data.setdefault("parameter_values", []).append(parameter_value)
+        entity_class_name = state.get(ImportKey.ENTITY_CLASS_NAME)
+        entity_name = state[ImportKey.ENTITY_NAME]
+        entity_byname = entity_name if isinstance(entity_name, tuple) else (entity_name,)
+        parameter_name = state[ImportKey.PARAMETER_NAME]
+        alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
+        mapped_data.setdefault("parameter_values", {})[
+            entity_class_name, entity_byname, parameter_name, alternative_name
+        ] = source_data
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterDefinitionMapping)
+        _require_one_of_parents(self, (EntityMapping, ElementMapping))
 
 
 class ParameterValueTypeMapping(IndexedValueMixin, ImportMapping):
+    """Maps indexed parameter values."""
+
     MAP_TYPE = "ParameterValueType"
 
     def _import_row(self, source_data, state, mapped_data):
-        if ImportKey.PARAMETER_NAME not in state:
-            # Don't catch errors here, this one's invisible
+        entity_class_name = state.get(ImportKey.ENTITY_CLASS_NAME)
+        entity_name = state[ImportKey.ENTITY_NAME]
+        entity_byname = entity_name if isinstance(entity_name, tuple) else (entity_name,)
+        parameter_name = state[ImportKey.PARAMETER_NAME]
+        alternative_name = state.get(ImportKey.ALTERNATIVE_NAME)
+        key = entity_class_name, entity_byname, parameter_name, alternative_name
+        mapped_values = mapped_data.setdefault("parameter_values", {})
+        if key in mapped_values:
+            state[ImportKey.PARAMETER_VALUE_RECORD] = mapped_values[key]
             return
-        key = _parameter_value_key(state, mapped_data)
-        values = state.setdefault(ImportKey.PARAMETER_VALUES, {})
-        if key in values:
-            return
-        entity_class_name, entity_byname, parameter_name, alternative_name = key
-        value_type = str(source_data)
-        value = values[key] = {"type": value_type}  # See import_mapping.generator._parameter_value_from_dict()
-        if self.compress and value_type == "map":
-            value["compress"] = self.compress
-        if self.options and value_type == "time_series":
-            value["options"] = self.options
-        parameter_value = [entity_class_name, entity_byname, parameter_name, value]
-        if alternative_name is not None:
-            parameter_value.append(alternative_name)
-        mapped_data.setdefault("parameter_values", []).append(parameter_value)
+        record = self._make_value_record(source_data)
+        mapped_values[key] = record
+        state[ImportKey.PARAMETER_VALUE_RECORD] = record
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterDefinitionMapping)
+        _require_one_of_parents(self, (EntityMapping, ElementMapping))
 
 
 class ParameterValueMetadataNameMapping(ImportMapping):
@@ -835,11 +937,7 @@ class ParameterValueMetadataNameMapping(ImportMapping):
 
 
 class ParameterValueMetadataValueMapping(ImportMapping):
-    """Maps parameter value metadata values.
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterValueMapping` or
-    a :class:`ParameterValueTypeMapping` and :class:`ParameterValueMetadataName` as parents.
-    """
+    """Maps parameter value metadata values."""
 
     MAP_TYPE = "ParameterValueMetadataValue"
     ignorable = True
@@ -855,34 +953,37 @@ class ParameterValueMetadataValueMapping(ImportMapping):
             entity_class_name, entity_byname, parameter_name, metadata_name, metadata_value, alternative_name
         ] = None
 
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterValueMetadataNameMapping)
+
 
 class ParameterValueIndexMapping(ImportMapping):
-    """Maps parameter value indexes.
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
-    an :class:`ParameterValueTypeMapping` as parents.
-    """
+    """Maps parameter value indexes."""
 
     MAP_TYPE = "ParameterValueIndex"
 
     def _import_row(self, source_data, state, mapped_data):
-        _ = state[ImportKey.PARAMETER_NAME]
-        index = source_data
-        state.setdefault(ImportKey.PARAMETER_VALUE_INDEXES, []).append(index)
+        state.setdefault(ImportKey.PARAMETER_VALUE_INDEXES, []).append(source_data)
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterValueTypeMapping)
+        _require_enough_parents(self, IndexNameMapping)
 
 
-class IndexNameMapping(IndexNameMappingBase):
-    """Maps index names for indexed parameter values.
-
-    Cannot be used as the topmost mapping; must have an :class:`ParameterValueTypeMapping` as a parent.
-    """
+class IndexNameMapping(ImportMapping):
+    """Maps index names for indexed parameter values."""
 
     MAP_TYPE = "IndexName"
-    _STATE_KEY = ImportKey.PARAMETER_VALUES
 
-    @staticmethod
-    def _value_key(state, mapped_data):
-        return _parameter_value_key(state, mapped_data)
+    def _import_row(self, source_data, state, mapped_data):
+        if ImportKey.PARAMETER_VALUE_INDEXES in state:
+            i = len(state[ImportKey.PARAMETER_VALUE_INDEXES])
+            state.setdefault(ImportKey.PARAMETER_VALUE_INDEX_NAMES, {})[i] = str(source_data)
+        else:
+            state[ImportKey.PARAMETER_VALUE_INDEX_NAMES] = {0: str(source_data)}
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterValueTypeMapping)
 
 
 class ExpandedParameterValueMapping(ImportMapping):
@@ -890,48 +991,66 @@ class ExpandedParameterValueMapping(ImportMapping):
 
     Whenever this mapping is a child of :class:`ParameterValueIndexMapping`, it maps individual values of indexed
     parameters.
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterDefinitionMapping`, an entity mapping and
-    an :class:`ParameterValueTypeMapping` as parents.
     """
 
     MAP_TYPE = "ExpandedValue"
 
     def _import_row(self, source_data, state, mapped_data):
-        values = state.setdefault(ImportKey.PARAMETER_VALUES, {})
-        value = values[_parameter_value_key(state, mapped_data)]
-        data = value.setdefault("data", [])
-        if value["type"] == "array":
-            data.append(source_data)
-            return
-        indexes = state.pop(ImportKey.PARAMETER_VALUE_INDEXES)
-        data.append(indexes + [source_data])
+        record = state[ImportKey.PARAMETER_VALUE_RECORD]
+        record.values.append(source_data)
+        try:
+            record.indexes.append(state.pop(ImportKey.PARAMETER_VALUE_INDEXES))
+        except KeyError:
+            pass
+        try:
+            index_names = state.pop(ImportKey.PARAMETER_VALUE_INDEX_NAMES)
+        except KeyError:
+            pass
+        else:
+            if record.indexes:
+                n_indexes = len(record.indexes[-1])
+                if n_indexes == len(index_names):
+                    record.index_names = list(index_names.values())
+                else:
+                    name_list = []
+                    for i in range(n_indexes):
+                        name_list.append(index_names.get(i))
+                    record.index_names = name_list
+            else:
+                # Arrays
+                record.index_names = [index_names[0]]
 
     def _skip_row(self, state):
-        state.pop(ImportKey.PARAMETER_VALUE_INDEXES, None)
+        try:
+            del state[ImportKey.PARAMETER_VALUE_INDEXES]
+        except KeyError:
+            pass
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterValueTypeMapping)
 
 
 class ParameterValueListMapping(ImportMapping):
-    """Maps parameter value list names.
-
-    Can be used as the topmost mapping; in case the mapping has a :class:`ParameterDefinitionMapping` as parent,
-    yields value list name for that parameter definition.
-    """
+    """Maps parameter value list names."""
 
     MAP_TYPE = "ParameterValueList"
 
     def _import_row(self, source_data, state, mapped_data):
-        if self.parent is not None:
-            # Trigger a KeyError in case there's no parameter definition, so check_validity() registers the issue
-            _ = state[ImportKey.PARAMETER_DEFINITION]
-        state[ImportKey.PARAMETER_VALUE_LIST_NAME] = str(source_data)
+        value_list_name = str(source_data)
+        if not value_list_name:
+            return
+        state[ImportKey.PARAMETER_VALUE_LIST_NAME] = value_list_name
+        if ImportKey.PARAMETER_NAME in state:
+            parameter_name = state[ImportKey.PARAMETER_NAME]
+            entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
+            mapped_data["parameter_definitions"][entity_class_name, parameter_name].value_list_name = value_list_name
+
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterDefinitionMapping)
 
 
 class ParameterValueListValueMapping(ImportMapping):
-    """Maps parameter value list values.
-
-    Cannot be used as the topmost mapping; must have a :class:`ParameterValueListMapping` as parent.
-    """
+    """Maps parameter value list values."""
 
     MAP_TYPE = "ParameterValueListValue"
 
@@ -942,12 +1061,12 @@ class ParameterValueListValueMapping(ImportMapping):
         value_list_name = state[ImportKey.PARAMETER_VALUE_LIST_NAME]
         mapped_data.setdefault("parameter_value_lists", []).append([value_list_name, list_value])
 
+    def check_validity(self) -> None:
+        _require_parent(self, ParameterValueListMapping)
+
 
 class AlternativeMapping(ImportMapping):
-    """Maps alternatives.
-
-    Can be used as the topmost mapping.
-    """
+    """Maps alternatives."""
 
     MAP_TYPE = "Alternative"
 
@@ -957,10 +1076,7 @@ class AlternativeMapping(ImportMapping):
 
 
 class AlternativeDescriptionMapping(ImportMapping):
-    """Maps alternative descriptions.
-
-    Cannot be used as the topmost mapping; must have a :class:`AlternativeMapping` as parent.
-    """
+    """Maps alternative descriptions."""
 
     MAP_TYPE = "AlternativeDescription"
     ignorable = True
@@ -973,12 +1089,12 @@ class AlternativeDescriptionMapping(ImportMapping):
             alternative_data.discard(alternative)
             alternative_data.add((alternative, description))
 
+    def check_validity(self) -> None:
+        _require_parent(self, AlternativeMapping)
+
 
 class ScenarioMapping(ImportMapping):
-    """Maps scenarios.
-
-    Can be used as the topmost mapping.
-    """
+    """Maps scenarios."""
 
     MAP_TYPE = "Scenario"
 
@@ -989,10 +1105,7 @@ class ScenarioMapping(ImportMapping):
 
 
 class ScenarioAlternativeMapping(ImportMapping):
-    """Maps scenario alternatives.
-
-    Cannot be used as the topmost mapping; must have a :class:`ScenarioMapping` as parent.
-    """
+    """Maps scenario alternatives."""
 
     MAP_TYPE = "ScenarioAlternative"
 
@@ -1004,12 +1117,12 @@ class ScenarioAlternativeMapping(ImportMapping):
         scen_alt = state[ImportKey.SCENARIO_ALTERNATIVE] = [scenario, alternative]
         mapped_data.setdefault("scenario_alternatives", []).append(scen_alt)
 
+    def check_validity(self) -> None:
+        _require_parent(self, ScenarioMapping)
+
 
 class ScenarioBeforeAlternativeMapping(ImportMapping):
-    """Maps scenario 'before' alternatives.
-
-    Cannot be used as the topmost mapping; must have a :class:`ScenarioAlternativeMapping` as parent.
-    """
+    """Maps scenario 'before' alternatives."""
 
     MAP_TYPE = "ScenarioBeforeAlternative"
 
@@ -1018,12 +1131,12 @@ class ScenarioBeforeAlternativeMapping(ImportMapping):
         alternative = str(source_data)
         scen_alt.append(alternative)
 
+    def check_validity(self) -> None:
+        _require_parent(self, ScenarioAlternativeMapping)
+
 
 class ScenarioDescriptionMapping(ImportMapping):
-    """Maps scenario descriptions.
-
-    Cannot be used as the topmost mapping; must have a :class:`ScenarioMapping` as parent.
-    """
+    """Maps scenario descriptions."""
 
     MAP_TYPE = "ScenarioDescription"
     ignorable: ClassVar[bool] = True
@@ -1035,6 +1148,9 @@ class ScenarioDescriptionMapping(ImportMapping):
             scenario_data = mapped_data["scenarios"]
             scenario_data.discard((scenario,))
             scenario_data.add((scenario, description))
+
+    def check_validity(self) -> None:
+        _require_parent(self, ScenarioMapping)
 
 
 def default_import_mapping(map_type: str) -> ImportMapping:
@@ -1181,6 +1297,7 @@ def from_dict(serialized):
             ElementMapping,
             EntityAlternativeActivityMapping,
             ParameterDefinitionMapping,
+            ParameterDefinitionDescriptionMapping,
             ParameterTypeMapping,
             ParameterDefaultValueMapping,
             ParameterDefaultValueTypeMapping,
