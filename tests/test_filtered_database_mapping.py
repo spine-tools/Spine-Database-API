@@ -157,7 +157,7 @@ def test_rename_entity_to_something_that_has_been_filtered_out(tmp_path):
         bigglesworth = db_map.entity(name="Bigglesworth", entity_class_name="cat")
         bigglesworth.update(name="Tom")
         with pytest.raises(
-            SpineDBAPIError, match="^there's already a entity with \{'entity_class_name': 'cat', 'name': 'Tom'\}$"
+            SpineDBAPIError, match="^there's already a entity with \\{'entity_class_name': 'cat', 'name': 'Tom'\\}$"
         ):
             db_map.commit_session("Rename Bigglesworth.")
         assert bigglesworth.mapped_item.status == Status.to_update
