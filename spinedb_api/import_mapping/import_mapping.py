@@ -86,7 +86,23 @@ def check_validity(root_mapping: ImportMapping) -> list[InvalidMappingComponent]
                 mapping.check_validity()
             except InvalidMappingComponent as error:
                 errors.append(error)
+    errors += _check_dependent_pairs(root_mapping)
     return errors
+
+
+def _check_dependent_pairs(root_mapping: ImportMapping) -> list[InvalidMappingComponent]:
+    flattened = root_mapping.flatten()
+    try:
+        definition_mapping = next(m for m in flattened if isinstance(m, ParameterDefinitionMapping))
+        value_list_mapping = next(m for m in flattened if isinstance(m, ParameterValueListMapping))
+    except StopIteration:
+        return []
+    if (value_list_mapping.position is not Position.hidden or definition_mapping.value is not None) and (
+        definition_mapping.position == Position.hidden and definition_mapping.value is None
+    ):
+        value_list_rank = next(n for n, m in enumerate(flattened) if isinstance(m, ParameterValueListMapping))
+        return [InvalidMappingComponent("value list requires a parameter name", value_list_rank)]
+    return []
 
 
 class ImportMapping(Mapping):
@@ -280,28 +296,20 @@ class ImportMapping(Mapping):
             self.child is None or self.child.filter_accepts_row(source_row)
         )
 
-    def import_row(self, source_row, state, mapped_data, errors=None):
+    def import_row(self, source_row, state, mapped_data):
         if self.has_filter() and not self.filter_accepts_row(source_row):
             return
-        if errors is None:
-            errors = []
         if not (self.position == Position.hidden and self.value is None):
             source_data = self._data(source_row)
             if source_data is None:
                 if not self.ignorable or self.child is None:
                     self._skip_row(state)
                     return
-                self.child.import_row(source_row, state, mapped_data, errors=errors)
+                self.child.import_row(source_row, state, mapped_data)
                 return
-            try:
-                self._import_row(source_data, state, mapped_data)
-            except KeyError as err:
-                for key in err.args:
-                    msg = f"Required key '{key}' is invalid"
-                    error = InvalidMappingComponent(msg, self.rank, key)
-                    errors.append(error)
+            self._import_row(source_data, state, mapped_data)
         if self.child is not None:
-            self.child.import_row(source_row, state, mapped_data, errors=errors)
+            self.child.import_row(source_row, state, mapped_data)
 
     def _data(self, source_row):  # pylint: disable=arguments-renamed
         if source_row is None:
@@ -525,7 +533,7 @@ class EntityDescriptionMapping(ImportMapping):
             mapped_data["entities"][entity_class_name, entity_name].description = description
 
     def check_validity(self) -> None:
-        _require_parent(self, EntityMapping)
+        _require_one_of_parents(self, (EntityMapping, ElementMapping))
 
 
 class EntityMetadataNameMapping(ImportMapping):
@@ -630,16 +638,20 @@ class ElementMapping(ImportEntitiesMixin, ImportMapping):
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
         if ImportKey.ENTITY_NAME in state:
             entity_name = state[ImportKey.ENTITY_NAME]
-            record = mapped_data["entities"][entity_class_name, entity_name]
-            if all(name == existing_name for name, existing_name in zip(element_names, record.elements)):
-                return
-            del state[ImportKey.ENTITY_NAME]
+            try:
+                record = mapped_data["entities"][entity_class_name, entity_name]
+            except KeyError:
+                pass
+            else:
+                if all(name == existing_name for name, existing_name in zip(element_names, record.elements)):
+                    return
+                del state[ImportKey.ENTITY_NAME]
         record = EntityRecord(element_names)
         byname = tuple(record.elements)
-        mapped_data.setdefault("entities", {})[entity_class_name, byname] = record
+        mapped_entities = mapped_data.setdefault("entities", {})
+        mapped_entities[entity_class_name, byname] = record
         state[ImportKey.ENTITY_NAME] = byname
         if self.import_entities:
-            mapped_entities = mapped_data.setdefault("entities", {})
             mapped_classes = mapped_data["entity_classes"]
             class_record = mapped_classes[entity_class_name]
             for element_name, dimension_name in zip(element_names, class_record.dimensions):
@@ -1044,9 +1056,6 @@ class ParameterValueListMapping(ImportMapping):
             parameter_name = state[ImportKey.PARAMETER_NAME]
             entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
             mapped_data["parameter_definitions"][entity_class_name, parameter_name].value_list_name = value_list_name
-
-    def check_validity(self) -> None:
-        _require_parent(self, ParameterDefinitionMapping)
 
 
 class ParameterValueListValueMapping(ImportMapping):

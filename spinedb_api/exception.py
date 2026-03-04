@@ -77,6 +77,11 @@ class InvalidMappingComponent(InvalidMapping):
         self.rank = rank
         self.key = key
 
+    def __eq__(self, other):
+        if not isinstance(other, InvalidMappingComponent):
+            return NotImplemented
+        return self.msg == other.msg and self.rank == other.rank and self.key == other.key
+
 
 class ReaderError(SpineDBAPIError):
     """Failure in import reader."""

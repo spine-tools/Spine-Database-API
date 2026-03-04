@@ -13,7 +13,7 @@
 """Unit tests for import Mappings."""
 import unittest
 from unittest.mock import Mock
-from spinedb_api.exception import InvalidMapping
+from spinedb_api.exception import InvalidMapping, InvalidMappingComponent
 from spinedb_api.import_mapping.generator import get_mapped_data
 from spinedb_api.import_mapping.import_mapping import (
     AlternativeMapping,
@@ -550,14 +550,16 @@ class TestMappingIsValid(unittest.TestCase):
         issues = check_validity(cls_mapping)
         self.assertFalse(issues)
 
-    def test_invalid_object_value_list_mapping_missing_parameter_definition(self):
+    def test_value_list_mapping_missing_parameter_definition_is_ok(self):
         cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
         cls_mapping.flatten()[-1].child = parameter_mapping_from_dict({"map_type": "ParameterDefinition"})
         value_list_mapping = cls_mapping.flatten()[-2]
         cls_mapping.position = 0
         value_list_mapping.position = 1
         issues = check_validity(cls_mapping)
-        self.assertTrue(issues)
+        self.assertEqual(
+            issues, [InvalidMappingComponent("value list requires a parameter name", value_list_mapping.rank)]
+        )
 
     def test_valid_object_value_list_mapping_not_missing_parameter_definition(self):
         cls_mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
@@ -657,7 +659,9 @@ class TestMappingIsValid(unittest.TestCase):
         cls_mapping.position = 0
         value_list_mapping.position = 1
         issues = check_validity(cls_mapping)
-        self.assertTrue(issues)
+        self.assertEqual(
+            issues, [InvalidMappingComponent("value list requires a parameter name", value_list_mapping.rank)]
+        )
 
     def test_valid_relationship_value_list_mapping_not_missing_parameter_definition(self):
         cls_mapping = import_mapping_from_dict({"map_type": "RelationshipClass"})

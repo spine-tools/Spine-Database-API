@@ -1343,3 +1343,41 @@ class TestGetMappedData(unittest.TestCase):
                 ],
             },
         )
+
+    def test_import_different_relationships_in_same_table(self):
+        data_source = iter(
+            [
+                ["Widget__Gadget", "Widget", "Gadget", "tableview", "watch", "A cozy relationship 1."],
+                ["Widget__Gadget", "Widget", "Gadget", "checkbox", "watch", "A cozy relationship 2."],
+                ["Widget__Gadget", "Widget", "Gadget", "checkbox", "clock", "A cozy relationship 3."],
+                ["Gadget__Widget", "Gadget", "Widget", "watch", "checkbox", "A cozy relationship 4."],
+                ["Gadget__Widget", "Gadget", "Widget", "clock", "tableview", "A cozy relationship 5."],
+            ]
+        )
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": 0},
+                {"map_type": "Dimension", "position": 1},
+                {"map_type": "Dimension", "position": 2},
+                {"map_type": "EntityClassDescription", "position": "hidden"},
+                {"map_type": "Entity", "position": "hidden"},
+                {"map_type": "Element", "position": 3},
+                {"map_type": "Element", "position": 4},
+                {"map_type": "EntityDescription", "position": 5},
+            ]
+        ]
+        mapped_data, errors = get_mapped_data(data_source, mappings)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entity_classes": [["Widget__Gadget", ["Widget", "Gadget"]], ["Gadget__Widget", ["Gadget", "Widget"]]],
+                "entities": [
+                    ["Widget__Gadget", ["tableview", "watch"], "A cozy relationship 1."],
+                    ["Widget__Gadget", ["checkbox", "watch"], "A cozy relationship 2."],
+                    ["Widget__Gadget", ["checkbox", "clock"], "A cozy relationship 3."],
+                    ["Gadget__Widget", ["watch", "checkbox"], "A cozy relationship 4."],
+                    ["Gadget__Widget", ["clock", "tableview"], "A cozy relationship 5."],
+                ],
+            },
+        )
