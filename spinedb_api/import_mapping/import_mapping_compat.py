@@ -26,6 +26,7 @@ from .import_mapping import (
     ParameterDefaultValueIndexMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueTypeMapping,
+    ParameterDefinitionDescriptionMapping,
     ParameterDefinitionMapping,
     ParameterValueIndexMapping,
     ParameterValueListMapping,
@@ -191,7 +192,8 @@ def parameter_mapping_from_dict(map_dict):
     if map_type == "ParameterDefinition":
         default_value_dict = map_dict.get("default_value")
         value_list_name = map_dict.get("parameter_value_list_name")
-        param_def_mapping.child = value_list_mapping = ParameterValueListMapping(*_pos_and_val(value_list_name))
+        description = param_def_mapping.child = ParameterDefinitionDescriptionMapping(Position.hidden)
+        description.child = value_list_mapping = ParameterValueListMapping(*_pos_and_val(value_list_name))
         value_list_mapping.child = parameter_default_value_mapping_from_dict(default_value_dict)
         return param_def_mapping
     alternative_name = map_dict.get("alternative_name")
