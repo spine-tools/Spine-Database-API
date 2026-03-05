@@ -20,21 +20,18 @@ from .import_mapping import (
     EntityClassMapping,
     EntityGroupMapping,
     EntityMapping,
-    EntityMetadataNameMapping,
-    EntityMetadataValueMapping,
     ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
     IndexNameMapping,
     ParameterDefaultValueIndexMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueTypeMapping,
+    ParameterDefinitionDescriptionMapping,
     ParameterDefinitionMapping,
     ParameterValueIndexMapping,
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     ParameterValueMapping,
-    ParameterValueMetadataNameMapping,
-    ParameterValueMetadataValueMapping,
     ParameterValueTypeMapping,
     Position,
     ScenarioAlternativeMapping,
@@ -132,7 +129,6 @@ def _scenario_alternative_mapping_from_dict(map_dict):
 def _object_class_mapping_from_dict(map_dict):
     name = map_dict.get("name")
     entities = map_dict.get("objects", map_dict.get("object"))
-    object_metadata = map_dict.get("object_metadata", None)
     parameters = map_dict.get("parameters")
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
@@ -196,7 +192,8 @@ def parameter_mapping_from_dict(map_dict):
     if map_type == "ParameterDefinition":
         default_value_dict = map_dict.get("default_value")
         value_list_name = map_dict.get("parameter_value_list_name")
-        param_def_mapping.child = value_list_mapping = ParameterValueListMapping(*_pos_and_val(value_list_name))
+        description = param_def_mapping.child = ParameterDefinitionDescriptionMapping(Position.hidden)
+        description.child = value_list_mapping = ParameterValueListMapping(*_pos_and_val(value_list_name))
         value_list_mapping.child = parameter_default_value_mapping_from_dict(default_value_dict)
         return param_def_mapping
     alternative_name = map_dict.get("alternative_name")
