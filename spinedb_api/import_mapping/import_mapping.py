@@ -1282,15 +1282,15 @@ def _default_parameter_value_metadata_mapping() -> EntityClassMapping:
     return unflatten(mappings)
 
 
-def from_dict(serialized):
+def from_dict(serialized: list[dict]) -> ImportMapping:
     """
     Deserializes mappings.
 
     Args:
-        serialized (list): serialize mappings
+        serialized: serialize mappings
 
     Returns:
-        Mapping: root mapping
+        root mapping
     """
     mappings = {
         klass.MAP_TYPE: klass

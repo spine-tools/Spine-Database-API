@@ -18,7 +18,7 @@ Spine DB API exceptions.
 class SpineDBAPIError(Exception):
     """Basic exception for errors raised by the API."""
 
-    def __init__(self, msg=None):
+    def __init__(self, msg: str | None = None):
         super().__init__(msg)
         self.msg = msg
 
@@ -34,7 +34,7 @@ class SpineIntegrityError(SpineDBAPIError):
         id (int): the id the instance that caused a unique violation
     """
 
-    def __init__(self, msg=None, id_=None):
+    def __init__(self, msg: str | None = None, id_=None):
         super().__init__(msg)
         self.id = id_
 
@@ -72,15 +72,14 @@ class InvalidMapping(SpineDBAPIError):
 
 
 class InvalidMappingComponent(InvalidMapping):
-    def __init__(self, msg, rank=None, key=None):
+    def __init__(self, msg: str, rank: int | None = None):
         super().__init__(msg)
         self.rank = rank
-        self.key = key
 
     def __eq__(self, other):
         if not isinstance(other, InvalidMappingComponent):
             return NotImplemented
-        return self.msg == other.msg and self.rank == other.rank and self.key == other.key
+        return self.msg == other.msg and self.rank == other.rank
 
 
 class ReaderError(SpineDBAPIError):
