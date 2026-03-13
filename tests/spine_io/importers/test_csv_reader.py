@@ -45,7 +45,7 @@ class TestCSVReader(unittest.TestCase):
             self.assertEqual(len(tables), 1)
             self.assertTrue("data" in tables)
             options = tables["data"].options
-            self.assertEqual(options["encoding"], "utf-8")
+            self.assertEqual(options["encoding"], "ascii")
             self.assertEqual(options["delimiter"], ",")
             self.assertEqual(options["quotechar"], '"')
             self.assertEqual(options["skip"], 0)
