@@ -22,7 +22,7 @@ dependencies = [
     "openpyxl >=3.0.7, !=3.1.1",
     "GDX2py >=2.2.0",
     "ijson >=3.1.4",
-    "chardet >=7",
+    "chardet >=7.1",
     "PyMySQL[rsa] >=1.0.2",
     "psycopg2-binary",
     "pyarrow >= 19.0",
