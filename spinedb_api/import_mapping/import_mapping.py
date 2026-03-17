@@ -509,7 +509,7 @@ class EntityMapping(ImportMapping):
     MAP_TYPE = "Entity"
 
     def _import_row(self, source_data, state, mapped_data):
-        if self.position == Position.hidden and isinstance(self._child, ElementMapping):
+        if isinstance(self._child, ElementMapping):
             return
         entity_class_name = state[ImportKey.ENTITY_CLASS_NAME]
         entity_name = state[ImportKey.ENTITY_NAME] = str(source_data)
