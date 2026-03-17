@@ -1381,3 +1381,51 @@ class TestGetMappedData(unittest.TestCase):
                 ],
             },
         )
+
+    def test_import_element_2_names_from_headers(self):
+        header = ["Food", "VitA", "VitC"]
+        data_source = iter(
+            [
+                ["hamburger", 6.0, 2.0],
+                ["orange juice", 2.0, 120.0],
+            ]
+        )
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "NutrientContent"},
+                {"map_type": "Dimension", "position": "hidden", "value": "Food"},
+                {"map_type": "Dimension", "position": "hidden", "value": "Nutrient"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "Element", "position": 0},
+                {"map_type": "Element", "position": "header"},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "content"},
+                {"map_type": "ParameterValue", "position": "hidden"},
+            ]
+        ]
+        mapped_data, errors = get_mapped_data(data_source, mappings, header)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "alternatives": {"Base"},
+                "entity_classes": [
+                    ["NutrientContent", ["Food", "Nutrient"]],
+                ],
+                "entities": [
+                    ["NutrientContent", ["hamburger", "VitA"]],
+                    ["NutrientContent", ["hamburger", "VitC"]],
+                    ["NutrientContent", ["orange juice", "VitA"]],
+                    ["NutrientContent", ["orange juice", "VitC"]],
+                ],
+                "parameter_definitions": [
+                    ["NutrientContent", "content"],
+                ],
+                "parameter_values": [
+                    ["NutrientContent", ("hamburger", "VitA"), "content", 6.0, "Base"],
+                    ["NutrientContent", ("hamburger", "VitC"), "content", 2.0, "Base"],
+                    ["NutrientContent", ("orange juice", "VitA"), "content", 2.0, "Base"],
+                    ["NutrientContent", ("orange juice", "VitC"), "content", 120.0, "Base"],
+                ],
+            },
+        )
