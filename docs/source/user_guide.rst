@@ -432,6 +432,22 @@ This structure has some specialized uses in Spine Toolbox and can usually be ign
 :meth:`.DatabaseMapping.commit_session` raises :class:`NothingToCommit` when there are no changes to save.
 Other errors raise :class:`SpineDBAPIError`.
 
+Using database mappings in Spine Toolbox
+----------------------------------------
+
+When a Python script is executed as part of a Spine Toolbox workflow,
+the same script may run in multiple parallel processes at the same.
+Using a database mapping as read-only access to a database should not cause any issues in such environment.
+However, there is a high chance for conflicts, or even corrupted in-memory data if data is committed to the database.
+The database should be explicitly locked to prevent this from happening::
+
+    url = sys.argv[1]  # Url provided by Spine Toolbox
+    with api.DatabaseMapping(url) as db_map:
+        with api.spine_db_client.lock_db(db_map):
+            # Use db_map here.
+            db_map.commit("Updated things.")
+
+
 Performance
 -----------
 

@@ -173,6 +173,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         super().__init__()
         # FIXME: We should also check the server memory property and use it here
+        self.server_url: str = db_url if isinstance(db_url, str) else db_url.render_as_string(hide_password=False)
         db_url = get_db_url_from_server(db_url)
         self.db_url = str(db_url)
         if isinstance(db_url, str):
