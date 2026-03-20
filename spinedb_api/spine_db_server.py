@@ -106,7 +106,6 @@ import time
 import traceback
 from typing import ClassVar, Literal, Optional, TypedDict
 from urllib.parse import urlunsplit
-import uuid
 from sqlalchemy.exc import DBAPIError
 from spinedb_api import __version__ as spinedb_api_version
 from .db_mapping import DatabaseMapping
@@ -117,7 +116,6 @@ from .filters.tools import apply_filter_stack, clear_filter_configs
 from .import_functions import import_data
 from .parameter_value import dump_db_value
 from .server_client_helpers import ReceiveAllMixing, decode, encode
-from .spine_db_client import SpineDBClient
 
 _current_server_version = 8
 
@@ -176,7 +174,7 @@ class _DBServerManager:
         self._process = mp.Process(target=self._do_work)
         self._process.start()
 
-    def _get_commit_lock(self, db_url):
+    def _get_commit_lock(self, db_url: str) -> threading.Lock:
         clean_url = clear_filter_configs(db_url)
         return self._commit_locks.setdefault(clean_url, threading.Lock())
 
@@ -349,9 +347,10 @@ class SpineDBServerBase:
         self._db_map = None
         self._closed = False
         self._lock = threading.Lock()
+        self._commit_lock = commit_lock
         self._in_queue = Queue()
         self._out_queue = Queue()
-        self._thread = threading.Thread(target=lambda: self._do_work(db_url, upgrade, memory, commit_lock))
+        self._thread = threading.Thread(target=lambda: self._do_work(db_url, upgrade, memory))
         self._thread.start()
         error = self._out_queue.get()
         if isinstance(error, Exception):
@@ -361,6 +360,10 @@ class SpineDBServerBase:
     def db_url(self):
         return str(self._db_map.db_url)
 
+    @property
+    def commit_lock(self):
+        return self._commit_lock
+
     def close_db_map(self):
         if not self._closed:
             self._closed = True
@@ -368,9 +371,11 @@ class SpineDBServerBase:
             self._in_queue.put(self._CLOSE)
             self._thread.join()
 
-    def _do_work(self, db_url, upgrade, memory, commit_lock):
+    def _do_work(self, db_url, upgrade, memory):
         try:
-            self._db_map = DatabaseMapping(db_url, upgrade=upgrade, memory=memory, commit_lock=commit_lock, create=True)
+            self._db_map = DatabaseMapping(
+                db_url, upgrade=upgrade, memory=memory, commit_lock=self._commit_lock, create=True
+            )
             self._out_queue.put(None)
         except Exception as error:  # pylint: disable=broad-except
             self._out_queue.put(error)
@@ -553,6 +558,14 @@ class HandleDBRequestMixin:
         cancel_db_checkout(self.server_manager_queue, self.server_address)
         return {"result": True}
 
+    def acquire_lock(self) -> dict:
+        self.server.commit_lock.acquire()
+        return {"result": True}
+
+    def release_lock(self) -> dict:
+        self.server.commit_lock.release()
+        return {"result": True}
+
     def _get_response(self, request):
         request, *extras = decode(request)
         # NOTE: Clients should always send requests "get_api_version" and "get_db_url" in a format that is compatible
@@ -578,6 +591,8 @@ class HandleDBRequestMixin:
             "db_checkin": self.db_checkin,
             "db_checkout": self.db_checkout,
             "cancel_db_checkout": self.cancel_db_checkout,
+            "acquire_lock": self.acquire_lock,
+            "release_lock": self.release_lock,
         }.get(request)
         if handler is None:
             return {"error": f"invalid request '{request}'"}

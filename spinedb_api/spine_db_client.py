@@ -10,14 +10,18 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-This module defines the :class:`SpineDBClient` class.
-"""
-
+"""This module defines the :class:`SpineDBClient` class."""
+from __future__ import annotations
+from collections.abc import Iterator
+from contextlib import contextmanager
 import socket
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 from sqlalchemy.engine.url import URL
 from .server_client_helpers import ReceiveAllMixing, decode, encode
+
+if TYPE_CHECKING:
+    from .db_mapping import DatabaseMapping
 
 client_version = 8
 
@@ -107,6 +111,12 @@ class SpineDBClient(ReceiveAllMixing):
     def query(self, query_name: str, *args, **kwargs) -> dict:
         return self._send("query", args=(query_name, *args), kwargs=kwargs)
 
+    def acquire_lock(self) -> None:
+        return self._send("acquire_lock")
+
+    def release_lock(self) -> None:
+        return self._send("release_lock")
+
     def _send(self, request, args=None, kwargs=None, receive=True):
         """
         Sends a request to the server with the given arguments.
@@ -138,3 +148,17 @@ def get_db_url_from_server(url):
     if parsed.scheme != "http":
         return url
     return SpineDBClient((parsed.hostname, parsed.port)).get_db_url()
+
+
+@contextmanager
+def lock_db(db_map: DatabaseMapping) -> Iterator[None]:
+    url = urlparse(db_map.server_url)
+    if url.scheme != "http":
+        yield
+        return
+    client = SpineDBClient((url.hostname, url.port))
+    client.acquire_lock()
+    try:
+        yield
+    finally:
+        client.release_lock()

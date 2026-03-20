@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a context manager `spinedb_api.spine_db_client.lock_db` for locking database mappings
+  under DB server, i.e. when executing Python scripts in Spine Toolbox.
+
 ### Changed
 
 ### Deprecated

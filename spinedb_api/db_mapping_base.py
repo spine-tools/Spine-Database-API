@@ -1066,7 +1066,7 @@ class MappedItemBase(dict):
         elif self.status in (Status.committed, Status.to_update):
             self.status = Status.to_remove
         else:
-            raise RuntimeError("invalid status for item being removed")
+            raise RuntimeError(f"invalid status '{self.status}' for item being removed")
         self._removal_source = source
         self._removed = True
         self._valid = None
