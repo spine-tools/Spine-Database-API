@@ -822,7 +822,7 @@ class ParameterDefinitionItem(ParameterItemBase):
         super().__init__(db_map, **kwargs)
         if "parameter_type_list" in kwargs:
             self._init_type_list = kwargs["parameter_type_list"]
-            if len(set(self._init_type_list)) != len(self._init_type_list):
+            if self._init_type_list is not None and len(set(self._init_type_list)) != len(self._init_type_list):
                 raise SpineDBAPIError("entries in parameter_type_list must be unique")
         else:
             self._init_type_list = None
