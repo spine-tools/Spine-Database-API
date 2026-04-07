@@ -15,6 +15,7 @@ This module defines the :class:`.DatabaseMapping` class, the main mean to commun
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
 :ref:`db_mapping_schema`.
 """
+
 from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -1418,8 +1419,7 @@ def _add_convenience_methods(node):
         factory = ITEM_CLASS_BY_TYPE[item_type]
         a = _a(item_type)
         get_kwargs = _kwargs(_uq_fields(factory))
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def {item_type}(self, **kwargs):
                 """Returns {a} `{item_type}` item matching the keyword arguments.
 
@@ -1429,11 +1429,9 @@ def _add_convenience_methods(node):
                 Returns:
                     :class:`PublicItem`
                 """
-            '''
-        )
+            ''')
         children.setdefault("get", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def find_{_pluralize(item_type)}(self, **kwargs):
                 """Finds and returns all `{item_type}` items matching the keyword arguments.
 
@@ -1443,12 +1441,10 @@ def _add_convenience_methods(node):
                 Returns:
                     list of :class:`PublicItem`: The items.
                 """
-            '''
-        )
+            ''')
         children.setdefault("find", []).append(child)
         add_kwargs = _kwargs(factory.fields)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def add_{item_type}(self, **kwargs):
                 """Adds {a} `{item_type}` item to the in-memory mapping.
 
@@ -1458,23 +1454,19 @@ def _add_convenience_methods(node):
                 Returns:
                     :class:`PublicItem`: The added item.
                 """
-            '''
-        )
+            ''')
         children.setdefault("add", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def add_{_pluralize(item_type)}(self, items):
                 """Adds multiple `{item_type}` items to the in-memory mapping.
 
                 Args:
                     items (list of dict): items to add
                 """
-            '''
-        )
+            ''')
         children.setdefault("add many", []).append(child)
         update_kwargs = f"id (int): The id of the item to update.\n{padding}" + _kwargs(factory.fields)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def update_{item_type}(self, **kwargs):
                 """Updates {a} `{item_type}` item in the in-memory mapping.
 
@@ -1484,22 +1476,18 @@ def _add_convenience_methods(node):
                 Returns:
                     :class:`PublicItem` or None: The updated item or None if nothing was updated.
                 """
-            '''
-        )
+            ''')
         children.setdefault("update", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def update_{_pluralize(item_type)}(self, items):
                 """Updates multiple `{item_type}` items in the in-memory mapping.
 
                 Args:
                     items (list of dict): items to update
                 """
-            '''
-        )
+            ''')
         children.setdefault("update many", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def add_or_update_{item_type}(self, **kwargs):
                 """Adds {a} `{item_type}` item to the in-memory mapping if it doesn't exist;
                 otherwise updates the current one.
@@ -1510,11 +1498,9 @@ def _add_convenience_methods(node):
                 Returns:
                     :class:`PublicItem` or None: The added or updated item or None if nothing was added or updated.
                 """
-            '''
-        )
+            ''')
         children.setdefault("add_or_update", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def add_or_update_{_pluralize(item_type)}(self, items):
                 """Adds multiple `{item_type}` items to the in-memory mapping if they don't exist;
                 otherwise updates the items.
@@ -1522,33 +1508,27 @@ def _add_convenience_methods(node):
                 Args:
                     items(list of dict): items to add or update
                 """
-            '''
-        )
+            ''')
         children.setdefault("add_or_update many", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def remove_{item_type}(self, **kwargs):
                 """Removes {a} `{item_type}` item from the in-memory mapping.
 
                 Args:
                     {add_kwargs}
                 """
-            '''
-        )
+            ''')
         children.setdefault("remove", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def remove_{_pluralize(item_type)}(self, items):
                 """Removes multiple `{item_type}` items from the in-memory mapping.
 
                 Args:
                     items(list of dict): items to remove
                 """
-            '''
-        )
+            ''')
         children.setdefault("remove many", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def restore_{item_type}(self, **kwargs):
                 """Restores a previously removed `{item_type}` item into the in-memory mapping.
 
@@ -1558,19 +1538,16 @@ def _add_convenience_methods(node):
                 Returns:
                     :class:`PublicItem`: The restored item.
                 """
-            '''
-        )
+            ''')
         children.setdefault("restore", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def restore_{_pluralize(item_type)}(self, items):
                 """Restores multiple `{item_type}` items back into the in-memory mapping.
 
                 Args:
                     items(list of dict): items to restore
                 """
-            '''
-        )
+            ''')
         children.setdefault("restore many", []).append(child)
     for child_list in children.values():
         for child in child_list:

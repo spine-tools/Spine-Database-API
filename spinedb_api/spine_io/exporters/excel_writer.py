@@ -14,6 +14,7 @@
 A writer for exporting Spine databases to Excel files.
 
 """
+
 from pathlib import Path
 import re
 import numpy

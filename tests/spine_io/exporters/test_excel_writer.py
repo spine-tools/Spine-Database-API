@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for Excel writer."""
+
 from itertools import zip_longest
 import os.path
 from tempfile import TemporaryDirectory

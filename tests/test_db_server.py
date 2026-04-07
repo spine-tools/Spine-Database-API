@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for spine_db_server module."""
+
 import os
 from tempfile import TemporaryDirectory
 import threading

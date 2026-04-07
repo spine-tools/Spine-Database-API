@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Functions for exporting data from a Spine database in a standard format."""
+
 from collections.abc import Callable, Iterable, Iterator
 from operator import itemgetter
 from typing import Any, Optional, TypeAlias, Union

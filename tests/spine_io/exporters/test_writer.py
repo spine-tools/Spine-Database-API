@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for ``writer`` module."""
+
 import unittest
 from spinedb_api import DatabaseMapping, import_object_classes, import_objects
 from spinedb_api.export_mapping.settings import entity_export

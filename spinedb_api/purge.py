@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Functions to purge DBs. """
+"""Functions to purge DBs."""
+
 from .db_mapping import DatabaseMapping
 from .exception import NothingToCommit, SpineDBAPIError, SpineDBVersionError
 from .filters.tools import clear_filter_configs

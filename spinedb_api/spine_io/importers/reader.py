@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains a base class for a data source readers used in importing. """
+"""Contains a base class for a data source readers used in importing."""
+
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from itertools import islice

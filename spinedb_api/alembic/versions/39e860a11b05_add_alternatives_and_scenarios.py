@@ -102,8 +102,7 @@ def alter_tables_after_update():
         date = datetime.now(timezone.utc)
         conn = op.get_bind()
         conn.execute(
-            text(
-                """
+            text("""
             UPDATE next_id
             SET
                 user = :user,
@@ -111,8 +110,7 @@ def alter_tables_after_update():
                 alternative_id = 2,
                 scenario_id = 1,
                 scenario_alternative_id = 1
-            """
-            ),
+            """),
             {
                 "user": user,
                 "date": date,

@@ -15,6 +15,7 @@ Functions for importing data into a Spine database in a standard format.
 This functionality is equivalent to the one provided by :meth:`.DatabaseMapping.add_update_item`,
 but the syntax is a little more compact.
 """
+
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import suppress

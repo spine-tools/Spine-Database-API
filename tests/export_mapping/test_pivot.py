@@ -13,6 +13,7 @@
 Contains unit tests for the ``pivot`` module.
 
 """
+
 import unittest
 import numpy
 from spinedb_api.export_mapping.pivot import make_pivot

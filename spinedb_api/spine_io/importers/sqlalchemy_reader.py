@@ -9,7 +9,8 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Contains SQLAlchemyReader class. """
+"""Contains SQLAlchemyReader class."""
+
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import Session
 from ...exception import ReaderError

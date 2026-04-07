@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for DatabaseMapping class."""
+
 from collections import namedtuple
 from datetime import datetime
 import gc

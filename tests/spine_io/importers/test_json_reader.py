@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains unit tests for JSONReader. """
+"""Contains unit tests for JSONReader."""
+
 import json
 from pathlib import Path
 import pickle

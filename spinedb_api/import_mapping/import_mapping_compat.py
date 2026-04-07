@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Functions for creating import mappings from dicts."""
+
 from ..mapping import to_dict as import_mapping_to_dict
 from .import_mapping import (
     AlternativeMapping,
