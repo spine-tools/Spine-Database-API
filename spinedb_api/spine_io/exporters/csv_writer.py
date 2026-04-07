@@ -13,6 +13,7 @@
 Module contains a .csv writer implementation.
 
 """
+
 import csv
 import os
 import os.path

@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for gdx writer."""
+
 import math
 from pathlib import Path
 import sys

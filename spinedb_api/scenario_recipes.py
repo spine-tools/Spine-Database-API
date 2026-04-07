@@ -94,6 +94,7 @@ The available alternatives are: ``coal``, ``coal_chp``, ``wind`` and ``antimatte
 ``coal+coal_chp+wind``, ``coal+coal_chp+antimatter``, ``coal+wind+antimatter``, ``coal_chp+wind+antimatter``
 and ``coal+coal_chp+wind+antimatter``
 """
+
 from collections.abc import Iterable, Sequence
 from spinedb_api import SpineDBAPIError
 from spinedb_api.db_mapping_base import PublicItem

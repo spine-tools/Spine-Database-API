@@ -19,6 +19,7 @@ Value transformer supports four types of instructions:
 - ``invert`` inverts the value
 - ``generate_index`` uses a Python expression to reindex an indexed value
 """
+
 from collections.abc import Sequence
 from functools import partial
 from numbers import Number

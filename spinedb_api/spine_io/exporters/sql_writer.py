@@ -9,7 +9,8 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Module contains an SQL writer implementation. """
+"""Module contains an SQL writer implementation."""
+
 from sqlalchemy import Boolean, Column, DateTime, Float, Integer, MetaData, String, Table, create_engine
 from sqlalchemy.orm import Session
 from spinedb_api import parameter_value

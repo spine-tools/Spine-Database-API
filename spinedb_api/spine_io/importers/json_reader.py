@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains JSONReader class. """
+"""Contains JSONReader class."""
+
 import itertools
 import os
 import sys

@@ -14,6 +14,7 @@
 Framework for exporting a database to Excel file.
 
 """
+
 from spinedb_api.export_mapping.export_mapping import (
     AlternativeDescriptionMapping,
     AlternativeMapping,

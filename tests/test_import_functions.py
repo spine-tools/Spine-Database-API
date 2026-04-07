@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for import_functions.py."""
+
 import pytest
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.exception import NothingToCommit

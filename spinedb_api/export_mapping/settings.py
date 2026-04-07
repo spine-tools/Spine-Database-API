@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Contains convenience functions to set up different database export schemes."""
+
 from itertools import takewhile
 from ..mapping import unflatten
 from .export_mapping import (

@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Contains export mappings for database items such as entities, entity classes and parameter values."""
+
 from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import suppress

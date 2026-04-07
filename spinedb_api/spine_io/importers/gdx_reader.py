@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains GDXReader class and a help function. """
+"""Contains GDXReader class and a help function."""
+
 from gdx2py import GAMSParameter, GAMSScalar, GAMSSet, GdxFile
 from spinedb_api.exception import ReaderError
 from ..gdx_utils import find_gams_directory, gams_supports_new_api

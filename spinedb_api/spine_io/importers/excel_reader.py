@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains ExcelReader class and helper functions. """
+"""Contains ExcelReader class and helper functions."""
 
 import io
 from itertools import chain, islice, takewhile

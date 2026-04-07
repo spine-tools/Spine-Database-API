@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Utility functions for .gdx import/export. """
+"""Utility functions for .gdx import/export."""
 
 import os
 import re

@@ -13,6 +13,7 @@
 """
 This module defines the :class:`.GraphLayoutGenerator` class.
 """
+
 import math
 import numpy as np
 from numpy import atleast_1d as arr

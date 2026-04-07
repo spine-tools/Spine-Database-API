@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """This module defines the :class:`SpineDBClient` class."""
+
 from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager

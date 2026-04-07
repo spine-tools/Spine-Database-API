@@ -14,6 +14,7 @@ This module provides a manipulator filter that renames database items.
 
 Currently, entity classes and parameter can be renamed.
 """
+
 from functools import partial
 from sqlalchemy import case
 

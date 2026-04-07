@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for export_functions."""
+
 import pathlib
 from tempfile import TemporaryDirectory
 from spinedb_api import (

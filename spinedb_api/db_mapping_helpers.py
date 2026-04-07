@@ -13,6 +13,7 @@
 This module defines functions, classes and other utilities
 that may be useful with :class:`.db_mapping.DatabaseMapping`.
 """
+
 from spinedb_api.db_mapping_base import PublicItem
 from spinedb_api.mapped_items import ParameterDefinitionItem
 from spinedb_api.parameter_value import UNPARSED_NULL_VALUE, Map, from_database_to_dimension_count, type_for_value

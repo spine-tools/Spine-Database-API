@@ -9,7 +9,8 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Contains functions to group values in pivot tables with hidden columns or rows. """
+"""Contains functions to group values in pivot tables with hidden columns or rows."""
+
 from typing import Any, ClassVar, Type
 import numpy as np
 

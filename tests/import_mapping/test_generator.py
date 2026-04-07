@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Contains unit tests for the generator module."""
+
 import unittest
 from spinedb_api import Array, DateTime, Duration, Map
 from spinedb_api.import_mapping.generator import get_mapped_data

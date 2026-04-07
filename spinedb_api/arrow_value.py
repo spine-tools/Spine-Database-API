@@ -18,6 +18,7 @@ Apache Arrow - Spine interoperability layer.
   This is highly experimental API.
 
 """
+
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 import datetime

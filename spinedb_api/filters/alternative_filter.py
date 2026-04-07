@@ -15,6 +15,7 @@ This module provides the alternative filter.
 Alternative filter is defined by selected alternatives.
 It lets everything depending on the selected alternatives through and filters out the rest.
 """
+
 from collections.abc import Iterable
 from functools import partial
 from sqlalchemy import Integer, and_, cast, func, literal, or_, select, union_all

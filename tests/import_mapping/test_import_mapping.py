@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Unit tests for import Mappings."""
+
 import unittest
 from unittest.mock import Mock
 from spinedb_api.exception import InvalidMapping, InvalidMappingComponent

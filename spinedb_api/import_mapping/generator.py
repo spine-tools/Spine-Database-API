@@ -14,6 +14,7 @@
 Contains `get_mapped_data()` that converts rows of tabular data into a dictionary for import to a Spine DB,
 using ``import_functions.import_data()``
 """
+
 from collections.abc import Callable, Iterable
 from copy import deepcopy
 from itertools import dropwhile
