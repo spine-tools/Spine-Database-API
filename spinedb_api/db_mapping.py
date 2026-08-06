@@ -288,8 +288,11 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         sa_url = make_url(url)
         try:
-            DatabaseMapping.create_engine(sa_url, create=create)
-            return None
+            engine = DatabaseMapping.create_engine(sa_url, create=create)
+            try:
+                return None
+            finally:
+                engine.dispose()
         except SpineDBVersionError as v_err:
             if v_err.upgrade_available:
                 title = "Incompatible database version"
@@ -382,12 +385,16 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             ref_engine = _create_first_spine_database("sqlite://")
             if not compare_schemas(engine, ref_engine):
                 if not create or inspect(engine).get_table_names():
+                    ref_engine.dispose()
                     raise SpineDBAPIError(
                         "Unable to determine db revision. "
                         f"Please check that\n\n\t{sa_url}\n\nis the URL of a valid Spine db."
                     )
                 create_new_spine_database_from_engine(engine)
+                ref_engine.dispose()
                 return engine
+            else:
+                ref_engine.dispose()
         config = Config()
         config.set_main_option("script_location", "spinedb_api:alembic")
         script = ScriptDirectory.from_config(config)
