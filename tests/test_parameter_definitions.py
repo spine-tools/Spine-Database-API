@@ -15,3 +15,23 @@ def test_add_or_update_when_setting_parameter_type_list_to_none(db_map):
         entity_class_name="Gadget", name="X", parameter_type_list=None
     )
     assert definition["parameter_type_list"] == ()
+
+
+def test_rolling_back_group_update_succeeds(db_map):
+    db_map.add_entity_class(name="A")
+    definition = db_map.add_parameter_definition(entity_class_name="A", name="P")
+    db_map.add_parameter_group(name="important", color="FAAAAC", priority=1)
+    db_map.commit_session("Add parameter")
+    definition.update(parameter_group_name="important")
+    db_map.rollback_session()
+    assert definition["parameter_group_name"] is None
+
+
+def test_rolling_back_value_list_update_succeeds(db_map):
+    db_map.add_entity_class(name="A")
+    definition = db_map.add_parameter_definition(entity_class_name="A", name="P")
+    db_map.add_parameter_value_list(name="options")
+    db_map.commit_session("Add parameter")
+    definition.update(parameter_value_list_name="options")
+    db_map.rollback_session()
+    assert definition["parameter_value_list_name"] is None
