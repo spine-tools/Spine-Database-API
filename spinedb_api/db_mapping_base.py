@@ -826,7 +826,7 @@ class MappedItemBase(dict):
         return {
             key: value
             for key, value in other.items()
-            if (value is not None or self.fields.get(key, {}).get("optional", False))
+            if (value is not None or self.fields.get(key, {}).get("optional", False) or key in self._internal_fields)
             and _resolved(self.get(key)) != _resolved(value)
         }
 
