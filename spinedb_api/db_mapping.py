@@ -288,8 +288,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         sa_url = make_url(url)
         try:
-            DatabaseMapping.create_engine(sa_url, create=create)
-            return None
+            engine = DatabaseMapping.create_engine(sa_url, create=create)
+            engine.dispose()
         except SpineDBVersionError as v_err:
             if v_err.upgrade_available:
                 title = "Incompatible database version"
@@ -380,7 +380,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             # No revision information. Check that the schema of the given url corresponds to a 'first' Spine db
             # Otherwise we either raise or create a new Spine db at the url.
             ref_engine = _create_first_spine_database("sqlite://")
-            if not compare_schemas(engine, ref_engine):
+            schemas_equal = compare_schemas(engine, ref_engine)
+            ref_engine.dispose()
+            if not schemas_equal:
                 if not create or inspect(engine).get_table_names():
                     raise SpineDBAPIError(
                         "Unable to determine db revision. "
