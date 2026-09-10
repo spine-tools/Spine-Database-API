@@ -45,9 +45,9 @@ class SQLAlchemyReader(Reader):
             **extras: optional database schema
         """
         self._connection_string = source
-        self._engine = create_engine(source, future=True)
+        self._engine = create_engine(source)
         self._connection = self._engine.connect()
-        self._session = Session(self._engine, future=True)
+        self._session = Session(self._engine)
         self._schema = extras.get("schema")
         self._metadata = MetaData(schema=self._schema)
         self._metadata.reflect(bind=self._engine)

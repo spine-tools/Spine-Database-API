@@ -30,11 +30,11 @@ class SqlWriter(Writer):
         self._overwrite_existing = overwrite_existing
         if database.find("://") < 0:
             database = "sqlite:///" + database
-        self._engine = create_engine(database, future=True)
+        self._engine = create_engine(database)
         self._connection = self._engine.connect()
         self._metadata = MetaData()
         self._metadata.reflect(bind=self._engine)
-        self._session = Session(self._engine, future=True)
+        self._session = Session(self._engine)
         self._table_name = None
         self._column_names = None
         self._column_converters = None
