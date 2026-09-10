@@ -170,7 +170,7 @@ def compile_group_concat_mysql(element, compiler, **kw):
 
 def _is_head(db_url: str | URL, upgrade=False) -> bool:
     """Check whether the database at db_url is at the head revision."""
-    engine = create_engine(db_url, future=True)
+    engine = create_engine(db_url)
     return is_head_engine(engine, upgrade=upgrade)
 
 
@@ -220,8 +220,8 @@ def copy_database(
     """
     if not _is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=str(source_url))
-    source_engine = create_engine(source_url, future=True)
-    dest_engine = create_engine(dest_url, future=True)
+    source_engine = create_engine(source_url)
+    dest_engine = create_engine(dest_url)
     copy_database_bind(
         dest_engine,
         source_engine,
@@ -289,7 +289,7 @@ def schema_dict(insp) -> dict:
 
 def is_empty(db_url: str | URL) -> bool:
     try:
-        engine = create_engine(db_url, future=True)
+        engine = create_engine(db_url)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     insp = inspect(engine)
@@ -670,7 +670,7 @@ def create_spine_metadata() -> MetaData:
 def create_new_spine_database(db_url: str | URL) -> Engine:
     """Create a new Spine database at the given url."""
     try:
-        engine = create_engine(db_url, future=True)
+        engine = create_engine(db_url)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     create_new_spine_database_from_engine(engine)
@@ -700,7 +700,7 @@ def create_new_spine_database_from_engine(engine: Engine) -> None:
 def _create_first_spine_database(db_url: str | URL) -> Engine:
     """Creates a Spine database with the very first version at the given url."""
     try:
-        engine = create_engine(db_url, future=True)
+        engine = create_engine(db_url)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     # Drop existing tables. This is a Spine db now...
@@ -904,7 +904,7 @@ def fix_name_ambiguity(input_list: Sequence[str], offset: int = 0, prefix: str =
 
 
 def vacuum(url: str | URL) -> tuple[int, str]:
-    engine = create_engine(url, future=True)
+    engine = create_engine(url)
     if not engine.url.drivername.startswith("sqlite"):
         return 0, "bytes"
     size_before = os.path.getsize(engine.url.database)

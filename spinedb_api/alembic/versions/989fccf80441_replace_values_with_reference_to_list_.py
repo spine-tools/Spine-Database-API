@@ -23,7 +23,7 @@ depends_on = None
 
 def upgrade():
     conn = op.get_bind()
-    Session = sessionmaker(bind=conn, future=True)
+    Session = sessionmaker(bind=conn)
     session = Session()
     meta = MetaData()
     meta.reflect(conn)
