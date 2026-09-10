@@ -367,7 +367,6 @@ class SpineDBServerBase:
     def close_db_map(self):
         if not self._closed:
             self._closed = True
-            self._db_map.close()
             self._in_queue.put(self._CLOSE)
             self._thread.join()
 
@@ -383,6 +382,7 @@ class SpineDBServerBase:
         while True:
             input_ = self._in_queue.get()
             if input_ == self._CLOSE:
+                self._db_map.close()
                 break
             request, args, kwargs = input_
             handler = {
