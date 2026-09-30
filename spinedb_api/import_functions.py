@@ -15,17 +15,66 @@ Functions for importing data into a Spine database in a standard format.
 This functionality is equivalent to the one provided by :meth:`.DatabaseMapping.add_update_item`,
 but the syntax is a little more compact.
 """
+
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import suppress
 from typing import Any, Optional, TypeAlias
 from . import DatabaseMapping, SpineDBAPIError
-from .helpers import _parse_metadata
-from .parameter_value import ConflictResolution, Value, fancy_type_to_type_and_rank, get_conflict_fixer, to_database
+from .helpers import DisplayStatusValue, ItemType
+from .parameter_value import (
+    ConflictResolution,
+    ConflictResolutionCallable,
+    Value,
+    fancy_type_to_type_and_rank,
+    get_conflict_fixer,
+    to_database,
+)
 
 UnparseCallable: TypeAlias = Callable[[Value], tuple[bytes, Optional[str]]]
-ParameterValue: TypeAlias = (
-    tuple[str, str | tuple[str, ...], str, Any] | tuple[str, str | tuple[str, ...], str, Any, str]
+Alternative: TypeAlias = str | tuple[str] | tuple[str, str]
+Scenario: TypeAlias = str | tuple[str] | tuple[str, bool] | tuple[str, bool, str]
+ScenarioAlternative: TypeAlias = tuple[str, str] | tuple[str, str, str]
+Location: TypeAlias = tuple[float, float, float, str, str]
+Entity: TypeAlias = (
+    tuple[str, str | Sequence[str]]
+    | tuple[str, str | Sequence[str], str]
+    | tuple[str, str | Sequence[str], str, Location]
+)
+EntityAlternative: TypeAlias = tuple[str, str | Sequence[str], str, bool]
+EntityGroup: TypeAlias = tuple[str, str, str]
+EntityClass: TypeAlias = (
+    str
+    | tuple[str]
+    | tuple[str, Sequence[str]]
+    | tuple[str, Sequence[str], str]
+    | tuple[str, Sequence[str], str, int]
+    | tuple[str, Sequence[str], str, int, bool]
+)
+ParameterValueList: TypeAlias = tuple[str, Any]
+ParameterValue: TypeAlias = tuple[str, str | Sequence[str], str, Any] | tuple[str, str | Sequence[str], str, Any, str]
+ParameterGroup: TypeAlias = tuple[str, str, int]
+ParameterType: TypeAlias = tuple[str, str, str] | tuple[str, str, str, str]
+ParameterDefinition: TypeAlias = (
+    tuple[str, str]
+    | tuple[str, str, Any]
+    | tuple[str, str, Any, str]
+    | tuple[str, str, Any, str, str]
+    | tuple[str, str, Any, str, str, str]
+    | tuple[str, str, Any, str, str, str, str]
+)
+SuperclassSubclass: TypeAlias = tuple[str, str]
+DisplayMode: TypeAlias = str | tuple[str] | tuple[str, DisplayStatusValue]
+EntityClassDisplayMode: TypeAlias = (
+    tuple[str, str, int]
+    | tuple[str, str, int, DisplayStatusValue]
+    | tuple[str, str, int, DisplayStatusValue, str]
+    | tuple[str, str, int, DisplayStatusValue, str, str]
+)
+Metadata: TypeAlias = tuple[str, str]
+EntityMetadata: TypeAlias = tuple[str, str | Sequence[str], str, str]
+ParameterValueMetadata: TypeAlias = (
+    tuple[str, str | Sequence[str], str, str, str] | tuple[str, str | Sequence[str], str, str, str, str]
 )
 
 
@@ -107,24 +156,25 @@ def get_data_for_import(
     db_map: DatabaseMapping,
     all_errors: list[str],
     unparse_value: UnparseCallable = to_database,
-    fix_value_conflict=get_conflict_fixer("merge"),
-    entity_classes=(),
-    entities=(),
-    entity_groups=(),
-    entity_alternatives=(),
-    parameter_definitions=(),
-    parameter_types=(),
-    parameter_values=(),
-    parameter_value_lists=(),
-    alternatives=(),
-    scenarios=(),
-    scenario_alternatives=(),
-    metadata=(),
-    entity_metadata=(),
-    parameter_value_metadata=(),
-    superclass_subclasses=(),
-    display_modes=(),
-    entity_class_display_modes=(),
+    fix_value_conflict: ConflictResolutionCallable = get_conflict_fixer("merge"),
+    entity_classes: Iterable[EntityClass] = (),
+    entities: Iterable[Entity] = (),
+    entity_groups: Iterable[EntityGroup] = (),
+    entity_alternatives: Iterable[EntityAlternative] = (),
+    parameter_definitions: Iterable[ParameterDefinition] = (),
+    parameter_types: Iterable[ParameterType] = (),
+    parameter_values: Iterable[ParameterValue] = (),
+    parameter_value_lists: Iterable[ParameterValueList] = (),
+    parameter_groups: Iterable[ParameterGroup] = (),
+    alternatives: Iterable[Alternative] = (),
+    scenarios: Iterable[Scenario] = (),
+    scenario_alternatives: Iterable[ScenarioAlternative] = (),
+    metadata: Iterable[Metadata] = (),
+    entity_metadata: Iterable[EntityMetadata] = (),
+    parameter_value_metadata: Iterable[ParameterValueMetadata] = (),
+    superclass_subclasses: Iterable[SuperclassSubclass] = (),
+    display_modes: Iterable[DisplayMode] = (),
+    entity_class_display_modes: Iterable[EntityClassDisplayMode] = (),
     # legacy
     object_classes=(),
     relationship_classes=(),
@@ -144,34 +194,35 @@ def get_data_for_import(
     features=(),
     tool_features=(),
     tool_feature_methods=(),
-):
+) -> Iterator[tuple[ItemType, Iterable[dict]]]:
     """Yields data to import into a Spine DB.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        all_errors (list of str): errors encountered during import
-        unparse_value (Callable): function to call when parsing parameter values
-        fix_value_conflict (Callable): parameter value conflict resolution function
-        entity_classes (Iterable of Sequence): entity class tuples
-        parameter_definitions (Iterable of Sequence): tuples of parameter definitions
-        parameter_types (Iterable of Sequence): tuples of parameter types
-        entities (Iterable of Sequence): tuples of entities
-        entity_alternatives (Iterable of Sequence): tuples of entity alternatives
-        entity_groups (Iterable of Sequence): tuples of entity groups
-        parameter_values (Iterable of Sequence): tuples of parameter values
-        alternatives (Iterable of Sequence): tuples of alternatives
-        scenarios (Iterable of Sequence): tuples of scenarios
-        scenario_alternatives (Iterable of Sequence): tuples of scenario alternatives
-        parameter_value_lists (Iterable of Sequence): tuples of parameter value lists
-        metadata (Iterable of Sequence): tuples of metadata
-        entity_metadata (Iterable of Sequence): tuples of entity metadata
-        parameter_value_metadata (Iterable of Sequence): tuples of parameter value metadata
-        superclass_subclasses (Iterable of Sequence): tuples of superclass subclasses
-        display_modes (Iterable of Sequence): tuples of display modes
-        entity_class_display_modes (Iterable of Sequence): tuples of entity class display modes
+        db_map: database mapping
+        all_errors: errors encountered during import
+        unparse_value: function to call when parsing parameter values
+        fix_value_conflict: parameter value conflict resolution function
+        entity_classes: entity class tuples
+        parameter_definitions: tuples of parameter definitions
+        parameter_types: tuples of parameter types
+        parameter_groups: tuples of parameter groups
+        entities: tuples of entities
+        entity_alternatives: tuples of entity alternatives
+        entity_groups: tuples of entity groups
+        parameter_values: tuples of parameter values
+        alternatives: tuples of alternatives
+        scenarios: tuples of scenarios
+        scenario_alternatives: tuples of scenario alternatives
+        parameter_value_lists: tuples of parameter value lists
+        metadata: tuples of metadata
+        entity_metadata: tuples of entity metadata
+        parameter_value_metadata: tuples of parameter value metadata
+        superclass_subclasses: tuples of superclass subclasses
+        display_modes: tuples of display modes
+        entity_class_display_modes: tuples of entity class display modes
 
     Yields:
-        tuple: tuple of (item type, (items to add, items to update, errors))
+        tuple of (item type, item dicts)
     """
     # NOTE: The order is important, because of references. E.g., we want to import alternatives before parameter_values
     if alternatives:
@@ -207,6 +258,8 @@ def get_data_for_import(
     if parameter_value_lists:
         yield ("parameter_value_list", _get_parameter_value_lists_for_import(parameter_value_lists))
         yield ("list_value", _get_list_values_for_import(db_map, parameter_value_lists, unparse_value))
+    if parameter_groups:
+        yield ("parameter_group", _get_parameter_groups_for_import(parameter_groups))
     if parameter_definitions:
         yield (
             "parameter_definition",
@@ -246,12 +299,12 @@ def get_data_for_import(
     if metadata:
         yield ("metadata", _get_metadata_for_import(metadata))
     if entity_metadata:
-        yield ("metadata", _get_metadata_for_import((ent_metadata[2] for ent_metadata in entity_metadata)))
+        yield ("metadata", _get_metadata_for_import(((item[2], item[3]) for item in entity_metadata)))
         yield ("entity_metadata", _get_entity_metadata_for_import(entity_metadata))
     if parameter_value_metadata:
         yield (
             "metadata",
-            _get_metadata_for_import((pval_metadata[3] for pval_metadata in parameter_value_metadata)),
+            _get_metadata_for_import(((item[3], item[4]) for item in parameter_value_metadata)),
         )
         yield ("parameter_value_metadata", _get_parameter_value_metadata_for_import(db_map, parameter_value_metadata))
     if object_metadata:  # Legacy
@@ -276,100 +329,100 @@ def get_data_for_import(
         )
 
 
-def import_superclass_subclasses(db_map, data):
+def import_superclass_subclasses(db_map: DatabaseMapping, data: Iterable[SuperclassSubclass]) -> tuple[int, list[str]]:
     """Imports superclass_subclasses into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of (superclass name [str], subclass name [str])
+        db_map: database mapping
+        data: tuples of (superclass name, subclass name)
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, superclass_subclasses=data)
 
 
-def import_entity_classes(db_map, data):
+def import_entity_classes(db_map: DatabaseMapping, data: Iterable[EntityClass]) -> tuple[int, list[str]]:
     """Imports entity classes into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of
-            (name [str], [(dimension 1 name [str], dimension 2 name [str],...)], [description [str]], [display icon integer [int]], [active by default [bool]])
+        db_map: database mapping
+        data: tuples of (name, [(dimension 1 name, dimension 2 name ,...)], [description], [display icon integer], [active by default])
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, entity_classes=data)
 
 
-def import_entities(db_map, data):
+def import_entities(db_map: DatabaseMapping, data: Iterable[Entity]) -> tuple[int, list[str]]:
     """Imports entities into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of (class name [str], entity name or byname [str or tuple[str]], [description [str]], [location [tuple]])
-            where location is a tuple of (latitude [float], longitude [float], altitude [float], shape name [str], shape GEOJSON [str])
+        db_map: database mapping
+        data: tuples of (class name, entity name or byname, [description], [location])
+            where location is a tuple of (latitude, longitude, altitude, shape name, shape GEOJSON)
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, entities=data)
 
 
-def import_entity_alternatives(db_map, data):
+def import_entity_alternatives(db_map: DatabaseMapping, data: Iterable[EntityAlternative]) -> tuple[int, list[str]]:
     """Imports entity alternatives into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data: (Iterable of Sequence): tuples of
-            (class name [str], entity name or byname [str or tuple[str]], alternative name [str], activity [bool])
+        db_map: database mapping
+        data: tuples of (class name, entity name or byname, alternative name, activity)
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, entity_alternatives=data)
 
 
-def import_entity_groups(db_map, data):
+def import_entity_groups(db_map: DatabaseMapping, data: Iterable[EntityGroup]) -> tuple[int, list[str]]:
     """Imports entity groups into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of (class name [str], group entity name [str], member entity name [str])
+        db_map: database mapping
+        data: tuples of (class name, group entity name, member entity name)
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, entity_groups=data)
 
 
-def import_parameter_definitions(db_map, data, unparse_value=to_database):
+def import_parameter_definitions(
+    db_map: DatabaseMapping, data: Iterable[ParameterDefinition], unparse_value: UnparseCallable = to_database
+) -> tuple[int, list[str]]:
     """Imports parameter definitions into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence):
-            tuples of (class name [str], parameter name [str], [default value], [default type [str]], [parameter value list name [str]], [description [str]])
-        unparse_value (Callable): function to parse parameter values
+        db_map: database mapping
+        data: tuples of (class name, parameter name, [default value], [parameter value list name], [description], [parameter group name])
+        unparse_value: function to parse parameter values
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, parameter_definitions=data, unparse_value=unparse_value)
 
 
-def import_parameter_types(db_map, data, unparse_value=to_database):
+def import_parameter_types(
+    db_map: DatabaseMapping, data: Iterable[ParameterType], unparse_value: UnparseCallable = to_database
+) -> tuple[int, list[str]]:
     """Imports parameter types into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence):
-            tuple of (class name [str], parameter name [str], type [str], [succeeding type [str]])
-        unparse_value (Callable): function to parse parameter values
+        db_map: database mapping
+        data: tuple of (class name, parameter name, type, [succeeding type])
+        unparse_value: function to parse parameter values
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, parameter_types=data, unparse_value=unparse_value)
 
@@ -377,15 +430,14 @@ def import_parameter_types(db_map, data, unparse_value=to_database):
 def import_parameter_values(
     db_map: DatabaseMapping,
     data: Iterable[ParameterValue],
-    unparse_value=to_database,
+    unparse_value: UnparseCallable = to_database,
     on_conflict: ConflictResolution = "merge",
 ) -> tuple[int, list[str]]:
     """Imports parameter values into a Spine database using a standard format.
 
     Args:
         db_map: database mapping
-        data:
-            tuples of (class name [str], entity name [str] or byname [tuple[str]], parameter definition name [str], value, [alternative_name [str]])
+        data: tuples of (class name, entity name or byname, parameter definition name, value, [alternative_name])
         unparse_value: function to parse parameter values
         on_conflict: Conflict resolution strategy; options: "keep", "replace", "merge"
 
@@ -395,81 +447,83 @@ def import_parameter_values(
     return import_data(db_map, parameter_values=data, unparse_value=unparse_value, on_conflict=on_conflict)
 
 
-def import_alternatives(db_map, data):
+def import_alternatives(db_map: DatabaseMapping, data: Iterable[Alternative]) -> tuple[int, list[str]]:
     """Imports alternatives into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of (name [str], [description [str]])
+        db_map: database mapping
+        data: tuples of (name, [description])
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, alternatives=data)
 
 
-def import_scenarios(db_map, data):
+def import_scenarios(db_map: DatabaseMapping, data: Iterable[Scenario]) -> tuple[int, list[str]]:
     """Imports scenarios into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of (name [str], [<unused bool>], [description [str]])
+        db_map: database mapping
+        data: tuples of (name, [<unused bool>], [description])
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, scenarios=data)
 
 
-def import_display_modes(db_map, data):
+def import_display_modes(db_map: DatabaseMapping, data: Iterable[DisplayMode]) -> tuple[int, list[str]]:
     """Imports display modes into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of (name [str], [description [str]])
+        db_map: database mapping
+        data: tuples of (name, [description])
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, display_modes=data)
 
 
-def import_entity_class_display_modes(db_map, data):
+def import_entity_class_display_modes(
+    db_map: DatabaseMapping, data: Iterable[EntityClassDisplayMode]
+) -> tuple[int, list[str]]:
     """Imports entity class display modes into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of (display mode name [str], entity class name [str], display order [int])
+        db_map: database mapping
+        data: tuples of (display mode name, entity class name, display order)
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, entity_class_display_modes=data)
 
 
-def import_scenario_alternatives(db_map, data):
+def import_scenario_alternatives(db_map: DatabaseMapping, data: Iterable[ScenarioAlternative]) -> tuple[int, list[str]]:
     """Imports scenario alternatives into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of (scenario [str], alternative [str], [succeeding alternative [str]])
+        db_map: database mapping
+        data: tuples of (scenario, alternative, [succeeding alternative])
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, scenario_alternatives=data)
 
 
 def import_parameter_value_lists(
     db_map: DatabaseMapping,
-    data: Iterable[tuple[str, Value]],
-    unparse_value: Callable[[Value], tuple[bytes, Optional[str]]] = to_database,
+    data: Iterable[ParameterValueList],
+    unparse_value: UnparseCallable = to_database,
 ) -> tuple[int, list[str]]:
     """Imports parameter value lists into a Spine database using a standard format.
 
     Args:
         db_map: database mapping
-        data: tuples of (list name [str], value)
+        data: tuples of (list name, value)
         unparse_value: function to parse parameter values
 
     Returns:
@@ -478,17 +532,58 @@ def import_parameter_value_lists(
     return import_data(db_map, parameter_value_lists=data, unparse_value=unparse_value)
 
 
-def import_metadata(db_map, data):
+def import_parameter_groups(db_map: DatabaseMapping, data: Iterable[ParameterGroup]) -> tuple[int, list[str]]:
+    """Imports parameter groups into a Spine database using a standard format.
+
+    Args:
+        db_map: database mapping
+        data: tuples of (group name, color as 6-digit HEX value)
+
+    Returns:
+        tuple of (number of groups imported, list of errors)
+    """
+    return import_data(db_map, parameter_groups=data)
+
+
+def import_metadata(db_map: DatabaseMapping, data: Iterable[Metadata]) -> tuple[int, list[str]]:
     """Imports metadata into a Spine database using a standard format.
 
     Args:
-        db_map (DatabaseMapping): database mapping
-        data (Iterable of Sequence): tuples of (entry name [str], value [str])
+        db_map: database mapping
+        data: tuples of (entry name, value)
 
     Returns:
-        tuple: tuple of (number of items imported, list of errors)
+        tuple of (number of items imported, list of errors)
     """
     return import_data(db_map, metadata=data)
+
+
+def import_entity_metadata(db_map: DatabaseMapping, data: Iterable[EntityMetadata]) -> tuple[int, list[str]]:
+    """Imports metadata into a Spine database using a standard format.
+
+    Args:
+        db_map: database mapping
+        data: tuples of (entity class name, entity (by)name, metadata name, metadata value)
+
+    Returns:
+        tuple of (number of items imported, list of errors)
+    """
+    return import_data(db_map, entity_metadata=data)
+
+
+def import_parameter_value_metadata(
+    db_map: DatabaseMapping, data: Iterable[ParameterValueMetadata]
+) -> tuple[int, list[str]]:
+    """Imports metadata into a Spine database using a standard format.
+
+    Args:
+        db_map: database mapping
+        data: tuples of (entity class name, entity (by)name, parameter_name, metadata name, metadata value, [alternative name])
+
+    Returns:
+        tuple of (number of items imported, list of errors)
+    """
+    return import_data(db_map, parameter_value_metadata=data)
 
 
 def import_object_classes(db_map, data):
@@ -543,7 +638,7 @@ def import_relationship_parameter_value_metadata(db_map, data):
     return import_data(db_map, relationship_parameter_value_metadata=data)
 
 
-def _get_entity_classes_for_import(data):
+def _get_entity_classes_for_import(data: Iterable[EntityClass]) -> Iterable[dict]:
     dim_name_list_by_name = {}
     items = []
     key = ("name", "dimension_name_list", "description", "display_icon", "active_by_default")
@@ -566,17 +661,17 @@ def _get_entity_classes_for_import(data):
     return (items_by_ref_count[ref_count] for ref_count in sorted(items_by_ref_count))
 
 
-def _get_superclass_subclasses_for_import(data):
+def _get_superclass_subclasses_for_import(data: Iterable[SuperclassSubclass]) -> Iterable[dict]:
     key = ("superclass_name", "subclass_name")
     return (dict(zip(key, x)) for x in data)
 
 
-def _get_display_modes_for_import(data):
+def _get_display_modes_for_import(data: Iterable[DisplayMode]) -> Iterable[dict]:
     key = ("name", "description")
     return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
 
 
-def _get_entity_class_display_modes_for_import(data):
+def _get_entity_class_display_modes_for_import(data: Iterable[EntityClassDisplayMode]) -> Iterator[dict]:
     key = (
         "display_mode_name",
         "entity_class_name",
@@ -589,7 +684,7 @@ def _get_entity_class_display_modes_for_import(data):
         yield dict(zip(key, (display_mode_name, entity_class_name, display_order, *optionals)))
 
 
-def _get_entities_for_import(data: Iterable[Iterable[Any]]) -> Iterator[list[dict]]:
+def _get_entities_for_import(data: Iterable[Entity]) -> Iterable[list[dict]]:
     items_by_el_count: dict[int, list[dict]] = {}
     key = ("entity_class_name", "entity_byname", "description", "location")
     for class_name, name_or_el_name_list, *optionals in data:
@@ -613,7 +708,7 @@ def _get_entities_for_import(data: Iterable[Iterable[Any]]) -> Iterator[list[dic
     return (items_by_el_count[el_count] for el_count in sorted(items_by_el_count))
 
 
-def _get_entity_alternatives_for_import(data):
+def _get_entity_alternatives_for_import(data: Iterable[EntityAlternative]) -> Iterable[dict]:
     for class_name, entity_name_or_element_name_list, alternative, active in data:
         is_zero_dim = isinstance(entity_name_or_element_name_list, str)
         entity_byname = (entity_name_or_element_name_list,) if is_zero_dim else entity_name_or_element_name_list
@@ -621,13 +716,23 @@ def _get_entity_alternatives_for_import(data):
         yield dict(zip(key, (class_name, entity_byname, alternative, active)))
 
 
-def _get_entity_groups_for_import(data):
+def _get_entity_groups_for_import(data: Iterable[EntityGroup]) -> Iterable[dict]:
     key = ("entity_class_name", "group_name", "member_name")
     return (dict(zip(key, x)) for x in data)
 
 
-def _get_parameter_definitions_for_import(data, unparse_value):
-    key = ("entity_class_name", "name", "default_value", "default_type", "parameter_value_list_name", "description")
+def _get_parameter_definitions_for_import(
+    data: Iterable[ParameterDefinition], unparse_value: UnparseCallable
+) -> Iterator[dict]:
+    key = (
+        "entity_class_name",
+        "name",
+        "default_value",
+        "default_type",
+        "parameter_value_list_name",
+        "description",
+        "parameter_group_name",
+    )
     for class_name, parameter_name, *optionals in data:
         if not optionals:
             yield dict(zip(key, (class_name, parameter_name)))
@@ -637,7 +742,13 @@ def _get_parameter_definitions_for_import(data, unparse_value):
         yield dict(zip(key, (class_name, parameter_name, value, type_, *optionals)))
 
 
-def _get_parameter_values_for_import(db_map, data, all_errors, unparse_value, fix_conflict):
+def _get_parameter_values_for_import(
+    db_map: DatabaseMapping,
+    data: Iterable[ParameterValue],
+    all_errors: list[str],
+    unparse_value: UnparseCallable,
+    fix_conflict: ConflictResolutionCallable,
+) -> Iterator[dict]:
     seen = set()
     key = ("entity_class_name", "entity_byname", "parameter_definition_name", "alternative_name", "value", "type")
     parameter_value_table = db_map.mapped_table("parameter_value")
@@ -667,17 +778,19 @@ def _get_parameter_values_for_import(db_map, data, all_errors, unparse_value, fi
         yield item
 
 
-def _get_alternatives_for_import(data):
+def _get_alternatives_for_import(data: Iterable[Alternative]) -> Iterable[dict]:
     key = ("name", "description")
     return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
 
 
-def _get_scenarios_for_import(data):
+def _get_scenarios_for_import(data: Iterable[Scenario]) -> Iterable[dict]:
     key = ("name", "active", "description")
     return ({"name": x} if isinstance(x, str) else dict(zip(key, x)) for x in data)
 
 
-def _get_scenario_alternatives_for_import(db_map, data, all_errors):
+def _get_scenario_alternatives_for_import(
+    db_map: DatabaseMapping, data: Iterable[ScenarioAlternative], all_errors: list[str]
+) -> Iterable[dict]:
     # FIXME: maybe when updating, we only want to match by (scen_name, alt_name) and not by (scen_name, rank)
     alt_name_list_by_scen_name = {}
     succ_by_pred_by_scen_name = defaultdict(dict)
@@ -717,11 +830,13 @@ def _get_scenario_alternatives_for_import(db_map, data, all_errors):
             yield {"scenario_name": scen_name, "alternative_name": alt_name, "rank": k + 1}
 
 
-def _get_parameter_value_lists_for_import(data):
+def _get_parameter_value_lists_for_import(data: Iterable[ParameterValueList]) -> Iterable[dict]:
     return ({"name": x} for x in {x[0]: None for x in data})
 
 
-def _get_list_values_for_import(db_map, data, unparse_value):
+def _get_list_values_for_import(
+    db_map: DatabaseMapping, data: Iterable[ParameterValueList], unparse_value: UnparseCallable
+) -> Iterator[dict]:
     index_by_list_name = {}
     db_map.fetch_all("list_value")
     value_list_table = db_map.mapped_table("parameter_value_list")
@@ -744,7 +859,7 @@ def _get_list_values_for_import(db_map, data, unparse_value):
         yield {"parameter_value_list_name": list_name, "value": value, "type": type_, "index": index}
 
 
-def _get_parameter_types_for_import(data, all_errors):
+def _get_parameter_types_for_import(data: Iterable[ParameterType], all_errors: list[str]) -> Iterator[dict]:
     for class_name, definition_name, parameter_type, *optionals in data:
         if not optionals:
             if parameter_type == "map":
@@ -767,22 +882,27 @@ def _get_parameter_types_for_import(data, all_errors):
         }
 
 
-def _get_metadata_for_import(data):
+def _get_parameter_groups_for_import(data: Iterable[ParameterGroup]) -> Iterator[dict]:
+    for parameter_group in data:
+        yield {"name": parameter_group[0], "color": parameter_group[1], "priority": parameter_group[2]}
+
+
+def _get_metadata_for_import(data: Iterable[Metadata]) -> Iterator[dict]:
     for metadata in data:
-        for name, value in _parse_metadata(metadata):
-            yield {"name": name, "value": value}
+        yield {"name": metadata[0], "value": metadata[1]}
 
 
-def _get_entity_metadata_for_import(data):
+def _get_entity_metadata_for_import(data: Iterable[EntityMetadata]) -> Iterator[dict]:
     key = ("entity_class_name", "entity_byname", "metadata_name", "metadata_value")
-    for class_name, entity_byname, metadata in data:
+    for class_name, entity_byname, metadata_name, metadata_value in data:
         if isinstance(entity_byname, str):
             entity_byname = (entity_byname,)
-        for name, value in _parse_metadata(metadata):
-            yield dict(zip(key, (class_name, entity_byname, name, value)))
+        yield dict(zip(key, (class_name, entity_byname, metadata_name, metadata_value)))
 
 
-def _get_parameter_value_metadata_for_import(db_map, data):
+def _get_parameter_value_metadata_for_import(
+    db_map: DatabaseMapping, data: Iterable[ParameterValueMetadata]
+) -> Iterator[dict]:
     key = (
         "entity_class_name",
         "entity_byname",
@@ -791,12 +911,13 @@ def _get_parameter_value_metadata_for_import(db_map, data):
         "metadata_value",
         "alternative_name",
     )
-    for class_name, entity_byname, parameter_name, metadata, *optionals in data:
+    for class_name, entity_byname, parameter_name, metadata_name, metadata_value, *optionals in data:
         if isinstance(entity_byname, str):
             entity_byname = (entity_byname,)
         alternative_name = optionals[0] if optionals else db_map.get_import_alternative_name()
-        for name, value in _parse_metadata(metadata):
-            yield dict(zip(key, (class_name, entity_byname, parameter_name, name, value, alternative_name)))
+        yield dict(
+            zip(key, (class_name, entity_byname, parameter_name, metadata_name, metadata_value, alternative_name))
+        )
 
 
 # Legacy

@@ -15,31 +15,43 @@ This module defines the :class:`.DatabaseMapping` class, the main mean to commun
 If you're planning to use this class, it is probably a good idea to first familiarize yourself a little bit with the
 :ref:`db_mapping_schema`.
 """
+
+from __future__ import annotations
+from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import partialmethod
+from itertools import chain
 import logging
 import os
 from types import MethodType
-from typing import Optional
+from typing import Any, ClassVar, Optional, Type
 from alembic.config import Config
 from alembic.environment import EnvironmentContext
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from alembic.util.exc import CommandError
-from sqlalchemy import MetaData, create_engine, inspect, text
+from sqlalchemy import MetaData, Subquery, create_engine, desc, inspect, text
 from sqlalchemy.engine.url import URL, make_url
 from sqlalchemy.event import listen
 from sqlalchemy.exc import ArgumentError, DatabaseError, DBAPIError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Query, Session
 from sqlalchemy.pool import NullPool, StaticPool
 from .compat.compatibility_transformations import CompatibilityTransformations, compatibility_transformations
 from .db_mapping_base import DatabaseMappingBase, MappedItemBase, MappedTable, PublicItem
 from .db_mapping_commit_mixin import DatabaseMappingCommitMixin
 from .db_mapping_query_mixin import DatabaseMappingQueryMixin
 from .exception import NothingToCommit, NothingToRollback, SpineDBAPIError, SpineDBVersionError, SpineIntegrityError
-from .filters.tools import apply_filter_stack, load_filters, pop_filter_configs
+from .filters.tools import (
+    apply_filter_stack,
+    clear_filter_configs,
+    is_modifying_filter,
+    load_filters,
+    pop_filter_configs,
+)
 from .helpers import (
     Asterisk,
+    ItemType,
+    LegacyItemType,
     _create_first_spine_database,
     compare_schemas,
     copy_database_bind,
@@ -110,7 +122,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
 
     """
 
-    _sq_name_by_item_type = {
+    _sq_name_by_item_type: ClassVar[dict[ItemType, str]] = {
         "alternative": "alternative_sq",
         "scenario": "scenario_sq",
         "scenario_alternative": "scenario_alternative_sq",
@@ -123,8 +135,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         "entity_alternative": "entity_alternative_sq",
         "parameter_value_list": "parameter_value_list_sq",
         "list_value": "list_value_sq",
-        "parameter_definition": "parameter_definition_sq",
         "parameter_type": "parameter_type_sq",
+        "parameter_group": "parameter_group_sq",
+        "parameter_definition": "parameter_definition_sq",
         "parameter_value": "parameter_value_sq",
         "metadata": "metadata_sq",
         "entity_metadata": "entity_metadata_sq",
@@ -161,6 +174,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         super().__init__()
         # FIXME: We should also check the server memory property and use it here
+        self.server_url: str = db_url if isinstance(db_url, str) else db_url.render_as_string(hide_password=False)
         db_url = get_db_url_from_server(db_url)
         self.db_url = str(db_url)
         if isinstance(db_url, str):
@@ -182,9 +196,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             self.sa_url, create=create, upgrade=upgrade, backup_url=backup_url, sqlite_timeout=sqlite_timeout
         )
         # NOTE: The NullPool is needed to receive the close event (or any events), for some reason
-        self.engine = (
-            create_engine("sqlite://", poolclass=NullPool, future=True) if self._memory else self._original_engine
-        )
+        self.engine = create_engine("sqlite://", poolclass=NullPool) if self._memory else self._original_engine
         listen(self.engine, "close", self._receive_engine_close)
         if self._memory:
             copy_database_bind(self.engine, self._original_engine)
@@ -204,7 +216,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             return None
         self._context_open_count += 1
         if self._session is None:
-            self._session = Session(self.engine, future=True)
+            self._session = Session(self.engine)
         return self
 
     def __exit__(self, _exc_type, _exc_val, _exc_tb):
@@ -225,25 +237,25 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return self._session
 
     @staticmethod
-    def item_types() -> list[str]:
+    def item_types() -> list[ItemType]:
         return [x for x in DatabaseMapping._sq_name_by_item_type if not ITEM_CLASS_BY_TYPE[x].is_protected]
 
     @staticmethod
-    def all_item_types() -> list[str]:
+    def all_item_types() -> list[ItemType]:
         return list(DatabaseMapping._sq_name_by_item_type)
 
     @staticmethod
-    def item_factory(item_type):
+    def item_factory(item_type: ItemType) -> Type[MappedItemBase]:
         return ITEM_CLASS_BY_TYPE[item_type]
 
     def _query_commit_count(self) -> int:
         with self:
             return self.query(self.commit_sq).count()
 
-    def make_item(self, item_type: str, **item) -> MappedItemBase:
+    def make_item(self, item_type: ItemType, **item) -> MappedItemBase:
         return ITEM_CLASS_BY_TYPE[item_type](self, **item)
 
-    def _make_sq(self, item_type):
+    def _make_sq(self, item_type: ItemType) -> Subquery:
         sq_name = self._sq_name_by_item_type[item_type]
         return getattr(self, sq_name)
 
@@ -274,8 +286,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """
         sa_url = make_url(url)
         try:
-            DatabaseMapping.create_engine(sa_url, create=create)
-            return None
+            engine = DatabaseMapping.create_engine(sa_url, create=create)
+            engine.dispose()
         except SpineDBVersionError as v_err:
             if v_err.upgrade_available:
                 title = "Incompatible database version"
@@ -345,7 +357,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         else:
             extra_args = {}
         try:
-            engine = create_engine(sa_url, future=True, **extra_args)
+            engine = create_engine(sa_url, **extra_args)
             with engine.connect():
                 pass
         except Exception as e:
@@ -366,7 +378,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             # No revision information. Check that the schema of the given url corresponds to a 'first' Spine db
             # Otherwise we either raise or create a new Spine db at the url.
             ref_engine = _create_first_spine_database("sqlite://")
-            if not compare_schemas(engine, ref_engine):
+            schemas_equal = compare_schemas(engine, ref_engine)
+            ref_engine.dispose()
+            if not schemas_equal:
                 if not create or inspect(engine).get_table_names():
                     raise SpineDBAPIError(
                         "Unable to determine db revision. "
@@ -389,7 +403,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                     ) from None
                 raise SpineDBVersionError(url=sa_url, current=current, expected=head)
             if backup_url:
-                dst_engine = create_engine(backup_url, future=True)
+                dst_engine = create_engine(backup_url)
                 copy_database_bind(dst_engine, engine)
 
             # Upgrade function
@@ -416,35 +430,35 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             copy_database_bind(self._original_engine, self.engine)
 
     @staticmethod
-    def real_item_type(tablename):
+    def real_item_type(item_type: ItemType | LegacyItemType) -> ItemType:
         return {
             "object_class": "entity_class",
             "relationship_class": "entity_class",
             "object": "entity",
             "relationship": "entity",
-        }.get(tablename, tablename)
+        }.get(item_type, item_type)
 
     @staticmethod
-    def _convert_legacy(tablename, item):
-        if tablename in ("entity_class", "entity"):
+    def _convert_legacy(item_type: ItemType, item: dict) -> None:
+        if item_type in ("entity_class", "entity"):
             object_class_id_list = tuple(item.pop("object_class_id_list", ()))
             if object_class_id_list:
                 item["dimension_id_list"] = object_class_id_list
             object_class_name_list = tuple(item.pop("object_class_name_list", ()))
             if object_class_name_list:
                 item["dimension_name_list"] = object_class_name_list
-        if tablename == "entity":
+        if item_type == "entity":
             object_id_list = tuple(item.pop("object_id_list", ()))
             if object_id_list:
                 item["element_id_list"] = object_id_list
             object_name_list = tuple(item.pop("object_name_list", ()))
             if object_name_list:
                 item["element_name_list"] = object_name_list
-        if tablename in ("parameter_definition", "parameter_value"):
+        if item_type in ("parameter_definition", "parameter_value"):
             entity_class_id = item.pop("object_class_id", None) or item.pop("relationship_class_id", None)
             if entity_class_id:
                 item["entity_class_id"] = entity_class_id
-        if tablename == "parameter_value":
+        if item_type == "parameter_value":
             entity_id = item.pop("object_id", None) or item.pop("relationship_id", None)
             if entity_id:
                 item["entity_id"] = entity_id
@@ -503,10 +517,10 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 checked_item.replaced_item_waiting_for_removal = existing_item
         return checked_item.public_item
 
-    def add_by_type(self, item_type: str, **kwargs) -> PublicItem:
+    def add_by_type(self, item_type: ItemType, **kwargs) -> PublicItem:
         return self.add(self._mapped_tables[item_type], **kwargs)
 
-    def apply_many_by_type(self, item_type: str, method_name: str, items: list[dict], **kwargs) -> None:
+    def apply_many_by_type(self, item_type: ItemType, method_name: str, items: list[dict], **kwargs) -> None:
         mapped_table = self._mapped_tables[item_type]
         method = getattr(self, method_name)
         for item in items:
@@ -532,7 +546,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 raise SpineDBAPIError(f"{mapped_table.item_type} matching {kwargs} has been removed")
         return item.public_item
 
-    def get_or_add_by_type(self, item_type: str, **kwargs) -> PublicItem:
+    def get_or_add_by_type(self, item_type: ItemType, **kwargs) -> PublicItem:
         return self.get_or_add(self.mapped_table(item_type), **kwargs)
 
     def get_or_add(self, mapped_table: MappedTable, **kwargs) -> PublicItem:
@@ -541,7 +555,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         except SpineDBAPIError:
             return self.add(mapped_table, **kwargs)
 
-    def item_by_type(self, item_type: str, **kwargs) -> PublicItem:
+    def item_by_type(self, item_type: ItemType, **kwargs) -> PublicItem:
         return self.item(self._mapped_tables[item_type], **kwargs)
 
     def find(self, mapped_table: MappedTable, **kwargs) -> list[PublicItem]:
@@ -555,17 +569,17 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 for entity in entities:
                     print(f"{entity['name']}: {entity['description']}")
         """
-        mapped_table.check_fields(kwargs, valid_types=(type(None),))
         fetched = self._fetched.get(mapped_table.item_type, -1) == self._get_commit_count()
         if not kwargs:
             if not fetched:
                 self.do_fetch_all(mapped_table)
             return [i.public_item for i in mapped_table.values() if i.is_valid()]
+        mapped_table.check_fields(kwargs, valid_types=(type(None),))
         if not fetched:
             self._do_fetch_more(mapped_table, offset=0, limit=None, real_commit_count=None, **kwargs)
         return [i.public_item for i in mapped_table.values() if i.is_valid() and _fields_equal(i, kwargs)]
 
-    def find_by_type(self, item_type: str, **kwargs) -> list[PublicItem]:
+    def find_by_type(self, item_type: ItemType, **kwargs) -> list[PublicItem]:
         return self.find(self._mapped_tables[item_type], **kwargs)
 
     @staticmethod
@@ -591,7 +605,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         mapped_table.update_item(item_update, target_item, updated_fields)
         return target_item.public_item
 
-    def update_by_type(self, item_type: str, **kwargs) -> PublicItem:
+    def update_by_type(self, item_type: ItemType, **kwargs) -> PublicItem:
         return self.update(self._mapped_tables[item_type], **kwargs)
 
     def add_or_update(self, mapped_table: MappedTable, **kwargs) -> Optional[PublicItem]:
@@ -605,7 +619,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             pass
         return self.update(mapped_table, **kwargs)
 
-    def add_or_update_by_type(self, item_type: str, **kwargs) -> PublicItem:
+    def add_or_update_by_type(self, item_type: ItemType, **kwargs) -> PublicItem:
         return self.add_or_update(self._mapped_tables[item_type], **kwargs)
 
     @staticmethod
@@ -629,7 +643,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         if not removed_item:
             raise SpineDBAPIError("failed to remove")
 
-    def remove_by_type(self, item_type: str, **kwargs) -> None:
+    def remove_by_type(self, item_type: ItemType, **kwargs) -> None:
         self.remove(self._mapped_tables[item_type], **kwargs)
 
     @staticmethod
@@ -652,19 +666,21 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             raise SpineDBAPIError("failed to restore item")
         return restored_item.public_item
 
-    def restore_by_type(self, item_type: str, **kwargs) -> PublicItem:
+    def restore_by_type(self, item_type: ItemType, **kwargs) -> PublicItem:
         return self.restore(self._mapped_tables[item_type], **kwargs)
 
-    def get_item(self, item_type, fetch=True, skip_removed=True, **kwargs):
+    def get_item(
+        self, item_type: ItemType | LegacyItemType, fetch: bool = True, skip_removed: bool = True, **kwargs
+    ) -> PublicItem | dict:
         """Finds and returns an item matching the arguments, or an empty dict if none found.
 
         This is legacy method. Use :meth:`item` instead.
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            fetch (bool, optional): Whether to fetch the DB in case the item is not found in memory.
-            skip_removed (bool, optional): Whether to ignore removed items.
+            item_type: One of <spine_item_types>.
+            fetch: Whether to fetch the DB in case the item is not found in memory.
+            skip_removed: Whether to ignore removed items.
             **kwargs: Fields and values for one the unique keys as specified for the item type
                 in :ref:`db_mapping_schema`.
 
@@ -690,21 +706,23 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 return {}
         return item.public_item
 
-    def get_items(self, item_type, fetch=True, skip_removed=True, **kwargs):
+    def get_items(
+        self, item_type: ItemType | LegacyItemType, fetch: bool = True, skip_removed: bool = True, **kwargs
+    ) -> list[PublicItem]:
         """Finds and returns all the items of one type.
 
         This is legacy method. Use :meth:`find` instead.
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            fetch (bool, optional): Whether to fetch the DB before returning the items.
-            skip_removed (bool, optional): Whether to ignore removed items.
+            item_type: One of <spine_item_types>.
+            fetch: Whether to fetch the DB before returning the items.
+            skip_removed: Whether to ignore removed items.
             **kwargs: Fields and values for one the unique keys as specified for the item type
                 in :ref:`db_mapping_schema`.
 
         Returns:
-            list(:class:`PublicItem`): The items.
+            The items.
         """
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
@@ -714,7 +732,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         get_items = mapped_table.valid_values if skip_removed else mapped_table.values
         return [x.public_item for x in get_items() if all(x.get(k) == v for k, v in kwargs.items())]
 
-    def item_active_in_scenario(self, item, scenario_id):
+    def item_active_in_scenario(self, item: PublicItem, scenario_id: TempId) -> bool | None:
         """Checks if an item is active in a given scenario.
 
         Takes into account the ranks of the alternatives and figures
@@ -723,12 +741,11 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         :meta private:
 
         Args:
-            item (:class:`PublicItem`): Item value to check
-            scenario_id (:class:`TempId`): The id of the scenario to test against
+            item: Item value to check
+            scenario_id: The id of the scenario to test against
 
         Returns:
-            result (bool or None): True if the item is active, False if not,
-                None if no entity alternatives are specified.
+            True if the item is active, False if not, None if no entity alternatives are specified.
         """
         scenario_table = self._mapped_tables["scenario"]
         scenario = scenario_table.find_item_by_id(scenario_id)
@@ -746,7 +763,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return result
 
     @staticmethod
-    def _modify_items(function, *items, strict=False):
+    def _modify_items(
+        function: Callable[
+            [dict | PublicItem | MappedItemBase | TempId | int],
+            tuple[PublicItem | None | tuple[PublicItem | None, PublicItem | None], str | None],
+        ],
+        *items,
+        strict: bool = False,
+    ) -> tuple[list[PublicItem], list[str]]:
         modified, errors = [], []
         for item in items:
             item, error = function(item)
@@ -758,19 +782,21 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 modified.append(item)
         return modified, errors
 
-    def add_item(self, item_type, check=True, **kwargs):
+    def add_item(
+        self, item_type: ItemType | LegacyItemType, check: bool = True, **kwargs
+    ) -> tuple[PublicItem | None, str | None]:
         """Adds an item to the in-memory mapping.
 
         This is legacy method. Use :meth:`add` instead.
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            check (bool): Whether to check for data integrity.
+            item_type: One of <spine_item_types>.
+            check: Whether to check for data integrity.
             **kwargs: Fields and values as specified for the item type in :ref:`db_mapping_schema`.
 
         Returns:
-            tuple(:class:`PublicItem` or None, str): The added item and any errors.
+            The added item and any errors.
         """
         item_type = self.real_item_type(item_type)
         self._convert_legacy(item_type, kwargs)
@@ -782,41 +808,45 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         except SpineDBAPIError as error:
             return None, str(error)
 
-    def add_items(self, item_type, *items, check=True, strict=False):
+    def add_items(
+        self, item_type: ItemType | LegacyItemType, *items: dict, check: bool = True, strict: bool = False
+    ) -> tuple[list[PublicItem | None], list[str | None]]:
         """Adds many items to the in-memory mapping.
 
         This is legacy method. Use the :meth:`add_entities`, :meth:`add_entity_classes` etc. methods instead.
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
+            item_type: One of <spine_item_types>.
+            *items: One or more :class:`dict` objects mapping fields to values of the item type,
                 as specified in :ref:`db_mapping_schema`.
-            check (bool): Whether to check for data integrity.
-            strict (bool): Whether the method should raise :exc:`~.exception.SpineIntegrityError`
+            check: Whether to check for data integrity.
+            strict: Whether the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
 
         Returns:
-            tuple(list(:class:`PublicItem`),list(str)): items successfully added and found violations.
+            items successfully added and found violations.
         """
         return self._modify_items(lambda x: self.add_item(item_type, check=check, **x), *items, strict=strict)
 
-    def update_item(self, item_type, check=True, **kwargs):
+    def update_item(
+        self, item_type: ItemType | LegacyItemType, check: bool = True, **kwargs
+    ) -> tuple[PublicItem | None, str | None]:
         """Updates an item in the in-memory mapping.
 
         This is legacy method. Use :meth:`update` instead.
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            check (bool): Whether to check for data integrity and legacy item types.
+            item_type: One of <spine_item_types>.
+            check: Whether to check for data integrity and legacy item types.
             **kwargs: Fields to update and their new values as specified for the item type in :ref:`db_mapping_schema`.
 
         Returns:
-            tuple(:class:`PublicItem` or None, str): The updated item and any errors.
+            The updated item and any errors.
         """
+        item_type = self.real_item_type(item_type)
         if check:
-            item_type = self.real_item_type(item_type)
             self._convert_legacy(item_type, kwargs)
             mapped_table = self.mapped_table(item_type)
             try:
@@ -833,39 +863,42 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         mapped_table.update_item(candidate_item, target_item, updated_fields)
         return target_item.public_item, ""
 
-    def update_items(self, item_type, *items, check=True, strict=False):
+    def update_items(
+        self, item_type: ItemType | LegacyItemType, *items: dict, check: bool = True, strict: bool = False
+    ) -> tuple[list[PublicItem | None], list[str | None]]:
         """Updates many items in the in-memory mapping.
 
         This is legacy method. Use the :meth:`update_entities`, :meth:`update_entity_classes` etc. methods instead.
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
+            item_type: One of <spine_item_types>.
+            *items: One or more :class:`dict` objects mapping fields to values of the item type,
                 as specified in :ref:`db_mapping_schema` and including the `id`.
-            check (bool): Whether to check for data integrity.
-            strict (bool): Whether the method should raise :exc:`~.exception.SpineIntegrityError`
+            check: Whether to check for data integrity.
+            strict: Whether the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the update of one of the items violates an integrity constraint.
 
         Returns:
-            tuple(list(:class:`PublicItem`),list(str)): items successfully updated and found violations.
+            items successfully updated and found violations.
         """
         return self._modify_items(lambda x: self.update_item(item_type, check=check, **x), *items, strict=strict)
 
-    def add_update_item(self, item_type, check=True, **kwargs):
+    def add_update_item(
+        self, item_type: ItemType | LegacyItemType, check: bool = True, **kwargs
+    ) -> tuple[PublicItem | None, PublicItem | None, str | None]:
         """Adds an item to the in-memory mapping if it doesn't exist; otherwise updates the current one.
 
         This is legacy method. Use :meth:`add_or_update` instead.
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            check (bool): Whether to check for data integrity.
+            item_type: One of <spine_item_types>.
+            check: Whether to check for data integrity.
             **kwargs: Fields and values as specified for the item type in :ref:`db_mapping_schema`.
 
         Returns:
-            tuple(:class:`PublicItem` or None, :class:`PublicItem` or None, str): The added item if any,
-                the updated item if any, and any errors.
+            The added item if any, the updated item if any, and any errors.
         """
         added, add_error = self.add_item(item_type, check=check, **kwargs)
         if not add_error:
@@ -875,7 +908,13 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             return None, updated, update_error
         return None, None, add_error or update_error
 
-    def add_update_items(self, item_type, *items, check=True, strict=False):
+    def add_update_items(
+        self,
+        item_type: ItemType | LegacyItemType,
+        *items: PublicItem | MappedItemBase | dict,
+        check: bool = True,
+        strict: bool = False,
+    ) -> tuple[list[PublicItem | None], list[PublicItem | None], list[str | None]]:
         """Adds or updates many items into the in-memory mapping.
 
         This is legacy method.
@@ -883,16 +922,15 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            *items (Iterable(dict)): One or more :class:`dict` objects mapping fields to values of the item type,
+            item_type: One of <spine_item_types>.
+            *items: One or more :class:`dict` objects mapping fields to values of the item type,
                 as specified in :ref:`db_mapping_schema`.
-            check (bool): Whether to check for data integrity.
-            strict (bool): Whether the method should raise :exc:`~.exception.SpineIntegrityError`
+            check: Whether to check for data integrity.
+            strict: Whether the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the insertion of one of the items violates an integrity constraint.
 
         Returns:
-            tuple(list(:class:`PublicItem`),list(:class:`PublicItem`),list(str)): items successfully added,
-                items successfully updated, and found violations.
+            items successfully added, items successfully updated, and found violations.
         """
 
         def _function(item):
@@ -905,16 +943,18 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         updated = [x for x in updated if x]
         return added, updated, errors
 
-    def remove_item(self, item_type, id_, check=True):
+    def remove_item(
+        self, item_type: ItemType | LegacyItemType, id_: TempId | int, check: bool = True
+    ) -> tuple[PublicItem | None, str | None]:
         """Removes an item from the in-memory mapping.
 
         This is legacy method. Use :meth:`remove` instead.
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            id_ (int): The id of the item to remove.
-            check (bool): Whether to check for data integrity.
+            item_type: One of <spine_item_types>.
+            id_: The id of the item to remove.
+            check: Whether to check for data integrity.
 
         Returns:
             tuple(:class:`PublicItem` or None, str): The removed item and any errors.
@@ -928,7 +968,9 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         removed_item = mapped_table.remove_item(item)
         return (removed_item.public_item, None) if removed_item else (None, "failed to remove")
 
-    def remove_items(self, item_type, *ids, check=True, strict=False):
+    def remove_items(
+        self, item_type: ItemType | LegacyItemType, *ids: TempId | int, check: bool = True, strict: bool = False
+    ) -> tuple[list[PublicItem], list[str]]:
         """Removes many items from the in-memory mapping.
 
         This is legacy method.
@@ -936,48 +978,49 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
+            item_type: One of <spine_item_types>.
             *ids: Ids of items to be removed.
-            check (bool): Whether to check for data integrity.
-            strict (bool): Whether the method should raise :exc:`~.exception.SpineIntegrityError`
+            check: Whether to check for data integrity.
+            strict: Whether the method should raise :exc:`~.exception.SpineIntegrityError`
                 if the update of one of the items violates an integrity constraint.
 
         Returns:
-            tuple(list(:class:`PublicItem`),list(str)): items successfully removed and found violations.
+            items successfully removed and found violations.
         """
         item_type = self.real_item_type(item_type)
         ids = set(ids)
-        if item_type == "alternative":
-            # Do not remove the Base alternative
-            ids.discard(1)
         if not ids:
             return [], []
         return self._modify_items(lambda x: self.remove_item(item_type, x, check=check), *ids, strict=strict)
 
-    def cascade_remove_items(self, cache=None, **kwargs):
+    def cascade_remove_items(self, cache: Any | None = None, **kwargs: TempId | int):
         # Legacy
         for item_type, ids in kwargs.items():
             self.remove_items(item_type, *ids)
 
-    def restore_item(self, item_type, id_):
+    def restore_item(
+        self, item_type: ItemType | LegacyItemType, id_: TempId | int
+    ) -> tuple[PublicItem | None, str | None]:
         """Restores a previously removed item into the in-memory mapping.
 
         This is legacy method. Use :meth:`restore` instead.
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            id_ (int): The id of the item to restore.
+            item_type: One of <spine_item_types>.
+            id_: The id of the item to restore.
 
         Returns:
-            tuple(:class:`PublicItem` or None, str): The restored item if any and possible error.
+            The restored item if any and possible error.
         """
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
         restored_item = mapped_table.restore_item(id_)
         return (restored_item.public_item, None) if restored_item else (None, "failed to restore item")
 
-    def restore_items(self, item_type, *ids):
+    def restore_items(
+        self, item_type: ItemType | LegacyItemType, *ids: TempId | int
+    ) -> tuple[list[PublicItem | None], list[str | None]]:
         """Restores many previously removed items into the in-memory mapping.
 
         This is legacy method.
@@ -985,15 +1028,15 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
+            item_type: One of <spine_item_types>.
             *ids: Ids of items to be removed.
 
         Returns:
-            tuple(list(:class:`PublicItem`),list(str)): items successfully restored and found violations.
+            items successfully restored and found violations.
         """
         return self._modify_items(lambda x: self.restore_item(item_type, x), *ids)
 
-    def purge_items(self, item_type):
+    def purge_items(self, item_type: ItemType | LegacyItemType) -> bool:
         """Removes all items of one type.
 
         This is legacy method. Use :meth:`remove_entity`, :meth:`remove_entity_class` etc.
@@ -1001,25 +1044,27 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         This method supports legacy item types, e.g. object and relationship_class.
 
         Args:
-            item_type (str): One of <spine_item_types>.
+            item_type: One of <spine_item_types>.
 
         Returns:
-            bool: True if any data was removed, False otherwise.
+            True if any data was removed, False otherwise.
         """
-        return bool(self.remove_items(item_type, Asterisk))
+        return bool(self.remove_items(item_type, Asterisk)[0])
 
-    def fetch_more(self, item_type, offset=0, limit=None, **kwargs):
+    def fetch_more(
+        self, item_type: ItemType | LegacyItemType, offset: int = 0, limit: int | None = None, **kwargs
+    ) -> list[PublicItem]:
         """Fetches items from the DB into the in-memory mapping, incrementally.
 
         Args:
-            item_type (str): One of <spine_item_types>.
-            offset (int): The initial row.
-            limit (int): The maximum number of rows to fetch.
+            item_type: One of <spine_item_types>.
+            offset: The initial row.
+            limit: The maximum number of rows to fetch.
             **kwargs: Fields and values for one the unique keys as specified for the item type
                 in :ref:`db_mapping_schema`.
 
         Returns:
-            list(:class:`PublicItem`): The items fetched.
+            The items fetched.
         """
         item_type = self.real_item_type(item_type)
         mapped_table = self.mapped_table(item_type)
@@ -1028,7 +1073,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             for x in self._do_fetch_more(mapped_table, offset=offset, limit=limit, real_commit_count=None, **kwargs)
         ]
 
-    def fetch_all(self, *item_types) -> list[PublicItem]:
+    def fetch_all(self, *item_types: ItemType | LegacyItemType) -> list[PublicItem]:
         """Fetches items from the DB into the in-memory mapping.
         Unlike :meth:`fetch_more`, this method fetches entire tables.
 
@@ -1044,7 +1089,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             items += [item.public_item for item in self.do_fetch_all(mapped_table, commit_count)]
         return items
 
-    def query(self, *entities, **kwargs):
+    def query(self, *entities, **kwargs) -> Query:
         """Returns a :class:`~spinedb_api.query.Query` object to execute against the mapped DB.
 
         To perform custom ``SELECT`` statements, call this method with one or more of the documented
@@ -1104,6 +1149,8 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         return self._do_commit_session(comment, apply_compatibility_transforms)
 
     def _do_commit_session(self, comment: str, apply_compatibility_transforms: bool) -> CompatibilityTransformations:
+        if self.filter_configs and any(is_modifying_filter(config) for config in self.filter_configs):
+            return self._commit_to_unfiltered_db(comment)
         with self:
             dirty_items = self._dirty_items()
             if not dirty_items:
@@ -1112,21 +1159,20 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             commit_item = {"user": self.username, "date": datetime.now(timezone.utc), "comment": comment}
             connection = self._session.connection()
             try:
-                # TODO: The below locks the DB in sqlite, how about other dialects?
                 commit_id = connection.execute(commit.insert(), commit_item).inserted_primary_key[0]
             except DBAPIError as e:
                 raise SpineDBAPIError(f"Fail to commit: {e.orig.args}") from e
             try:
-                for tablename, (to_add, to_update, to_remove) in dirty_items:
-                    for item in to_add + to_update + to_remove:
+                for bundle in dirty_items:
+                    for item in chain(bundle.to_add, bundle.to_update, bundle.to_remove):
                         item.commit(commit_id)
                     # Remove before add, to help with keeping integrity constraints
-                    if to_remove:
-                        self._do_remove_items(connection, tablename, *{x["id"] for x in to_remove})
-                    if to_update:
-                        self._do_update_items(connection, tablename, *to_update)
-                    if to_add:
-                        self._do_add_items(connection, tablename, *to_add)
+                    if bundle.to_remove:
+                        self._do_remove_items(connection, bundle.item_type, *{x["id"] for x in bundle.to_remove})
+                    if bundle.to_update:
+                        self._do_update_items(connection, bundle.item_type, *bundle.to_update)
+                    if bundle.to_add:
+                        self._do_add_items(connection, bundle.item_type, *bundle.to_add)
             except Exception as error:
                 raise error
             if self._memory:
@@ -1138,32 +1184,106 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
             self._commit_count = self._query_commit_count()
         return transformation_info
 
-    def rollback_session(self):
+    def _commit_to_unfiltered_db(self, comment: str) -> CompatibilityTransformations:
+        unfiltered_url = clear_filter_configs(self.db_url)
+        with DatabaseMapping(unfiltered_url) as unfiltered_db_map:
+            added_items, updated_items, removed_items = self._collect_modified_items(unfiltered_db_map)
+            if added_items or updated_items or removed_items:
+                transformation_info = unfiltered_db_map.commit_session(comment)
+                commit_id = (
+                    unfiltered_db_map.query(unfiltered_db_map.commit_sq)
+                    .order_by(desc(unfiltered_db_map.commit_sq.c.date))
+                    .first()
+                    .id
+                )
+                for item, unfiltered_item in added_items:
+                    item.commit(commit_id)
+                    item["id"].resolve(unfiltered_item["id"].db_id)
+                for item in updated_items:
+                    item.commit(commit_id)
+                for item in removed_items:
+                    item.commit(commit_id)
+            else:
+                transformation_info = ([], [])
+        return transformation_info
+
+    def _collect_modified_items(
+        self, unfiltered_db_map: DatabaseMapping
+    ) -> tuple[list[MappedItemBase], list[MappedItemBase], list[MappedItemBase]]:
+        added_items = []
+        updated_items = []
+        removed_items = []
+        for item_type in self._sorted_item_types:
+            mapped_table = self._mapped_tables[item_type]
+            if not mapped_table:
+                continue
+            to_add, to_update, to_remove = self._muster_items_by_modified_status(mapped_table)
+            if not to_add and not to_update and not to_remove:
+                continue
+            unfiltered_db_map.fetch_all(item_type)
+            unfiltered_table = unfiltered_db_map._mapped_tables[item_type]
+            for removed_item in to_remove:
+                unfiltered_item = unfiltered_table.get(removed_item["id"].db_id)
+                unfiltered_db_map.remove(unfiltered_table, id=unfiltered_item["id"])
+            for added_item in to_add:
+                try:
+                    existing_item = unfiltered_table.find_item_by_unique_key(added_item)
+                    added_item.commit(existing_item.get("commit_id"))
+                    added_item["id"].resolve(existing_item["id"].db_id)
+                except SpineDBAPIError:
+                    checked_item = unfiltered_table.make_candidate_item(added_item.as_item_dict())
+                    existing_item = unfiltered_table.add_item(checked_item)
+                    added_items.append((added_item, existing_item))
+            for updated_item in to_update:
+                unfiltered_db_map.update(unfiltered_table, id=updated_item["id"].db_id, **updated_item.as_item_dict())
+            updated_items += to_update
+            removed_items += to_remove
+        return added_items, updated_items, removed_items
+
+    @staticmethod
+    def _muster_items_by_modified_status(
+        mapped_table: MappedTable,
+    ) -> tuple[list[MappedItemBase], list[MappedItemBase], list[MappedItemBase]]:
+        to_remove = []
+        to_update = []
+        to_add = []
+        for item in mapped_table.values():
+            if item.status == Status.to_remove:
+                to_remove.append(item)
+            elif item.status == Status.to_update:
+                to_update.append(item)
+            elif item.status == Status.to_add:
+                to_add.append(item)
+        return to_add, to_update, to_remove
+
+    def rollback_session(self) -> None:
         """Discards all the changes from the in-memory mapping."""
         if not self._rollback():
             raise NothingToRollback()
         if self._memory:
             self._memory_dirty = False
 
-    def has_external_commits(self):
+    def has_external_commits(self) -> bool:
         """Tests whether the database has had commits from other sources than this mapping.
 
         Returns:
-            bool: True if database has external commits, False otherwise
+            True if database has external commits, False otherwise
         """
         return self._commit_count != self._query_commit_count()
 
-    def add_ext_entity_metadata(self, *items, **kwargs):
+    def add_ext_entity_metadata(self, *items, **kwargs) -> tuple[list[PublicItem | None], list[PublicItem | None]]:
         metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
         self.add_items("metadata", *metadata_items, **kwargs)
         return self.add_items("entity_metadata", *items, **kwargs)
 
-    def add_ext_parameter_value_metadata(self, *items, **kwargs):
+    def add_ext_parameter_value_metadata(
+        self, *items, **kwargs
+    ) -> tuple[list[PublicItem | None], list[PublicItem | None]]:
         metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
         self.add_items("metadata", *metadata_items, **kwargs)
         return self.add_items("parameter_value_metadata", *items, **kwargs)
 
-    def get_metadata_to_add_with_item_metadata_items(self, *items):
+    def get_metadata_to_add_with_item_metadata_items(self, *items) -> list[dict]:
         metadata_table = self._mapped_tables["metadata"]
         new_metadata = []
         for item in items:
@@ -1174,19 +1294,21 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
                 new_metadata.append(metadata)
         return new_metadata
 
-    def _update_ext_item_metadata(self, tablename, *items, **kwargs):
+    def _update_ext_item_metadata(
+        self, tablename: ItemType | LegacyItemType, *items, **kwargs
+    ) -> tuple[list[PublicItem | None], list[str | None]]:
         metadata_items = self.get_metadata_to_add_with_item_metadata_items(*items)
         added, errors = self.add_items("metadata", *metadata_items, **kwargs)
         updated, more_errors = self.update_items(tablename, *items, **kwargs)
         return added + updated, errors + more_errors
 
-    def update_ext_entity_metadata(self, *items, **kwargs):
+    def update_ext_entity_metadata(self, *items, **kwargs) -> tuple[list[PublicItem | None], list[str | None]]:
         return self._update_ext_item_metadata("entity_metadata", *items, **kwargs)
 
-    def update_ext_parameter_value_metadata(self, *items, **kwargs):
+    def update_ext_parameter_value_metadata(self, *items, **kwargs) -> tuple[list[PublicItem | None], list[str | None]]:
         return self._update_ext_item_metadata("parameter_value_metadata", *items, **kwargs)
 
-    def remove_unused_metadata(self):
+    def remove_unused_metadata(self) -> None:
         used_metadata_ids = set()
         for x in self._mapped_tables["entity_metadata"].valid_values():
             used_metadata_ids.add(x["metadata_id"])
@@ -1199,7 +1321,7 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         """Returns the config dicts of filters applied to this database mapping."""
         return self.filter_configs
 
-    def close(self):
+    def close(self) -> None:
         self._original_engine.dispose()
         self._original_engine = None
         self.engine = None
@@ -1297,8 +1419,7 @@ def _add_convenience_methods(node):
         factory = ITEM_CLASS_BY_TYPE[item_type]
         a = _a(item_type)
         get_kwargs = _kwargs(_uq_fields(factory))
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def {item_type}(self, **kwargs):
                 """Returns {a} `{item_type}` item matching the keyword arguments.
 
@@ -1308,11 +1429,9 @@ def _add_convenience_methods(node):
                 Returns:
                     :class:`PublicItem`
                 """
-            '''
-        )
+            ''')
         children.setdefault("get", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def find_{_pluralize(item_type)}(self, **kwargs):
                 """Finds and returns all `{item_type}` items matching the keyword arguments.
 
@@ -1322,12 +1441,10 @@ def _add_convenience_methods(node):
                 Returns:
                     list of :class:`PublicItem`: The items.
                 """
-            '''
-        )
+            ''')
         children.setdefault("find", []).append(child)
         add_kwargs = _kwargs(factory.fields)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def add_{item_type}(self, **kwargs):
                 """Adds {a} `{item_type}` item to the in-memory mapping.
 
@@ -1337,23 +1454,19 @@ def _add_convenience_methods(node):
                 Returns:
                     :class:`PublicItem`: The added item.
                 """
-            '''
-        )
+            ''')
         children.setdefault("add", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def add_{_pluralize(item_type)}(self, items):
                 """Adds multiple `{item_type}` items to the in-memory mapping.
 
                 Args:
                     items (list of dict): items to add
                 """
-            '''
-        )
+            ''')
         children.setdefault("add many", []).append(child)
         update_kwargs = f"id (int): The id of the item to update.\n{padding}" + _kwargs(factory.fields)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def update_{item_type}(self, **kwargs):
                 """Updates {a} `{item_type}` item in the in-memory mapping.
 
@@ -1363,22 +1476,18 @@ def _add_convenience_methods(node):
                 Returns:
                     :class:`PublicItem` or None: The updated item or None if nothing was updated.
                 """
-            '''
-        )
+            ''')
         children.setdefault("update", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def update_{_pluralize(item_type)}(self, items):
                 """Updates multiple `{item_type}` items in the in-memory mapping.
 
                 Args:
                     items (list of dict): items to update
                 """
-            '''
-        )
+            ''')
         children.setdefault("update many", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def add_or_update_{item_type}(self, **kwargs):
                 """Adds {a} `{item_type}` item to the in-memory mapping if it doesn't exist;
                 otherwise updates the current one.
@@ -1389,11 +1498,9 @@ def _add_convenience_methods(node):
                 Returns:
                     :class:`PublicItem` or None: The added or updated item or None if nothing was added or updated.
                 """
-            '''
-        )
+            ''')
         children.setdefault("add_or_update", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def add_or_update_{_pluralize(item_type)}(self, items):
                 """Adds multiple `{item_type}` items to the in-memory mapping if they don't exist;
                 otherwise updates the items.
@@ -1401,33 +1508,27 @@ def _add_convenience_methods(node):
                 Args:
                     items(list of dict): items to add or update
                 """
-            '''
-        )
+            ''')
         children.setdefault("add_or_update many", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def remove_{item_type}(self, **kwargs):
                 """Removes {a} `{item_type}` item from the in-memory mapping.
 
                 Args:
                     {add_kwargs}
                 """
-            '''
-        )
+            ''')
         children.setdefault("remove", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def remove_{_pluralize(item_type)}(self, items):
                 """Removes multiple `{item_type}` items from the in-memory mapping.
 
                 Args:
                     items(list of dict): items to remove
                 """
-            '''
-        )
+            ''')
         children.setdefault("remove many", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def restore_{item_type}(self, **kwargs):
                 """Restores a previously removed `{item_type}` item into the in-memory mapping.
 
@@ -1437,19 +1538,16 @@ def _add_convenience_methods(node):
                 Returns:
                     :class:`PublicItem`: The restored item.
                 """
-            '''
-        )
+            ''')
         children.setdefault("restore", []).append(child)
-        child = astroid.extract_node(
-            f'''
+        child = astroid.extract_node(f'''
             def restore_{_pluralize(item_type)}(self, items):
                 """Restores multiple `{item_type}` items back into the in-memory mapping.
 
                 Args:
                     items(list of dict): items to restore
                 """
-            '''
-        )
+            ''')
         children.setdefault("restore many", []).append(child)
     for child_list in children.values():
         for child in child_list:

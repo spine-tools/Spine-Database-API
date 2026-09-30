@@ -11,13 +11,26 @@
 ######################################################################################################################
 
 """ Type conversion functions. """
-import json
+from __future__ import annotations
+from collections.abc import Callable
+from datetime import datetime
 import re
+from typing import Any, ClassVar, Generic, Literal, TypeAlias, TypedDict, TypeVar
+from dateutil.relativedelta import relativedelta
+from typing_extensions import NotRequired
 from spinedb_api.helpers import string_to_bool
 from spinedb_api.parameter_value import DateTime, Duration, ParameterValueFormatError
 
 
-def value_to_convert_spec(value):
+class ConvertSpecDict(TypedDict):
+    name: str
+    start_datetime: NotRequired[str]
+    duration: NotRequired[str]
+    start_int: NotRequired[int]
+
+ConvertSpecValue: TypeAlias = Literal["datetime", "duration", "float", "string", "boolean"]
+
+def value_to_convert_spec(value: ConvertSpec | ConvertSpecValue | ConvertSpecDict):
     if isinstance(value, ConvertSpec):
         return value
     if isinstance(value, str):
@@ -38,11 +51,13 @@ def value_to_convert_spec(value):
     raise TypeError(f"value must be str or dict instead got {type(value).__name__}")
 
 
-class ConvertSpec:
-    DISPLAY_NAME = ""
-    RETURN_TYPE = str
+T = TypeVar("T")
 
-    def __call__(self, value):
+class ConvertSpec(Generic[T]):
+    DISPLAY_NAME: ClassVar[str] = NotImplemented
+    RETURN_TYPE: Callable[[Any], T] = NotImplemented
+
+    def __call__(self, value: Any) -> T | None:
         try:
             return self.RETURN_TYPE(value)
         except ValueError as error:
@@ -50,31 +65,31 @@ class ConvertSpec:
                 return None
             raise error
 
-    def to_json_value(self):
+    def to_json_value(self) -> str | ConvertSpecDict:
         return self.DISPLAY_NAME
 
 
-class DateTimeConvertSpec(ConvertSpec):
+class DateTimeConvertSpec(ConvertSpec[DateTime]):
     DISPLAY_NAME = "datetime"
     RETURN_TYPE = DateTime
 
 
-class DurationConvertSpec(ConvertSpec):
+class DurationConvertSpec(ConvertSpec[Duration]):
     DISPLAY_NAME = "duration"
     RETURN_TYPE = Duration
 
 
-class FloatConvertSpec(ConvertSpec):
+class FloatConvertSpec(ConvertSpec[float]):
     DISPLAY_NAME = "float"
     RETURN_TYPE = float
 
 
-class StringConvertSpec(ConvertSpec):
+class StringConvertSpec(ConvertSpec[str]):
     DISPLAY_NAME = "string"
     RETURN_TYPE = str
 
 
-class BooleanConvertSpec(ConvertSpec):
+class BooleanConvertSpec(ConvertSpec[bool]):
     DISPLAY_NAME = "boolean"
     RETURN_TYPE = bool
 
@@ -91,11 +106,11 @@ class JSONConvertSpec(ConvertSpec):
     RETURN_TYPE = JSONObject
 
 
-class IntegerSequenceDateTimeConvertSpec(ConvertSpec):
+class IntegerSequenceDateTimeConvertSpec(ConvertSpec[DateTime]):
     DISPLAY_NAME = "integer sequence datetime"
     RETURN_TYPE = DateTime
 
-    def __init__(self, start_datetime, start_int, duration):
+    def __init__(self, start_datetime: str | DateTime | datetime, start_int: int, duration: str | relativedelta | Duration):
         if not isinstance(start_datetime, DateTime):
             start_datetime = DateTime(start_datetime)
         if not isinstance(duration, Duration):

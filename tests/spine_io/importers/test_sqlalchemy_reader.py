@@ -28,7 +28,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
     def test_get_data(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
-            engine = create_engine(url, future=True)
+            engine = create_engine(url)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
             engine.dispose()
             reader = SQLAlchemyReader(None)
@@ -41,7 +41,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
     def test_get_data_with_max_rows(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
-            engine = create_engine(url, future=True)
+            engine = create_engine(url)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
             engine.dispose()
             reader = SQLAlchemyReader(None)
@@ -54,7 +54,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
     def test_get_table_cell(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
-            engine = create_engine(url, future=True)
+            engine = create_engine(url)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
             engine.dispose()
             reader = SQLAlchemyReader(None)
@@ -66,7 +66,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
     def test_get_table_cell_raises_when_row_is_out_of_bounds(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
-            engine = create_engine(url, future=True)
+            engine = create_engine(url)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
             engine.dispose()
             reader = SQLAlchemyReader(None)
@@ -78,7 +78,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
     def test_get_table_cell_raises_when_column_is_out_of_bounds(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
-            engine = create_engine(url, future=True)
+            engine = create_engine(url)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
             engine.dispose()
             reader = SQLAlchemyReader(None)
@@ -90,7 +90,7 @@ class TestSQLAlchemyReader(unittest.TestCase):
     def test_get_table_cell_raises_when_table_doesnt_exist(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + str(pathlib.Path(temp_dir) / "test_db.sqlite")
-            engine = create_engine(url, future=True)
+            engine = create_engine(url)
             self._make_xyz_int_table(engine, "data_table", [[11, 12, 13], [21, 22, 23]])
             engine.dispose()
             reader = SQLAlchemyReader(None)

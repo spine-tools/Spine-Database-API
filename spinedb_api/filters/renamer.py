@@ -14,10 +14,9 @@ This module provides a manipulator filter that renames database items.
 
 Currently, entity classes and parameter can be renamed.
 """
+
 from functools import partial
 from sqlalchemy import case
-
-__all__ = ("entity_class_renamer_config", "parameter_renamer_config")
 
 ENTITY_CLASS_RENAMER_TYPE = "entity_class_renamer"
 ENTITY_CLASS_RENAMER_SHORTHAND_TAG = "entity_class_rename"
@@ -28,6 +27,8 @@ PARAMETER_RENAMER_SHORTHAND_TAG = "parameter_rename"
 def apply_renaming_to_entity_class_sq(db_map, name_map):
     """
     Applies renaming to entity class subquery.
+
+    :meta private:
 
     Args:
         db_map (DatabaseMapping): a database map
@@ -55,6 +56,8 @@ def entity_class_renamer_from_dict(db_map, config):
     """
     Applies entity class renamer manipulator to given database map.
 
+    :meta private:
+
     Args:
         db_map (DatabaseMapping): target database map
         config (dict): renamer configuration
@@ -65,6 +68,8 @@ def entity_class_renamer_from_dict(db_map, config):
 def entity_class_renamer_config_to_shorthand(config):
     """
     Makes a shorthand string from renamer configuration.
+
+    :meta private:
 
     Args:
         config (dict): renamer configuration
@@ -82,6 +87,8 @@ def entity_class_renamer_shorthand_to_config(shorthand):
     """
     Makes configuration dictionary out of a shorthand string.
 
+    :meta private:
+
     Args:
         shorthand (str): a shorthand string
 
@@ -98,6 +105,8 @@ def entity_class_renamer_shorthand_to_config(shorthand):
 def apply_renaming_to_parameter_definition_sq(db_map, name_map):
     """
     Applies renaming to parameter definition subquery.
+
+    :meta private:
 
     Args:
         db_map (DatabaseMapping): a database map
@@ -124,6 +133,8 @@ def parameter_renamer_from_dict(db_map, config):
     """
     Applies parameter renamer manipulator to given database map.
 
+    :meta private:
+
     Args:
         db_map (DatabaseMapping): target database map
         config (dict): renamer configuration
@@ -134,6 +145,8 @@ def parameter_renamer_from_dict(db_map, config):
 def parameter_renamer_config_to_shorthand(config):
     """
     Makes a shorthand string from renamer configuration.
+
+    :meta private:
 
     Args:
         config (dict): renamer configuration
@@ -151,6 +164,8 @@ def parameter_renamer_config_to_shorthand(config):
 def parameter_renamer_shorthand_to_config(shorthand):
     """
     Makes configuration dictionary out of a shorthand string.
+
+    :meta private:
 
     Args:
         shorthand (str): a shorthand string
@@ -273,6 +288,7 @@ def _make_renaming_parameter_definition_sq(db_map, state):
         subquery.c.id,
         new_parameter_name.label("name"),
         subquery.c.description,
+        subquery.c.parameter_group_id,
         subquery.c.entity_class_id,
         subquery.c.default_value,
         subquery.c.default_type,

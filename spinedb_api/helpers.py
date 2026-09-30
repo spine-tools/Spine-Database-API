@@ -9,15 +9,15 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" General helper functions. """
+"""General helper functions."""
 
 from collections.abc import Callable, Iterable, Iterator, Sequence
 import enum
 from itertools import groupby
-import json
 from operator import itemgetter
 import os
-from typing import Any, Literal
+import re
+from typing import Literal, TypeAlias
 import warnings
 from alembic.config import Config
 from alembic.environment import EnvironmentContext
@@ -60,30 +60,58 @@ from sqlalchemy.sql.selectable import SelectBase
 from typing_extensions import TypedDict
 from .exception import SpineDBAPIError, SpineDBVersionError
 
-SUPPORTED_DIALECTS = {
+ItemType: TypeAlias = Literal[
+    "alternative",
+    "commit",
+    "display_mode",
+    "entity",
+    "entity_alternative",
+    "entity_class_display_mode",
+    "entity_class",
+    "entity_group",
+    "entity_location",
+    "entity_metadata",
+    "list_value",
+    "metadata",
+    "parameter_definition",
+    "parameter_group",
+    "parameter_type",
+    "parameter_value",
+    "parameter_value_list",
+    "parameter_value_metadata",
+    "scenario",
+    "scenario_alternative",
+    "superclass_subclass",
+]
+
+LegacyItemType = Literal["object", "object_class", "relationship", "relationship_class"]
+
+SUPPORTED_DIALECTS: dict[str, str] = {
     "mysql": "pymysql",
     "sqlite": "sqlite3",
 }
 """Currently supported dialects and recommended dbapi."""
 
 
-UNSUPPORTED_DIALECTS = {
+UNSUPPORTED_DIALECTS: dict[str, str] = {
     "mssql": "pyodbc",
     "postgresql": "psycopg2",
 }
 """Dialects and recommended dbapi that are not supported by DatabaseMapping but are supported by SqlAlchemy."""
 
 
-naming_convention = {
+naming_convention: dict[str, str] = {
     "pk": "pk_%(table_name)s",
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "uq": "uq_%(table_name)s_%(column_0N_name)s",
     "ck": "ck_%(table_name)s_%(constraint_name)s",
 }
 
-model_meta = MetaData(naming_convention=naming_convention)
+model_meta: MetaData = MetaData(naming_convention=naming_convention)
 
-LONGTEXT_LENGTH = 2**32 - 1
+LONGTEXT_LENGTH: int = 2**32 - 1
+
+COLOR_RE: re.Pattern = re.compile("^[a-fA-F0-9]{6}$")
 
 
 def name_from_elements(elements: Sequence[str]) -> str:
@@ -140,30 +168,9 @@ def compile_group_concat_mysql(element, compiler, **kw):
     )
 
 
-def _parse_metadata_fallback(metadata: Any) -> Iterator[tuple[str, str]]:
-    yield ("unnamed", str(metadata))
-
-
-def _parse_metadata(metadata: str) -> Iterator[tuple[str, str]]:
-    try:
-        parsed = json.loads(metadata)
-    except json.decoder.JSONDecodeError:
-        yield from _parse_metadata_fallback(metadata)
-        return
-    if not isinstance(parsed, dict):
-        yield from _parse_metadata_fallback(metadata)
-        return
-    for key, value in parsed.items():
-        if isinstance(value, list):
-            for val in value:
-                yield (key, str(val))
-            continue
-        yield (key, str(value))
-
-
 def _is_head(db_url: str | URL, upgrade=False) -> bool:
     """Check whether the database at db_url is at the head revision."""
-    engine = create_engine(db_url, future=True)
+    engine = create_engine(db_url)
     return is_head_engine(engine, upgrade=upgrade)
 
 
@@ -213,8 +220,8 @@ def copy_database(
     """
     if not _is_head(source_url, upgrade=upgrade):
         raise SpineDBVersionError(url=str(source_url))
-    source_engine = create_engine(source_url, future=True)
-    dest_engine = create_engine(dest_url, future=True)
+    source_engine = create_engine(source_url)
+    dest_engine = create_engine(dest_url)
     copy_database_bind(
         dest_engine,
         source_engine,
@@ -282,7 +289,7 @@ def schema_dict(insp) -> dict:
 
 def is_empty(db_url: str | URL) -> bool:
     try:
-        engine = create_engine(db_url, future=True)
+        engine = create_engine(db_url)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     insp = inspect(engine)
@@ -513,6 +520,7 @@ def create_spine_metadata() -> MetaData:
         Column("default_value", LargeBinary(LONGTEXT_LENGTH), server_default=null()),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         Column("parameter_value_list_id", Integer),
+        Column("parameter_group_id", Integer, ForeignKey("parameter_group.id")),
         UniqueConstraint("id", "entity_class_id"),
         UniqueConstraint("entity_class_id", "name"),
         UniqueConstraint("id", "parameter_value_list_id"),
@@ -552,6 +560,15 @@ def create_spine_metadata() -> MetaData:
         Column("parameter_tag_id", Integer, ForeignKey("parameter_tag.id"), nullable=False),
         Column("commit_id", Integer, ForeignKey("commit.id")),
         UniqueConstraint("parameter_definition_id", "parameter_tag_id", name="uq_parameter_definition_tag"),
+    )
+    Table(
+        "parameter_group",
+        meta,
+        Column("id", Integer, primary_key=True),
+        Column("name", String(155), nullable=False),
+        Column("color", String(6), nullable=False),
+        Column("priority", Integer, nullable=False),
+        UniqueConstraint("name"),
     )
     Table(
         "parameter_value",
@@ -653,7 +670,7 @@ def create_spine_metadata() -> MetaData:
 def create_new_spine_database(db_url: str | URL) -> Engine:
     """Create a new Spine database at the given url."""
     try:
-        engine = create_engine(db_url, future=True)
+        engine = create_engine(db_url)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     create_new_spine_database_from_engine(engine)
@@ -683,7 +700,7 @@ def create_new_spine_database_from_engine(engine: Engine) -> None:
 def _create_first_spine_database(db_url: str | URL) -> Engine:
     """Creates a Spine database with the very first version at the given url."""
     try:
-        engine = create_engine(db_url, future=True)
+        engine = create_engine(db_url)
     except DatabaseError as e:
         raise SpineDBAPIError(f"Could not connect to '{db_url}': {e.orig.args}") from None
     # Drop existing tables. This is a Spine db now...
@@ -887,7 +904,7 @@ def fix_name_ambiguity(input_list: Sequence[str], offset: int = 0, prefix: str =
 
 
 def vacuum(url: str | URL) -> tuple[int, str]:
-    engine = create_engine(url, future=True)
+    engine = create_engine(url)
     if not engine.url.drivername.startswith("sqlite"):
         return 0, "bytes"
     size_before = os.path.getsize(engine.url.database)
@@ -935,6 +952,9 @@ def string_to_bool(string: str) -> bool:
     if string in _FALSES:
         return False
     raise ValueError(string)
+
+
+DisplayStatusValue: TypeAlias = Literal["visible", "hidden", "greyed_out"]
 
 
 class FormatMetadata(TypedDict):

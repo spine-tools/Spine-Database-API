@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Tests for the parameter_value module. """
+"""Tests for the parameter_value module."""
+
 from datetime import datetime
 import json
 import pickle
@@ -1927,6 +1928,16 @@ class TestToDatabaseForRecordBatches:
         record_batch = pyarrow.RecordBatch.from_arrays([index_array, value_array], ["Indexes", "Values"])
         with pytest.raises(SpineDBAPIError, match="index columns cannot be boolean"):
             to_database(record_batch)
+
+
+class TestTimePattern:
+    def test_period_with_lower_and_upper_bounds(self):
+        pattern = TimePattern(["M1-7", "M8-8", "M9-12"], [1.0, 1.0, 1.0])
+        assert pattern.indexes == ["M1-7", "M8-8", "M9-12"]
+
+    def test_period_with_single_value(self):
+        pattern = TimePattern(["M1-7", "M8", "M9-12"], [1.0, 1.0, 1.0])
+        assert pattern.indexes == ["M1-7", "M8", "M9-12"]
 
 
 class TestPickling(unittest.TestCase):

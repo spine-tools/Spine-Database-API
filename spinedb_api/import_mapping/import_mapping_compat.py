@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Functions for creating import mappings from dicts. """
+"""Functions for creating import mappings from dicts."""
+
 from ..mapping import to_dict as import_mapping_to_dict
 from .import_mapping import (
     AlternativeMapping,
@@ -20,19 +21,19 @@ from .import_mapping import (
     EntityClassMapping,
     EntityGroupMapping,
     EntityMapping,
-    EntityMetadataMapping,
     ExpandedParameterDefaultValueMapping,
     ExpandedParameterValueMapping,
+    ImportMapping,
     IndexNameMapping,
     ParameterDefaultValueIndexMapping,
     ParameterDefaultValueMapping,
     ParameterDefaultValueTypeMapping,
+    ParameterDefinitionDescriptionMapping,
     ParameterDefinitionMapping,
     ParameterValueIndexMapping,
     ParameterValueListMapping,
     ParameterValueListValueMapping,
     ParameterValueMapping,
-    ParameterValueMetadataMapping,
     ParameterValueTypeMapping,
     Position,
     ScenarioAlternativeMapping,
@@ -42,7 +43,7 @@ from .import_mapping import (
 from .import_mapping import from_dict as mapping_from_dict
 
 
-def parse_named_mapping_spec(named_mapping_spec):
+def parse_named_mapping_spec(named_mapping_spec: dict) -> tuple[str, ImportMapping]:
     if len(named_mapping_spec) == 1:
         name, mapping_spec = next(iter(named_mapping_spec.items()))
         mapping = mapping_spec["mapping"]
@@ -53,11 +54,11 @@ def parse_named_mapping_spec(named_mapping_spec):
     return name, import_mapping_from_dict(mapping)
 
 
-def unparse_named_mapping_spec(name, root_mapping):
+def unparse_named_mapping_spec(name: str, root_mapping: ImportMapping) -> dict[str, dict[str, list[dict]]]:
     return {name: {"mapping": import_mapping_to_dict(root_mapping)}}
 
 
-def import_mapping_from_dict(map_dict):
+def import_mapping_from_dict(map_dict: list | dict) -> ImportMapping:
     """Creates Mapping object from a dict"""
     if isinstance(map_dict, list):
         # New system, flattened mapping as list
@@ -85,7 +86,7 @@ def import_mapping_from_dict(map_dict):
     )
 
 
-def _parameter_value_list_mapping_from_dict(map_dict):
+def _parameter_value_list_mapping_from_dict(map_dict: dict) -> ParameterValueListMapping:
     name = map_dict.get("name")
     value = map_dict.get("value")
     skip_columns = map_dict.get("skip_columns", [])
@@ -97,7 +98,7 @@ def _parameter_value_list_mapping_from_dict(map_dict):
     return root_mapping
 
 
-def _alternative_mapping_from_dict(map_dict):
+def _alternative_mapping_from_dict(map_dict: dict) -> AlternativeMapping:
     name = map_dict.get("name")
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
@@ -105,7 +106,7 @@ def _alternative_mapping_from_dict(map_dict):
     return root_mapping
 
 
-def _scenario_mapping_from_dict(map_dict):
+def _scenario_mapping_from_dict(map_dict: dict) -> ScenarioMapping:
     name = map_dict.get("name")
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
@@ -113,7 +114,7 @@ def _scenario_mapping_from_dict(map_dict):
     return root_mapping
 
 
-def _scenario_alternative_mapping_from_dict(map_dict):
+def _scenario_alternative_mapping_from_dict(map_dict: dict) -> ScenarioMapping:
     scenario_name = map_dict.get("scenario_name")
     alternative_name = map_dict.get("alternative_name")
     before_alternative_name = map_dict.get("before_alternative_name")
@@ -127,21 +128,19 @@ def _scenario_alternative_mapping_from_dict(map_dict):
     return root_mapping
 
 
-def _object_class_mapping_from_dict(map_dict):
+def _object_class_mapping_from_dict(map_dict: dict) -> EntityClassMapping:
     name = map_dict.get("name")
-    objects = map_dict.get("objects", map_dict.get("object"))
-    object_metadata = map_dict.get("object_metadata", None)
+    entities = map_dict.get("objects", map_dict.get("object"))
     parameters = map_dict.get("parameters")
     skip_columns = map_dict.get("skip_columns", [])
     read_start_row = map_dict.get("read_start_row", 0)
     root_mapping = EntityClassMapping(*_pos_and_val(name), skip_columns=skip_columns, read_start_row=read_start_row)
-    object_mapping = root_mapping.child = EntityMapping(*_pos_and_val(objects))
-    object_metadata_mapping = object_mapping.child = EntityMetadataMapping(*_pos_and_val(object_metadata))
-    object_metadata_mapping.child = parameter_mapping_from_dict(parameters)
+    entity_mapping = root_mapping.child = EntityMapping(*_pos_and_val(entities))
+    entity_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
 
 
-def _object_group_mapping_from_dict(map_dict):
+def _object_group_mapping_from_dict(map_dict: dict) -> EntityClassMapping:
     name = map_dict.get("name")
     groups = map_dict.get("groups")
     members = map_dict.get("members")
@@ -154,7 +153,7 @@ def _object_group_mapping_from_dict(map_dict):
     return root_mapping
 
 
-def _relationship_class_mapping_from_dict(map_dict):
+def _relationship_class_mapping_from_dict(map_dict: dict) -> EntityClassMapping:
     name = map_dict.get("name")
     objects = map_dict.get("objects")
     if objects is None:
@@ -162,7 +161,6 @@ def _relationship_class_mapping_from_dict(map_dict):
     object_classes = map_dict.get("object_classes")
     if object_classes is None:
         object_classes = [None]
-    relationship_metadata = map_dict.get("relationship_metadata")
     parameters = map_dict.get("parameters")
     import_entities = map_dict.get("import_objects", False)
     skip_columns = map_dict.get("skip_columns", [])
@@ -179,12 +177,11 @@ def _relationship_class_mapping_from_dict(map_dict):
         object_mapping = ElementMapping(*_pos_and_val(obj), import_entities=import_entities)
         parent_mapping.child = object_mapping
         parent_mapping = object_mapping
-    relationship_metadata_mapping = parent_mapping.child = EntityMetadataMapping(*_pos_and_val(relationship_metadata))
-    relationship_metadata_mapping.child = parameter_mapping_from_dict(parameters)
+    parent_mapping.child = parameter_mapping_from_dict(parameters)
     return root_mapping
 
 
-def parameter_mapping_from_dict(map_dict):
+def parameter_mapping_from_dict(map_dict: dict | None) -> ParameterDefinitionMapping | AlternativeMapping | None:
     if map_dict is None:
         return None
     map_type = map_dict.get("map_type")
@@ -197,21 +194,20 @@ def parameter_mapping_from_dict(map_dict):
     if map_type == "ParameterDefinition":
         default_value_dict = map_dict.get("default_value")
         value_list_name = map_dict.get("parameter_value_list_name")
-        param_def_mapping.child = value_list_mapping = ParameterValueListMapping(*_pos_and_val(value_list_name))
+        description = param_def_mapping.child = ParameterDefinitionDescriptionMapping(Position.hidden)
+        description.child = value_list_mapping = ParameterValueListMapping(*_pos_and_val(value_list_name))
         value_list_mapping.child = parameter_default_value_mapping_from_dict(default_value_dict)
         return param_def_mapping
     alternative_name = map_dict.get("alternative_name")
-    parameter_value_metadata = map_dict.get("parameter_value_metadata")
     alt_mapping = AlternativeMapping(*_pos_and_val(alternative_name))
     alt_mapping.child = param_def_mapping
-    param_def_mapping.child = param_val_metadata_mapping = ParameterValueMetadataMapping(
-        *_pos_and_val(parameter_value_metadata)
-    )
-    param_val_metadata_mapping.child = parameter_value_mapping_from_dict(map_dict.get("value"))
+    param_def_mapping.child = parameter_value_mapping_from_dict(map_dict.get("value"))
     return alt_mapping
 
 
-def parameter_default_value_mapping_from_dict(default_value_dict):
+def parameter_default_value_mapping_from_dict(
+    default_value_dict: dict | None,
+) -> ParameterDefaultValueMapping | ParameterDefaultValueTypeMapping:
     if default_value_dict is None:
         return ParameterDefaultValueMapping(*_pos_and_val(None))
     value_type = default_value_dict["value_type"].replace(" ", "_")
@@ -233,7 +229,7 @@ def parameter_default_value_mapping_from_dict(default_value_dict):
     return root_mapping
 
 
-def parameter_value_mapping_from_dict(value_dict):
+def parameter_value_mapping_from_dict(value_dict: dict | None) -> ParameterValueMapping | ParameterValueTypeMapping:
     if value_dict is None:
         return ParameterValueMapping(*_pos_and_val(None))
     value_type = value_dict["value_type"].replace(" ", "_")
@@ -255,7 +251,7 @@ def parameter_value_mapping_from_dict(value_dict):
     return root_mapping
 
 
-def _fix_parameter_mapping_dict(map_dict):
+def _fix_parameter_mapping_dict(map_dict: dict) -> None:
     # Even deeper legacy
     parameter_type = map_dict.pop("parameter_type", None)
     if parameter_type == "definition":
@@ -269,7 +265,7 @@ def _fix_parameter_mapping_dict(map_dict):
         map_dict["value"] = value_dict
 
 
-def _pos_and_val(x):
+def _pos_and_val(x: dict | str | int | None) -> tuple[Position | int, str | int | None]:
     if not isinstance(x, dict):
         map_type = "constant" if isinstance(x, str) else "column"
         map_dict = {"map_type": map_type, "reference": x}

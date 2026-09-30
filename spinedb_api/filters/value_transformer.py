@@ -19,6 +19,7 @@ Value transformer supports four types of instructions:
 - ``invert`` inverts the value
 - ``generate_index`` uses a Python expression to reindex an indexed value
 """
+
 from collections.abc import Sequence
 from functools import partial
 from numbers import Number
@@ -31,12 +32,12 @@ from ..parameter_value import IndexedValue, Map, from_database, to_database
 VALUE_TRANSFORMER_TYPE = "value_transformer"
 VALUE_TRANSFORMER_SHORTHAND_TAG = "value_transform"
 
-__all__ = ("value_transformer_config",)
-
 
 def apply_value_transform_to_parameter_value_sq(db_map, instructions):
     """
     Applies renaming to parameter definition subquery.
+
+    :meta private:
 
     Args:
         db_map (DatabaseMapping): a database map
@@ -73,6 +74,8 @@ def value_transformer_from_dict(db_map, config):
     """
     Applies value transformer manipulator to given database map.
 
+    :meta private:
+
     Args:
         db_map (DatabaseMapping): target database map
         config (dict): transformer configuration
@@ -83,6 +86,8 @@ def value_transformer_from_dict(db_map, config):
 def value_transformer_config_to_shorthand(config):
     """
     Makes a shorthand string from transformer configuration.
+
+    :meta private:
 
     Args:
         config (dict): transformer configuration
@@ -112,6 +117,8 @@ def value_transformer_shorthand_to_config(shorthand):
 
     Args:
         shorthand (str): a shorthand string
+
+    :meta private:
 
     Returns:
         dict: value transformer configuration

@@ -12,10 +12,11 @@
 
 """Base class for import and export mappings."""
 
+from __future__ import annotations
 from enum import Enum, unique
 from itertools import takewhile
 import re
-from typing import Optional
+from typing import Any, ClassVar, Optional
 from spinedb_api import InvalidMapping
 
 _TABLEFUL_FIXED_POSITION_RE = re.compile(r"^\s*(.+):\s*(\d+)\s*,\s*(\d+)\s*$")
@@ -33,26 +34,26 @@ class Position(Enum):
     fixed = "fixed"
 
 
-def is_pivoted(position):
+def is_pivoted(position: Position | int) -> bool:
     """Checks if position is pivoted.
 
     Args:
-        position (Position or int): position
+        position: position
 
     Returns:
-        bool: True if position is pivoted, False otherwise
+        True if position is pivoted, False otherwise
     """
     return isinstance(position, int) and position < 0
 
 
-def is_regular(position):
+def is_regular(position: Position | int) -> bool:
     """Checks if position is column index.
 
     Args:
-        position (Position or int): position
+        position: position
 
     Returns:
-        bool: True if position is a column index, False otherwise
+        True if position is a column index, False otherwise
     """
     return isinstance(position, int) and position >= 0
 
@@ -76,67 +77,67 @@ class Mapping:
     """Base class for import/export item mappings.
 
     Attributes:
-        position (int or Position): defines where the data is written/read in the output table.
+        position: defines where the data is written/read in the output table.
             Nonnegative numbers are columns, negative numbers are pivot rows, and then there are some special cases
             in the Position enum.
-        parent (Mapping or None): Another mapping that's the 'parent' of this one.
+        parent: Another mapping that's the 'parent' of this one.
             Used to determine if a mapping is root, in which case it needs to yield the header.
     """
 
-    MAP_TYPE = None
+    MAP_TYPE: ClassVar[str] = NotImplemented
     """Mapping type identifier for serialization."""
 
-    def __init__(self, position, value=None, filter_re=""):
+    def __init__(self, position: Position | int, value: Any = None, filter_re: str = ""):
         """
         Args:
-            position (int or Position): column index or Position
-            value (Any): fixed value
-            filter_re (str): regular expression for filtering
+            position: column index or Position
+            value: fixed value
+            filter_re: regular expression for filtering
         """
-        self._child = None
+        self._child: Mapping | None = None
         self._value = None
         self._unfixed_value_data = self._data
         self._filter_re = None
-        self.parent = None
+        self.parent: Mapping | None = None
         self.position = position
         self.value = value
         self.filter_re = filter_re
 
     @property
-    def child(self):
+    def child(self) -> Mapping | None:
         return self._child
 
     @child.setter
-    def child(self, child):
+    def child(self, child: Mapping | None) -> None:
         self._child = child
         if isinstance(child, Mapping):
             child.parent = self
 
     @property
-    def value(self):
+    def value(self) -> Any:
         """Fixed value."""
         return self._value
 
     @value.setter
-    def value(self, value):
+    def value(self, value: Any) -> None:
         self._value = value
         self._set_fixed_value_data()
 
     @property
-    def filter_re(self):
+    def filter_re(self) -> str:
         return self._filter_re.pattern if self._filter_re is not None else ""
 
     @filter_re.setter
     def filter_re(self, filter_re):
         self._filter_re = re.compile(filter_re) if filter_re else None
 
-    def _data(self, row):
+    def _data(self, row: int) -> Any:
         raise NotImplementedError()
 
-    def _fixed_value_data(self, _row):
+    def _fixed_value_data(self, _row: int) -> Any:
         return self._value
 
-    def _set_fixed_value_data(self):
+    def _set_fixed_value_data(self) -> None:
         if self._value is None:
             self._data = self._unfixed_value_data
             return
@@ -152,50 +153,50 @@ class Mapping:
             and self._filter_re == other._filter_re
         )
 
-    def tail_mapping(self):
+    def tail_mapping(self) -> Mapping:
         """Returns the last mapping in the chain.
 
         Returns:
-            Mapping: last child mapping
+            last child mapping
         """
         if self._child is None:
             return self
         return self._child.tail_mapping()
 
-    def count_mappings(self):
+    def count_mappings(self) -> int:
         """
         Counts this and child mappings.
 
         Returns:
-            int: number of mappings
+            number of mappings
         """
         return 1 + (self.child.count_mappings() if self.child is not None else 0)
 
-    def flatten(self):
+    def flatten(self) -> list[Mapping]:
         """
         Flattens the mapping tree.
 
         Returns:
-            list of Mapping: mappings in parent-child-grand child-etc order
+            mappings in parent-child-grand child-etc order
         """
         return [self] + (self.child.flatten() if self.child is not None else [])
 
-    def is_effective_leaf(self):
+    def is_effective_leaf(self) -> bool:
         """Tests if mapping is effectively the leaf mapping.
 
         Returns:
-            bool: True if mapping is effectively the last child, False otherwise
+            True if mapping is effectively the last child, False otherwise
         """
         return self._child is None or all(
             child.position in (Position.hidden, Position.table_name) for child in self._child.flatten()[:-1]
         )
 
-    def is_pivoted(self):
+    def is_pivoted(self) -> bool:
         """
         Queries recursively if export items are pivoted.
 
         Returns:
-            bool: True if any of the items is pivoted, False otherwise
+            True if any of the items is pivoted, False otherwise
         """
         if is_pivoted(self.position):
             return True
@@ -203,15 +204,15 @@ class Mapping:
             return False
         return self.child.is_pivoted()
 
-    def non_pivoted_width(self, parent_is_pivoted=False):
+    def non_pivoted_width(self, parent_is_pivoted: bool = False) -> int:
         """
         Calculates columnar width of non-pivoted data.
 
         Args:
-            parent_is_pivoted (bool): True if a parent item is pivoted, False otherwise
+            parent_is_pivoted: True if a parent item is pivoted, False otherwise
 
         Returns:
-            int: non-pivoted data width
+            non-pivoted data width
         """
         if self.child is None:
             if is_regular(self.position) and not parent_is_pivoted:
@@ -220,14 +221,14 @@ class Mapping:
         width = self.position + 1 if is_regular(self.position) else 0
         return max(width, self.child.non_pivoted_width(parent_is_pivoted or is_pivoted(self.position)))
 
-    def non_pivoted_columns(self, parent_is_pivoted=False):
+    def non_pivoted_columns(self, parent_is_pivoted: bool = False) -> list[int]:
         """Gathers non-pivoted columns from mappings.
 
         Args:
-            parent_is_pivoted (bool): True if a parent item is pivoted, False otherwise
+            parent_is_pivoted: True if a parent item is pivoted, False otherwise
 
         Returns:
-            list of int: indexes of non-pivoted columns
+            indexes of non-pivoted columns
         """
         if self._child is None:
             if is_regular(self.position) and not parent_is_pivoted:
@@ -238,30 +239,30 @@ class Mapping:
             parent_is_pivoted or pivoted
         )
 
-    def last_pivot_row(self):
+    def last_pivot_row(self) -> int:
         return max(
             (-(m.position + 1) for m in self.flatten() if isinstance(m.position, int) and m.position < 0), default=-1
         )
 
-    def query_parents(self, what):
+    def query_parents(self, what: str) -> Any:
         """Queries parent mapping for specific information.
 
         Args:
-            what (str): query identifier
+            what: query identifier
 
         Returns:
-            Any: query result or None if no parent recognized the identifier
+            query result or None if no parent recognized the identifier
         """
         if self.parent is None:
             return None
         return self.parent.query_parents(what)
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """
         Serializes mapping into dict.
 
         Returns:
-            dict: serialized mapping
+            serialized mapping
         """
         position = self.position.value if isinstance(self.position, Position) else self.position
         mapping_dict = {"map_type": self.MAP_TYPE, "position": position}
@@ -272,15 +273,15 @@ class Mapping:
         return mapping_dict
 
 
-def unflatten(mappings):
+def unflatten(mappings: list[Mapping]) -> Mapping:
     """
     Builds a mapping hierarchy from flattened mappings.
 
     Args:
-        mappings (Iterable of Mapping): flattened mappings
+        mappings: flattened mappings
 
     Returns:
-        Mapping: root mapping
+        root mapping
     """
     root = None
     current = None
@@ -294,15 +295,15 @@ def unflatten(mappings):
     return root
 
 
-def value_index(flattened_mappings):
+def value_index(flattened_mappings: list[Mapping]) -> int:
     """
     Returns index of last non-hidden mapping in flattened mapping list.
 
     Args:
-        flattened_mappings (list of Mapping): flattened mappings
+        flattened_mappings: flattened mappings
 
     Returns:
-        int: value mapping index
+        value mapping index
     """
     return (
         len(flattened_mappings)
@@ -311,14 +312,14 @@ def value_index(flattened_mappings):
     )
 
 
-def to_dict(root_mapping):
+def to_dict(root_mapping: Mapping) -> list[dict]:
     """
     Serializes mappings into JSON compatible data structure.
 
     Args:
-        root_mapping (Mapping): root mapping
+        root_mapping: root mapping
 
     Returns:
-        list: serialized mappings
+        serialized mappings
     """
     return list(mapping.to_dict() for mapping in root_mapping.flatten())

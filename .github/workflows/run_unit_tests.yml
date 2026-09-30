@@ -9,6 +9,8 @@ on:
       - "requirements.txt"
       - "pyproject.toml"
       - ".github/workflows/*.yml"
+    branches-ignore:
+      - "release"
 
 jobs:
   unit-tests:
@@ -17,18 +19,18 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         include:
           - os: macos-latest
             python-version: "3.13"
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
     - name: Version from Git tags
       run: git describe --tags
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
@@ -56,7 +58,7 @@ jobs:
       run:
         pytest tests/ --cov --verbose
     - name: Upload coverage report to Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   call-toolbox-unit-tests:
@@ -84,7 +86,7 @@ jobs:
     with:
       host-os: ubuntu-latest
       julia-version: "1.11"
-      python-version: "3.13"
+      python-version: "3.14"
       repository: spine-tools/SpineInterface.jl
       spinedb-api-ref-name: ${{ github.ref_name }}
       coverage: false
@@ -95,7 +97,7 @@ jobs:
     with:
       host-os: ubuntu-latest
       julia-version: "1.11"
-      python-version: "3.13"
+      python-version: "3.14"
       repository: spine-tools/SpineOpt.jl
       spinedb-api-ref-name: ${{ github.ref_name }}
       coverage: false

@@ -13,7 +13,6 @@
 
 import json
 from typing import Optional
-
 from .models import to_json
 from .parameter_value import RANK_1_TYPES, TABLE_TYPE, Map, from_dict, to_database, type_for_scalar
 from .value_support import JSONValue, load_db_value
@@ -67,7 +66,7 @@ def from_database_to_dimension_count(database_value: bytes, value_type: Optional
     return 0
 
 
-def join_value_and_type(db_value: bytes, db_type: Optional[str]) -> str:
+def join_value_and_type(db_value: bytes, db_type: str | None) -> str:
     """Joins value blob and type into list and dumps it into JSON string.
 
     Args:
@@ -77,10 +76,10 @@ def join_value_and_type(db_value: bytes, db_type: Optional[str]) -> str:
     Returns:
         JSON string.
     """
-    return json.dumps([db_value.decode(), db_type])
+    return json.dumps([json.loads(db_value), db_type])
 
 
-def split_value_and_type(value_and_type: str) -> tuple[bytes, str]:
+def split_value_and_type(value_and_type: str) -> tuple[bytes, str | None]:
     """Splits the given JSON string into value blob and type.
 
     Args:
@@ -94,4 +93,4 @@ def split_value_and_type(value_and_type: str) -> tuple[bytes, str]:
         # legacy
         value_dict = json.loads(value_and_type)
         return to_database(from_dict(value_dict, value_dict["type"]))
-    return parsed[0].encode(), parsed[1]
+    return json.dumps(parsed[0]).encode(), parsed[1]

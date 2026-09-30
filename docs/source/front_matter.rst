@@ -1,9 +1,6 @@
 ..  spinedb_api front matter
     Created: 18.6.2018
 
-.. _SQLAlchemy: http://www.sqlalchemy.org/
-
-
 ************
 Front matter
 ************
@@ -34,13 +31,6 @@ Otherwise, you can install released versions of Spine database API with Pip
 into the current Python environment::
 
   pip install spinedb-api
-
-Dependencies
-------------
-
-Spine database API's install process will ensure that SQLAlchemy_ is installed,
-in addition to other dependencies. Spine database API will work with SQLAlchemy version 1.4.
-
 
 Bugs
 ----

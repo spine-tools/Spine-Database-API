@@ -18,6 +18,7 @@ Apache Arrow - Spine interoperability layer.
   This is highly experimental API.
 
 """
+
 import datetime
 import json
 from typing import Any, SupportsFloat, TypeAlias

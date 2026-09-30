@@ -1113,6 +1113,8 @@ ArrayValue: TypeAlias = float | bool | str | Duration | DateTime
 class _TimePatternIndexes(_Indexes):
     """An array of *checked* time pattern indexes."""
 
+    _VALID_UNITS = re.compile(r"(Y|M|D|WD|h|m|s)")
+
     @staticmethod
     def _check_index(union_str: str) -> None:
         """

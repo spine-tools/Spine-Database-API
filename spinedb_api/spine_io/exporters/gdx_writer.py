@@ -9,7 +9,8 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Module contains a .gdx writer implementation. """
+"""Module contains a .gdx writer implementation."""
+
 import math
 from gams.core import gdx
 from gdx2py import GAMSParameter, GAMSScalar, GAMSSet, GdxFile

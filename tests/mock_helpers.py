@@ -22,3 +22,9 @@ class AssertSuccessTestCase(unittest.TestCase):
         count, errors = result
         self.assertEqual(errors, [])
         return count
+
+
+def assert_imports(result: tuple[int, list[str]]) -> int:
+    count, errors = result
+    assert not errors
+    return count

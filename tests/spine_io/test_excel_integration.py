@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Integration tests for Excel import and export. """
+"""Integration tests for Excel import and export."""
 
 import json
 from pathlib import PurePath
@@ -101,10 +101,10 @@ class TestExcelIntegration(AssertSuccessTestCase):
 
     def _check_parameter_value(self, val):
         input_data = {
-            "entity_classes": {("dog",)},
+            "entity_classes": {("dog", ())},
             "entities": {("dog", "pluto")},
             "parameter_definitions": [("dog", "bone")],
-            "parameter_values": [("dog", "pluto", "bone", val)],
+            "parameter_values": [("dog", ("pluto",), "bone", val)],
         }
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_imports(import_data(db_map, **input_data))
@@ -133,7 +133,3 @@ def indexed_values(value, k=1, prefix=()):
             yield from indexed_values(new_value, k=k + 1, prefix=(*prefix, str(index)))
     except AttributeError:
         yield str(prefix), value
-
-
-if __name__ == "__main__":
-    unittest.main()

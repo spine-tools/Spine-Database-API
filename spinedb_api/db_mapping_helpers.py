@@ -13,6 +13,7 @@
 This module defines functions, classes and other utilities
 that may be useful with :class:`.db_mapping.DatabaseMapping`.
 """
+
 from .db_mapping_base import PublicItem
 from .incomplete_values import from_database_to_dimension_count
 from .mapped_items import ParameterDefinitionItem

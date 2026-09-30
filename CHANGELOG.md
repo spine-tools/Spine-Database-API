@@ -5,19 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [unreleased]
-
-### Added
-
-### Changed
-
-### Deprecated
-
-### Removed
+## [0.36.6]
 
 ### Fixed
 
-### Security
+- Close database mappings in the correct thread when shutting down Spine DB Server.
+- Fixed an issue when rolling back item updates.
+- Other minor fixes, also in documentation.
+
+## [0.36.6]
+
+### Added
+
+- Added a context manager `spinedb_api.spine_db_client.lock_db` for locking database mappings
+  under DB server, i.e. when executing Python scripts in Spine Toolbox.
+
+## [0.36.5]
+
+### Added
+
+- Added `parameter_group` table. A parameter group has a name, a color (6-digit HEX color code) and priority.
+  Any parameter definition can belong to a single group.
+  Parameter groups are meant to gather connected parameters together.
+  As such, they are meant for visual cue only and do not have any other semantic meaning.
+- Added the missing `import_entity_metadata()` and `import_parameter_value_metadata()`.
+  Note, that the semantics of metadata imports have changed, see the Changed section below.
+- Added missing `export_metadata()`, `export_entity_metadata()` and `export_parameter_value_metadata()` functions
+  to `export_functions` module.
+- A new experimental module `spinedb_api.scenario_recipes` contains functions to support complex scenario generation
+  from sets of alternatives.
+
+### Changed
+
+- **Breaking change**: `import_metadata()` and `import_*_metadata()` functions now work like all other import functions:
+  metadata is entered as separate name and value fields.
+  *JSON metadata blobs are not supported anymore.*
+  For example, this does *not* work anymore:
+
+  ```python
+  import_metadata(['{"author": "Sorbus Aucuparia"}'])
+  ```
+
+  The above should be replaced by this:
+
+  ```python
+  import_metadata([("author", "Sorbus Aucuparia")])
+  ```
+
+## [0.36.3]
+
+### Changed
+
+- It is again possible to commit to filtered databases.
+- Simplified time period definitions in time patterns:
+  equal lower and upper bounds can now be combined, e.g `M8-8` can now be shortened to `M8`.
+- Removing the alternative at id 1 (the 'Base' alternative) is now allowed.
+
+## [0.36.2] 
+
+### Changed
+
+- Committing to filtered databases has been disabled as we currently cannot guarantee 
+  that the operation will be successful.
 
 ## [0.36.1]
 

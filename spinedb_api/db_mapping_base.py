@@ -11,14 +11,27 @@
 ######################################################################################################################
 from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import suppress
+from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Any, ClassVar, Optional, Type, TypedDict, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, Type, TypedDict, Union
+from sqlalchemy import Subquery
+from sqlalchemy.orm import Query
 from .exception import SpineDBAPIError
-from .filters.tools import clear_filter_configs
-from .helpers import Asterisk
+from .helpers import Asterisk, AsteriskType, ItemType
 from .mapped_item_status import Status
 from .temp_id import TempId, resolve
+
+if TYPE_CHECKING:
+    from .db_mapping import DatabaseMapping
+
+
+@dataclass(frozen=True)
+class DirtyItems:
+    item_type: ItemType
+    to_add: list[MappedItemBase]
+    to_update: list[MappedItemBase]
+    to_remove: list[MappedItemBase]
 
 
 class DatabaseMappingBase:
@@ -34,10 +47,10 @@ class DatabaseMappingBase:
         self._closed = False
         self._context_open_count = 0
         self._mapped_tables = {item_type: MappedTable(self, item_type) for item_type in self.all_item_types()}
-        self._fetched = {}
-        self._commit_count = None
+        self._fetched: dict[ItemType, int] = {}
+        self._commit_count: int | None = None
         item_types = self.item_types()
-        self._sorted_item_types = []
+        self._sorted_item_types: list[ItemType] = []
         while item_types:
             item_type = item_types.pop(0)
             if not self.item_factory(item_type).ref_types().isdisjoint(item_types):
@@ -54,54 +67,27 @@ class DatabaseMappingBase:
         self._closed = True
 
     @staticmethod
-    def item_types():
-        """Returns a list of public item types from the DB mapping schema (equivalent to the table names).
-
-        :meta private:
-
-        Returns:
-            list(str)
-        """
+    def item_types() -> list[ItemType]:
+        """Returns a list of public item types from the DB mapping schema (equivalent to the table names)."""
         raise NotImplementedError()
 
     @staticmethod
-    def all_item_types():
-        """Returns a list of all item types from the DB mapping schema (equivalent to the table names).
-
-        :meta private:
-
-        Returns:
-            list(str)
-        """
+    def all_item_types() -> list[ItemType]:
+        """Returns a list of all item types from the DB mapping schema (equivalent to the table names)."""
         raise NotImplementedError()
 
     @staticmethod
-    def item_factory(item_type):
-        """Returns a subclass of :class:`.MappedItemBase` to make items of given type.
-
-        :meta private:
-
-        Args:
-            item_type (str)
-
-        Returns:
-            function
-        """
+    def item_factory(item_type: ItemType) -> Type[MappedItemBase]:
+        """Returns a subclass of :class:`.MappedItemBase` to make items of given type."""
         raise NotImplementedError()
 
-    def _make_sq(self, item_type):
+    def _make_sq(self, item_type: ItemType) -> Subquery:
         """Returns a :class:`~sqlalchemy.sql.expression.Alias` object representing a subquery
         to collect items of given type.
-
-        Args:
-            item_type (str)
-
-        Returns:
-            :class:`~sqlalchemy.sql.expression.Alias`
         """
         raise NotImplementedError()
 
-    def _make_query(self, sq):
+    def _make_query(self, sq: Subquery) -> Query:
         """Returns a :class:`~sqlalchemy.orm.query.Query` object from given subquery.
 
         Args:
@@ -120,37 +106,17 @@ class DatabaseMappingBase:
         """
         raise NotImplementedError()
 
-    def make_item(self, item_type: str, **item) -> MappedItemBase:
+    def make_item(self, item_type: ItemType, **item) -> MappedItemBase:
         raise NotImplementedError
 
-    def dirty_ids(self, item_type):
+    def dirty_ids(self, item_type: ItemType):
         return {
             item["id"]
             for item in self._mapped_tables[item_type].valid_values()
             if item.status in (Status.to_add, Status.to_update)
         }
 
-    @contextmanager
-    def _fixing_conflicts(self):
-        if not self.filter_configs or self.db_url == "sqlite://":
-            real_commit_count = self._query_commit_count()
-
-            def fix_conflicts(mapped_table):
-                self.do_fetch_all(mapped_table, commit_count=real_commit_count)  # To fix conflicts in add_item_from_db
-
-            yield fix_conflicts
-
-        else:
-            clean_url = clear_filter_configs(self.db_url)
-            with self.__class__(clean_url) as unfiltered_db_map:
-
-                def fix_conflicts(mapped_table):
-                    for item in unfiltered_db_map._get_next_chunk(mapped_table.item_type, offset=0, limit=None):
-                        mapped_table.handle_fetched_item(item, is_db_clean=False)
-
-                yield fix_conflicts
-
-    def _dirty_items(self):
+    def _dirty_items(self) -> list[DirtyItems]:
         """Returns a list of tuples of the form (item_type, (to_add, to_update, to_remove)) corresponding to
         items that have been modified but not yet committed.
 
@@ -160,69 +126,59 @@ class DatabaseMappingBase:
         dirty_items = []
         purged_item_types = {x for x in self.item_types() if self._mapped_tables[x].purged}
         self._add_descendants(purged_item_types)
-        with self._fixing_conflicts() as fix_conflicts:
-            for item_type in self._sorted_item_types:
-                mapped_table = self._mapped_tables[item_type]
-                fix_conflicts(mapped_table)
-                to_add = []
-                to_update = []
-                to_remove = []
-                for item in mapped_table.valid_values():
-                    if item.status == Status.to_add:
-                        to_add.append(item)
-                    elif item.status == Status.to_update:
-                        to_update.append(item)
-                    if item.replaced_item_waiting_for_removal is not None:
+        real_commit_count = self._query_commit_count()
+        for item_type in self._sorted_item_types:
+            mapped_table = self._mapped_tables[item_type]
+            self.do_fetch_all(mapped_table, commit_count=real_commit_count)  # To fix conflicts in add_item_from_db
+            to_add = []
+            to_update = []
+            to_remove = []
+            for item in mapped_table.valid_values():
+                if item.status == Status.to_add:
+                    to_add.append(item)
+                elif item.status == Status.to_update:
+                    to_update.append(item)
+                if item.replaced_item_waiting_for_removal is not None:
+                    to_remove.append(item.replaced_item_waiting_for_removal)
+                    item.replaced_item_waiting_for_removal = None
+            if item_type in purged_item_types:
+                to_remove.append(mapped_table.wildcard_item)
+                to_remove.extend(mapped_table.values())
+            else:
+                for item in mapped_table.values():
+                    item.validate()
+                    if item.status == Status.to_remove and item.has_valid_id:
+                        to_remove.append(item)
+                    if item.status == Status.added_and_removed and item.replaced_item_waiting_for_removal is not None:
                         to_remove.append(item.replaced_item_waiting_for_removal)
                         item.replaced_item_waiting_for_removal = None
-                if item_type in purged_item_types:
-                    to_remove.append(mapped_table.wildcard_item)
-                    to_remove.extend(mapped_table.values())
-                else:
-                    for item in mapped_table.values():
-                        item.validate()
-                        if item.status == Status.to_remove and item.has_valid_id:
-                            to_remove.append(item)
-                        if (
-                            item.status == Status.added_and_removed
-                            and item.replaced_item_waiting_for_removal is not None
-                        ):
-                            to_remove.append(item.replaced_item_waiting_for_removal)
-                            item.replaced_item_waiting_for_removal = None
-                if to_add or to_update or to_remove:
-                    dirty_items.append((item_type, (to_add, to_update, to_remove)))
+            if to_add or to_update or to_remove:
+                dirty_items.append(DirtyItems(item_type, to_add, to_update, to_remove))
         return dirty_items
 
-    def _rollback(self):
+    def _rollback(self) -> bool:
         """Discards uncommitted changes.
 
         Namely, removes all the added items, resets all the updated items, and restores all the removed items.
 
         Returns:
-            bool: False if there is no uncommitted items, True if successful.
+            False if there is no uncommitted items, True if successful.
         """
         dirty_items = self._dirty_items()
         if not dirty_items:
             return False
-        to_add_by_type = []
-        to_update_by_type = []
-        to_remove_by_type = []
-        for item_type, (to_add, to_update, to_remove) in reversed(dirty_items):
-            to_add_by_type.append((item_type, to_add))
-            to_update_by_type.append((item_type, to_update))
-            to_remove_by_type.append((item_type, to_remove))
-        for item_type, to_remove in to_remove_by_type:
-            mapped_table = self._mapped_tables[item_type]
-            for item in to_remove:
+        for bundle in reversed(dirty_items):
+            mapped_table = self._mapped_tables[bundle.item_type]
+            for item in bundle.to_remove:
                 mapped_table.restore_item(item["id"])
-        for item_type, to_update in to_update_by_type:
-            mapped_table = self._mapped_tables[item_type]
-            for item in to_update:
+        for bundle in reversed(dirty_items):
+            mapped_table = self._mapped_tables[bundle.item_type]
+            for item in bundle.to_update:
                 merged_item, updated_fields = item.merge(item.backup)
                 mapped_table.update_item(merged_item, item, updated_fields)
-        for item_type, to_add in to_add_by_type:
-            mapped_table = self._mapped_tables[item_type]
-            for item in to_add:
+        for bundle in reversed(dirty_items):
+            mapped_table = self._mapped_tables[bundle.item_type]
+            for item in bundle.to_add:
                 if mapped_table.remove_item(item) is not None:
                     item.invalidate_id()
         return True
@@ -245,7 +201,7 @@ class DatabaseMappingBase:
         self._commit_count = None
         self._fetched.clear()
 
-    def mapped_table(self, item_type: str) -> MappedTable:
+    def mapped_table(self, item_type: ItemType) -> MappedTable:
         """Returns mapped table for given item type."""
         try:
             return self._mapped_tables[item_type]
@@ -277,7 +233,7 @@ class DatabaseMappingBase:
         for mapped_table in self._mapped_tables.values():
             mapped_table.reset_purging()
 
-    def _add_descendants(self, item_types):
+    def _add_descendants(self, item_types: set[ItemType]) -> None:
         while True:
             changed = False
             for item_type in set(self.item_types()) - item_types:
@@ -288,20 +244,16 @@ class DatabaseMappingBase:
                 break
 
     def _get_commit_count(self) -> int:
-        """Returns current commit count.
-
-        Returns:
-            int
-        """
+        """Returns current commit count."""
         if self._commit_count is None:
             self._commit_count = self._query_commit_count()
         return self._commit_count
 
-    def _do_make_query(self, item_type, **kwargs):
+    def _do_make_query(self, item_type: ItemType, **kwargs) -> Query:
         """Returns a :class:`~spinedb_api.query.Query` object to fetch items of given type.
 
         Args:
-            item_type (str): item type
+            item_type: item type
             **kwargs: query filters
 
         Returns:
@@ -325,11 +277,11 @@ class DatabaseMappingBase:
                     pass
         return qry
 
-    def _get_next_chunk(self, item_type, offset, limit, **kwargs):
+    def _get_next_chunk(self, item_type: ItemType, offset: int, limit: int, **kwargs) -> list[dict]:
         """Gets chunk of items from the DB.
 
         Returns:
-            list(dict): list of dictionary items.
+            list of dictionary items.
         """
         with self:
             qry = self._do_make_query(item_type, **kwargs)
@@ -352,15 +304,13 @@ class DatabaseMappingBase:
         chunk = self._get_next_chunk(mapped_table.item_type, offset, limit, **kwargs)
         if not chunk:
             return []
-        is_db_dirty = self._get_commit_count() != real_commit_count
-        if is_db_dirty:
-            # We need to fetch the most recent references because their ids might have changed in the DB
-            item_type = mapped_table.item_type
-            for ref_type in ref_types:
-                if ref_type != item_type:
-                    self.do_fetch_all(self._mapped_tables[ref_type], commit_count=real_commit_count)
+        for ref_type in ref_types:
+            if ref_type != mapped_table.item_type and self._fetched.get(ref_type, -1) != real_commit_count:
+                # We need to fetch the most recent references because their ids might have changed in the DB
+                self.do_fetch_all(self._mapped_tables[ref_type], commit_count=real_commit_count)
         items = []
         new_items = []
+        is_db_dirty = self._get_commit_count() != real_commit_count
         # Add items first
         for x in chunk:
             item, fresh = mapped_table.handle_fetched_item(x, not is_db_dirty)
@@ -402,7 +352,7 @@ class DatabaseMappingBase:
 
 
 class MappedTable(dict):
-    def __init__(self, db_map: DatabaseMappingBase, item_type: str, *args, **kwargs):
+    def __init__(self, db_map: DatabaseMapping, item_type: ItemType, *args, **kwargs):
         """
         Args:
             db_map: the DB mapping where this mapped table belongs.
@@ -424,7 +374,7 @@ class MappedTable(dict):
     def purged(self, purged: bool) -> None:
         self.wildcard_item.status = Status.to_remove if purged else Status.committed
 
-    def get(self, id_, default=None):
+    def get(self, id_: TempId | int, default: MappedItemBase | None = None) -> MappedItemBase | None:
         id_ = self._temp_id_lookup.get(id_, id_)
         return super().get(id_, default)
 
@@ -462,7 +412,7 @@ class MappedTable(dict):
             return self.find_item_by_id(id_, fetch=fetch)
         return self.find_item_by_unique_key(item, fetch=fetch)
 
-    def find_item_by_id(self, id_: TempId, fetch: bool = True) -> MappedItemBase:
+    def find_item_by_id(self, id_: TempId | int, fetch: bool = True) -> MappedItemBase:
         current_item = self.get(id_)
         if current_item is None and fetch:
             self._db_map.do_fetch_all(self)
@@ -526,9 +476,7 @@ class MappedTable(dict):
         candidate_item.resolve_internal_fields(skip_keys=tuple(original_item.keys()))
         candidate_item.check_mutability()
         candidate_item.polish()
-        first_invalid_key = candidate_item.first_invalid_key()
-        if first_invalid_key:
-            raise SpineDBAPIError(f"invalid {first_invalid_key} for {self.item_type}")
+        candidate_item.validate_keys()
         for key, value in candidate_item.unique_values_for_item(candidate_item):
             empty = {k for k, v in zip(key, value) if v == ""}
             if empty:
@@ -540,7 +488,7 @@ class MappedTable(dict):
             if unique_item is not current_item and unique_item.is_valid():
                 raise SpineDBAPIError(f"there's already a {self.item_type} with {dict(zip(key, value))}")
 
-    def item_to_remove(self, id_: TempId) -> MappedItemBase:
+    def item_to_remove(self, id_: TempId | int | AsteriskType) -> MappedItemBase:
         if id_ is Asterisk:
             return self.wildcard_item
         return self.find_item_by_id(id_)
@@ -560,13 +508,12 @@ class MappedTable(dict):
                 pass
 
     def _make_item(self, item: Union[dict, MappedItemBase], ignore_polishing_errors: bool) -> MappedItemBase:
-        if not isinstance(item, MappedItemBase):
-            item = self._db_map.make_item(self.item_type, **item)
-            try:
-                item.polish()
-            except SpineDBAPIError as error:
-                if not ignore_polishing_errors:
-                    raise error
+        item = self._db_map.make_item(self.item_type, **item)
+        try:
+            item.polish()
+        except SpineDBAPIError as error:
+            if not ignore_polishing_errors:
+                raise error
         return item
 
     def do_add_item(self, item: MappedItemBase) -> None:
@@ -578,7 +525,7 @@ class MappedTable(dict):
 
     def handle_fetched_item(self, item: dict, is_db_clean: bool) -> tuple[MappedItemBase, bool]:
         """Called when an item is fetched from the DB. Returns a corresponding mapped item
-        and whether or not it is new (no equivalent item is found in the mapping currently)."""
+        and whether it is new (no equivalent item is found in the mapping currently)."""
         new_item = self._make_item(item, ignore_polishing_errors=True)
         try:
             existing_item = self._find_fully_qualified_item_by_unique_key(new_item, fetch=False)
@@ -600,6 +547,9 @@ class MappedTable(dict):
                 # but that is potentially complex operation (for e.g. large parameter values)
                 # so we take a shortcut here and assume that existing_item always contains modified data.
                 existing_item.status = Status.to_update
+                backup_item = item.copy()
+                backup_item["id"] = existing_item["id"]
+                existing_item.set_backup_item(backup_item)
         return existing_item, False
 
     def _same_item(self, mapped_item: MappedItemBase, db_item: dict) -> bool:
@@ -641,8 +591,9 @@ class MappedTable(dict):
         if errors:
             raise SpineDBAPIError("\n".join(errors))
 
-    def add_item(self, item: dict) -> MappedItemBase:
-        item = self._make_item(item, ignore_polishing_errors=False)
+    def add_item(self, item: dict | MappedItemBase) -> MappedItemBase:
+        if not isinstance(item, MappedItemBase):
+            item = self._make_item(item, ignore_polishing_errors=False)
         self.do_add_item(item)
         self.add_unique(item)
         item.become_referrer()
@@ -668,7 +619,7 @@ class MappedTable(dict):
         item.cascade_remove()
         return item
 
-    def restore_item(self, id_: TempId) -> Optional[MappedItemBase]:
+    def restore_item(self, id_: TempId | int) -> Optional[MappedItemBase]:
         if id_ is Asterisk:
             self.purged = False
             for current_item in self.values():
@@ -700,23 +651,21 @@ class FieldDict(TypedDict):
 class MappedItemBase(dict):
     """A dictionary that represents a db item."""
 
-    item_type: ClassVar[str] = "not implemented"
+    item_type: ClassVar[ItemType] = NotImplemented
     fields: ClassVar[dict[str, FieldDict]] = {}
     """A dictionary mapping fields to a another dict mapping "type" to a Python type,
     "value" to a description of the value for the key, and "optional" to a bool."""
+    _fields_for_cloning: ClassVar[tuple[str, ...]] = ()
     _defaults: ClassVar[dict[str, Any]] = {}
     """A dictionary mapping fields to their default values."""
     unique_keys: ClassVar[tuple[tuple[str, str], ...]] = ()
     """A tuple where each element is itself a tuple of fields corresponding to a unique key."""
     required_key_combinations: ClassVar[tuple[tuple[str, ...], ...]] = ()
     """Tuple containing tuples of required keys and their possible alternatives."""
-    _references: ClassVar[dict[str, str]] = {}
-    """A dictionary mapping source fields to reference item type.
-    Used to access external fields.
-    """
-    _weak_references: ClassVar[dict[str, str]] = {}
-    """A dictionary mapping source field, to a tuple of reference item type.
-    Used to access external fields that may be None."""
+    _references: ClassVar[dict[str, ItemType]] = {}
+    """A dictionary mapping source fields to reference item type. Used to access external fields."""
+    _weak_references: ClassVar[dict[str, ItemType]] = {}
+    """A dictionary mapping source field to reference item type. Used to access external fields that may be None."""
     _soft_references: ClassVar[set[str]] = set()
     """A set of reference source fields that are OK to have no external field value."""
     _external_fields: ClassVar[dict[str, tuple[str, str]]] = {}
@@ -725,7 +674,7 @@ class MappedItemBase(dict):
     When accessing fields in _external_fields, we first find the reference pointed at by the source field,
     and then return the target field of that reference.
     """
-    _alt_references: ClassVar[dict[tuple[str, ...], tuple[str, tuple[str, ...]]]] = {}
+    _alt_references: ClassVar[dict[tuple[str, ...], tuple[ItemType, tuple[str, ...]]]] = {}
     """A dictionary mapping source fields, to a tuple of reference item type and reference fields.
     Used only to resolve internal fields at item creation.
     """
@@ -742,7 +691,7 @@ class MappedItemBase(dict):
     fields_not_requiring_cascade_update: ClassVar[set[str]] = set()
     is_protected: ClassVar[bool] = False
 
-    def __init__(self, db_map: DatabaseMappingBase, **kwargs):
+    def __init__(self, db_map: DatabaseMapping, **kwargs):
         """
         Args:
             db_map: the DB where this item belongs.
@@ -767,6 +716,9 @@ class MappedItemBase(dict):
         self._referenced_value_cache = {}
         self.public_item = PublicItem(self)
 
+    def as_item_dict(self) -> dict:
+        return {key: self[key] for key in self.fields}
+
     def handle_refetch(self) -> None:
         """Called when an equivalent item is fetched from the DB.
 
@@ -778,7 +730,7 @@ class MappedItemBase(dict):
             self._valid = None
 
     @classmethod
-    def ref_types(cls) -> set[str]:
+    def ref_types(cls) -> set[ItemType]:
         """Returns a set of item types that this class refers."""
         return set(cls._references.values())
 
@@ -795,6 +747,9 @@ class MappedItemBase(dict):
     def backup(self) -> Optional[dict]:
         """Returns the committed version of this item."""
         return self._backup
+
+    def set_backup_item(self, item: dict) -> None:
+        self._backup = item
 
     @property
     def removed(self) -> bool:
@@ -819,6 +774,19 @@ class MappedItemBase(dict):
         d.update({key: self[key] for key in self._external_fields})
         return d
 
+    def resolve_extended(self, skip_fields=()) -> dict:
+        """Same as extended but with TempId resolved."""
+        d = self.resolve()
+        d.update(
+            {
+                key: resolve(self[key])
+                for fields in (self.fields, self._external_fields)
+                for key in fields
+                if key not in skip_fields
+            }
+        )
+        return d
+
     def _asdict(self) -> dict:
         """Returns a dict from this item's original fields."""
         return dict(self)
@@ -840,6 +808,13 @@ class MappedItemBase(dict):
         if not other:
             return None, set()
         merged = {**self.extended(), **other}
+        for id_field, fields in self._internal_fields.items():
+            source_fields = fields[0]
+            if len(source_fields) != 1:
+                continue
+            source_field = source_fields[0]
+            if source_field in other and self.fields[source_field].get("optional", False):
+                del merged[id_field]
         return merged, set(other)
 
     def _strip_equal_fields(self, other: dict) -> dict:
@@ -851,7 +826,7 @@ class MappedItemBase(dict):
         return {
             key: value
             for key, value in other.items()
-            if (value is not None or self.fields.get(key, {}).get("optional", False))
+            if (value is not None or self.fields.get(key, {}).get("optional", False) or key in self._internal_fields)
             and _resolved(self.get(key)) != _resolved(value)
         }
 
@@ -863,14 +838,13 @@ class MappedItemBase(dict):
             return db_item
         return self
 
-    def first_invalid_key(self) -> str:
-        """Goes through the ``_references`` class attribute and returns the key of the first reference
+    def validate_keys(self) -> None:
+        """Goes through the ``_references`` class attribute and raises at the key of the first reference
         that cannot be resolved.
-
-        Returns:
-            str or None: unresolved reference's key if any.
         """
-        return next((src_key for src_key, ref in self._resolve_refs() if not ref), None)
+        invalid_key = next((src_key for src_key, ref in self._resolve_refs() if not ref), None)
+        if invalid_key is not None:
+            raise SpineDBAPIError(f"invalid {invalid_key} for {self.item_type}")
 
     def _resolve_refs(self) -> Iterator[tuple[str, Optional[MappedItemBase]]]:
         """Goes through the ``_references`` class attribute and tries to resolve them.
@@ -1092,7 +1066,7 @@ class MappedItemBase(dict):
         elif self.status in (Status.committed, Status.to_update):
             self.status = Status.to_remove
         else:
-            raise RuntimeError("invalid status for item being removed")
+            raise RuntimeError(f"invalid status '{self.status}' for item being removed")
         self._removal_source = source
         self._removed = True
         self._valid = None
@@ -1145,11 +1119,11 @@ class MappedItemBase(dict):
         """Returns whether this item is committed to the DB."""
         return self.status == Status.committed
 
-    def commit(self, commit_id) -> None:
+    def commit(self, commit_id: TempId | None) -> None:
         """Sets this item as committed with the given commit id."""
         self._status_when_committed = self.status
         self.status = Status.committed
-        if commit_id:
+        if commit_id is not None:
             self["commit_id"] = commit_id
 
     def __repr__(self):
@@ -1252,7 +1226,7 @@ class PublicItem:
         self._mapped_item = mapped_item
 
     @property
-    def item_type(self) -> str:
+    def item_type(self) -> ItemType:
         return self._mapped_item.item_type
 
     @property
@@ -1260,7 +1234,7 @@ class PublicItem:
         return self._mapped_item
 
     @property
-    def db_map(self) -> DatabaseMappingBase:
+    def db_map(self) -> DatabaseMapping:
         return self._mapped_item.db_map
 
     def __getitem__(self, key):
@@ -1297,6 +1271,9 @@ class PublicItem:
 
     def extended(self) -> dict:
         return self._mapped_item.extended()
+
+    def resolve_extended(self, skip_fields=()) -> dict:
+        return self._mapped_item.resolve_extended(skip_fields=skip_fields)
 
     def update(self, **kwargs) -> Optional[PublicItem]:
         mapped_table = self._mapped_item.db_map.mapped_table(self._mapped_item.item_type)

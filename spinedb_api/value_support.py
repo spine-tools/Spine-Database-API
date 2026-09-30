@@ -13,7 +13,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 import json
 import re
-from typing import Any, Literal, Optional, TypeAlias
+from typing import Any, Optional
 import pyarrow
 from .exception import ParameterValueFormatError
 
@@ -68,9 +68,16 @@ def validate_time_period(time_period: str) -> None:
             key = m.group(0)
             lower_upper_str = interval_str[len(key) :]
             lower_upper = lower_upper_str.split(range_dlm)
+            if len(lower_upper) == 1:
+                value_str = lower_upper[0]
+                try:
+                    int(value_str)
+                except Exception as error:
+                    raise ParameterValueFormatError(f"Invalid value {value_str}, must be an integer.") from error
+                continue
             if len(lower_upper) != 2:
                 raise ParameterValueFormatError(
-                    f"Invalid interval bounds {lower_upper_str}, it should be two integers separated by dash (-)."
+                    f"Invalid interval bounds {lower_upper_str}, it should be one or two integers separated by dash (-)."
                 )
             lower_str, upper_str = lower_upper
             try:

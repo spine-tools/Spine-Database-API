@@ -104,6 +104,7 @@ and a special `SQLAlchemy <docs.sqlalchemy.org/en/14/>`_ query prepared::
         ).subquery()
         df = fetch_as_dataframe(db_map, final_query, maps)
 """
+
 from __future__ import annotations
 import collections
 from typing import Any, Union

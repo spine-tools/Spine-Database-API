@@ -9,7 +9,8 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Contains SQLAlchemyReader class. """
+"""Contains SQLAlchemyReader class."""
+
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.orm import Session
 from ...exception import ReaderError
@@ -44,9 +45,9 @@ class SQLAlchemyReader(Reader):
             **extras: optional database schema
         """
         self._connection_string = source
-        self._engine = create_engine(source, future=True)
+        self._engine = create_engine(source)
         self._connection = self._engine.connect()
-        self._session = Session(self._engine, future=True)
+        self._session = Session(self._engine)
         self._schema = extras.get("schema")
         self._metadata = MetaData(schema=self._schema)
         self._metadata.reflect(bind=self._engine)

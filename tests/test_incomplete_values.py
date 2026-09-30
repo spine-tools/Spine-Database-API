@@ -29,7 +29,7 @@ from spinedb_api.incomplete_values import (
     join_value_and_type,
     split_value_and_type,
 )
-from spinedb_api.parameter_value import to_list
+from spinedb_api.parameter_value import from_database, to_list
 
 
 class TestDumpDbValue:
@@ -113,7 +113,21 @@ class TestFromDatabaseToDimensionCount:
 class TestJoinValueAndType:
     def test_correctness(self):
         blob, value_type = to_database(2.3)
-        assert json.loads(join_value_and_type(*to_database(2.3))) == [blob.decode(), value_type]
+        assert json.loads(join_value_and_type(*to_database(2.3))) == [2.3, value_type]
+        blob, value_type = to_database("I'm just a string")
+        assert json.loads(join_value_and_type(*to_database("I'm just a string"))) == ["I'm just a string", value_type]
+        blob, value_type = to_database(datetime(year=2026, month=9, day=30, hour=14, minute=1))
+        assert join_value_and_type(blob, value_type) == json.dumps(["2026-09-30T14:01:00", "date_time"])
+        assert from_database(*split_value_and_type(join_value_and_type(*to_database(2.3)))) == 2.3
+        assert (
+            from_database(*split_value_and_type(join_value_and_type(*to_database("I'm just a string"))))
+            == "I'm just a string"
+        )
+        assert from_database(
+            *split_value_and_type(
+                join_value_and_type(*to_database(datetime(year=2026, month=9, day=30, hour=14, minute=1)))
+            )
+        ) == DateTime("2026-09-30T14:01")
 
 
 class TestSplitValueAndType:

@@ -124,9 +124,6 @@ class DatabaseMappingCommitMixin:
             *ids: ids to remove
         """
         ids = {resolve(id_) for id_ in ids}
-        if tablename == "alternative":
-            # Do not remove the Base alternative
-            ids.discard(1)
         if not ids:
             return
         tablenames = [tablename]

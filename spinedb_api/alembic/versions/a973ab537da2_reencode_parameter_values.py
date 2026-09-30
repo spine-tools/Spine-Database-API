@@ -15,7 +15,7 @@ from spinedb_api.value_support import load_db_value
 
 # revision identifiers, used by Alembic.
 revision = "a973ab537da2"
-down_revision = "e9f2c2330cf8"
+down_revision = "6260fa2e3248"
 branch_labels = None
 depends_on = None
 

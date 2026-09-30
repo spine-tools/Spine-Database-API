@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains DataPackageReader class. """
+"""Contains DataPackageReader class."""
+
 from itertools import chain
 import threading
 import frictionless

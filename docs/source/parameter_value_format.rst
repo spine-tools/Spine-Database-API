@@ -102,6 +102,7 @@ where the accepted values are the following:
   The format is ``Ua-b``, where ``U`` is either ``Y`` (for year), ``M`` (for month), ``D`` (for day), ``WD`` (for weekday),
   ``h`` (for hour), ``m`` (for minute), or ``s`` (for second);
   and ``a`` and ``b`` are two integers corresponding to the lower and upper bound, respectively.
+  In case ``a`` and ``b`` are equal, the interval can be shortened to ``Ua``.
 - An intersection of intervals.
   The format is ``s1;s2;...``,
   where ``s1``, ``s2``, ..., are intervals as described above.

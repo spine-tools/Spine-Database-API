@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Unit tests for ``value_transformer`` module. """
+"""Unit tests for ``value_transformer`` module."""
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest

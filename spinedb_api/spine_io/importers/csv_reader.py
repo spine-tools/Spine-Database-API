@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains CSVReader class and helper functions. """
+"""Contains CSVReader class and helper functions."""
 
 import csv
 from itertools import islice
@@ -44,6 +44,7 @@ class CSVReader(Reader):
     def __init__(self, settings):
         super().__init__(settings)
         self._filename = None
+        self._detector = chardet.UniversalDetector(max_bytes=1024)
 
     def connect_to_source(self, source, **extras):
         """saves filepath
@@ -67,7 +68,13 @@ class CSVReader(Reader):
         options = {"skip": 0}
         # try to find options for file
         with open(self._filename, "rb") as input_file:
-            sniff_result = chardet.detect(input_file.read(1024))
+            for line in input_file:
+                self._detector.feed(line)
+                if self._detector.done:
+                    break
+            self._detector.close()
+            sniff_result = self._detector.result
+            self._detector.reset()
         sniffed_encoding = sniff_result["encoding"]
         if sniffed_encoding is not None:
             sniffed_encoding = sniffed_encoding.lower()

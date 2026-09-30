@@ -9,15 +9,13 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" This module provides the scenario filter. """
+"""This module provides the scenario filter."""
 
 from functools import partial
 from sqlalchemy import and_, case, desc, func, or_
 from sqlalchemy.sql.expression import label
 from ..exception import SpineDBAPIError
 from .query_utils import filter_by_active_elements
-
-__all__ = ("scenario_filter_config",)
 
 SCENARIO_FILTER_TYPE = "scenario_filter"
 SCENARIO_SHORTHAND_TAG = "scenario"
@@ -26,6 +24,8 @@ SCENARIO_SHORTHAND_TAG = "scenario"
 def apply_scenario_filter_to_subqueries(db_map, scenario):
     """
     Replaces affected subqueries in ``db_map`` such that they return only values of given scenario.
+
+    :meta private:
 
     Args:
         db_map (DatabaseMapping): a database map to alter
@@ -65,6 +65,8 @@ def scenario_filter_from_dict(db_map, config):
     """
     Applies scenario filter to given database map.
 
+    :meta private:
+
     Args:
         db_map (DatabaseMapping): target database map
         config (dict): scenario filter configuration
@@ -75,6 +77,8 @@ def scenario_filter_from_dict(db_map, config):
 def scenario_name_from_dict(config):
     """
     Returns scenario's name from filter config.
+
+    :meta private:
 
     Args:
         config (dict): scenario filter configuration
@@ -91,6 +95,8 @@ def scenario_filter_config_to_shorthand(config):
     """
     Makes a shorthand string from scenario filter configuration.
 
+    :meta private:
+
     Args:
         config (dict): scenario filter configuration
 
@@ -103,6 +109,8 @@ def scenario_filter_config_to_shorthand(config):
 def scenario_filter_shorthand_to_config(shorthand):
     """
     Makes configuration dictionary out of a shorthand string.
+
+    :meta private:
 
     Args:
         shorthand (str): a shorthand string

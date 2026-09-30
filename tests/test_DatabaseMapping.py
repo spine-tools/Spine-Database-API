@@ -9,16 +9,18 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Unit tests for DatabaseMapping class. """
+"""Unit tests for DatabaseMapping class."""
+
 from collections import namedtuple
+from datetime import datetime
 import gc
 import os.path
 from tempfile import TemporaryDirectory
 import threading
 import unittest
 from unittest import mock
-from unittest.mock import patch
 from dateutil.relativedelta import relativedelta
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import URL, make_url
 from spinedb_api import (
     DatabaseMapping,
@@ -32,6 +34,7 @@ from spinedb_api import (
 )
 from spinedb_api.db_mapping_base import PublicItem, Status
 from spinedb_api.exception import NothingToCommit
+from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.helpers import Asterisk, DisplayStatus, create_new_spine_database, name_from_elements
 from spinedb_api.parameter_value import Duration, type_for_scalar
@@ -1323,11 +1326,6 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 value_list = db_map.get_parameter_value_list_item(name="yes_no")
                 value_list.remove()
                 new_value_list = self._assert_success(db_map.add_parameter_value_list_item(name="yes_no"))
-                self._assert_success(
-                    db_map.add_list_value_item(
-                        parameter_value_list_name="yes_no", index=0, value=value, type=value_type
-                    )
-                )
                 db_map.commit_session("Readd value list.")
                 self.assertIsNone(new_value_list.mapped_item.replaced_item_waiting_for_removal)
                 list_values = db_map.get_list_value_items()
@@ -1591,6 +1589,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                     "parameter_type_list": (),
                     "default_type": None,
                     "default_value": None,
+                    "parameter_group_id": None,
                     "list_value_id": None,
                     "parameter_value_list_id": None,
                 },
@@ -2181,13 +2180,18 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 db_map.add_parameter_definition_item(name="y", entity_class_name="Object")
             )
             self.assertIsNone(definition["default_value"])
+            self.assertIsNone(definition["parsed_value"])
             definition.update(parsed_value=2.3)
             self.assertEqual(definition["parsed_value"], 2.3)
+            value_blob, value_type = to_database(2.3)
+            self.assertEqual(definition["default_value"], value_blob)
+            self.assertEqual(definition["default_type"], value_type)
 
     def test_update_parameter_value_with_parsed_value(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self._assert_success(db_map.add_entity_class_item(name="Object"))
             self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="z", entity_class_name="Object"))
             self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
             value_item = self._assert_success(
                 db_map.add_parameter_value_item(
@@ -2199,6 +2203,35 @@ class TestDatabaseMapping(AssertSuccessTestCase):
                 )
             )
             self.assertIsNone(value_item["parsed_value"])
+            value_item.update(parsed_value=2.3)
+            self.assertEqual(value_item["parsed_value"], 2.3)
+            value, value_type = to_database("original value")
+            with_uncached_parsed_value = db_map.add_parameter_value(
+                entity_class_name="Object",
+                parameter_definition_name="z",
+                entity_byname=("spoon",),
+                alternative_name="Base",
+                value=value,
+                type=value_type,
+            )
+            with_uncached_parsed_value.update(parsed_value=2.3)
+            self.assertEqual(with_uncached_parsed_value["parsed_value"], 2.3)
+
+    def test_update_parameter_value_with_parsed_value2(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            self._assert_success(db_map.add_entity_class_item(name="Object"))
+            self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
+            self._assert_success(db_map.add_entity_item(name="spoon", entity_class_name="Object"))
+            value_item = self._assert_success(
+                db_map.add_parameter_value_item(
+                    entity_class_name="Object",
+                    parameter_definition_name="y",
+                    entity_byname=("spoon",),
+                    alternative_name="Base",
+                    value=b"5.5",
+                    type="float",
+                )
+            )
             value_item.update(parsed_value=2.3)
             self.assertEqual(value_item["parsed_value"], 2.3)
 
@@ -3393,14 +3426,151 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             db_map.add_list_value(parameter_value_list_name="Enumeration", parsed_value=3.2, index=1)
             self.assertEqual(value_list_item["parsed_value_list"], [3.2, 2.3])
 
+    def test_purge_cold_db_mapping(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="LiveFastDieYoung")
+                db_map.commit_session("Add test data.")
+            with DatabaseMapping(url) as db_map:
+                self.assertTrue(db_map.purge_items("entity_class"))
+                db_map.commit_session("Purge entity classes.")
+            with DatabaseMapping(url) as db_map:
+                self.assertEqual(db_map.find_entity_classes(), [])
+            db_map.close()
+            gc.collect()
+
+    def test_cascade_remove(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "test_db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Klass")
+                db_map.add_entity(name="instance", entity_class_name="Klass")
+                db_map.add_parameter_definition(name="eks", entity_class_name="Klass")
+                db_map.add_parameter_value(
+                    entity_class_name="Klass",
+                    entity_byname=("instance",),
+                    parameter_definition_name="eks",
+                    alternative_name="Base",
+                    parsed_value=2.3,
+                )
+                db_map.commit_session("Add test data.")
+            db_map.close()
+            with DatabaseMapping(url) as db_map:
+                klass = db_map.entity_class(name="Klass")
+                klass.remove()
+                db_map.commit_session("Remove test data in cascade.")
+            db_map.close()
+            engine = create_engine(url)
+            with engine.connect() as connection:
+                entity_ids_in_value_table = connection.execute(text("select entity_id from parameter_value")).all()
+                self.assertEqual(len(entity_ids_in_value_table), 0)
+            engine.dispose()
+            gc.collect()
+
+    def test_cascade_remove_with_execution_filter(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "test_db.sqlite")
+            with DatabaseMapping(url, create=True) as db_map:
+                db_map.add_entity_class(name="Klass")
+                db_map.add_entity(name="instance", entity_class_name="Klass")
+                db_map.commit_session("Add test data.")
+            db_map.close()
+            filtered_url = append_filter_config(
+                url,
+                execution_filter_config(
+                    {
+                        "execution_item": "Executioner",
+                        "scenarios": ["high_cost"],
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                ),
+            )
+            with DatabaseMapping(filtered_url) as db_map:
+                klass = db_map.entity_class(name="Klass")
+                klass.remove()
+                db_map.commit_session("Remove test data in cascade.")
+            db_map.close()
+            engine = create_engine(url)
+            with engine.connect() as connection:
+                class_ids_in_entity_table = connection.execute(text("select class_id from entity")).all()
+                self.assertEqual(len(class_ids_in_entity_table), 0)
+            engine.dispose()
+            gc.collect()
+
+    def test_updating_none_entity_location_does_not_add_new_location(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="great_place")
+            db_map.add_entity(name="Puurtila", entity_class_name="great_place")
+            puurtila = db_map.entity(name="Puurtila", entity_class_name="great_place")
+            puurtila.update(name="Taipale", lat=None, lon=None, alt=None, shape_name=None, shape_blob=None)
+            self.assertEqual(db_map.find_entity_locations(), [])
+
+    def test_unset_parameter_value_list_in_definition(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="amphibian")
+            lungs = db_map.add_parameter_definition(entity_class_name="amphibian", name="lungs")
+            db_map.add_parameter_value_list(name="states")
+            lungs.update(parameter_value_list_name="states")
+            self.assertEqual(lungs["parameter_value_list_name"], "states")
+            lungs.update(parameter_value_list_name=None)
+            self.assertIsNone(lungs["parameter_value_list_name"])
+
+    def test_changing_value_list_while_values_exist_is_disallowed(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="amphibian")
+            lungs = db_map.add_parameter_definition(entity_class_name="amphibian", name="lungs")
+            db_map.add_parameter_value_list(name="values1")
+            db_map.add_list_value(parameter_value_list_name="values1", parsed_value="yes", index=0)
+            values2 = db_map.add_parameter_value_list(name="values2")
+            db_map.add_list_value(parameter_value_list_name="values2", parsed_value="yes", index=0)
+            lungs.update(parameter_value_list_name="values1")
+            db_map.add_entity(entity_class_name="amphibian", name="frog")
+            db_map.add_parameter_value(
+                entity_class_name="amphibian",
+                entity_byname=("frog",),
+                parameter_definition_name="lungs",
+                alternative_name="Base",
+                parsed_value="yes",
+            )
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "^can't modify the parameter value list of a parameter that already has values$"
+            ):
+                lungs.update(parameter_value_list_name=values2["name"])
+            with self.assertRaisesRegex(
+                SpineDBAPIError, "^can't modify the parameter value list of a parameter that already has values$"
+            ):
+                lungs.update(parameter_value_list_id=values2["id"])
+
+    def test_adding_parameter_definition_with_duplicate_type_raises(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="sea_monster")
+            with self.assertRaisesRegex(SpineDBAPIError, "^entries in parameter_type_list must be unique$"):
+                db_map.add_parameter_definition(
+                    entity_class_name="sea_monster", name="reputation", parameter_type_list=("float", "float")
+                )
+            self.assertEqual(db_map.find_parameter_definitions(), [])
+            horror_factor = db_map.add_parameter_definition(entity_class_name="sea_monster", name="horror_factor")
+            with self.assertRaisesRegex(SpineDBAPIError, "^entries in parameter_type_list must be unique$"):
+                horror_factor.update(parameter_type_list=("str", "str"))
+
+    def test_rollback_after_adding_purging_readding_and_updating_same_item(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_alternative(name="alt")
+            db_map.commit_session("Add alternative")
+            db_map.purge_items("alternative")
+            alternative = db_map.add_alternative(name="alt")
+            db_map.rollback_session()
+            self.assertTrue(alternative.is_valid())
+
 
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
 
     def test_construction_with_filters(self):
         db_url = IN_MEMORY_DB_URL + "?spinedbfilter=fltr1&spinedbfilter=fltr2"
-        with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
-            with patch(
+        with mock.patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
+            with mock.patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 db_map = DatabaseMapping(db_url, create=True)
@@ -3409,8 +3579,8 @@ class TestDatabaseMappingLegacy(unittest.TestCase):
 
     def test_construction_with_sqlalchemy_url_and_filters(self):
         sa_url = URL.create("sqlite", query={"spinedbfilter": ["fltr1", "fltr2"]})
-        with patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
-            with patch(
+        with mock.patch("spinedb_api.db_mapping.apply_filter_stack") as mock_apply:
+            with mock.patch(
                 "spinedb_api.db_mapping.load_filters", return_value=[{"fltr1": "config1", "fltr2": "config2"}]
             ) as mock_load:
                 with DatabaseMapping(sa_url, create=True) as db_map:
@@ -3470,6 +3640,7 @@ class TestDatabaseMappingLegacy(unittest.TestCase):
             "list_value_id",
             "commit_id",
             "parameter_value_list_id",
+            "parameter_group_id",
         ]
         with DatabaseMapping("sqlite://", create=True) as db_map:
             self.assertEqual(len(db_map.parameter_definition_sq.c), len(columns))
@@ -4649,7 +4820,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
 
     def test_add_metadata_that_exists_does_not_add_it(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, _ = db_map.add_items("metadata", {"name": "title", "value": "My metadata."}, strict=False)
             self.assertEqual(items, [])
@@ -4661,7 +4832,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("fish",))
             import_functions.import_objects(db_map, (("fish", "leviathan"),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.add_items("entity_metadata", {"entity_id": 1, "metadata_id": 1}, strict=False)
             self.assertEqual(errors, [])
@@ -4688,7 +4859,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_object_class", "my_object"),))
             import_functions.import_relationship_classes(db_map, (("my_relationship_class", ("my_object_class",)),))
             import_functions.import_relationships(db_map, (("my_relationship_class", ("my_object",)),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.add_items("entity_metadata", {"entity_id": 2, "metadata_id": 1}, strict=False)
             self.assertEqual(errors, [])
@@ -4745,7 +4916,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("fish",))
             import_functions.import_objects(db_map, (("fish", "leviathan"),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.add_ext_entity_metadata(
                 {"entity_id": 1, "metadata_name": "title", "metadata_value": "My metadata."}, strict=False
@@ -4777,7 +4948,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("fish", "leviathan"),))
             import_functions.import_object_parameters(db_map, (("fish", "paranormality"),))
             import_functions.import_object_parameter_values(db_map, (("fish", "leviathan", "paranormality", 3.9),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.add_items(
                 "parameter_value_metadata", {"parameter_value_id": 1, "metadata_id": 1}, strict=False
@@ -4846,7 +5017,7 @@ class TestDatabaseMappingAdd(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("fish", "leviathan"),))
             import_functions.import_object_parameters(db_map, (("fish", "paranormality"),))
             import_functions.import_object_parameter_values(db_map, (("fish", "leviathan", "paranormality", 3.9),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.add_ext_parameter_value_metadata(
                 {"parameter_value_id": 1, "metadata_name": "title", "metadata_value": "My metadata."}, strict=False
@@ -5128,6 +5299,7 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
                     "list_value_id": None,
                     "name": "my_parameter",
                     "parameter_value_list_id": 1,
+                    "parameter_group_id": None,
                 },
             )
 
@@ -5182,8 +5354,8 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             db_map.commit_session("Add test data")
             items, errors = db_map.update_ext_entity_metadata(
                 {"id": 1, "metadata_name": "key_2", "metadata_value": "new value"}
@@ -5207,12 +5379,12 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))
             import_functions.import_objects(db_map, (("my_class", "my_object"), ("my_class", "extra_object")))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}', '{"key 2": "metadata value 2"}'))
+            import_functions.import_metadata(db_map, [("title", "My metadata."), ("key 2", "metadata value 2")])
             import_functions.import_object_metadata(
                 db_map,
                 (
-                    ("my_class", "my_object", '{"title": "My metadata."}'),
-                    ("my_class", "extra_object", '{"key 2": "metadata value 2"}'),
+                    ("my_class", "my_object", "title", "My metadata."),
+                    ("my_class", "extra_object", "key 2", "metadata value 2"),
                 ),
             )
             db_map.commit_session("Add test data")
@@ -5242,12 +5414,12 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))
             import_functions.import_objects(db_map, (("my_class", "object_1"), ("my_class", "object_2")))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             import_functions.import_object_metadata(
                 db_map,
                 (
-                    ("my_class", "object_1", '{"title": "My metadata."}'),
-                    ("my_class", "object_2", '{"title": "My metadata."}'),
+                    ("my_class", "object_1", "title", "My metadata."),
+                    ("my_class", "object_2", "title", "My metadata."),
                 ),
             )
             db_map.commit_session("Add test data")
@@ -5280,9 +5452,9 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data")
             items, errors = db_map.update_ext_parameter_value_metadata(
@@ -5310,10 +5482,10 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data")
             items, errors = db_map.update_ext_parameter_value_metadata(
@@ -5344,7 +5516,7 @@ class TestDatabaseMappingUpdate(AssertSuccessTestCase):
 
     def test_update_metadata(self):
         with DatabaseMapping("sqlite://", create=True) as db_map:
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             db_map.commit_session("Add test data.")
             items, errors = db_map.update_items("metadata", *({"id": 1, "name": "author", "value": "Prof. T. Est"},))
             ids = {x.resolve()["id"] for x in items}
@@ -5585,10 +5757,10 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data.")
             metadata = db_map.query(db_map.metadata_sq).all()
@@ -5605,8 +5777,8 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             db_map.commit_session("Add test data.")
             entity_metadata = db_map.query(db_map.entity_metadata_sq).all()
             self.assertEqual(len(entity_metadata), 1)
@@ -5623,14 +5795,12 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             self._assert_imports(
-                import_functions.import_object_metadata(
-                    db_map, (("my_class", "my_object", '{"title": "My metadata."}'),)
-                )
+                import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             )
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data.")
             entity_metadata = db_map.query(db_map.entity_metadata_sq).all()
@@ -5647,10 +5817,10 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data.")
             parameter_value_metadata = db_map.query(db_map.parameter_value_metadata_sq).all()
@@ -5665,8 +5835,8 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
         with DatabaseMapping("sqlite://", create=True) as db_map:
             import_functions.import_object_classes(db_map, ("my_class",))
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
-            import_functions.import_object_metadata(db_map, (("my_class", "my_object", '{"title": "My metadata."}'),))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
+            import_functions.import_object_metadata(db_map, (("my_class", "my_object", "title", "My metadata."),))
             db_map.commit_session("Add test data.")
             db_map.remove_items("object", 1)
             db_map.remove_unused_metadata()
@@ -5681,9 +5851,9 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_object_class", "my_object"),))
             import_functions.import_relationship_classes(db_map, (("my_class", ("my_object_class",)),))
             import_functions.import_relationships(db_map, (("my_class", ("my_object",)),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             import_functions.import_relationship_metadata(
-                db_map, (("my_class", ("my_object",), '{"title": "My metadata."}'),)
+                db_map, (("my_class", ("my_object",), "title", "My metadata."),)
             )
             db_map.commit_session("Add test data.")
             db_map.remove_items("relationship", 2)
@@ -5699,9 +5869,9 @@ class TestDatabaseMappingRemoveMixin(AssertSuccessTestCase):
             import_functions.import_objects(db_map, (("my_class", "my_object"),))
             import_functions.import_object_parameters(db_map, (("my_class", "my_parameter"),))
             import_functions.import_object_parameter_values(db_map, (("my_class", "my_object", "my_parameter", 99.0),))
-            import_functions.import_metadata(db_map, ('{"title": "My metadata."}',))
+            import_functions.import_metadata(db_map, [("title", "My metadata.")])
             import_functions.import_object_parameter_value_metadata(
-                db_map, (("my_class", "my_object", "my_parameter", '{"title": "My metadata."}'),)
+                db_map, (("my_class", "my_object", "my_parameter", "title", "My metadata."),)
             )
             db_map.commit_session("Add test data.")
             db_map.remove_items("parameter_value", 1)
@@ -6595,24 +6765,5 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
                 db_map.fetch_more("parameter_definition")
                 definition = db_map.get_parameter_definition_item(name="z", entity_class_name="Object")
                 self.assertEqual(definition["parsed_value"], "yes")
-            db_map.close()
-            gc.collect()
-
-    def test_add_stuff_thats_been_filtered_out(self):
-        with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
-            with DatabaseMapping(url, create=True) as db_map:
-                db_map.add_entity_class(name="cat")
-                db_map.add_entity(name="Tom", entity_class_name="cat")
-                db_map.add_alternative(name="other")
-                db_map.add_entity_alternative(
-                    alternative_name="other", entity_byname=("Tom",), entity_class_name="cat", active=False
-                )
-                db_map.commit_session("Add Tom.")
-            db_map.close()
-            with DatabaseMapping(url, create=True) as db_map:
-                apply_alternative_filter_to_parameter_value_sq(db_map, ["other"])
-                db_map.add_entity(name="Tom", entity_class_name="cat")
-                db_map.commit_session("Add Tom again.")
             db_map.close()
             gc.collect()

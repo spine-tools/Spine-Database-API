@@ -142,33 +142,19 @@ def insert_into_new_tables():
     ]
     op.bulk_insert(meta.tables["entity_class"], entity_classes)
     # Id mappings
-    obj_cls_to_ent_cls = {
-        r.object_class_id: r.entity_class_id
-        for r in conn.execute(
-            text(
-                """
+    obj_cls_to_ent_cls = {r.object_class_id: r.entity_class_id for r in conn.execute(text("""
             SELECT object_class.id AS object_class_id, entity_class.id AS entity_class_id
             FROM object_class, entity_class
             WHERE entity_class.type_id = 1
             AND object_class.name = entity_class.name
-            """
-            )
-        )
-    }
-    rel_cls_to_ent_cls = {
-        r.relationship_class_id: r.entity_class_id
-        for r in conn.execute(
-            text(
-                """
+            """))}
+    rel_cls_to_ent_cls = {r.relationship_class_id: r.entity_class_id for r in conn.execute(text("""
             SELECT relationship_class.id AS relationship_class_id, entity_class.id AS entity_class_id
             FROM relationship_class, entity_class
             WHERE entity_class.type_id = 2
             AND relationship_class.name = entity_class.name
             GROUP BY relationship_class_id, entity_class_id
-            """
-            )
-        )
-    }
+            """))}
     temp_relationship_classes = [
         {"entity_class_id": r.id, "type_id": 2, "commit_id": r.commit_id}
         for r in conn.execute(text("SELECT id, commit_id FROM entity_class WHERE type_id = 2"))
@@ -195,33 +181,19 @@ def insert_into_new_tables():
     ]
     op.bulk_insert(meta.tables["entity"], entities)
     # Id mappings
-    obj_to_ent = {
-        r.object_id: r.entity_id
-        for r in conn.execute(
-            text(
-                """
+    obj_to_ent = {r.object_id: r.entity_id for r in conn.execute(text("""
             SELECT object.id AS object_id, entity.id AS entity_id
             FROM object, entity
             WHERE entity.type_id = 1
             AND object.name = entity.name
-            """
-            )
-        )
-    }
-    rel_to_ent = {
-        r.relationship_id: r.entity_id
-        for r in conn.execute(
-            text(
-                """
+            """))}
+    rel_to_ent = {r.relationship_id: r.entity_id for r in conn.execute(text("""
             SELECT relationship.id AS relationship_id, entity.id AS entity_id
             FROM relationship, entity
             WHERE entity.type_id = 2
             AND relationship.name = entity.name
             GROUP BY relationship_id, entity_id
-            """
-            )
-        )
-    }
+            """))}
     temp_relationships = [
         {"entity_id": r.id, "entity_class_id": r.class_id, "type_id": 2, "commit_id": r.commit_id}
         for r in conn.execute(text("SELECT id, class_id, commit_id FROM entity WHERE type_id = 2"))
@@ -236,15 +208,11 @@ def insert_into_new_tables():
             "member_class_id": obj_cls_to_ent_cls[r.object_class_id],
             "commit_id": r.commit_id,
         }
-        for r in conn.execute(
-            text(
-                """
+        for r in conn.execute(text("""
             SELECT r.id, r.class_id, r.dimension, o.class_id AS object_class_id, r.object_id, r.commit_id
             FROM relationship AS r, object AS o
             WHERE r.object_id = o.id
-            """
-            )
-        )
+            """))
     ]
     op.bulk_insert(meta.tables["relationship_entity"], relationship_entities)
     # Return metadata and id mappings
@@ -309,12 +277,10 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
             {"entity_class_id": entity_class_id, "object_class_id": object_class_id},
         )
         conn.execute(
-            text(
-                """
+            text("""
             UPDATE parameter_definition SET entity_class_id = :entity_class_id
             WHERE object_class_id = :object_class_id
-            """
-            ),
+            """),
             {
                 "entity_class_id": entity_class_id,
                 "object_class_id": object_class_id,
@@ -322,12 +288,10 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
         )
     for relationship_class_id, entity_class_id in rel_cls_to_ent_cls.items():
         conn.execute(
-            text(
-                """
+            text("""
             UPDATE parameter_definition SET entity_class_id = :entity_class_id
             WHERE relationship_class_id = :relationship_class_id
-            """
-            ),
+            """),
             {
                 "entity_class_id": entity_class_id,
                 "relationship_class_id": relationship_class_id,
@@ -343,12 +307,10 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
         )
         entity_class_id = ent_to_ent_cls[entity_id]
         conn.execute(
-            text(
-                """
+            text("""
             UPDATE parameter_value SET entity_id = :entity_id, entity_class_id = :entity_class_id
             WHERE object_id = :object_id
-            """
-            ),
+            """),
             {
                 "entity_id": entity_id,
                 "entity_class_id": entity_class_id,
@@ -358,12 +320,10 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
     for relationship_id, entity_id in rel_to_ent.items():
         entity_class_id = ent_to_ent_cls[entity_id]
         conn.execute(
-            text(
-                """
+            text("""
             UPDATE parameter_value SET entity_id = :entity_id, entity_class_id = :entity_class_id
             WHERE relationship_id = :relationship_id
-            """
-            ),
+            """),
             {
                 "entity_id": entity_id,
                 "entity_class_id": entity_class_id,
@@ -383,8 +343,7 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
     user = "alembic"
     date = datetime.now(timezone.utc)
     conn.execute(
-        text(
-            """
+        text("""
         UPDATE next_id
         SET
             user = :user,
@@ -393,8 +352,7 @@ def update_tables(meta, obj_cls_to_ent_cls, rel_cls_to_ent_cls, obj_to_ent, rel_
             entity_type_id = 3,
             entity_class_id = :entity_class_id,
             entity_id = :entity_id
-        """
-        ),
+        """),
         {
             "user": user,
             "date": date,

@@ -11,7 +11,7 @@ classifiers = [
     "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.10"  # Remember to bump Black's target-version below when updating this.
 dependencies = [
     "SQLAlchemy >=2.0, <2.1",
     "alembic >=1.7",
@@ -22,7 +22,7 @@ dependencies = [
     "openpyxl >=3.0.7, !=3.1.1",
     "GDX2py >=2.2.0",
     "ijson >=3.1.4",
-    "chardet >=4.0.0",
+    "chardet >=7.1",
     "PyMySQL[rsa] >=1.0.2",
     "psycopg2-binary",
     "pyarrow >= 20.0",
@@ -34,12 +34,12 @@ dependencies = [
 Repository = "https://github.com/spine-tools/Spine-Database-API"
 
 [build-system]
-requires = ["setuptools>=64", "setuptools_scm[toml]>=6.2", "wheel", "build"]
+requires = ["setuptools>=80", "setuptools_scm>=8", "wheel", "build"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 write_to = "spinedb_api/version.py"
-version_scheme = "release-branch-semver"
+version_scheme = "guess-next-dev"
 
 [tool.setuptools]
 zip-safe = false
@@ -61,6 +61,7 @@ branch = true
 ignore_errors = true
 
 [tool.black]
+target-version = ["py310"]
 line-length = 120
 force-exclude = '\.git|version.py'
 
@@ -69,5 +70,7 @@ profile = "black"
 lines_between_sections = 0
 force_sort_within_sections = true
 honor_case_in_force_sorted_sections = true
-skip = [".git", "spinedb_api/version.py"]
+known_third_party = ["alembic"]  # The alembic migragration scripts confuse isort to think it is a 3rd party library.
+src_paths = ["spinedb_api", "tests", "benchmarks"]
+extend_skip = ["version.py"]
 line_length = 120

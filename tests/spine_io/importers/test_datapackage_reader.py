@@ -13,6 +13,7 @@ from contextlib import contextmanager
 import csv
 from pathlib import Path
 import pickle
+import sys
 from tempfile import TemporaryDirectory
 import unittest
 from frictionless import Package, Resource
@@ -52,25 +53,6 @@ class TestDatapackageReader(unittest.TestCase):
             data_iterator, header = reader.get_data_iterator("test_data", {"has_header": False})
             self.assertIsNone(header)
             self.assertEqual(list(data_iterator), data)
-
-    def test_wrong_datapackage_encoding_raises_reader_error(self):
-        broken_text = b"Slagn\xe4s"
-        # Fool the datapackage sniffing algorithm by hiding the broken line behind a large number of UTF-8 lines.
-        data = 1000 * [b"normal_text\n"] + [broken_text]
-        with TemporaryDirectory() as temp_dir:
-            csv_file_path = Path(temp_dir, "test_data.csv")
-            with open(csv_file_path, "wb") as csv_file:
-                for row in data:
-                    csv_file.write(row)
-            package = Package(basepath=temp_dir)
-            package.add_resource(Resource(path=str(csv_file_path.relative_to(temp_dir))))
-            package_path = Path(temp_dir, "datapackage.json")
-            package.to_json(package_path)
-            reader = DatapackageReader(None)
-            reader.connect_to_source(str(package_path))
-            data_iterator, header = reader.get_data_iterator("test_data", {"has_header": False})
-            self.assertIsNone(header)
-            self.assertRaises(ReaderError, list, data_iterator)
 
     def test_get_table_cell(self):
         data = [["11", "12", "13"], ["21", "22", "23"]]

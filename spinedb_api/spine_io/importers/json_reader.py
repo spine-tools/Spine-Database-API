@@ -10,7 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains JSONReader class. """
+"""Contains JSONReader class."""
+
 import itertools
 import os
 import sys
@@ -32,7 +33,7 @@ class JSONReader(Reader):
     # File extensions for modal widget that that returns source object and action (OK, CANCEL)
     FILE_EXTENSIONS = "*.json"
 
-    def __init__(self, settings):
+    def __init__(self, settings: dict | None):
         super().__init__(settings)
         self._filename = None
         self._root_prefix = None
