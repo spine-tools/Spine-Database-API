@@ -1133,32 +1133,28 @@ class TestGetMappedData(unittest.TestCase):
 
     def test_json_converter_with_legacy_values(self):
         header = ["Entity", "Value"]
-        values = [
-            DateTime("2025-09-05T09:11"),
-            Duration("4 hours"),
-            Array([2.3]),
-            TimePattern(["WD1-7"], [2.3]),
-            TimeSeriesFixedResolution("2025-09-05T09:16", "1h", [2.3], ignore_year=True, repeat=False),
-            TimeSeriesVariableResolution(["2025-09-05T09:16"], [2.3], ignore_year=False, repeat=True),
-            Map(["a"], ["b"]),
-        ]
-        data = []
+        values = {
+            "date_time": DateTime("2025-09-05T09:11"),
+            "duration": Duration("4 hours"),
+            "array": Array([2.3]),
+            "time_pattern": TimePattern(["WD1-7"], [2.3]),
+            "fixed_time_series": TimeSeriesFixedResolution(
+                "2025-09-05T09:16", "1h", [2.3], ignore_year=True, repeat=False
+            ),
+            "variable_time_series": TimeSeriesVariableResolution(
+                ["2025-09-05T09:16"], [2.3], ignore_year=False, repeat=True
+            ),
+            "map": Map(["a"], ["b"]),
+        }
         expected_imported_parameter_values = []
-        for i, value in enumerate(values):
+        data = []
+        entities = []
+        for i, (entity, value) in enumerate(values.items()):
+            entities.append(["Object", entity])
             value_dict = value.to_dict()
             value_dict["type"] = value.TYPE
-            entity = value.TYPE + str(i)
             data.append([entity, json.dumps(value_dict)])
-            expected_value = value.as_arrow()
-            if isinstance(value, TimeSeries):
-                new_fields = []
-                for field_i in range(len(expected_value.schema)):
-                    field = expected_value.schema.field(field_i)
-                    if pyarrow.types.is_timestamp(field.type):
-                        field = field.with_type(pyarrow.timestamp("us"))
-                    new_fields.append((field.name, field.type))
-                expected_value = expected_value.cast(pyarrow.schema(new_fields))
-            expected_imported_parameter_values.append(["Object", (entity,), "y", expected_value, "Base"])
+            expected_imported_parameter_values.append(["Object", (entity,), "y", value, "Base"])
         data_source = iter(data)
         mappings = [
             [
@@ -1179,15 +1175,7 @@ class TestGetMappedData(unittest.TestCase):
                 "entity_classes": [
                     ["Object", []],
                 ],
-                "entities": [
-                    ["Object", "date_time0"],
-                    ["Object", "duration1"],
-                    ["Object", "array2"],
-                    ["Object", "time_pattern3"],
-                    ["Object", "time_series4"],
-                    ["Object", "time_series5"],
-                    ["Object", "map6"],
-                ],
+                "entities": entities,
                 "parameter_definitions": [["Object", "y"]],
                 "alternatives": {"Base"},
                 "parameter_values": expected_imported_parameter_values,
@@ -1196,22 +1184,28 @@ class TestGetMappedData(unittest.TestCase):
 
     def test_json_converter(self):
         header = ["Entity", "Value"]
-        values = [
-            2.3,
-            23,
-            "a string",
-            True,
-            datetime.datetime(year=2025, month=9, day=5, hour=10, minute=4),
-            relativedelta(hours=7),
-            pyarrow.record_batch({"col_1": pyarrow.array(["a"]), "value": pyarrow.array("b")}),
+        values = {
+            "float": 2.3,
+            "int": 23,
+            "str": "a string",
+            "bool": True,
+            "datetime_tuple": datetime.datetime(year=2025, month=9, day=5, hour=10, minute=4),
+            "relativedelta_tuple": relativedelta(hours=7),
+            "table": pyarrow.record_batch({"col_1": pyarrow.array(["a"]), "value": pyarrow.array("b")}),
+            "table_tuple": pyarrow.record_batch({"col_1": pyarrow.array(["a"]), "value": pyarrow.array("b")}),
+        }
+        data = [
+            ["float", "2.3"],
+            ["int", "23"],
+            ["str", "a string"],
+            ["bool", "true"],
+            ["datetime_tuple", json.dumps(["2025-09-05T10:04", "date_time"])],
+            ["relativedelta_tuple", json.dumps(["PT7H", "duration"])],
+            ["table", to_database(values["table"])[0].decode("utf-8")],
+            ["table_tuple", join_value_and_type(*to_database(values["table_tuple"]))],
         ]
-        data = []
         expected_imported_parameter_values = []
-        for value in values:
-            blob, value_type = to_database(value)
-            value_and_type = join_value_and_type(blob, value_type)
-            entity = value_type
-            data.append([entity, value_and_type])
+        for entity, value in values.items():
             expected_imported_parameter_values.append(["Object", (entity,), "y", value, "Base"])
         data_source = iter(data)
         mappings = [
@@ -1238,9 +1232,10 @@ class TestGetMappedData(unittest.TestCase):
                     ["Object", "int"],
                     ["Object", "str"],
                     ["Object", "bool"],
-                    ["Object", "date_time"],
-                    ["Object", "duration"],
+                    ["Object", "datetime_tuple"],
+                    ["Object", "relativedelta_tuple"],
                     ["Object", "table"],
+                    ["Object", "table_tuple"],
                 ],
                 "parameter_definitions": [["Object", "y"]],
                 "alternatives": {"Base"},

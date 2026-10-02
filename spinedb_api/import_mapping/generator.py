@@ -17,24 +17,32 @@ using ``import_functions.import_data()``
 
 from collections.abc import Callable, Iterable
 from copy import deepcopy
+import datetime
 from itertools import dropwhile
 import json
 from typing import Any, Optional, TypeVar
-from .. import arrow_value
+from ..arrow_value import to_record_batch
+from ..compat.converters import parse_duration
 from ..exception import ParameterValueFormatError
 from ..helpers import string_to_bool
 from ..import_functions import UnparseCallable
-from ..incomplete_values import split_value_and_type
 from ..mapping import Position, is_pivoted
 from ..parameter_value import (
+    BOOLEAN_VALUE_TYPE,
+    FLOAT_VALUE_TYPE,
+    STRING_VALUE_TYPE,
+    TABLE_TYPE,
     Array,
+    DateTime,
+    Duration,
     IndexedValue,
     Map,
+    ParameterValue,
     TimePattern,
     TimeSeriesVariableResolution,
+    Value,
     convert_leaf_maps_to_specialized_containers,
     from_dict,
-    to_database,
 )
 from .import_mapping import (
     ArrayValueRecord,
@@ -388,10 +396,7 @@ def _make_parameter_definitions(mapped_data: SemiMappedData, unparse_value: Unpa
             else:
                 default_value = None
         elif isinstance(default_value, JSONObject):
-            try:
-                default_value = arrow_value.from_database(*split_value_and_type(default_value.json_string))
-            except (json.JSONDecodeError, TypeError, KeyError, ParameterValueFormatError):
-                default_value = default_value.json_string
+            default_value = unparse_value(_try_value(default_value.json_string))
         reversed_extras = [record.description, record.value_list_name, default_value]
         definition_data += reversed(list(dropwhile(lambda x: x is None, reversed_extras)))
         final_rows.append(definition_data)
@@ -413,10 +418,7 @@ def _make_parameter_values(mapped_data: SemiMappedData, unparse_value: UnparseCa
             else:
                 value = None
         elif isinstance(value, JSONObject):
-            try:
-                value = arrow_value.from_database(*split_value_and_type(value.json_string))
-            except (json.JSONDecodeError, TypeError, KeyError, ParameterValueFormatError):
-                value = value.json_string
+            value = unparse_value(_try_value(value.json_string))
         if value is None:
             continue
         value_data = [entity_class_name, entity_byname, parameter_name, value]
@@ -463,6 +465,32 @@ def _make_value(record: ValueRecord) -> IndexedValue:
             return map_value
         case _:
             raise RuntimeError(f"logic error: unknown record type '{type(record).__name__}'")
+
+
+def _try_value(json_string: str) -> Value | ParameterValue | None:
+    try:
+        parsed = json.loads(json_string)
+    except json.JSONDecodeError:
+        return json_string
+    try:
+        if isinstance(parsed, dict):
+            return from_dict(parsed, parsed["type"])
+        if isinstance(parsed, list):
+            if len(parsed) > 0 and isinstance(parsed[0], dict):
+                return to_record_batch(parsed)
+            if len(parsed) == 2:
+                value_type = parsed[1]
+                if value_type in {STRING_VALUE_TYPE, FLOAT_VALUE_TYPE, BOOLEAN_VALUE_TYPE}:
+                    return parsed[0]
+                if value_type == Duration.TYPE:
+                    return parse_duration(parsed[0])
+                if value_type == DateTime.TYPE:
+                    return datetime.datetime.fromisoformat(parsed[0])
+                if value_type == TABLE_TYPE:
+                    return to_record_batch(parsed[0])
+        return parsed if isinstance(parsed, (str, int, float, bool)) else json_string
+    except (TypeError, KeyError, ParameterValueFormatError):
+        return json_string
 
 
 def _parameter_value_from_dict(d):

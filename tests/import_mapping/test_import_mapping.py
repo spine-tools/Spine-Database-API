@@ -94,7 +94,7 @@ class TestConvertFunctions(unittest.TestCase):
         self.assertEqual(mapped_data, expected)
 
     def test_convert_json_string_to_str(self):
-        data = [["a", '["1111.2222", "string"]']]
+        data = [["a", '["1111.2222", "str"]']]
         column_convert_fns = {0: str, 1: JSONConvertSpec()}
         mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
         mapping.position = 0

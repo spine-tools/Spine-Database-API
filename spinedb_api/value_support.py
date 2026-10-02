@@ -22,7 +22,7 @@ JSONValue = bool | float | str | list | dict
 _INTERVAL_REGEXP = re.compile(r"(Y|M|D|WD|h|m|s)")
 
 
-def load_db_value(db_value: bytes) -> Optional[JSONValue]:
+def load_db_value(db_value: bytes | None, value_type: str | None) -> Optional[JSONValue]:
     """
     Parses a binary blob into a JSON object.
 
@@ -32,6 +32,7 @@ def load_db_value(db_value: bytes) -> Optional[JSONValue]:
 
     Args:
         db_value: The binary blob.
+        value_type: The type of the value in the blob.
 
     Returns:
         The parsed parameter value.
@@ -39,7 +40,7 @@ def load_db_value(db_value: bytes) -> Optional[JSONValue]:
     if db_value is None:
         return None
     try:
-        parsed = json.loads(db_value)
+        parsed = json.loads(db_value, parse_int=(int if value_type != "float" else float))
     except json.JSONDecodeError as err:
         raise ParameterValueFormatError(f"Could not decode the value: {err}") from err
     return parsed

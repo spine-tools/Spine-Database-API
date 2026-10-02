@@ -64,7 +64,7 @@ def _upgrade_table_types(table, value_label, type_label, connection):
 
 
 def _from_database_legacy(value: bytes, type_: Optional[str]) -> Optional[Any]:
-    parsed = load_db_value(value)
+    parsed = load_db_value(value, type_)
     if isinstance(parsed, dict):
         return from_dict(parsed, type_)
     if type_ == DateTime.TYPE:

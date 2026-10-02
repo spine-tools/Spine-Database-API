@@ -11,6 +11,7 @@
 ######################################################################################################################
 from datetime import datetime
 import json
+from dateutil.relativedelta import relativedelta
 import pyarrow
 from spinedb_api import (
     Array,
@@ -23,13 +24,22 @@ from spinedb_api import (
     duration_to_relativedelta,
     to_database,
 )
+from spinedb_api.arrow_value import with_column_as_time_period, with_column_as_time_stamps
 from spinedb_api.incomplete_values import (
     dump_db_value,
     from_database_to_dimension_count,
     join_value_and_type,
     split_value_and_type,
+    try_parse_json,
 )
-from spinedb_api.parameter_value import from_database, to_list
+from spinedb_api.parameter_value import (
+    BOOLEAN_VALUE_TYPE,
+    FLOAT_VALUE_TYPE,
+    STRING_VALUE_TYPE,
+    TimeSeries,
+    from_database,
+    to_list,
+)
 
 
 class TestDumpDbValue:
@@ -136,3 +146,72 @@ class TestSplitValueAndType:
         assert split_value_and_type(join_value_and_type(blob, value_type)) == to_database(2.3)
         blob, value_type = to_database(DateTime("2025-09-04T16:20"))
         assert split_value_and_type(join_value_and_type(blob, value_type)) == (blob, value_type)
+
+
+class TestTryParseJson:
+    def test_things_that_end_up_as_strings(self):
+        assert try_parse_json("a random string") == (json.dumps("a random string").encode(), STRING_VALUE_TYPE)
+        random_json_dict = json.dumps({"some": "data"})
+        assert try_parse_json(random_json_dict) == (json.dumps(random_json_dict).encode(), STRING_VALUE_TYPE)
+        random_json_list = json.dumps([1, 2, 3])
+        assert try_parse_json(random_json_list) == (json.dumps(random_json_list).encode(), STRING_VALUE_TYPE)
+
+    def test_legacy_parameter_values(self):
+        assert try_parse_json(json.dumps("a string")) == (json.dumps("a string").encode(), STRING_VALUE_TYPE)
+        assert try_parse_json(json.dumps(2.3)) == (json.dumps(2.3).encode(), FLOAT_VALUE_TYPE)
+        assert try_parse_json(json.dumps(False)) == ("false".encode(), BOOLEAN_VALUE_TYPE)
+        date_time = DateTime("2026-10-02T11:11").to_dict()
+        date_time["type"] = DateTime.TYPE
+        assert try_parse_json(json.dumps(date_time)) == (b'"2026-10-02T11:11:00"', DateTime.TYPE)
+        duration = Duration("13h").to_dict()
+        duration["type"] = Duration.TYPE
+        assert try_parse_json(json.dumps(duration)) == (b'"PT13H"', Duration.TYPE)
+        time_pattern = TimePattern(["D1-7"], [2.3]).to_dict()
+        time_pattern["type"] = TimePattern.TYPE
+        expected_value = with_column_as_time_period(
+            pyarrow.record_batch(
+                {
+                    "p": pyarrow.array(["D1-7"]),
+                    "value": pyarrow.array([2.3]),
+                }
+            ),
+            0,
+        )
+        assert try_parse_json(json.dumps(time_pattern)) == (to_database(expected_value)[0], TimePattern.TYPE)
+        array = Array([1.1, 2.2]).to_dict()
+        array["type"] = Array.TYPE
+        expected_value = pyarrow.record_batch(
+            {
+                "i": [1, 2],
+                "value": [1.1, 2.2],
+            }
+        )
+        assert try_parse_json(json.dumps(array)) == (to_database(expected_value)[0], Array.TYPE)
+        time_series = TimeSeriesFixedResolution(
+            "2026-10-02T12:30", "2h", [1.1, 2.2], ignore_year=False, repeat=False
+        ).to_dict()
+        time_series["type"] = TimeSeries.TYPE
+        expected_value = with_column_as_time_stamps(
+            pyarrow.record_batch(
+                {
+                    "t": [
+                        datetime(year=2026, month=10, day=2, hour=12, minute=30),
+                        datetime(year=2026, month=10, day=2, hour=14, minute=30),
+                    ],
+                    "value": [1.1, 2.2],
+                }
+            ),
+            0,
+            ignore_year=False,
+            repeat=False,
+        )
+        assert try_parse_json(json.dumps(time_series)) == (to_database(expected_value)[0], TimeSeries.TYPE)
+        map_value = Map(["a", "b"], [1.1, 2.2]).to_dict()
+        map_value["type"] = Map.TYPE
+        expected_value = pyarrow.record_batch(
+            {
+                "col_1": ["a", "b"],
+                "value": [1.1, 2.2],
+            }
+        )
+        assert try_parse_json(json.dumps(map_value)) == (to_database(expected_value)[0], Map.TYPE)

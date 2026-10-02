@@ -13,8 +13,10 @@
 
 import json
 from typing import Optional
+from . import ParameterValueFormatError
+from .arrow_value import to_record_batch
 from .models import to_json
-from .parameter_value import RANK_1_TYPES, TABLE_TYPE, Map, from_dict, to_database, type_for_scalar
+from .parameter_value import RANK_1_TYPES, STRING_VALUE_TYPE, TABLE_TYPE, Map, from_dict, to_database, type_for_scalar
 from .value_support import JSONValue, load_db_value
 
 
@@ -27,7 +29,7 @@ def dump_db_value(parsed_value: JSONValue) -> tuple[bytes, str | None]:
     :meta private:
 
     Args:
-        parsed_value: A JSON object, typically obtained by calling :func:`load_db_value`.
+        parsed_value: A JSON object.
 
     Returns:
         database representation (value and type).
@@ -61,7 +63,7 @@ def from_database_to_dimension_count(database_value: bytes, value_type: Optional
     if value_type in RANK_1_TYPES:
         return 1
     if value_type == Map.TYPE or value_type == TABLE_TYPE:
-        parsed = load_db_value(database_value)
+        parsed = load_db_value(database_value, value_type)
         return len(parsed) - 1
     return 0
 
@@ -94,3 +96,23 @@ def split_value_and_type(value_and_type: str) -> tuple[bytes, str | None]:
         value_dict = json.loads(value_and_type)
         return to_database(from_dict(value_dict, value_dict["type"]))
     return json.dumps(parsed[0]).encode(), parsed[1]
+
+
+def try_parse_json(json_string: str) -> tuple[bytes, str | None]:
+    """Tries to interpret user input as parameter value JSON."""
+    try:
+        parsed = json.loads(json_string)
+    except json.JSONDecodeError:
+        return json.dumps(json_string).encode("UTF8"), STRING_VALUE_TYPE
+    try:
+        if isinstance(parsed, dict):
+            value_type = parsed.pop("type")
+            value = from_dict(parsed, value_type)
+            return to_database(value)
+        if isinstance(parsed, list):
+            value = to_record_batch(parsed)
+            return to_database(value)
+        value_type = type_for_scalar(parsed)
+        return json.dumps(parsed).encode("UTF8"), value_type
+    except (TypeError, KeyError, ParameterValueFormatError):
+        return json.dumps(json_string).encode("UTF8"), STRING_VALUE_TYPE

@@ -35,17 +35,13 @@ Value: TypeAlias = float | str | bool | datetime.datetime | relativedelta.relati
 
 def from_database(db_value: bytes, value_type: str) -> Value:
     """Parses a database value."""
-    if db_value is None:
-        return None
-    loaded = load_db_value(db_value)
+    loaded = load_db_value(db_value, value_type)
     if isinstance(loaded, list) and len(loaded) > 0 and isinstance(loaded[0], dict):
         return to_record_batch(loaded)
     if value_type == "duration":
         return parse_duration(loaded)
     if value_type == "date_time":
         return datetime.datetime.fromisoformat(loaded)
-    if isinstance(loaded, SupportsFloat) and not isinstance(loaded, bool):
-        return float(loaded)
     return loaded
 
 

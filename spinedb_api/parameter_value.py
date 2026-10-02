@@ -144,7 +144,7 @@ def from_database(value: bytes, type_: Optional[str]) -> Optional[Value | Parame
     Returns:
         A Python object representing the value.
     """
-    parsed = load_db_value(value)
+    parsed = load_db_value(value, type_)
     if isinstance(parsed, dict):
         return from_dict(parsed, type_)
     if type_ == TABLE_TYPE:
@@ -161,9 +161,6 @@ def from_database(value: bytes, type_: Optional[str]) -> Optional[Value | Parame
         return TimeSeriesVariableResolution.from_arrow(to_record_batch(parsed))
     if type_ == Map.TYPE:
         return Map.from_arrow(to_record_batch(parsed))
-    if isinstance(parsed, int) and type_ == FLOAT_VALUE_TYPE:
-        # json.dumps() writes floats without decimals as ints.
-        return float(parsed)
     return parsed
 
 
@@ -344,7 +341,7 @@ def merge_parsed(parsed_value: Optional[Value], parsed_other: Optional[Value]) -
     return parsed_value.merge(parsed_other)
 
 
-_MERGE_FUNCTIONS: dict[ConflictResolution:ConflictResolutionCallable] = {
+_MERGE_FUNCTIONS: dict[ConflictResolution, ConflictResolutionCallable] = {
     "keep": lambda new, old: old,
     "replace": lambda new, old: new,
     "merge": merge,
@@ -2104,6 +2101,7 @@ def _build_value_array(value_column: list) -> pyarrow.Array:
 
 # Value types that are supported by spinedb_api
 VALUE_TYPES: set[str] = {
+    INT_VALUE_TYPE,
     FLOAT_VALUE_TYPE,
     BOOLEAN_VALUE_TYPE,
     STRING_VALUE_TYPE,
@@ -2113,6 +2111,7 @@ VALUE_TYPES: set[str] = {
     TimePattern.TYPE,
     TimeSeries.TYPE,
     Map.TYPE,
+    TABLE_TYPE,
 }
 
 RANK_1_TYPES: set[str] = {Array.TYPE, TimePattern.TYPE, TimeSeries.TYPE}
