@@ -17,21 +17,32 @@ using ``import_functions.import_data()``
 
 from collections.abc import Callable, Iterable
 from copy import deepcopy
+import datetime
 from itertools import dropwhile
+import json
 from typing import Any, Optional, TypeVar
+from ..arrow_value import to_record_batch
+from ..compat.converters import parse_duration
 from ..exception import ParameterValueFormatError
 from ..helpers import string_to_bool
 from ..import_functions import UnparseCallable
 from ..mapping import Position, is_pivoted
 from ..parameter_value import (
+    BOOLEAN_VALUE_TYPE,
+    FLOAT_VALUE_TYPE,
+    STRING_VALUE_TYPE,
+    TABLE_TYPE,
     Array,
+    DateTime,
+    Duration,
     IndexedValue,
     Map,
+    ParameterValue,
     TimePattern,
     TimeSeriesVariableResolution,
+    Value,
     convert_leaf_maps_to_specialized_containers,
-    from_database,
-    split_value_and_type,
+    from_dict,
 )
 from .import_mapping import (
     ArrayValueRecord,
@@ -44,7 +55,7 @@ from .import_mapping import (
     check_validity,
 )
 from .import_mapping_compat import import_mapping_from_dict
-from .type_conversion import ConvertSpec
+from .type_conversion import ConvertSpec, JSONObject
 
 _NO_VALUE = object()
 
@@ -384,11 +395,8 @@ def _make_parameter_definitions(mapped_data: SemiMappedData, unparse_value: Unpa
                 default_value = unparse_value(_make_value(default_value))
             else:
                 default_value = None
-        elif isinstance(default_value, str):
-            try:
-                default_value = from_database(*split_value_and_type(default_value))
-            except ParameterValueFormatError:
-                pass
+        elif isinstance(default_value, JSONObject):
+            default_value = unparse_value(_try_value(default_value.json_string))
         reversed_extras = [record.description, record.value_list_name, default_value]
         definition_data += reversed(list(dropwhile(lambda x: x is None, reversed_extras)))
         final_rows.append(definition_data)
@@ -409,11 +417,8 @@ def _make_parameter_values(mapped_data: SemiMappedData, unparse_value: UnparseCa
                 value = unparse_value(_make_value(value))
             else:
                 value = None
-        elif isinstance(value, str):
-            try:
-                value = from_database(*split_value_and_type(value))
-            except ParameterValueFormatError:
-                pass
+        elif isinstance(value, JSONObject):
+            value = unparse_value(_try_value(value.json_string))
         if value is None:
             continue
         value_data = [entity_class_name, entity_byname, parameter_name, value]
@@ -462,7 +467,54 @@ def _make_value(record: ValueRecord) -> IndexedValue:
             raise RuntimeError(f"logic error: unknown record type '{type(record).__name__}'")
 
 
-def _table_to_map(table: Iterable[list], compress: bool = False) -> IndexedValue:
+def _try_value(json_string: str) -> Value | ParameterValue | None:
+    try:
+        parsed = json.loads(json_string)
+    except json.JSONDecodeError:
+        return json_string
+    try:
+        if isinstance(parsed, dict):
+            return from_dict(parsed, parsed["type"])
+        if isinstance(parsed, list):
+            if len(parsed) > 0 and isinstance(parsed[0], dict):
+                return to_record_batch(parsed)
+            if len(parsed) == 2:
+                value_type = parsed[1]
+                if value_type in {STRING_VALUE_TYPE, FLOAT_VALUE_TYPE, BOOLEAN_VALUE_TYPE}:
+                    return parsed[0]
+                if value_type == Duration.TYPE:
+                    return parse_duration(parsed[0])
+                if value_type == DateTime.TYPE:
+                    return datetime.datetime.fromisoformat(parsed[0])
+                if value_type == TABLE_TYPE:
+                    return to_record_batch(parsed[0])
+        return parsed if isinstance(parsed, (str, int, float, bool)) else json_string
+    except (TypeError, KeyError, ParameterValueFormatError):
+        return json_string
+
+
+def _parameter_value_from_dict(d):
+    mapped_index_names = d.get("index_names", {0: ""})
+    index_names = (max(mapped_index_names) + 1) * [""]
+    for i, name in mapped_index_names.items():
+        index_names[i] = name
+    if d["type"] == "map":
+        map_ = _table_to_map(d["data"], compress=d.get("compress", False))
+        if index_names != [""]:
+            _apply_index_names(map_, index_names)
+        return map_
+    if d["type"] == "time_pattern":
+        return TimePattern(*zip(*d["data"]), index_name=index_names[0])
+    if d["type"] == "time_series":
+        options = d.get("options", {})
+        ignore_year = options.get("ignore_year", False)
+        repeat = options.get("repeat", False)
+        return TimeSeriesVariableResolution(*zip(*d["data"]), ignore_year, repeat, index_name=index_names[0])
+    if d["type"] == "array":
+        return Array(d["data"], index_name=index_names[0])
+
+
+def _table_to_map(table, compress=False):
     d = _table_to_dict(table)
     m = _dict_to_map_recursive(d)
     if compress:
@@ -470,7 +522,7 @@ def _table_to_map(table: Iterable[list], compress: bool = False) -> IndexedValue
     return m
 
 
-def _table_to_dict(table: Iterable[list]) -> dict:
+def _table_to_dict(table):
     map_dict = {}
     for row in table:
         row = [item for item in row if item not in (None, "")]
@@ -483,7 +535,7 @@ def _table_to_dict(table: Iterable[list]) -> dict:
     return map_dict
 
 
-def _dict_to_map_recursive(d: dict) -> Map:
+def _dict_to_map_recursive(d):
     indexes = []
     values = []
     for key, value in d.items():
@@ -494,31 +546,33 @@ def _dict_to_map_recursive(d: dict) -> Map:
     return Map(indexes, values)
 
 
-def _apply_index_names(indexed_value: IndexedValue, index_names: list[str]) -> None:
-    """Applies index names to indexed value.
+def _apply_index_names(map_, index_names):
+    """Applies index names to Map.
 
     Args:
-        indexed_value: target value.
-        index_names: index names, one for each index depth
+        map_ (Map): target Map.
+        index_names (Sequence of str): index names, one for each Map depth
     """
     name = index_names[0]
     if name:
-        indexed_value.index_name = name
+        map_.index_name = index_names[0]
     if len(index_names) == 1:
         return
-    for v in indexed_value.values:
+    for v in map_.values:
         if isinstance(v, Map):
             _apply_index_names(v, index_names[1:])
 
 
-def _ensure_mapping_name_consistency(mappings: list[ImportMapping], mapping_names: list[str]) -> None:
+def _ensure_mapping_name_consistency(mappings, mapping_names):
     """Makes sure that there are as many mapping names as actual mappings.
 
     Args:
-        mappings: list of mappings
-        mapping_names: list of mapping names
+        mappings (list(ImportMapping)): list of mappings
+        mapping_names (list(str)): list of mapping names
     """
     n_mappings = len(mappings)
     n_mapping_names = len(mapping_names)
-    if n_mapping_names < n_mappings:
+    if n_mapping_names > n_mappings:
+        mapping_names = mapping_names[:n_mappings]
+    elif n_mapping_names < n_mappings:
         mapping_names += [""] * (n_mappings - n_mapping_names)

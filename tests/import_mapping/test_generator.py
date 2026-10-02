@@ -12,12 +12,25 @@
 
 """Contains unit tests for the generator module."""
 
+import datetime
+import json
 import unittest
-from spinedb_api import Array, DateTime, Duration, Map
+from dateutil.relativedelta import relativedelta
+import pyarrow
+from spinedb_api import (
+    Array,
+    DateTime,
+    Duration,
+    Map,
+    TimePattern,
+    TimeSeries,
+    TimeSeriesFixedResolution,
+    TimeSeriesVariableResolution,
+    to_database,
+)
 from spinedb_api.import_mapping.generator import get_mapped_data
-from spinedb_api.import_mapping.import_mapping import EntityClassMapping, default_import_mapping
 from spinedb_api.import_mapping.type_conversion import value_to_convert_spec
-from spinedb_api.mapping import to_dict, unflatten
+from spinedb_api.incomplete_values import join_value_and_type
 
 
 class TestGetMappedData(unittest.TestCase):
@@ -1118,315 +1131,147 @@ class TestGetMappedData(unittest.TestCase):
             },
         )
 
-    def test_import_entity_metadata(self):
-        header = ["Class", "Entity", "Created", "Keywords"]
-        data_source = iter([["cat", "Garfield", "1976", "laziness, gluttony"], ["cat", "Tom", "1940", "rivalry"]])
+    def test_json_converter_with_legacy_values(self):
+        header = ["Entity", "Value"]
+        values = {
+            "date_time": DateTime("2025-09-05T09:11"),
+            "duration": Duration("4 hours"),
+            "array": Array([2.3]),
+            "time_pattern": TimePattern(["WD1-7"], [2.3]),
+            "fixed_time_series": TimeSeriesFixedResolution(
+                "2025-09-05T09:16", "1h", [2.3], ignore_year=True, repeat=False
+            ),
+            "variable_time_series": TimeSeriesVariableResolution(
+                ["2025-09-05T09:16"], [2.3], ignore_year=False, repeat=True
+            ),
+            "map": Map(["a"], ["b"]),
+        }
+        expected_imported_parameter_values = []
+        data = []
+        entities = []
+        for i, (entity, value) in enumerate(values.items()):
+            entities.append(["Object", entity])
+            value_dict = value.to_dict()
+            value_dict["type"] = value.TYPE
+            data.append([entity, json.dumps(value_dict)])
+            expected_imported_parameter_values.append(["Object", (entity,), "y", value, "Base"])
+        data_source = iter(data)
         mappings = [
             [
-                {"map_type": "EntityClass", "position": 0},
-                {"map_type": "Entity", "position": 1},
-                {"map_type": "EntityMetadataName", "position": "header"},
-                {"map_type": "EntityMetadataValue", "position": "hidden"},
-            ]
-        ]
-        mapped_data, errors = get_mapped_data(data_source, mappings, header)
-        self.assertEqual(errors, [])
-        self.assertEqual(
-            mapped_data,
-            {
-                "entities": [["cat", "Garfield"], ["cat", "Tom"]],
-                "entity_classes": [["cat", []]],
-                "entity_metadata": [
-                    ("cat", ("Garfield",), "Created", "1976"),
-                    ("cat", ("Garfield",), "Keywords", "laziness, gluttony"),
-                    ("cat", ("Tom",), "Created", "1940"),
-                    ("cat", ("Tom",), "Keywords", "rivalry"),
-                ],
-            },
-        )
-
-    def test_import_parameter_value_metadata(self):
-        header = ["Class", "Entity", "Parameter", "Alternative", "Tools", "Licences"]
-        data_source = iter(
-            [
-                ["cat", "Garfield", "weight", "Base", "Harrison-Stetson 1.0", "Public domain"],
-                ["cat", "Tom", "weight", "Base", "Harrison-Stetson 0.9", "Public domain"],
-            ]
-        )
-
-        mappings = [
-            [
-                {"map_type": "EntityClass", "position": 0},
-                {"map_type": "Entity", "position": 1},
-                {"map_type": "Alternative", "position": 3},
-                {"map_type": "ParameterDefinition", "position": 2},
-                {"map_type": "ParameterValueMetadataName", "position": "header"},
-                {"map_type": "ParameterValueMetadataValue", "position": "hidden"},
-            ]
-        ]
-        mapped_data, errors = get_mapped_data(data_source, mappings, header)
-        self.assertEqual(errors, [])
-        self.assertEqual(
-            mapped_data,
-            {
-                "alternatives": {"Base"},
-                "entities": [["cat", "Garfield"], ["cat", "Tom"]],
-                "entity_classes": [["cat", []]],
-                "parameter_definitions": [["cat", "weight"]],
-                "parameter_value_metadata": [
-                    ("cat", ("Garfield",), "weight", "Tools", "Harrison-Stetson 1.0", "Base"),
-                    ("cat", ("Garfield",), "weight", "Licences", "Public domain", "Base"),
-                    ("cat", ("Tom",), "weight", "Tools", "Harrison-Stetson 0.9", "Base"),
-                    ("cat", ("Tom",), "weight", "Licences", "Public domain", "Base"),
-                ],
-            },
-        )
-
-    def test_import_alternatives_with_descriptions(self):
-        header = ["Alternative", "Description"]
-        data_source = iter(
-            [
-                ["alt1", "First alternative."],
-                ["alt2", ""],
-                ["alt3", None],
-                ["duplicate", "Overridden description."],
-                ["duplicate", "Overriding description."],
-            ]
-        )
-        flattened = default_import_mapping("Alternative").flatten()
-        flattened[0].position = 0
-        flattened[1].position = 1
-        mapped_data, errors = get_mapped_data(data_source, [to_dict(unflatten(flattened))], header)
-        self.assertEqual(errors, [])
-        self.assertEqual(
-            mapped_data,
-            {
-                "alternatives": {
-                    ("alt1", "First alternative."),
-                    "alt2",
-                    "alt3",
-                    ("duplicate", "Overridden description."),
-                    ("duplicate", "Overriding description."),
-                },
-            },
-        )
-
-    def test_import_scenarios_with_descriptions(self):
-        header = ["Scenario", "Description"]
-        data_source = iter(
-            [
-                ["scen1", "First scenario."],
-                ["scen2", None],
-                ["scen3", ""],
-                ["duplicate", "Possible description no. 1."],
-                ["duplicate", "Possible description no. 2."],
-            ]
-        )
-        flattened = default_import_mapping("Scenario").flatten()
-        flattened[0].position = 0
-        flattened[1].position = 1
-        mapped_data, errors = get_mapped_data(data_source, [to_dict(unflatten(flattened))], header)
-        self.assertEqual(errors, [])
-        self.assertEqual(
-            mapped_data,
-            {
-                "scenarios": {
-                    ("scen1", "First scenario."),
-                    ("scen2",),
-                    ("scen3",),
-                    ("duplicate", "Possible description no. 1."),
-                    ("duplicate", "Possible description no. 2."),
-                },
-            },
-        )
-
-    def test_import_entity_classes_with_description(self):
-        header = ["Class", "Description", "Entity"]
-        data_source = iter(
-            [
-                ["unit", "Unit of production.", "coal_plant"],
-                ["node", "Nodes of processing.", "southern_hemisphere"],
-                ["node", "Nodes of processing.", "northern_hemisphere"],
-                ["model", None, "all_year_round"],
-                ["direction", "", "up"],
-                ["direction", "", "down"],
-            ]
-        )
-        flattened = default_import_mapping("EntityClass").flatten()
-        flattened[0].position = 0
-        flattened[1].position = 1
-        flattened[2].position = 2
-        mapped_data, errors = get_mapped_data(data_source, [to_dict(unflatten(flattened))], header)
-        self.assertEqual(errors, [])
-        self.assertEqual(
-            mapped_data,
-            {
-                "entity_classes": [
-                    ["unit", [], "Unit of production."],
-                    ["node", [], "Nodes of processing."],
-                    ["model", []],
-                    ["direction", []],
-                ],
-                "entities": [
-                    ["unit", "coal_plant"],
-                    ["node", "southern_hemisphere"],
-                    ["node", "northern_hemisphere"],
-                    ["model", "all_year_round"],
-                    ["direction", "up"],
-                    ["direction", "down"],
-                ],
-            },
-        )
-
-    def test_import_entities_with_description(self):
-        header = ["Class", "Entity", "Description"]
-        data_source = iter(
-            [
-                ["unit", "coal_plant", "Where coal is sacrificed to please the gods of Power."],
-                ["direction", "up", None],
-                ["direction", "down", ""],
-            ]
-        )
-        flattened = default_import_mapping("EntityClass").flatten()
-        flattened[0].position = 0
-        flattened[2].position = 1
-        flattened[3].position = 2
-        mapped_data, errors = get_mapped_data(data_source, [to_dict(unflatten(flattened))], header)
-        self.assertEqual(errors, [])
-        self.assertEqual(
-            mapped_data,
-            {
-                "entity_classes": [
-                    ["unit", []],
-                    ["direction", []],
-                ],
-                "entities": [
-                    ["unit", "coal_plant", "Where coal is sacrificed to please the gods of Power."],
-                    ["direction", "up"],
-                    ["direction", "down"],
-                ],
-            },
-        )
-
-    def test_import_multidimensional_entities_with_descriptions(self):
-        header = ["Widget", "Gadget", "Description"]
-        data_source = iter(
-            [
-                ["check_box", "mobile_phone", "A cozy relationship."],
-            ]
-        )
-        mappings = [
-            [
-                {"map_type": "EntityClass", "position": "hidden", "value": "Widget__Gadget"},
-                {"map_type": "Dimension", "position": "hidden", "value": "Widget"},
-                {"map_type": "Dimension", "position": "hidden", "value": "Gadget"},
-                {"map_type": "EntityClassDescription", "position": "hidden"},
-                {"map_type": "Entity", "position": "hidden", "value": "relationship"},
-                {"map_type": "Element", "position": 0, "import_objects": True},
-                {"map_type": "Element", "position": 1, "import_objects": True},
-                {"map_type": "EntityDescription", "position": 2},
-            ]
-        ]
-        mapped_data, errors = get_mapped_data(data_source, mappings, header)
-        self.assertEqual(errors, [])
-        self.assertEqual(
-            mapped_data,
-            {
-                "entity_classes": [
-                    ["Widget__Gadget", ["Widget", "Gadget"]],
-                    ["Widget", []],
-                    ["Gadget", []],
-                ],
-                "entities": [
-                    ["Widget__Gadget", ["check_box", "mobile_phone"], "A cozy relationship."],
-                    ["Widget", "check_box"],
-                    ["Gadget", "mobile_phone"],
-                ],
-            },
-        )
-
-    def test_import_different_relationships_in_same_table(self):
-        data_source = iter(
-            [
-                ["Widget__Gadget", "Widget", "Gadget", "tableview", "watch", "A cozy relationship 1."],
-                ["Widget__Gadget", "Widget", "Gadget", "checkbox", "watch", "A cozy relationship 2."],
-                ["Widget__Gadget", "Widget", "Gadget", "checkbox", "clock", "A cozy relationship 3."],
-                ["Gadget__Widget", "Gadget", "Widget", "watch", "checkbox", "A cozy relationship 4."],
-                ["Gadget__Widget", "Gadget", "Widget", "clock", "tableview", "A cozy relationship 5."],
-            ]
-        )
-        mappings = [
-            [
-                {"map_type": "EntityClass", "position": 0},
-                {"map_type": "Dimension", "position": 1},
-                {"map_type": "Dimension", "position": 2},
-                {"map_type": "EntityClassDescription", "position": "hidden"},
-                {"map_type": "Entity", "position": "hidden"},
-                {"map_type": "Element", "position": 3},
-                {"map_type": "Element", "position": 4},
-                {"map_type": "EntityDescription", "position": 5},
-            ]
-        ]
-        mapped_data, errors = get_mapped_data(data_source, mappings)
-        self.assertEqual(errors, [])
-        self.assertEqual(
-            mapped_data,
-            {
-                "entity_classes": [["Widget__Gadget", ["Widget", "Gadget"]], ["Gadget__Widget", ["Gadget", "Widget"]]],
-                "entities": [
-                    ["Widget__Gadget", ["tableview", "watch"], "A cozy relationship 1."],
-                    ["Widget__Gadget", ["checkbox", "watch"], "A cozy relationship 2."],
-                    ["Widget__Gadget", ["checkbox", "clock"], "A cozy relationship 3."],
-                    ["Gadget__Widget", ["watch", "checkbox"], "A cozy relationship 4."],
-                    ["Gadget__Widget", ["clock", "tableview"], "A cozy relationship 5."],
-                ],
-            },
-        )
-
-    def test_import_element_2_names_from_headers(self):
-        header = ["Food", "VitA", "VitC"]
-        data_source = iter(
-            [
-                ["hamburger", 6.0, 2.0],
-                ["orange juice", 2.0, 120.0],
-            ]
-        )
-        mappings = [
-            [
-                {"map_type": "EntityClass", "position": "hidden", "value": "NutrientContent"},
-                {"map_type": "Dimension", "position": "hidden", "value": "Food"},
-                {"map_type": "Dimension", "position": "hidden", "value": "Nutrient"},
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
                 {"map_type": "Entity", "position": 0},
-                {"map_type": "Element", "position": 0},
-                {"map_type": "Element", "position": "header"},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "y"},
                 {"map_type": "Alternative", "position": "hidden", "value": "Base"},
-                {"map_type": "ParameterDefinition", "position": "hidden", "value": "content"},
-                {"map_type": "ParameterValue", "position": "hidden"},
+                {"map_type": "ParameterValue", "position": 1},
             ]
         ]
-        mapped_data, errors = get_mapped_data(data_source, mappings, header)
+        convert_function_specs = {0: "string", 1: "json"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
         self.assertEqual(errors, [])
         self.assertEqual(
             mapped_data,
             {
-                "alternatives": {"Base"},
                 "entity_classes": [
-                    ["NutrientContent", ["Food", "Nutrient"]],
+                    ["Object", []],
+                ],
+                "entities": entities,
+                "parameter_definitions": [["Object", "y"]],
+                "alternatives": {"Base"},
+                "parameter_values": expected_imported_parameter_values,
+            },
+        )
+
+    def test_json_converter(self):
+        header = ["Entity", "Value"]
+        values = {
+            "float": 2.3,
+            "int": 23,
+            "str": "a string",
+            "bool": True,
+            "datetime_tuple": datetime.datetime(year=2025, month=9, day=5, hour=10, minute=4),
+            "relativedelta_tuple": relativedelta(hours=7),
+            "table": pyarrow.record_batch({"col_1": pyarrow.array(["a"]), "value": pyarrow.array("b")}),
+            "table_tuple": pyarrow.record_batch({"col_1": pyarrow.array(["a"]), "value": pyarrow.array("b")}),
+        }
+        data = [
+            ["float", "2.3"],
+            ["int", "23"],
+            ["str", "a string"],
+            ["bool", "true"],
+            ["datetime_tuple", json.dumps(["2025-09-05T10:04", "date_time"])],
+            ["relativedelta_tuple", json.dumps(["PT7H", "duration"])],
+            ["table", to_database(values["table"])[0].decode("utf-8")],
+            ["table_tuple", join_value_and_type(*to_database(values["table_tuple"]))],
+        ]
+        expected_imported_parameter_values = []
+        for entity, value in values.items():
+            expected_imported_parameter_values.append(["Object", (entity,), "y", value, "Base"])
+        data_source = iter(data)
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "y"},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterValue", "position": 1},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "json"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entity_classes": [
+                    ["Object", []],
                 ],
                 "entities": [
-                    ["NutrientContent", ["hamburger", "VitA"]],
-                    ["NutrientContent", ["hamburger", "VitC"]],
-                    ["NutrientContent", ["orange juice", "VitA"]],
-                    ["NutrientContent", ["orange juice", "VitC"]],
+                    ["Object", "float"],
+                    ["Object", "int"],
+                    ["Object", "str"],
+                    ["Object", "bool"],
+                    ["Object", "datetime_tuple"],
+                    ["Object", "relativedelta_tuple"],
+                    ["Object", "table"],
+                    ["Object", "table_tuple"],
                 ],
-                "parameter_definitions": [
-                    ["NutrientContent", "content"],
+                "parameter_definitions": [["Object", "y"]],
+                "alternatives": {"Base"},
+                "parameter_values": expected_imported_parameter_values,
+            },
+        )
+
+    def test_json_converter_with_unrecognized_json_imports_string_as_is(self):
+        header = ["Entity", "Value"]
+        data = [["non-compatible json", json.dumps({"my_data": [11]})], ["total gibberish", "abc"]]
+        data_source = iter(data)
+        mappings = [
+            [
+                {"map_type": "EntityClass", "position": "hidden", "value": "Object"},
+                {"map_type": "Entity", "position": 0},
+                {"map_type": "ParameterDefinition", "position": "hidden", "value": "y"},
+                {"map_type": "Alternative", "position": "hidden", "value": "Base"},
+                {"map_type": "ParameterValue", "position": 1},
+            ]
+        ]
+        convert_function_specs = {0: "string", 1: "json"}
+        convert_functions = {column: value_to_convert_spec(spec) for column, spec in convert_function_specs.items()}
+        mapped_data, errors = get_mapped_data(data_source, mappings, header, column_convert_fns=convert_functions)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            mapped_data,
+            {
+                "entity_classes": [
+                    ["Object", []],
                 ],
+                "entities": [["Object", "non-compatible json"], ["Object", "total gibberish"]],
+                "parameter_definitions": [["Object", "y"]],
+                "alternatives": {"Base"},
                 "parameter_values": [
-                    ["NutrientContent", ("hamburger", "VitA"), "content", 6.0, "Base"],
-                    ["NutrientContent", ("hamburger", "VitC"), "content", 2.0, "Base"],
-                    ["NutrientContent", ("orange juice", "VitA"), "content", 2.0, "Base"],
-                    ["NutrientContent", ("orange juice", "VitC"), "content", 120.0, "Base"],
+                    ["Object", ("non-compatible json",), "y", json.dumps({"my_data": [11]}), "Base"],
+                    ["Object", ("total gibberish",), "y", "abc", "Base"],
                 ],
             },
         )

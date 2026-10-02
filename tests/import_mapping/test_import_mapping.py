@@ -41,11 +41,17 @@ from spinedb_api.import_mapping.import_mapping_compat import (
     parameter_mapping_from_dict,
     parameter_value_mapping_from_dict,
 )
-from spinedb_api.import_mapping.type_conversion import BooleanConvertSpec, FloatConvertSpec, StringConvertSpec
+from spinedb_api.import_mapping.type_conversion import (
+    BooleanConvertSpec,
+    FloatConvertSpec,
+    JSONConvertSpec,
+    StringConvertSpec,
+)
+from spinedb_api.incomplete_values import join_value_and_type
 from spinedb_api.mapping import Position
 from spinedb_api.mapping import to_dict as mapping_to_dict
 from spinedb_api.mapping import unflatten
-from spinedb_api.parameter_value import Array, DateTime, Map, TimeSeriesVariableResolution
+from spinedb_api.parameter_value import Array, DateTime, Map, TimeSeriesVariableResolution, to_database
 
 
 class TestConvertFunctions(unittest.TestCase):
@@ -69,8 +75,27 @@ class TestConvertFunctions(unittest.TestCase):
         self.assertEqual(mapped_data, expected)
 
     def test_convert_functions_str(self):
-        data = [["a", '"1111.2222"']]
+        data = [["a", "1111.2222"]]
         column_convert_fns = {0: str, 1: StringConvertSpec()}
+        mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        mapping.position = 0
+        mapping.child.value = "obj"
+        mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterDefinition"}
+        )
+        param_def_mapping.value = "param"
+        param_def_mapping.flatten()[-1].position = 1
+        mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
+        expected = {
+            "entity_classes": [["a", []]],
+            "entities": [["a", "obj"]],
+            "parameter_definitions": [["a", "param", "1111.2222"]],
+        }
+        self.assertEqual(mapped_data, expected)
+
+    def test_convert_json_string_to_str(self):
+        data = [["a", '["1111.2222", "str"]']]
+        column_convert_fns = {0: str, 1: JSONConvertSpec()}
         mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
         mapping.position = 0
         mapping.child.value = "obj"
@@ -103,6 +128,25 @@ class TestConvertFunctions(unittest.TestCase):
             "entity_classes": [["a", []]],
             "entities": [["a", "obj"]],
             "parameter_definitions": [["a", "param", False]],
+        }
+        self.assertEqual(mapped_data, expected)
+
+    def test_json(self):
+        data = [["a", join_value_and_type(*to_database(2.3))]]
+        column_convert_fns = {0: str, 1: JSONConvertSpec()}
+        mapping = import_mapping_from_dict({"map_type": "ObjectClass"})
+        mapping.position = 0
+        mapping.child.value = "obj"
+        mapping.flatten()[-1].child = param_def_mapping = parameter_mapping_from_dict(
+            {"map_type": "ParameterDefinition"}
+        )
+        param_def_mapping.value = "param"
+        param_def_mapping.flatten()[-1].position = 1
+        mapped_data, _ = get_mapped_data(data, [mapping], column_convert_fns=column_convert_fns)
+        expected = {
+            "entity_classes": [["a", []]],
+            "entities": [["a", "obj"]],
+            "parameter_definitions": [["a", "param", 2.3]],
         }
         self.assertEqual(mapped_data, expected)
 

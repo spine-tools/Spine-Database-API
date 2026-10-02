@@ -40,6 +40,7 @@ def value_to_convert_spec(value: ConvertSpec | ConvertSpecValue | ConvertSpecDic
             "float": FloatConvertSpec,
             "string": StringConvertSpec,
             "boolean": BooleanConvertSpec,
+            "json": JSONConvertSpec,
         }[value]
         return spec()
     if isinstance(value, dict):
@@ -93,7 +94,16 @@ class BooleanConvertSpec(ConvertSpec[bool]):
     RETURN_TYPE = bool
 
     def __call__(self, value):
-        return self.RETURN_TYPE(string_to_bool(str(value)))
+        return string_to_bool(str(value))
+
+class JSONObject:
+    def __init__(self, string: str):
+        self.json_string = string
+
+
+class JSONConvertSpec(ConvertSpec):
+    DISPLAY_NAME = "JSON"
+    RETURN_TYPE = JSONObject
 
 
 class IntegerSequenceDateTimeConvertSpec(ConvertSpec[DateTime]):

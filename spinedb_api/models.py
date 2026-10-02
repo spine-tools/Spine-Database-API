@@ -1,0 +1,483 @@
+######################################################################################################################
+# Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Database API contributors
+# This file is part of Spine Database API.
+# Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
+# General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+# without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
+# Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
+# this program. If not, see <http://www.gnu.org/licenses/>.
+######################################################################################################################
+
+"""Write JSON schema for JSON blob in SpineDB"""
+
+from datetime import datetime, timedelta
+from types import NoneType
+from typing import Annotated, Literal, TypeAlias, TypedDict
+from dateutil.relativedelta import relativedelta
+import numpy as np
+import pandas as pd
+import pyarrow as pa
+from pydantic import (
+    BeforeValidator,
+    Field,
+    PlainSerializer,
+    PlainValidator,
+    RootModel,
+    TypeAdapter,
+    WithJsonSchema,
+    model_validator,
+)
+from pydantic.dataclasses import dataclass
+from typing_extensions import NotRequired, Self
+from .compat.converters import to_duration, to_relativedelta
+from .helpers import FormatMetadata, TimeSeriesMetadata
+
+
+def from_timestamp(ts: str | pd.Timestamp | datetime) -> datetime:
+    match ts:
+        # NOTE: subtype of datetime, has to be before
+        case pd.Timestamp():
+            return ts.to_pydatetime()
+        case datetime():
+            return ts
+        case str():
+            return datetime.fromisoformat(ts)
+        case _:
+            raise ValueError(f"{ts}: could not coerce to `datetime`")
+
+
+def validate_relativedelta(value: str | pd.DateOffset | timedelta | relativedelta) -> relativedelta:
+    match value:
+        case relativedelta():
+            return value
+        case str() | pd.DateOffset() | timedelta() | pa.MonthDayNano():
+            return to_relativedelta(value)
+        case _:
+            raise ValueError(f"{value}: cannot coerce `{type(value)}` to `relativedelta`")
+
+
+# types
+class TimePeriod(str):
+    """Wrapper type necessary for data migration.
+
+    This is necessary to discriminate from regular strings during DB
+    migration.  In the future if the migration script doesn't need to
+    be supported, this type can be removed, and the `TimePeriod_`
+    annotation below can just use `str`.  Something like this:
+
+    .. sourcecode:: python
+
+       TimePeriod_: TypeAlias = Annotated[
+           str,
+           WithJsonSchema(
+               {"type": "string", "format": "time_period"},
+               mode="serialization"
+           ),
+       ]
+
+    """
+
+    def __init__(self, value) -> None:
+        if not isinstance(value, str):
+            raise ValueError(f"{type(value)}: non-string values cannot be a TimePeriod")
+        super().__init__()
+
+
+# annotations for validation
+Datetime: TypeAlias = Annotated[datetime, BeforeValidator(from_timestamp)]
+RelativeDelta: TypeAlias = Annotated[
+    relativedelta,
+    PlainValidator(validate_relativedelta),
+    PlainSerializer(to_duration, when_used="json"),
+    WithJsonSchema({"type": "string", "format": "duration"}, mode="serialization"),
+]
+TimePeriod_: TypeAlias = Annotated[
+    TimePeriod,
+    PlainValidator(TimePeriod),
+    PlainSerializer(str),
+    WithJsonSchema({"type": "string", "format": "time_period"}, mode="serialization"),
+]
+Metadata = FormatMetadata | TimeSeriesMetadata
+
+# non-nullable arrays
+Floats: TypeAlias = list[float]
+Integers: TypeAlias = list[int]
+Strings: TypeAlias = list[str]
+Booleans: TypeAlias = list[bool]
+Datetimes: TypeAlias = list[Datetime]
+Durations: TypeAlias = list[RelativeDelta]
+TimePeriods_: TypeAlias = list[TimePeriod_]
+
+# nullable variant of arrays
+NullableIntegers: TypeAlias = list[int | None]
+NullableFloats: TypeAlias = list[float | None]
+NullableStrings: TypeAlias = list[str | None]
+NullableBooleans: TypeAlias = list[bool | None]
+NullableDatetimes: TypeAlias = list[Datetime | None]
+NullableDurations: TypeAlias = list[RelativeDelta | None]
+NullableTimePeriods_: TypeAlias = list[TimePeriod_ | None]
+
+# sets of types used to define array schemas below
+NullableTypes: TypeAlias = (
+    NullableIntegers
+    | NullableFloats
+    | NullableStrings
+    | NullableBooleans
+    | NullableDatetimes
+    | NullableDurations
+    | NullableTimePeriods_
+)
+
+# names of types used in the schema
+NullTypeName: TypeAlias = Literal["null"]
+TypeNames: TypeAlias = Literal["int", "float", "str", "bool", "date_time", "duration", "time_period"]
+
+typename_map: dict[NullTypeName | TypeNames, type] = {
+    "str": str,
+    "int": int,
+    "float": float,
+    "bool": bool,
+    "date_time": Datetime,
+    "duration": RelativeDelta,
+    "time_period": TimePeriod,
+    "null": NoneType,
+}
+type_map: dict[type, TypeNames | NullTypeName] = {
+    NoneType: "null",
+    pa.null(): "null",
+    str: "str",
+    pa.string(): "str",
+    int: "int",
+    np.int8: "int",
+    pa.int8(): "int",
+    np.int16: "int",
+    pa.int16(): "int",
+    np.int32: "int",
+    pa.int32(): "int",
+    np.int64: "int",
+    pa.int64(): "int",
+    float: "float",
+    np.float16: "float",
+    pa.float16(): "float",
+    np.float32: "float",
+    pa.float32(): "float",
+    np.float64: "float",
+    pa.float64(): "float",
+    # np.float128: "float",  # not available on macos
+    bool: "bool",
+    np.bool: "bool",
+    pa.bool_(): "bool",
+    datetime: "date_time",
+    pd.Timestamp: "date_time",
+    pa.timestamp("us"): "date_time",
+    pa.timestamp("s"): "date_time",
+    timedelta: "duration",
+    pd.Timedelta: "duration",
+    relativedelta: "duration",
+    pd.DateOffset: "duration",
+    pa.month_day_nano_interval(): "duration",
+}
+
+
+class TypeAdapterMixin:
+    @model_validator(mode="after")
+    def convert_to_final_type(self) -> Self:
+        value_type = getattr(self, "value_type")
+
+        # NOTE: only required for types that are strings in JSON
+        if value_type not in ("date_time", "duration", "time_period"):
+            return self
+
+        values = getattr(self, "values")
+        adapter = TypeAdapter(typename_map[value_type])
+        for i in range(len(values)):
+            value = values[i]
+            values[i] = None if value is None else adapter.validate_python(value)
+        return self
+
+
+@dataclass(frozen=True)
+class RunLengthIndex(TypeAdapterMixin):
+    """Run length encoded array
+
+    NOTE: this is not supported by PyArrow, if we use it, we will have
+    to convert to a supported format.
+
+    """
+
+    name: str
+    run_len: Integers
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: Metadata | None = None
+    type: Literal["run_length_index"] = "run_length_index"
+
+
+@dataclass(frozen=True)
+class RunLengthArray(TypeAdapterMixin):
+    """Run length encoded array
+
+    NOTE: this is not supported by PyArrow, if we use it, we will have
+    to convert to a supported format.
+
+    """
+
+    name: str
+    run_len: Integers
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: Metadata | None = None
+    type: Literal["run_length_array"] = "run_length_array"
+
+
+@dataclass(frozen=True)
+class RunEndIndex(TypeAdapterMixin):
+    """Run end encoded array"""
+
+    name: str
+    run_end: Integers
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: Metadata | None = None
+    type: Literal["run_end_index"] = "run_end_index"
+
+
+@dataclass(frozen=True)
+class RunEndArray(TypeAdapterMixin):
+    """Run end encoded array"""
+
+    name: str
+    run_end: Integers
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: Metadata | None = None
+    type: Literal["run_end_array"] = "run_end_array"
+
+
+@dataclass(frozen=True)
+class DictEncodedIndex(TypeAdapterMixin):
+    """Dictionary encoded array"""
+
+    name: str
+    indices: Integers
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: Metadata | None = None
+    type: Literal["dict_encoded_index"] = "dict_encoded_index"
+
+
+@dataclass(frozen=True)
+class DictEncodedArray(TypeAdapterMixin):
+    """Dictionary encoded array"""
+
+    name: str
+    indices: NullableIntegers
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: Metadata | None = None
+    type: Literal["dict_encoded_array"] = "dict_encoded_array"
+
+
+@dataclass(frozen=True)
+class ArrayIndex(TypeAdapterMixin):
+    """Any array that is an index, e.g. a sequence, timestamps, labels"""
+
+    name: str
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: Metadata | None = None
+    type: Literal["array_index"] = "array_index"
+
+
+@dataclass(frozen=True)
+class Array(TypeAdapterMixin):
+    """Array"""
+
+    name: str
+    values: NullableTypes
+    value_type: TypeNames
+    metadata: Metadata | None = None
+    type: Literal["array"] = "array"
+
+
+# NOTE: anyarray excludes "time_period"
+AnyType: TypeAlias = str | int | float | bool | RelativeDelta | Datetime
+NullableAnyTypes: TypeAlias = list[AnyType | None]
+AnyTypeNames: TypeAlias = Literal["int", "float", "str", "bool", "date_time", "duration"]
+
+
+@dataclass(frozen=True)
+class AnyArray:
+    """Array with mixed types"""
+
+    name: str
+    values: NullableAnyTypes
+    value_types: list[AnyTypeNames | NullTypeName]
+    metadata: Metadata | None = None
+    type: Literal["any_array"] = "any_array"
+
+    @model_validator(mode="after")
+    def convert_to_final_type(self) -> Self:
+        if (values_len := len(self.values)) != (value_types_len := len(self.value_types)):
+            raise ValueError(f"mismatching lengths: {values_len=} != {value_types_len=}")
+
+        for i in range(len(self.values)):
+            val = self.values[i]
+            typ = self.value_types[i]
+            self.values[i] = TypeAdapter(typename_map[typ]).validate_python(val)
+        return self
+
+
+# NOTE: To add run-length encoding to the schema, add it to the
+# following type union following which, we need to implement a
+# converter to a compatible pyarrow array type
+AllArrays: TypeAlias = RunEndIndex | DictEncodedIndex | ArrayIndex | RunEndArray | DictEncodedArray | Array | AnyArray
+Table: TypeAlias = list[Annotated[AllArrays, Field(discriminator="type")]]
+
+
+def from_json(json_str: str, type_: type[Table | AllArrays]):
+    """Generic wrapper for JSON parsing."""
+    return TypeAdapter(type_).validate_json(json_str)
+
+
+def from_dict(value: list | dict):
+    """Generic wrapper for converting from a dictionary/list of dictionaries."""
+    match value:
+        case list():
+            return TypeAdapter(Table).validate_python(value)
+        case dict():
+            return TypeAdapter(AllArrays).validate_python(value)
+        case _:
+            raise ValueError(f"{type(value)}: unsupported type")
+
+
+from_list = from_dict
+
+
+def to_json(obj: Table | AllArrays) -> str:
+    """Generic wrapper to serialise to JSON."""
+    # FIXME: check why the equivalent: TypeAdapter(obj).dump_json() isn't working
+    return RootModel[type(obj)](obj).model_dump_json()
+
+
+class ArrayAsDict(TypedDict):
+    name: str
+    type: str
+    values: list
+    value_type: NotRequired[TypeNames]
+    value_types: NotRequired[list[AnyTypeNames | NullTypeName]]
+    metadata: NotRequired[Metadata | None]
+    indices: NotRequired[list]
+    run_end: NotRequired[Integers]
+    run_len: NotRequired[Integers]
+
+
+def dict_to_array(data: ArrayAsDict) -> AllArrays:
+    """Wrapper to read structured dictionary as an array."""
+    match data["type"]:
+        case "array":
+            type_ = Array
+        case "array_index":
+            type_ = ArrayIndex
+        case "dict_encoded_array":
+            type_ = DictEncodedArray
+        case "dict_encoded_index":
+            type_ = DictEncodedIndex
+        case "run_end_array":
+            type_ = RunEndArray
+        case "run_end_index":
+            type_ = RunEndIndex
+        case "any_array":
+            type_ = AnyArray
+        case _:
+            raise ValueError(f"{data['type']}: unknown array type")
+
+    return TypeAdapter(type_).validate_python(data)
+
+
+def arrow_to_array(
+    name: str,
+    arr: pa.RunEndEncodedArray | pa.DictionaryArray | pa.UnionArray | pa.Array,
+    metadata: Metadata | None = None,
+) -> AllArrays:
+    # NOTE: do not split common parts out of `data` below, it breaks
+    # type checking as ArrayAsDict
+    match arr:
+        case pa.UnionArray():
+            values, value_types = zip(
+                *((i.as_py(), type_map[i.type.field(c.as_py()).type]) for c, i in zip(arr.type_codes, arr))
+            )
+            data: ArrayAsDict = {
+                "name": name,
+                "values": list(values),
+                "value_types": list(value_types),
+                "metadata": metadata,
+                "type": "any_array",
+            }
+            return dict_to_array(data)
+        case pa.RunEndEncodedArray():
+            suf = "array" if arr.values.null_count > 0 else "index"
+            data: ArrayAsDict = {
+                "name": name,
+                "run_end": arr.run_ends.to_pylist(),
+                "values": arr.values.to_pylist(),
+                "value_type": type_map[arr.values.type],
+                "metadata": metadata,
+                "type": f"run_end_{suf}",
+            }
+            return dict_to_array(data)
+        case pa.DictionaryArray():
+            suf = "array" if arr.null_count > 0 else "index"
+            data: ArrayAsDict = {
+                "name": name,
+                "values": arr.dictionary.to_pylist(),
+                "indices": arr.indices.to_pylist(),
+                "value_type": type_map[arr.dictionary.type],
+                "metadata": metadata,
+                "type": f"dict_encoded_{suf}",
+            }
+            return dict_to_array(data)
+        case pa.Array():
+            value_type = type_map[arr.type]
+            data: ArrayAsDict = {
+                "name": name,
+                "values": arr.to_pylist(),
+                # NOTE: an empty array is of null type:
+                # pa.array([]).type == pa.null(); treat empty pyarrow
+                # arrays as empty float arrays in Spine
+                "value_type": "float" if value_type == "null" else value_type,
+                "metadata": metadata,
+                "type": "array" if arr.null_count > 0 else "array_index",
+            }
+            return dict_to_array(data)
+        case _:
+            raise ValueError(f"{type(arr)}: column {name=} is an unsupported array type")
+
+
+def has_any_array(tbl: pa.RecordBatch | Table) -> bool:
+    """Utility to check if a parameter_value entry is a configuration."""
+    match tbl:
+        case pa.RecordBatch():
+            return any(pa.types.is_union(field.type) for field in tbl.schema)
+        case _:
+            return "any_array" in map(lambda col: col.type, tbl)
+
+
+def get_json_schema() -> dict:
+    """Generate JSON schema for serialisation."""
+    return TypeAdapter(Table).json_schema(mode="serialization")
+
+
+if __name__ == "__main__":
+    from argparse import ArgumentParser
+    import json
+    from pathlib import Path
+
+    parser = ArgumentParser(__doc__)
+    parser.add_argument("json_file", help="Path of JSON schema file to write")
+    opts = parser.parse_args()
+
+    schema = get_json_schema()
+    Path(opts.json_file).write_text(json.dumps(schema))

@@ -24,7 +24,7 @@ from .server_client_helpers import ReceiveAllMixing, decode, encode
 if TYPE_CHECKING:
     from .db_mapping import DatabaseMapping
 
-client_version = 8
+client_version = 9
 
 
 class SpineDBClient(ReceiveAllMixing):

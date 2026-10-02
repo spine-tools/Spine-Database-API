@@ -14,11 +14,10 @@
 from collections.abc import Callable, Iterable, Iterator, Sequence
 import enum
 from itertools import groupby
-import json
 from operator import itemgetter
 import os
 import re
-from typing import Any, Literal, TypeAlias
+from typing import Literal, TypeAlias
 import warnings
 from alembic.config import Config
 from alembic.environment import EnvironmentContext
@@ -58,6 +57,7 @@ from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import FunctionElement, bindparam, cast
 from sqlalchemy.sql.selectable import SelectBase
+from typing_extensions import TypedDict
 from .exception import SpineDBAPIError, SpineDBVersionError
 
 ItemType: TypeAlias = Literal[
@@ -955,6 +955,23 @@ def string_to_bool(string: str) -> bool:
 
 
 DisplayStatusValue: TypeAlias = Literal["visible", "hidden", "greyed_out"]
+
+
+class FormatMetadata(TypedDict):
+    format: Literal["time_period"]
+
+
+def time_period_format_specification() -> FormatMetadata:
+    return {"format": "time_period"}
+
+
+class TimeSeriesMetadata(TypedDict):
+    ignore_year: bool
+    repeat: bool
+
+
+def time_series_metadata(ignore_year: bool, repeat: bool) -> TimeSeriesMetadata:
+    return {"ignore_year": ignore_year, "repeat": repeat}
 
 
 @enum.unique

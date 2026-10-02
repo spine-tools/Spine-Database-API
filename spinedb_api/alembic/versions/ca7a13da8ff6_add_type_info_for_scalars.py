@@ -9,7 +9,7 @@ Create Date: 2024-06-26 11:55:40.006129
 import json
 from alembic import op
 import sqlalchemy as sa
-from spinedb_api.parameter_value import type_for_scalar
+from spinedb_api.incomplete_values import type_for_scalar
 
 # revision identifiers, used by Alembic.
 revision = "ca7a13da8ff6"
@@ -40,7 +40,10 @@ def _update_scalar_type_info(table, value_label, type_label, connection):
         parsed_value = json.loads(value)
         if parsed_value is None:
             continue
-        value_type = type_for_scalar(parsed_value)
+        if isinstance(parsed_value, dict):
+            value_type = parsed_value["type"]
+        else:
+            value_type = type_for_scalar(parsed_value)
         connection.execute(update_statement.where(table.c.id == id_), {type_label: value_type})
 
 
