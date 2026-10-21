@@ -1332,7 +1332,7 @@ def _fields_equal(item: MappedItemBase, required: dict) -> bool:
     for key, required_value in required.items():
         item_value = item[key]
         if isinstance(required_value, (list, tuple)):
-            if any(
+            if len(item_value) != len(required_value) or any(
                 value_bit != required_bit if required_bit is not Asterisk else False
                 for value_bit, required_bit in zip(item_value, required_value)
             ):
