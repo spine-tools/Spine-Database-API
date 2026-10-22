@@ -144,6 +144,19 @@ class TestFind(unittest.TestCase):
                 ],
             )
 
+    def test_asterisk_works_with_dimension_name_lists(self):
+        with DatabaseMapping("sqlite://", create=True) as db_map:
+            db_map.add_entity_class(name="A")
+            db_map.add_entity_class(name="B")
+            db_map.add_entity_class(dimension_name_list=["A"])
+            db_map.add_entity_class(dimension_name_list=["B"])
+            db_map.add_entity_class(dimension_name_list=["A", "B"])
+            db_map.add_entity_class(dimension_name_list=["B", "A"])
+            db_map.add_entity_class(dimension_name_list=["A", "B", "A"])
+            classes = db_map.find_entity_classes(dimension_name_list=[Asterisk, "B"])
+            assert len(classes) == 1
+            assert classes[0]["name"] == "A__B"
+
 
 class TestFindByType(unittest.TestCase):
     def test_returns_entities_of_class(self):
