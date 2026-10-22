@@ -66,7 +66,7 @@ jobs:
     uses: spine-tools/Spine-Toolbox/.github/workflows/unit_tests.yml@master
     with:
       host-os: ubuntu-latest
-      python-version: "3.11"
+      python-version: "3.12"
       repository: spine-tools/Spine-Toolbox
       coverage: false
       post-installation-command: python -m pip install git+${{ github.server_url }}/${{ github.repository }}.git@${{ github.ref_name }}
