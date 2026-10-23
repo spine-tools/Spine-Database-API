@@ -147,9 +147,8 @@ def get_current_server_version() -> int:
 class _DeepCopyableQueue(MPQueue):
     """A Queue that supports deepcopy so it can be passed around within resources metadata at engine level."""
 
-    def __init__(self, *args, **kwargs):
-        ctx = mp.get_context()
-        super().__init__(*args, **kwargs, ctx=ctx)
+    def __init__(self, multiprocessing_context):
+        super().__init__(ctx=multiprocessing_context)
 
     def __deepcopy__(self, _memo):
         return self
@@ -164,14 +163,15 @@ class _DBServerManager:
     _SHUTDOWN: ClassVar[Literal["shutdown"]] = "shutdown"
     _CHECKOUT_COMPLETE: ClassVar[Literal["checkout_complete"]] = "checkout_complete"
 
-    def __init__(self):
+    def __init__(self, multiprocessing_context):
         super().__init__()
         self._servers = {}
         self._checkouts = {}
         self._waiters = {}
         self._commit_locks = {}
-        self._queue = _DeepCopyableQueue()
-        self._process = mp.Process(target=self._do_work)
+        mp_context = mp.get_context() if multiprocessing_context is None else multiprocessing_context
+        self._queue = _DeepCopyableQueue(mp_context)
+        self._process = mp_context.Process(target=self._do_work)
         self._process.start()
 
     def _get_commit_lock(self, db_url: str) -> threading.Lock:
@@ -639,15 +639,18 @@ class DBRequestHandler(ReceiveAllMixing, HandleDBRequestMixin, socketserver.Base
 
 
 @contextmanager
-def db_server_manager() -> Iterator[MPQueue]:
+def db_server_manager(multiprocessing_context=None) -> Iterator[MPQueue]:
     """Creates a DB server manager that can be used to control the order in which different servers
     write to the same DB.
+
+    Args:
+        multiprocessing_context: Multiprocessing context to use.
 
     Yields:
         a queue that can be passed to :func:`.closing_spine_db_server`
         in order to control write order.
     """
-    mngr = _DBServerManager()
+    mngr = _DBServerManager(multiprocessing_context)
     try:
         yield mngr.queue
     finally:
@@ -661,23 +664,25 @@ def closing_spine_db_server(
     memory: bool = False,
     ordering: Optional[OrderingDict] = None,
     server_manager_queue: Optional[MPQueue] = None,
-):
+    multiprocessing_context=None,
+) -> Iterator[str]:
     """Creates a Spine DB server.
 
     Args:
         db_url: the URL of a Spine DB.
         upgrade: Whether to upgrade the DB to the last revision.
         memory: Whether to use an in-memory database together with a persistent connection.
-        server_manager_queue: A queue that can be used to control order of writing.
-            Only needed if you also specify `ordering` below.
         ordering: A dictionary specifying an ordering to be followed by multiple concurrent servers
             writing to the same DB.
+        server_manager_queue: A queue that can be used to control order of writing.
+            Only needed if you also specify `ordering` below.
+        multiprocessing_context: Multiprocessing context to use.
 
     Yields:
         server url
     """
     if server_manager_queue is None:
-        mngr = _DBServerManager()
+        mngr = _DBServerManager(multiprocessing_context)
         server_manager_queue = mngr.queue
     else:
         mngr = None
