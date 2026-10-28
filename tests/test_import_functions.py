@@ -14,7 +14,7 @@
 import pytest
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.exception import NothingToCommit
-from spinedb_api.helpers import DisplayStatus
+from spinedb_api.helpers import DisplayStatus, sqlite_url_string
 from spinedb_api.import_functions import (
     import_alternatives,
     import_data,
@@ -1535,7 +1535,7 @@ class TestImportParameterValue(AssertSuccessTestCase):
             self.assertEqual(count, 0)
 
     def test_unparse_value_imports_fields_correctly(self):
-        with DatabaseMapping("sqlite:///", create=True) as db_map:
+        with DatabaseMapping("sqlite://", create=True) as db_map:
             data = {
                 "entity_classes": [("A", (), None, None, False)],
                 "entities": [("A", "aa", None)],
@@ -1614,7 +1614,7 @@ class TestImportParameterValueList(AssertSuccessTestCase):
 
 class TestImportListValue:
     def test_reimporting_existing_list_values_should_not_cause_updates(self, tmp_path):
-        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        url = sqlite_url_string(tmp_path / "db.sqlite")
         with DatabaseMapping(url, create=True) as db_map:
             db_map.add_parameter_value_list(name="enumeration")
             db_map.add_list_value(parameter_value_list_name="enumeration", parsed_value="yes", index=1)

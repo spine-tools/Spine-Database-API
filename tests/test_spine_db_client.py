@@ -12,13 +12,14 @@
 import multiprocessing
 import pytest
 from spinedb_api import DatabaseMapping, create_new_spine_database
+from spinedb_api.helpers import sqlite_url_string
 from spinedb_api.spine_db_client import lock_db
 from spinedb_api.spine_db_server import closing_spine_db_server, db_server_manager
 
 
 @pytest.fixture
 def db_url(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
+    url = sqlite_url_string(tmp_path / "db.sqlite")
     create_new_spine_database(url)
     return url
 

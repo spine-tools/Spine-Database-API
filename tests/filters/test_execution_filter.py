@@ -20,7 +20,7 @@ class TestExecutionFilter(unittest.TestCase):
             "scenarios": ["low_on_steam", "wasting_my_time"],
             "timestamp": "2023-09-06T01:23:45",
         }
-        with DatabaseMapping("sqlite:///", create=True) as db_map:
+        with DatabaseMapping("sqlite://", create=True) as db_map:
             apply_execution_filter(db_map, execution)
             alternative_name = db_map.get_import_alternative_name()
             self.assertEqual(alternative_name, "low_on_steam_wasting_my_time__Importing importer@2023-09-06T01:23:45")
@@ -46,7 +46,7 @@ class TestExecutionFilter(unittest.TestCase):
             "scenarios": ["low_on_steam", "wasting_my_time"],
             "timestamp": "2023-09-06T01:23:45",
         }
-        with DatabaseMapping("sqlite:///", create=True) as db_map:
+        with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_scenario(name="wasting_my_time")
             apply_execution_filter(db_map, execution)
             alternative_name = db_map.get_import_alternative_name()

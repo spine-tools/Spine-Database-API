@@ -14,11 +14,12 @@
 from collections.abc import Callable, Iterable, Iterator, Sequence
 import enum
 from itertools import groupby
-import json
 from operator import itemgetter
 import os
+import pathlib
 import re
-from typing import Any, Literal, TypeAlias
+from typing import Literal, TypeAlias
+from urllib.parse import unquote, urlparse
 import warnings
 from alembic.config import Config
 from alembic.environment import EnvironmentContext
@@ -952,6 +953,10 @@ def string_to_bool(string: str) -> bool:
     if string in _FALSES:
         return False
     raise ValueError(string)
+
+
+def sqlite_url_string(path: str | pathlib.Path) -> str:
+    return "sqlite:///" + pathlib.Path(path).as_posix()
 
 
 DisplayStatusValue: TypeAlias = Literal["visible", "hidden", "greyed_out"]

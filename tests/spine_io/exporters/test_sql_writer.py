@@ -34,6 +34,7 @@ from spinedb_api.export_mapping.export_mapping import (
     ParameterDefinitionMapping,
     ParameterValueMapping,
 )
+from spinedb_api.helpers import sqlite_url_string
 from spinedb_api.mapping import Position, unflatten
 from spinedb_api.spine_io.exporters.sql_writer import SqlWriter
 from spinedb_api.spine_io.exporters.writer import write
@@ -66,7 +67,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                 writer = SqlWriter(str(out_path), overwrite_existing=True)
                 write(db_map, writer, root_mapping)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine(sqlite_url_string(out_path))
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
@@ -96,7 +97,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                 writer = SqlWriter(str(out_path), overwrite_existing=True)
                 write(db_map, writer, root_mapping)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine(sqlite_url_string(out_path))
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
@@ -135,7 +136,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                 writer = SqlWriter(str(out_path), overwrite_existing=True)
                 write(db_map, writer, root_mapping)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine(sqlite_url_string(out_path))
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
@@ -173,7 +174,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                 writer = SqlWriter(str(out_path), overwrite_existing=True)
                 write(db_map, writer, root_mapping)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine(sqlite_url_string(out_path))
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
@@ -206,7 +207,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                 write(db_map, writer, root_mapping1)
                 write(db_map, writer, root_mapping2)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine(sqlite_url_string(out_path))
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)
@@ -230,7 +231,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                 self._assert_imports(import_objects(db_map, (("oc", "o1"),)))
                 db_map.commit_session("Add test data.")
                 out_path = Path(temp_dir, "out.sqlite")
-                out_engine = create_engine("sqlite:///" + str(out_path))
+                out_engine = create_engine(sqlite_url_string(out_path))
                 with out_engine.begin() as out_connection:
                     metadata = MetaData()
                     object_table = Table("oc", metadata, Column("objects", String))
@@ -242,7 +243,7 @@ class TestSqlWriter(AssertSuccessTestCase):
                 writer = SqlWriter(str(out_path), overwrite_existing=False)
                 write(db_map, writer, root_mapping)
                 self.assertTrue(out_path.exists())
-                engine = create_engine("sqlite:///" + str(out_path))
+                engine = create_engine(sqlite_url_string(out_path))
                 with engine.begin():
                     metadata = MetaData()
                     metadata.reflect(bind=engine)

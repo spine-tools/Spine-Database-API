@@ -18,6 +18,7 @@ import unittest
 from spinedb_api import Array, DateTime, Duration, Map, TimePattern, TimeSeriesVariableResolution, to_database
 from spinedb_api.db_mapping import DatabaseMapping
 from spinedb_api.filters.alternative_filter import alternative_filter_config
+from spinedb_api.helpers import sqlite_url_string
 from spinedb_api.spine_db_client import SpineDBClient
 from spinedb_api.spine_db_server import DBHandler, closing_spine_db_server, db_server_manager
 
@@ -31,7 +32,7 @@ class TestDBServer(unittest.TestCase):
 
     def test_use_id_from_server_response(self):
         with TemporaryDirectory() as temp_dir:
-            db_url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            db_url = sqlite_url_string(os.path.join(temp_dir, "database.sqlite"))
             with DatabaseMapping(db_url, create=True) as db_map:
                 db_map.add_entity_class_item(name="fish")
                 db_map.commit_session("Fishing")
@@ -57,7 +58,7 @@ class TestDBServer(unittest.TestCase):
             client.db_checkout()
 
         with TemporaryDirectory() as temp_dir:
-            db_url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            db_url = sqlite_url_string(os.path.join(temp_dir, "database.sqlite"))
             with db_server_manager() as mngr_queue:
                 first_ordering = {
                     "id": "second_before_first",
@@ -110,7 +111,7 @@ class TestDBServer(unittest.TestCase):
 
     def test_query_with_data(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             class_id = None
             with DatabaseMapping(url, create=True) as db_map:
                 entity_class = db_map.add_entity_class(name="Object")

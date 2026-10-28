@@ -23,6 +23,7 @@ from spinedb_api import (
     TimeSeriesFixedResolution,
     TimeSeriesVariableResolution,
 )
+from spinedb_api.helpers import sqlite_url_string
 
 
 class TestMigrationFrom070a0eb89e88:
@@ -31,7 +32,7 @@ class TestMigrationFrom070a0eb89e88:
         source_path = pathlib.Path(__file__).parent / "legacy_databases" / "070a0eb89e88.sqlite"
         destination_path = tmp_path / "db.sqlite"
         shutil.copyfile(source_path, destination_path)
-        url = "sqlite:///" + str(destination_path)
+        url = sqlite_url_string(destination_path)
         with DatabaseMapping(url, upgrade=True) as db_map:
             self._assert_alternatives(db_map)
             self._assert_parameter_value_lists(db_map)
@@ -272,7 +273,7 @@ class TestMigrationFrom39e860a11b05:
         source_path = pathlib.Path(__file__).parent / "legacy_databases" / "39e860a11b05.sqlite"
         destination_path = tmp_path / "db.sqlite"
         shutil.copyfile(source_path, destination_path)
-        url = "sqlite:///" + str(destination_path)
+        url = sqlite_url_string(destination_path)
         with DatabaseMapping(url, upgrade=True) as db_map:
             self._assert_alternatives(db_map)
             self._assert_scenarios(db_map)
@@ -424,7 +425,7 @@ class TestMigrationFrom989fccf80441:
         source_path = pathlib.Path(__file__).parent / "legacy_databases" / "989fccf80441.sqlite"
         destination_path = tmp_path / "db.sqlite"
         shutil.copyfile(source_path, destination_path)
-        url = "sqlite:///" + str(destination_path)
+        url = sqlite_url_string(destination_path)
         with DatabaseMapping(url, upgrade=True) as db_map:
             self._assert_alternatives(db_map)
             self._assert_parameter_value_lists(db_map)

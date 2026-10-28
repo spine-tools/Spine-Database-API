@@ -10,10 +10,11 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 from spinedb_api import DatabaseMapping
+from spinedb_api.helpers import sqlite_url_string
 
 
 def test_fetch_parameter_definition_with_value_list(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "test.db")
+    url = sqlite_url_string(tmp_path / "test.db")
     with DatabaseMapping(url, create=True) as db_map:
         db_map.add_parameter_value_list(name="Enumeration")
         db_map.add_entity_class(name="Widget")

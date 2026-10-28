@@ -12,6 +12,7 @@
 import pytest
 from spinedb_api import DatabaseMapping, SpineDBAPIError
 from spinedb_api.export_functions import export_data, export_parameter_groups
+from spinedb_api.helpers import sqlite_url_string
 from spinedb_api.import_functions import import_data, import_parameter_groups
 from spinedb_api.mapped_item_status import Status
 from tests.mock_helpers import assert_imports
@@ -135,7 +136,7 @@ def test_export_parameter_group():
 
 
 def test_fetch_parameter_definitions_with_groups(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "test.db")
+    url = sqlite_url_string(tmp_path / "test.db")
     with DatabaseMapping(url, create=True) as db_map:
         db_map.add_parameter_group(name="My group", color="010203", priority=5)
         db_map.add_entity_class(name="Widget")

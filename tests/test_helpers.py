@@ -13,6 +13,7 @@
 
 import gc
 import pathlib
+import sys
 from tempfile import TemporaryDirectory
 import unittest
 from sqlalchemy import text
@@ -28,6 +29,7 @@ from spinedb_api.helpers import (
     name_from_dimensions,
     name_from_elements,
     remove_credentials_from_url,
+    sqlite_url_string,
     string_to_bool,
     vacuum,
 )
@@ -108,10 +110,22 @@ class TestStringToBool(unittest.TestCase):
         self.assertRaises(ValueError, string_to_bool, "no truth in this")
 
 
+class TestSqliteUrlString:
+    def test_correctness(self):
+        if sys.platform == "win32":
+            assert sqlite_url_string("c:\\users\\nemo\\cats.sqlite") == "sqlite:///c:/users/nemo/cats.sqlite"
+            assert (
+                sqlite_url_string(pathlib.Path("c:\\users\\nemo\\cats.sqlite")) == "sqlite:///c:/users/nemo/cats.sqlite"
+            )
+        else:
+            assert sqlite_url_string("/users/nemo/cats.sqlite") == "sqlite:////users/nemo/cats.sqlite"
+            assert sqlite_url_string(pathlib.Path("/users/nemo/cats.sqlite")) == "sqlite:////users/nemo/cats.sqlite"
+
+
 class TestVacuum(unittest.TestCase):
     def test_vacuum(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(pathlib.Path(temp_dir) / "db.sqlite")
+            url = sqlite_url_string(pathlib.Path(temp_dir) / "db.sqlite")
             engine = create_new_spine_database(url)
             freed, units = vacuum(url)
             self.assertEqual(freed, 0)
@@ -123,12 +137,12 @@ class TestVacuum(unittest.TestCase):
 class TestCopyDatabase(AssertSuccessTestCase):
     def test_copies_correctly(self):
         with TemporaryDirectory() as temp_dir:
-            source_url = "sqlite:///" + str(pathlib.Path(temp_dir) / "source.sqlite")
+            source_url = sqlite_url_string(pathlib.Path(temp_dir) / "source.sqlite")
             with DatabaseMapping(source_url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="ForgottenAtAGasStation"))
                 db_map.commit_session("Add some data.")
             db_map.close()
-            target_url = "sqlite:///" + str(pathlib.Path(temp_dir) / "destination.sqlite")
+            target_url = sqlite_url_string(pathlib.Path(temp_dir) / "destination.sqlite")
             engine = create_new_spine_database(target_url)
             engine.dispose()
             copy_database(target_url, source_url)
