@@ -36,7 +36,13 @@ from spinedb_api.db_mapping_base import PublicItem, Status
 from spinedb_api.exception import NothingToCommit
 from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.scenario_filter import scenario_filter_config
-from spinedb_api.helpers import Asterisk, DisplayStatus, create_new_spine_database, name_from_elements
+from spinedb_api.helpers import (
+    Asterisk,
+    DisplayStatus,
+    create_new_spine_database,
+    name_from_elements,
+    sqlite_url_string,
+)
 from spinedb_api.parameter_value import Duration, type_for_scalar
 from tests.mock_helpers import AssertSuccessTestCase
 
@@ -104,7 +110,7 @@ class TestDatabaseMappingConstruction(AssertSuccessTestCase):
 class TestDatabaseMapping(AssertSuccessTestCase):
     def test_get_item_without_fetching(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_metadata_item(name="Title", value="The four horsemen")
                 db_map.commit_session("Add test data.")
@@ -138,7 +144,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_read_active_by_default_from_database(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "database.sqlite"))
             with DatabaseMapping(url, create=True) as out_db_map:
                 self._assert_success(out_db_map.add_entity_class_item(name="HiddenStuff", active_by_default=False))
                 self._assert_success(out_db_map.add_entity_class_item(name="VisibleStuff", active_by_default=True))
@@ -163,7 +169,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_commit_parameter_value(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "database.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_item("entity_class", name="fish", description="It swims."))
                 self._assert_success(
@@ -201,7 +207,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_commit_multidimensional_parameter_value(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "database.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_item("entity_class", name="fish", description="It swims."))
                 self._assert_success(db_map.add_item("entity_class", name="cat", description="Eats fish."))
@@ -490,7 +496,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_has_external_commits_returns_true_when_another_db_mapping_has_made_commits(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 with DatabaseMapping(url) as other_db_map:
                     self._assert_success(other_db_map.add_item("entity_class", name="cc"))
@@ -502,7 +508,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_has_external_commits_returns_false_after_commit_session(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 with DatabaseMapping(url) as other_db_map:
                     other_db_map.add_item("entity_class", name="cc")
@@ -522,7 +528,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_fetch_entities_that_refer_to_unfetched_entities(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="dog"))
                 self._assert_success(db_map.add_entity_class_item(name="cat"))
@@ -551,7 +557,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_committing_scenario_alternatives(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 item = self._assert_success(db_map.add_alternative_item(name="alt1"))
                 self.assertIsNotNone(item)
@@ -744,7 +750,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_reset_purging(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class_item(name="Widget")
                 db_map.purge_items("entity_class")
@@ -839,7 +845,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_get_parameter_value_with_list_value_from_disk(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_parameter_value_list_item(name="Enumeration"))
                 value, value_type = to_database(2.3)
@@ -881,7 +887,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_nonexistent_parameter_value_with_list_value_does_not_traceback(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_alternative_item(name="extra alternative"))
                 self._assert_success(db_map.add_parameter_value_list_item(name="Enumeration"))
@@ -969,7 +975,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_get_parameter_definition_item_has_value_list_name(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_parameter_value_list_item(name="Values"))
                 self._assert_success(db_map.add_entity_class_item(name="Object"))
@@ -991,7 +997,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_get_parameter_definition_item_without_value_list_(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Object"))
                 definition_item = self._assert_success(
@@ -1027,7 +1033,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_adding_scenario_with_same_name_as_previously_removed_one(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 scenario = self._assert_success(db_map.add_scenario_item(name="high lows"))
                 db_map.commit_session("Add 'high lows' scenario")
@@ -1198,7 +1204,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_entity_item_active_in_scenario(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 # Add data
                 import_functions.import_scenarios(db_map, ("scen1",))
@@ -1310,7 +1316,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_remove_value_list_after_fetch_more_then_recreate_it(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_parameter_value_list_item(name="yes_no"))
                 value, value_type = to_database("yes")
@@ -1338,7 +1344,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_add_referrer_called_only_once_for_fetched_items(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_parameter_value_list_item(name="list of values"))
                 value, value_type = to_database("yes")
@@ -1597,7 +1603,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_read_parameter_types_from_database(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db_sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Widget"))
                 self._assert_success(
@@ -1673,7 +1679,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_adding_fractional_duration_converts_time_units_correctly(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             duration = Duration(value=relativedelta(hours=1.5))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Object"))
@@ -1705,7 +1711,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_add_indirectly_purged_values_back(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             duration = Duration(value=relativedelta(hours=1.5))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Object"))
@@ -1761,7 +1767,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_add_purged_values_back(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             duration = Duration(value=relativedelta(hours=1.5))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Object"))
@@ -1819,7 +1825,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_add_purged_alternative_back_then_commit_and_add_other_items_back(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             duration = Duration(value=relativedelta(hours=1.5))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Object"))
@@ -1915,7 +1921,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_list_values_get_removed_in_cascade_even_when_they_havent_been_fetched(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_parameter_value_list_item(name="Enum"))
                 value, value_type = to_database("yes!")
@@ -1988,7 +1994,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_restore_item_whose_db_id_has_been_invalidated_by_id(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_alternative_item(name="alt"))
                 db_map.commit_session("Add alternative")
@@ -2011,7 +2017,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_do_fetch_more_in_chunks(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Widget"))
                 self._assert_success(db_map.add_entity_item(name="widget1", entity_class_name="Widget"))
@@ -2076,7 +2082,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_becoming_referrer_when_reference_has_been_filtered_out(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Object"))
                 self._assert_success(db_map.add_entity_item(name="widget", entity_class_name="Object"))
@@ -2107,7 +2113,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_removing_item_by_database_id(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_parameter_value_list_item(name="my_enum"))
                 db_map.commit_session("Add value list.")
@@ -2275,7 +2281,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_get_parameter_definition_items_resolves_list_values(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_parameter_value_list_item(name="Color"))
                 self._assert_success(
@@ -2498,7 +2504,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_reset_resets_purging(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_parameter_value_list(name="enum")
                 db_map.commit_session("Add test data")
@@ -2514,7 +2520,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_data_is_fetched_again_after_reset(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             engine = create_new_spine_database(url)
             engine.dispose()
             with DatabaseMapping(url) as db_map:
@@ -2528,7 +2534,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_purge_parameter_definition_with_default_value_from_value_list(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_parameter_value_list(name="possibilities")
                 db_map.add_list_value(parameter_value_list_name="possibilities", parsed_value="infinite", index=0)
@@ -2601,7 +2607,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_location_data_available_from_database(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Object")
                 db_map.add_entity(entity_class_name="Object", name="no_location")
@@ -2770,7 +2776,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_updating_location_of_entity_from_database(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Unit")
                 db_map.add_entity(entity_class_name="Unit", name="mana_source")
@@ -2786,7 +2792,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_update_fetched_entitys_location_by_single_field(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Unit")
                 db_map.add_entity(
@@ -2842,7 +2848,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_update_entitys_location_with_half_new_data(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Unit")
                 db_map.add_entity(
@@ -2943,7 +2949,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertIsNone(entity["lat"])
             self.assertIsNone(entity["lon"])
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Object")
                 db_map.add_entity(entity_class_name="Object", name="mouse", lat=2.3, lon=3.2)
@@ -2959,7 +2965,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_fetching_after_refresh_session_should_not_fail(self):
         with TemporaryDirectory() as temp_dir:
-            target_url = "sqlite:///" + os.path.join(temp_dir, "target.sqlite")
+            target_url = sqlite_url_string(os.path.join(temp_dir, "target.sqlite"))
             with DatabaseMapping(target_url, create=True) as db_map:
                 db_map.add_entity_class(name="unit")
                 db_map.add_entity(entity_class_name="unit", name="power_plant_a")
@@ -3003,7 +3009,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_refresh_session_should_not_destroy_added_value(self):
         with TemporaryDirectory() as temp_dir:
-            target_url = "sqlite:///" + os.path.join(temp_dir, "target.sqlite")
+            target_url = sqlite_url_string(os.path.join(temp_dir, "target.sqlite"))
             with DatabaseMapping(target_url, create=True) as db_map:
                 db_map.add_entity_class(name="unit")
                 db_map.add_entity(entity_class_name="unit", name="power_plant_a")
@@ -3049,7 +3055,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_existing_entity_items_location_data_in_asdict(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Object")
                 db_map.add_entity(entity_class_name="Object", name="nothing")
@@ -3157,7 +3163,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_find_fetched_entity_classes(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="asset")
                 db_map.add_entity_class(name="group")
@@ -3173,7 +3179,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_fetch_all_returns_public_items(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Object")
                 db_map.add_scenario(name="my scenario")
@@ -3219,7 +3225,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_deleting_multidimensional_entities_deletes_their_parameter_values_too(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Object")
                 db_map.add_entity(entity_class_name="Object", name="gadget")
@@ -3250,7 +3256,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_deleting_element_from_multidimensional_entity_deletes_all_parameter_values_too(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Object")
                 db_map.add_entity(entity_class_name="Object", name="gadget")
@@ -3294,7 +3300,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertEqual(metadata_record["value"], "Catalogue of things that should be")
 
     def test_before_alternative(self):
-        with DatabaseMapping("sqlite:///", create=True) as db_map:
+        with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_scenario(name="scenario 1")
             base_scenario_alternative = db_map.add_scenario_alternative(
                 scenario_name="scenario 1", alternative_name="Base", rank=99
@@ -3313,7 +3319,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertIsNone(alt2_scenario_alternative["before_alternative_name"])
             self.assertEqual(alt1_scenario_alternative["before_alternative_name"], "Base")
             self.assertEqual(base_scenario_alternative["before_alternative_name"], "alt 2")
-        with DatabaseMapping("sqlite:///", create=True) as db_map:
+        with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_scenario(name="scenario 1")
             db_map.add_scenario(name="uninteresting scenario")
             db_map.add_alternative(name="alt 1")
@@ -3329,7 +3335,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             )
             self.assertEqual(alt1_scenario_alternative["before_alternative_name"], "Base")
             self.assertIsNone(base_scenario_alternative["before_alternative_name"])
-        with DatabaseMapping("sqlite:///", create=True) as db_map:
+        with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_scenario(name="scenario 1")
             db_map.add_alternative(name="alt 1")
             alternative2 = db_map.add_alternative(name="alt 2")
@@ -3347,7 +3353,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertIsNone(base_scenario_alternative["before_alternative_name"])
 
     def test_before_alternative_id(self):
-        with DatabaseMapping("sqlite:///", create=True) as db_map:
+        with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_scenario(name="scenario 1")
             base_scenario_alternative = db_map.add_scenario_alternative(
                 scenario_name="scenario 1", alternative_name="Base", rank=1
@@ -3372,7 +3378,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_entity_class_with_id_that_replaces_a_removed_id_is_found_by_fetch_all(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Object1")
                 db_map.add_entity_class(name="Object2")
@@ -3404,7 +3410,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_purge_cold_db_mapping(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="LiveFastDieYoung")
                 db_map.commit_session("Add test data.")
@@ -3418,7 +3424,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_cascade_remove(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "test_db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "test_db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Klass")
                 db_map.add_entity(name="instance", entity_class_name="Klass")
@@ -3446,7 +3452,7 @@ class TestDatabaseMapping(AssertSuccessTestCase):
 
     def test_cascade_remove_with_execution_filter(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "test_db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "test_db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="Klass")
                 db_map.add_entity(name="instance", entity_class_name="Klass")
@@ -6061,7 +6067,7 @@ def _commit_on_thread(db_map, msg, lock):
 class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
     def test_concurrent_commit_threading(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "database.sqlite"))
             db_map1 = DatabaseMapping(url, create=True)
             db_map2 = DatabaseMapping(url)
             with db_map1:
@@ -6087,7 +6093,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_uncommitted_mapped_items_are_updated_by_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "database.sqlite"))
             with DatabaseMapping(url, create=True) as db_map1:
                 db_map1.add_entity_class(name="widget")
                 db_map1.add_entity(entity_class_name="widget", name="gadget")
@@ -6103,7 +6109,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_uncommitted_mapped_items_take_id_from_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "database.sqlite"))
             with DatabaseMapping(url, create=True) as db_map1:
                 self._assert_success(db_map1.add_entity_class_item(name="widget"))
                 self._assert_success(db_map1.add_entity_class_item(name="gadget"))
@@ -6129,7 +6135,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_committed_mapped_items_take_id_from_externally_committed_items(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "database.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "database.sqlite"))
             with DatabaseMapping(url, create=True) as db_map0:
                 # Add widget before gadget
                 self._assert_success(db_map0.add_entity_class_item(name="widget"))
@@ -6154,7 +6160,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_fetching_entities_after_external_change_has_renamed_their_classes(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Widget"))
                 self._assert_success(db_map.add_entity_class_item(name="Gadget"))
@@ -6182,7 +6188,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_additive_commit_from_another_db_map_gets_fetched(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 items = db_map.get_items("entity")
                 self.assertEqual(len(items), 0)
@@ -6216,7 +6222,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_restoring_entity_whose_db_id_has_been_replaced_by_external_db_modification(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 item = self._assert_success(db_map.add_entity_item(entity_class_name="my_class", name="my_entity"))
@@ -6247,7 +6253,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_cunning_ways_to_make_external_changes(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="interesting_class"))
                 self._assert_success(db_map.add_entity_class_item(name="filler_class"))
@@ -6332,7 +6338,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_update_entity_metadata_externally(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
@@ -6375,7 +6381,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_update_parameter_value_metadata_externally(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 self._assert_success(db_map.add_parameter_definition_item(name="x", entity_class_name="my_class"))
@@ -6454,7 +6460,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_update_entity_alternative_externally(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 self._assert_success(db_map.add_entity_item(name="my_entity", entity_class_name="my_class"))
@@ -6491,7 +6497,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_update_superclass_subclass_externally(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="ceiling"))
                 self._assert_success(db_map.add_entity_class_item(name="floor"))
@@ -6516,7 +6522,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_adding_same_parameters_values_to_different_entities_externally(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 self._assert_success(db_map.add_parameter_definition_item(name="x", entity_class_name="my_class"))
@@ -6567,7 +6573,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_committing_changed_purged_entity_has_been_overwritten_by_external_change(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 self._assert_success(db_map.add_entity_item(name="ghost", entity_class_name="my_class"))
@@ -6590,7 +6596,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_db_items_prevail_if_mapped_items_are_committed(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 db_map.commit_session("Add some data")
@@ -6610,7 +6616,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_db_items_prevail_with_get_items_if_mapped_items_are_committed(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 db_map.commit_session("Add some data")
@@ -6630,7 +6636,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_db_items_prevail_with_item_if_mapped_items_are_committed(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="my_class")
                 db_map.commit_session("Add some data")
@@ -6649,7 +6655,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_db_items_prevail_with_find_if_mapped_items_are_committed(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_entity_class(name="my_class")
                 db_map.commit_session("Add some data")
@@ -6669,7 +6675,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_remove_items_then_refresh_then_readd(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="my_class"))
                 self._assert_success(db_map.add_entity_class_item(name="new_class"))
@@ -6691,7 +6697,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_remove_items_then_refresh_then_readd2(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="xxx"))
                 self._assert_success(db_map.add_entity_class_item(name="yyy"))
@@ -6715,7 +6721,7 @@ class TestDatabaseMappingConcurrent(AssertSuccessTestCase):
 
     def test_refresh_after_update(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            url = sqlite_url_string(os.path.join(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Object"))
                 value, value_type = to_database(2.3)

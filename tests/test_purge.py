@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from unittest import mock
 from spinedb_api import DatabaseMapping
-from spinedb_api.helpers import Asterisk, create_new_spine_database
+from spinedb_api.helpers import Asterisk, create_new_spine_database, sqlite_url_string
 from spinedb_api.purge import purge_url
 
 
@@ -23,7 +23,7 @@ class TestPurgeUrl(unittest.TestCase):
     def setUp(self):
         self._temp_dir = tempfile.TemporaryDirectory()
         path = pathlib.Path(self._temp_dir.name, "database.sqlite")
-        self._url = "sqlite:///" + str(path)
+        self._url = sqlite_url_string(path)
 
     def tearDown(self):
         gc.collect()

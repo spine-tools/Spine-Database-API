@@ -25,6 +25,7 @@ import logging
 import os
 from types import MethodType
 from typing import Any, ClassVar, Optional, Type
+from urllib.parse import unquote
 from alembic.config import Config
 from alembic.environment import EnvironmentContext
 from alembic.migration import MigrationContext
@@ -176,16 +177,17 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
         # FIXME: We should also check the server memory property and use it here
         self.server_url: str = db_url if isinstance(db_url, str) else db_url.render_as_string(hide_password=False)
         db_url = get_db_url_from_server(db_url)
-        self.db_url = str(db_url)
         if isinstance(db_url, str):
+            self.db_url = db_url
             filter_configs, db_url = pop_filter_configs(db_url)
         elif isinstance(db_url, URL):
+            self.db_url = db_url.render_as_string(hide_password=False)
             filter_configs = db_url.query.get("spinedbfilter", [])
             db_url = db_url.difference_update_query("spinedbfilter")
         else:
             filter_configs = []
         try:
-            self.sa_url = make_url(db_url)
+            self.sa_url = make_url(unquote(db_url)) if isinstance(db_url, str) else db_url
         except ArgumentError as error:
             raise SpineDBAPIError("Could not parse the given URL. Please check that it is valid.") from error
         self.username = username if username else "anon"

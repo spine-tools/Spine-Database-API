@@ -30,6 +30,7 @@ from spinedb_api.filters.scenario_filter import (
     scenario_filter_shorthand_to_config,
     scenario_name_from_dict,
 )
+from spinedb_api.helpers import sqlite_url_string
 from tests.mock_helpers import AssertSuccessTestCase
 
 
@@ -345,7 +346,7 @@ class DataBuilderTestCase(AssertSuccessTestCase):
 class TestScenarioFilter(DataBuilderTestCase):
     def test_scenario_filter(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_scenario(db_map)
             db_map.engine.dispose()
@@ -390,7 +391,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_scenario_filter_works_for_entity_sq(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_alternative_item(name="alternative1"))
                 self._assert_success(db_map.add_alternative_item(name="alternative2"))
@@ -473,7 +474,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_scenario_filter_works_for_object_parameter_value_sq(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_scenario(db_map)
             db_map.engine.dispose()
@@ -503,7 +504,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_scenario_filter_works_for_relationship_parameter_value_sq(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._build_data_with_single_scenario(db_map, commit=False)
                 self._assert_success(
@@ -567,7 +568,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_scenario_filter_selects_highest_ranked_alternative(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_alternative_item(name="alternative3"))
                 self._assert_success(db_map.add_alternative_item(name="alternative1"))
@@ -672,7 +673,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_scenario_filter_selects_highest_ranked_alternative_of_active_scenario(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_alternative_item(name="alternative3"))
                 self._assert_success(db_map.add_alternative_item(name="alternative1"))
@@ -799,7 +800,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_scenario_filter_for_multiple_objects_and_parameters(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_alternative_item(name="alternative"))
                 self._assert_success(db_map.add_entity_class_item(name="object_class"))
@@ -949,7 +950,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_filters_scenarios_and_alternatives(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_scenario_item(name="scenario1"))
                 self._assert_success(db_map.add_scenario_item(name="scenario2"))
@@ -1007,7 +1008,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_filters_entity_alternatives(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Object"))
                 self._assert_success(db_map.add_entity_item(name="invisible widget", entity_class_name="Object"))
@@ -1042,7 +1043,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_parameter_values_for_entities_that_have_been_filtered_out(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Object"))
                 self._assert_success(db_map.add_parameter_definition_item(name="y", entity_class_name="Object"))
@@ -1080,7 +1081,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_parameter_values_for_entities_that_have_been_filtered_out_by_default(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Invisible", active_by_default=False))
                 self._assert_success(db_map.add_entity_class_item(name="Visible", active_by_default=True))
@@ -1128,7 +1129,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_parameter_values_for_entities_that_swim_against_active_by_default(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_entity_class_item(name="Invisible", active_by_default=False))
                 self._assert_success(db_map.add_entity_class_item(name="Visible", active_by_default=True))
@@ -1248,7 +1249,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_entity_alternative_not_in_scenario_is_dropped_when_another_active_one_is_in_scenario(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_scenario_item(name="Scenario"))
                 self._assert_success(db_map.add_alternative_item(name="alt"))
@@ -1282,7 +1283,7 @@ class TestScenarioFilter(DataBuilderTestCase):
 
     def test_entity_with_irrelevant_entity_alternative_is_passed(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 self._assert_success(db_map.add_scenario_item(name="Scenario"))
                 self._assert_success(db_map.add_entity_class_item(name="Object", active_by_default=True))

@@ -43,7 +43,7 @@ from spinedb_api.export_functions import (
     export_parameter_value_metadata,
     export_parameter_values,
 )
-from spinedb_api.helpers import DisplayStatus
+from spinedb_api.helpers import DisplayStatus, sqlite_url_string
 from tests.mock_helpers import AssertSuccessTestCase
 
 
@@ -176,7 +176,7 @@ class TestExportFunctions(AssertSuccessTestCase):
 
     def test_export_scenario_alternatives_from_existing_database(self):
         with TemporaryDirectory() as temp_dir:
-            url = "sqlite:///" + str(pathlib.Path(temp_dir, "db.sqlite"))
+            url = sqlite_url_string(pathlib.Path(temp_dir, "db.sqlite"))
             with DatabaseMapping(url, create=True) as db_map:
                 db_map.add_scenario(name="My Scenario")
                 db_map.add_scenario_alternative(scenario_name="My Scenario", alternative_name="Base", rank=0)
@@ -339,7 +339,7 @@ class TestExportFunctions(AssertSuccessTestCase):
             )
 
     def test_export_parameter_values_sorts_zero_and_multidimensional_entities(self):
-        with DatabaseMapping("sqlite:///", create=True) as db_map:
+        with DatabaseMapping("sqlite://", create=True) as db_map:
             db_map.add_entity_class(name="First")
             db_map.add_parameter_definition(entity_class_name="First", name="mass")
             db_map.add_entity(entity_class_name="First", name="dim1")

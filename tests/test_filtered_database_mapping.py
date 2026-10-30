@@ -14,11 +14,12 @@ from sqlalchemy import create_engine, desc, text
 from spinedb_api import DatabaseMapping, SpineDBAPIError, append_filter_config
 from spinedb_api.filters.alternative_filter import alternative_filter_config
 from spinedb_api.filters.renamer import entity_class_renamer_config
+from spinedb_api.helpers import sqlite_url_string
 from spinedb_api.mapped_item_status import Status
 
 
 def test_add_new_entity(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
+    url = sqlite_url_string(tmp_path / "db.sqlite")
     with DatabaseMapping(url, create=True) as db_map:
         db_map.add_alternative(name="other")
         db_map.add_entity_class(name="cat")
@@ -37,7 +38,7 @@ def test_add_new_entity(tmp_path):
 
 
 def test_add_stuff_thats_been_filtered_out(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
+    url = sqlite_url_string(tmp_path / "db.sqlite")
     with DatabaseMapping(url, create=True) as db_map:
         db_map.add_entity_class(name="cat")
         tom = db_map.add_entity(name="Tom", entity_class_name="cat")
@@ -58,7 +59,7 @@ def test_add_stuff_thats_been_filtered_out(tmp_path):
 
 
 def test_add_stuff_that_has_been_renamed_and_doesnt_show_in_commit_log(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
+    url = sqlite_url_string(tmp_path / "db.sqlite")
     with DatabaseMapping(url, create=True) as db_map:
         cat = db_map.add_entity_class(name="cat")
         db_map.commit_session("Add cat class.")
@@ -72,7 +73,7 @@ def test_add_stuff_that_has_been_renamed_and_doesnt_show_in_commit_log(tmp_path)
 
 
 def test_add_relationship_to_filtered_database(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
+    url = sqlite_url_string(tmp_path / "db.sqlite")
     with DatabaseMapping(url, create=True) as db_map:
         db_map.add_alternative(name="other")
         db_map.add_entity_class(name="cat")
@@ -91,7 +92,7 @@ def test_add_relationship_to_filtered_database(tmp_path):
 
 
 def test_update_non_filtered_entity(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
+    url = sqlite_url_string(tmp_path / "db.sqlite")
     with DatabaseMapping(url, create=True) as db_map:
         db_map.add_entity_class(name="cat")
         tom = db_map.add_entity(name="Tom", entity_class_name="cat")
@@ -116,7 +117,7 @@ def test_update_non_filtered_entity(tmp_path):
 
 
 def test_update_non_filtered_entitys_location(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
+    url = sqlite_url_string(tmp_path / "db.sqlite")
     with DatabaseMapping(url, create=True) as db_map:
         db_map.add_entity_class(name="cat")
         tom = db_map.add_entity(name="Tom", entity_class_name="cat")
@@ -142,7 +143,7 @@ def test_update_non_filtered_entitys_location(tmp_path):
 
 
 def test_rename_entity_to_something_that_has_been_filtered_out(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
+    url = sqlite_url_string(tmp_path / "db.sqlite")
     with DatabaseMapping(url, create=True) as db_map:
         db_map.add_entity_class(name="cat")
         db_map.add_entity(name="Tom", entity_class_name="cat")
@@ -164,7 +165,7 @@ def test_rename_entity_to_something_that_has_been_filtered_out(tmp_path):
 
 
 def test_removing_entity_removes_its_relationships_in_cascade(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
+    url = sqlite_url_string(tmp_path / "db.sqlite")
     with DatabaseMapping(url, create=True) as db_map:
         db_map.add_alternative(name="other")
         db_map.add_entity_class(name="cat")
