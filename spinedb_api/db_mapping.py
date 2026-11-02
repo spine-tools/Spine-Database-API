@@ -47,6 +47,7 @@ from .filters.tools import (
     clear_filter_configs,
     is_modifying_filter,
     load_filters,
+    name_from_dict,
     pop_filter_configs,
 )
 from .helpers import (
@@ -1322,6 +1323,14 @@ class DatabaseMapping(DatabaseMappingQueryMixin, DatabaseMappingCommitMixin, Dat
     def get_filter_configs(self) -> list[dict]:
         """Returns the config dicts of filters applied to this database mapping."""
         return self.filter_configs
+
+    def scenario_filter(self) -> str | None:
+        """Returns scenario filter name or None if no filter has been applied."""
+        for config_dict in self.filter_configs:
+            name = name_from_dict(config_dict)
+            if name is not None:
+                return name
+        return None
 
     def close(self) -> None:
         self._original_engine.dispose()

@@ -14,6 +14,7 @@ from sqlalchemy import create_engine, desc, text
 from spinedb_api import DatabaseMapping, SpineDBAPIError, append_filter_config
 from spinedb_api.filters.alternative_filter import alternative_filter_config
 from spinedb_api.filters.renamer import entity_class_renamer_config
+from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.helpers import sqlite_url_string
 from spinedb_api.mapped_item_status import Status
 
@@ -191,3 +192,46 @@ def test_removing_entity_removes_its_relationships_in_cascade(tmp_path):
         assert entity_names == {"Nemo"}
         entity_elements = connection.execute(text("select entity_id from entity_element")).all()
         assert entity_elements == []
+
+
+class TestScenarioFilter:
+    def test_returns_scenario_name(self, tmp_path):
+        url = sqlite_url_string(tmp_path / "db.sqlite")
+        with DatabaseMapping(url, create=True) as db_map:
+            db_map.add_scenario(name="MyScenario")
+            db_map.commit_session("Add test data.")
+        url = append_filter_config(url, scenario_filter_config("MyScenario"))
+        db_map = DatabaseMapping(url, create=True)
+        assert db_map.scenario_filter() == "MyScenario"
+
+    def test_non_filtered_db_map_returns_none(self):
+        db_map = DatabaseMapping("sqlite://", create=True)
+        assert db_map.scenario_filter() is None
+
+    def test_using_other_filters_returns_none(self, tmp_path):
+        url = sqlite_url_string(tmp_path / "db.sqlite")
+        with DatabaseMapping(url, create=True) as db_map:
+            db_map.add_alternative(name="alt1")
+            db_map.add_alternative(name="alt2")
+            db_map.add_entity_class(name="unit")
+            db_map.add_entity_class(name="connection")
+            db_map.commit_session("Add test data.")
+        for config_dict in [
+            alternative_filter_config(["alt1", "alt2"]),
+            entity_class_renamer_config(unit="node", connection="link"),
+        ]:
+            url = append_filter_config(url, config_dict)
+        db_map = DatabaseMapping(url)
+        assert db_map.scenario_filter() is None
+
+    def test_returns_scenario_name_when_other_filters_are_present(self, tmp_path):
+        url = sqlite_url_string(tmp_path / "db.sqlite")
+        with DatabaseMapping(url, create=True) as db_map:
+            db_map.add_scenario(name="MyScenario")
+            db_map.add_entity_class(name="unit")
+            db_map.add_entity_class(name="connection")
+            db_map.commit_session("Add test data.")
+        url = append_filter_config(url, entity_class_renamer_config(unit="node", connection="link"))
+        url = append_filter_config(url, scenario_filter_config("MyScenario"))
+        db_map = DatabaseMapping(url)
+        assert db_map.scenario_filter() == "MyScenario"
