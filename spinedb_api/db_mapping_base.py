@@ -109,6 +109,15 @@ class DatabaseMappingBase:
     def make_item(self, item_type: ItemType, **item) -> MappedItemBase:
         raise NotImplementedError
 
+    def is_committed(self) -> bool:
+        """Returns True if all changes have been committed."""
+        for item_type in self.all_item_types():
+            for item in self._mapped_tables[item_type].values():
+                item.validate()
+                if item.status in (Status.to_add, Status.to_update, Status.to_remove):
+                    return False
+        return True
+
     def dirty_ids(self, item_type: ItemType):
         return {
             item["id"]

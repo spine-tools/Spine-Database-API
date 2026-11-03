@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `DatabaseMapping.scenario_filter()` convenience method which returns scenario name
   if scenario filter has been applied to the database mapping.
   Otherwise, it returns `None`.
+- Added `DatabaseMapping.is_committed()` method which returns `True`
+  if all changes have been committed to the database.
 
 ### Changed
 
