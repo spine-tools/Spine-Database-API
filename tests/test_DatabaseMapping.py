@@ -3546,6 +3546,33 @@ class TestDatabaseMapping(AssertSuccessTestCase):
             self.assertTrue(alternative.is_valid())
 
 
+class TestIsCommitted:
+    def test_with_empty_database(self, db_map):
+        assert db_map.is_committed()
+
+    def test_with_existing_data(self, tmp_path):
+        url = sqlite_url_string(tmp_path / "db.sqlite")
+        with DatabaseMapping(url, create=True) as db_map:
+            db_map.add_scenario(name="HighRiskLowStakes")
+            db_map.commit_session("Add test data.")
+        with DatabaseMapping(url) as db_map:
+            assert db_map.is_committed()
+
+    def test_adding_data_and_committing(self, db_map):
+        db_map.add_scenario(name="HighRiskLowStakes")
+        assert not db_map.is_committed()
+        db_map.commit_session("Add data.")
+        assert db_map.is_committed()
+        db_map.update_scenario(name="HighRiskLowStakes", description="Low gains too.")
+        assert not db_map.is_committed()
+        db_map.commit_session("Update data.")
+        assert db_map.is_committed()
+        db_map.remove_scenario(name="HighRiskLowStakes")
+        assert not db_map.is_committed()
+        db_map.commit_session("Remove data.")
+        assert db_map.is_committed()
+
+
 class TestDatabaseMappingLegacy(unittest.TestCase):
     """'Backward compatibility' tests, i.e. pre-entity tests converted to work with the entity structure."""
 
