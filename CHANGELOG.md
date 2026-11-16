@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [unreleased]
+## [0.36.7]
 
 ### Added
 
@@ -15,17 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `DatabaseMapping.is_committed()` method which returns `True`
   if all changes have been committed to the database.
 
-### Changed
-
-### Deprecated
-
 ### Removed
 
-- Support for Python 3.10 has been removed. Python 3.10 has reached its end-of-life.
-
-### Fixed
-
-### Security
+- Support for Python 3.10 has been removed as it has reached its end-of-life.
 
 ## [0.36.6]
 
