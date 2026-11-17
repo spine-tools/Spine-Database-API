@@ -9,25 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `DatabaseMapping.scenario_filter()` convenience method which returns scenario name
-  if scenario filter has been applied to the database mapping.
-  Otherwise, it returns `None`.
-- Added `DatabaseMapping.is_committed()` method which returns `True`
-  if all changes have been committed to the database.
-
 ### Changed
 
 ### Deprecated
 
 ### Removed
 
-- Support for Python 3.10 has been removed. Python 3.10 has reached its end-of-life.
-
 ### Fixed
 
 ### Security
 
-## [0.36.6]
+## [0.36.8]
+
+### Added
+
+- Added `DatabaseMapping.scenario_filter()` convenience method which returns scenario name
+  if scenario filter has been applied to the database mapping.
+  Otherwise, it returns `None`.
+- Added `DatabaseMapping.is_committed()` method which returns `True`
+  if all changes have been committed to the database.
+
+### Removed
+
+- Support for Python 3.10 has been removed as it has reached its end-of-life.
+
+## [0.36.7]
 
 ### Fixed
 
