@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-## [0.36.7]
+## [0.36.8]
 
 ### Added
 
@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for Python 3.10 has been removed as it has reached its end-of-life.
 
-## [0.36.6]
+## [0.36.7]
 
 ### Fixed
 
